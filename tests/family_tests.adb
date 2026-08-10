@@ -28,6 +28,7 @@ procedure Family_Tests is
       A : constant I8x16 := From_Lanes ([I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First]);
       B : constant I8x16 := From_Lanes ([1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1]);
       Data, Reference : I8_Array (0 .. 21) := [others => 0];
+      Aligned_Data : I8_Array (0 .. 15) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "I8x16 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "I8x16 Subtract_Wrap");
@@ -54,15 +55,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "I8x16 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "I8x16 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "I8x16 select");
+      for Pattern in Natural range 0 .. 2 ** 16 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Interfaces.Unsigned_16 (Pattern), "I8x16 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B)), "I8x16 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "I8x16 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "I8x16 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "I8x16 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I8x16 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I8x16 aligned memory");
       for N in Lane_Count_8x16 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I8x16 partial" & N'Image);
+         declare
+            Exact : I8_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I8x16 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -80,6 +93,7 @@ procedure Family_Tests is
       A : constant U16x8 := From_Lanes ([0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last]);
       B : constant U16x8 := From_Lanes ([1, U16'Last, 2, 2 ** (15) - 1, 9, 1, U16'Last, 2]);
       Data, Reference : U16_Array (0 .. 13) := [others => 0];
+      Aligned_Data : U16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "U16x8 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "U16x8 Subtract_Wrap");
@@ -105,15 +119,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "U16x8 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "U16x8 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "U16x8 select");
+      for Pattern in Natural range 0 .. 2 ** 8 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U16x8 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U16x8 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "U16x8 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "U16x8 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "U16x8 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U16x8 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U16x8 aligned memory");
       for N in Lane_Count_16x8 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U16x8 partial" & N'Image);
+         declare
+            Exact : U16_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U16x8 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -131,6 +157,7 @@ procedure Family_Tests is
       A : constant I16x8 := From_Lanes ([I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0]);
       B : constant I16x8 := From_Lanes ([1, I16'Last, -1, I16'First, 0, 1, I16'Last, -1]);
       Data, Reference : I16_Array (0 .. 13) := [others => 0];
+      Aligned_Data : I16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "I16x8 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "I16x8 Subtract_Wrap");
@@ -157,15 +184,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "I16x8 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "I16x8 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "I16x8 select");
+      for Pattern in Natural range 0 .. 2 ** 8 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I16x8 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I16x8 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "I16x8 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "I16x8 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "I16x8 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I16x8 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I16x8 aligned memory");
       for N in Lane_Count_16x8 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I16x8 partial" & N'Image);
+         declare
+            Exact : I16_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I16x8 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -183,6 +222,7 @@ procedure Family_Tests is
       A : constant U32x4 := From_Lanes ([0, 1, U32'Last, 2 ** (31)]);
       B : constant U32x4 := From_Lanes ([1, U32'Last, 2, 2 ** (31) - 1]);
       Data, Reference : U32_Array (0 .. 9) := [others => 0];
+      Aligned_Data : U32_Array (0 .. 3) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "U32x4 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "U32x4 Subtract_Wrap");
@@ -208,15 +248,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "U32x4 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "U32x4 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "U32x4 select");
+      for Pattern in Natural range 0 .. 2 ** 4 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U32x4 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U32x4 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "U32x4 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "U32x4 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "U32x4 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U32x4 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U32x4 aligned memory");
       for N in Lane_Count_32x4 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U32x4 partial" & N'Image);
+         declare
+            Exact : U32_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U32x4 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -234,6 +286,7 @@ procedure Family_Tests is
       A : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
       B : constant I32x4 := From_Lanes ([1, I32'Last, -1, I32'First]);
       Data, Reference : I32_Array (0 .. 9) := [others => 0];
+      Aligned_Data : I32_Array (0 .. 3) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "I32x4 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "I32x4 Subtract_Wrap");
@@ -260,15 +313,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "I32x4 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "I32x4 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "I32x4 select");
+      for Pattern in Natural range 0 .. 2 ** 4 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I32x4 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I32x4 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "I32x4 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "I32x4 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "I32x4 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I32x4 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I32x4 aligned memory");
       for N in Lane_Count_32x4 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I32x4 partial" & N'Image);
+         declare
+            Exact : I32_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I32x4 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -286,6 +351,7 @@ procedure Family_Tests is
       A : constant U64x2 := From_Lanes ([0, 1]);
       B : constant U64x2 := From_Lanes ([1, U64'Last]);
       Data, Reference : U64_Array (0 .. 7) := [others => 0];
+      Aligned_Data : U64_Array (0 .. 1) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "U64x2 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "U64x2 Subtract_Wrap");
@@ -311,15 +377,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "U64x2 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "U64x2 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "U64x2 select");
+      for Pattern in Natural range 0 .. 2 ** 2 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U64x2 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U64x2 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "U64x2 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "U64x2 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "U64x2 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U64x2 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U64x2 aligned memory");
       for N in Lane_Count_64x2 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U64x2 partial" & N'Image);
+         declare
+            Exact : U64_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U64x2 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -337,6 +415,7 @@ procedure Family_Tests is
       A : constant I64x2 := From_Lanes ([I64'First, -1]);
       B : constant I64x2 := From_Lanes ([1, I64'Last]);
       Data, Reference : I64_Array (0 .. 7) := [others => 0];
+      Aligned_Data : I64_Array (0 .. 1) := [others => 0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "I64x2 Add_Wrap");
       Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "I64x2 Subtract_Wrap");
@@ -363,15 +442,27 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (A, B)), "I64x2 Greater_Than");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "I64x2 Greater_Equal");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "I64x2 select");
+      for Pattern in Natural range 0 .. 2 ** 2 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I64x2 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I64x2 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), "I64x2 reduce add");
       Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), "I64x2 reduce min");
       Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), "I64x2 reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I64x2 full memory");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I64x2 aligned memory");
       for N in Lane_Count_64x2 loop
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I64x2 partial" & N'Image);
+         declare
+            Exact : I64_Array (1 .. N) := [others => 0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I64x2 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
       end loop;
       for Iteration in 1 .. 250 loop
          declare
@@ -389,6 +480,7 @@ procedure Family_Tests is
       A : constant F32x4 := From_Lanes ([0.0, -0.0, 1.5, -2.25]);
       B : constant F32x4 := From_Lanes ([2.0, -3.0, 0.5, 4.0]);
       Data, Reference : F32_Array (0 .. 9) := [others => 0.0];
+      Aligned_Data : F32_Array (0 .. 3) := [others => 0.0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add (A, B), Add (A, B)), "F32x4 Add");
       Check (Same (Backends.Native.Subtract (A, B), Subtract (A, B)), "F32x4 Subtract");
@@ -406,10 +498,26 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "F32x4 Greater_Equal");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A, B)) = Flyology_SIMD.To_Bit_Mask (Unordered (A, B)), "F32x4 Unordered");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "F32x4 select");
+      for Pattern in Natural range 0 .. 2 ** 4 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "F32x4 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F32x4 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add (A) = Reduce_Add (A), "F32x4 reduce");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "F32x4 full memory");
-      for N in Lane_Count_32x4 loop Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B); Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F32x4 partial" & N'Image); end loop;
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "F32x4 aligned memory");
+      for N in Lane_Count_32x4 loop
+         Data := [others => 0.0]; Reference := [others => 0.0];
+         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
+         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F32x4 partial" & N'Image);
+         declare
+            Exact : F32_Array (1 .. N) := [others => 0.0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "F32x4 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
+      end loop;
       for Iteration in 1 .. 250 loop
          declare
             R_A : constant F32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => F32 (Iteration * 37 + Lane * 19) / 7.0]);
@@ -426,6 +534,7 @@ procedure Family_Tests is
       A : constant F64x2 := From_Lanes ([0.0, -0.0]);
       B : constant F64x2 := From_Lanes ([2.0, -3.0]);
       Data, Reference : F64_Array (0 .. 7) := [others => 0.0];
+      Aligned_Data : F64_Array (0 .. 1) := [others => 0.0] with Alignment => 16;
    begin
       Check (Same (Backends.Native.Add (A, B), Add (A, B)), "F64x2 Add");
       Check (Same (Backends.Native.Subtract (A, B), Subtract (A, B)), "F64x2 Subtract");
@@ -443,10 +552,26 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (A, B)), "F64x2 Greater_Equal");
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A, B)) = Flyology_SIMD.To_Bit_Mask (Unordered (A, B)), "F64x2 Unordered");
       Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "F64x2 select");
+      for Pattern in Natural range 0 .. 2 ** 2 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "F64x2 mask roundtrip" & Pattern'Image);
+         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F64x2 exhaustive select" & Pattern'Image);
+      end loop;
       Check (Backends.Native.Reduce_Add (A) = Reduce_Add (A), "F64x2 reduce");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "F64x2 full memory");
-      for N in Lane_Count_64x2 loop Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B); Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F64x2 partial" & N'Image); end loop;
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "F64x2 aligned memory");
+      for N in Lane_Count_64x2 loop
+         Data := [others => 0.0]; Reference := [others => 0.0];
+         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
+         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F64x2 partial" & N'Image);
+         declare
+            Exact : F64_Array (1 .. N) := [others => 0.0];
+         begin
+            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "F64x2 exact-extent partial load" & N'Image);
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
+      end loop;
       for Iteration in 1 .. 250 loop
          declare
             R_A : constant F64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => F64 (Iteration * 37 + Lane * 19) / 7.0]);

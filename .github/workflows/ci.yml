@@ -62,6 +62,8 @@ jobs:
         run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
       - name: Run scalar AddressSanitizer suite
         run: ./scripts/run_sanitized_tests.sh scalar
+      - name: Run SSE2 AddressSanitizer suite
+        run: ./scripts/run_sanitized_tests.sh x86_64
 
   macos-aarch64:
     runs-on: macos-14

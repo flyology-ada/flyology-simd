@@ -373,11 +373,22 @@ procedure SIMD_Tests is
    end Test_Algorithms_For_Length;
 
    procedure Test_Algorithms is
+      Lane_Data : Byte_Array (1 .. 64) := [others => 0];
    begin
       for Length in Natural range 0 .. 80 loop
          Test_Algorithms_For_Length (Length);
       end loop;
       Test_Algorithms_For_Length (4_096);
+      if Features.Available (Features.AVX2) then
+         for Lane in Natural range 0 .. 31 loop
+            Lane_Data := [others => 0];
+            Lane_Data (Lane_Data'First + Lane) := 42;
+            Check
+              (Algorithms.AVX2.Find_First (Lane_Data, 42) =
+                 (Found => True, Index => Lane_Data'First + Lane),
+               "AVX2 first-set-bit lane" & Lane'Image);
+         end loop;
+      end if;
    end Test_Algorithms;
 
    procedure Test_Unavailable_Rejection is

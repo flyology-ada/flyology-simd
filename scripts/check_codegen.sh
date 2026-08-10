@@ -82,20 +82,58 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        : >"$temporary/baseline.txt"
+        for object in "obj/x86_64/$avx2"/*.o; do
+            case "$object" in
+                *flyology_simd-algorithms-avx2.o) continue ;;
+            esac
+            disassemble "$object" >>"$temporary/baseline.txt"
+        done
         require_pattern 'pcmpeqb' "$temporary/native.txt" 'SSE2 byte comparison'
+        require_pattern 'pcmpeqw' "$temporary/native.txt" 'SSE2 16-bit comparison'
+        require_pattern 'pcmpeqd' "$temporary/native.txt" 'SSE2 32/64-bit comparison composition'
         require_pattern 'pmovmskb' "$temporary/native.txt" 'SSE2 compact mask extraction'
         require_pattern 'paddb' "$temporary/native.txt" 'SSE2 wrapping byte add'
+        require_pattern 'paddw' "$temporary/native.txt" 'SSE2 wrapping 16-bit add'
+        require_pattern 'paddd' "$temporary/native.txt" 'SSE2 wrapping 32-bit add'
+        require_pattern 'paddq' "$temporary/native.txt" 'SSE2 wrapping 64-bit add'
+        require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
+        require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'
+        require_pattern 'paddsw' "$temporary/native.txt" 'SSE2 signed saturating 16-bit add'
+        require_pattern 'psubusb' "$temporary/native.txt" 'SSE2 saturating byte subtract'
+        require_pattern 'pmullw' "$temporary/native.txt" 'SSE2 8/16-bit multiplication composition'
+        require_pattern 'pmuludq' "$temporary/native.txt" 'SSE2 32/64-bit multiplication composition'
+        require_pattern 'pcmpgt(b|w|d)' "$temporary/native.txt" 'SSE2 ordered integer comparisons'
+        require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
+        require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
+        require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
+        require_pattern 'pandn' "$temporary/native.txt" 'SSE2 mask selection'
+        require_pattern 'punpckl(bw|wd|dq|qdq)' "$temporary/native.txt" 'SSE2 interleave family'
+        require_pattern 'pshuf(d|lw|hw)' "$temporary/native.txt" 'SSE2 reverse/shuffle family'
+        require_pattern 'addps' "$temporary/native.txt" 'SSE floating32 addition'
+        require_pattern 'addpd' "$temporary/native.txt" 'SSE2 floating64 addition'
+        require_pattern 'mul(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating multiplication'
+        require_pattern 'div(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating division'
+        require_pattern 'cmp(unord|eq|lt|le)(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating comparisons'
         require_pattern 'movdqu' "$temporary/native.txt" 'unaligned SSE2 load/store'
+        require_pattern 'movdqa' "$temporary/native.txt" 'aligned SSE2 load/store'
+        require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
+        require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
+        require_pattern 'movdqu' "$temporary/algorithm.txt" 'inlined vector load in representative loop'
         forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
           "$temporary/native.txt" 'AVX instructions in the SSE2 baseline object'
         forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
           "$temporary/features.txt" 'AVX instructions in feature detection'
+        forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
+          "$temporary/baseline.txt" 'AVX instructions outside the AVX2-only object'
         if [ "$avx2" = enabled ]; then
             avx_object="obj/x86_64/enabled/flyology_simd-algorithms-avx2.o"
             disassemble "$avx_object" >"$temporary/avx2.txt"
             require_pattern 'ymm[0-9]+|vp[a-z]+' "$temporary/avx2.txt" \
               'AVX2 vectorization in the AVX2-only algorithm object'
+            require_pattern 'bsf' "$temporary/avx2.txt" \
+              'constant-time first-set-bit extraction in the AVX2 algorithm'
         fi
         ;;
     *)
@@ -106,6 +144,12 @@ esac
 
 if nm -u "$algorithm_object" 2>/dev/null | grep -Eq '[_ ]flyology_simd__equal$'; then
     echo "representative native algorithm calls the scalar equality helper" >&2
+    exit 1
+fi
+
+if nm -u "$algorithm_object" 2>/dev/null | grep -Eq \
+  'flyology_simd__backends__native__(splat|load_unaligned|equal|bitwise_and|to_bit_mask|equal_bits|neon_bitwise_and|u8_and)$'; then
+    echo "representative native algorithm retains an out-of-line backend primitive" >&2
     exit 1
 fi
 
