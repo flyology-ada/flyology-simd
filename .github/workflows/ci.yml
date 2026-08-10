@@ -46,7 +46,9 @@ jobs:
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
       - name: Run differential tests
-        run: ./bin/simd_tests
+        run: |
+          ./bin/simd_tests
+          ./bin/family_tests
       - name: Check generated code
         if: ${{ matrix.architecture == 'x86_64' }}
         run: ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}
@@ -83,6 +85,8 @@ jobs:
           alr exec -- gprbuild -p -P tests/tests.gpr
           -XFLYOLOGY_SIMD_ARCH=aarch64
       - name: Run differential tests
-        run: ./bin/simd_tests
+        run: |
+          ./bin/simd_tests
+          ./bin/family_tests
       - name: Check generated code
         run: ./scripts/check_codegen.sh aarch64 disabled

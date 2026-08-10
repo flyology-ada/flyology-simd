@@ -1,21 +1,72 @@
 with System.Machine_Code;
 
 package body Flyology_SIMD.Backends.Native is
-   use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Integer_64;
    use System.Machine_Code;
 
-   function Equal_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
-      Result  : Interfaces.Unsigned_32;
-      Weights : aliased constant Lane_Values_8x16 :=
-        [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
+   Weights_8x16 : aliased constant Lane_Values_8x16 :=
+     [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
+
+   generic
+      Instruction : String;
+   function Binary_Operation (Left, Right : U8x16) return U8x16;
+
+   function Binary_Operation (Left, Right : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
+           Instruction & ASCII.LF & ASCII.HT &
+           "str q0, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Left'Address),
+            System.Address'Asm_Input ("r", Right'Address)],
+         Clobber => "v0,v1,memory",
+         Volatile => True);
+      return Result;
+   end Binary_Operation;
+
+   generic
+      Instruction : String;
+   function Unary_Operation (Value : U8x16) return U8x16;
+
+   function Unary_Operation (Value : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           Instruction & ASCII.LF & ASCII.HT &
+           "str q0, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,memory",
+         Volatile => True);
+      return Result;
+   end Unary_Operation;
+
+   generic
+      Instruction : String;
+   function Comparison_Bits
+     (Left, Right : U8x16) return Interfaces.Unsigned_16;
+
+   function Comparison_Bits
+     (Left, Right : U8x16) return Interfaces.Unsigned_16
+   is
+      Result : Interfaces.Unsigned_32;
    begin
       Asm
         (Template =>
            "ldr q2, [%3]" & ASCII.LF & ASCII.HT &
            "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
            "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
-           "cmeq v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
+           Instruction & ASCII.LF & ASCII.HT &
            "and v0.16b, v0.16b, v2.16b" & ASCII.LF & ASCII.HT &
            "ext v1.16b, v0.16b, v0.16b, #8" & ASCII.LF & ASCII.HT &
            "uaddlv h0, v0.8b" & ASCII.LF & ASCII.HT &
@@ -27,107 +78,230 @@ package body Flyology_SIMD.Backends.Native is
          Inputs =>
            [System.Address'Asm_Input ("r", Left'Address),
             System.Address'Asm_Input ("r", Right'Address),
-            System.Address'Asm_Input ("r", Weights'Address)],
+            System.Address'Asm_Input ("r", Weights_8x16'Address)],
          Clobber => "v0,v1,v2,x9,memory",
          Volatile => True);
       return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
-   end Equal_Mask;
+   end Comparison_Bits;
+
+   function NEON_Add_Wrap is new Binary_Operation
+     ("add v0.16b, v0.16b, v1.16b");
+   function NEON_Subtract_Wrap is new Binary_Operation
+     ("sub v0.16b, v0.16b, v1.16b");
+   function NEON_Add_Saturate is new Binary_Operation
+     ("uqadd v0.16b, v0.16b, v1.16b");
+   function NEON_Subtract_Saturate is new Binary_Operation
+     ("uqsub v0.16b, v0.16b, v1.16b");
+   function NEON_Bitwise_And is new Binary_Operation
+     ("and v0.16b, v0.16b, v1.16b");
+   function NEON_Bitwise_Or is new Binary_Operation
+     ("orr v0.16b, v0.16b, v1.16b");
+   function NEON_Bitwise_Xor is new Binary_Operation
+     ("eor v0.16b, v0.16b, v1.16b");
+   function NEON_Bitwise_Not is new Unary_Operation ("mvn v0.16b, v0.16b");
+   function NEON_Reverse_Bytes is new Unary_Operation
+     ("rev64 v0.16b, v0.16b" & ASCII.LF & ASCII.HT &
+      "ext v0.16b, v0.16b, v0.16b, #8");
+   function NEON_Interleave_Low is new Binary_Operation
+     ("zip1 v0.16b, v0.16b, v1.16b");
+   function NEON_Interleave_High is new Binary_Operation
+     ("zip2 v0.16b, v0.16b, v1.16b");
+
+   function Equal_Bits is new Comparison_Bits
+     ("cmeq v0.16b, v0.16b, v1.16b");
+   function Greater_Bits is new Comparison_Bits
+     ("cmhi v0.16b, v0.16b, v1.16b");
+   function Greater_Equal_Bits is new Comparison_Bits
+     ("cmhs v0.16b, v0.16b, v1.16b");
 
    function Zero return U8x16 is (Lanes => [others => 0]);
    function Splat (Value : U8) return U8x16 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
+     (Lanes => Values);
+   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
+     (Value.Lanes);
+   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
+     (Value.Lanes (Lane));
+   function Replace
+     (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16
+   is
+      Result : U8x16 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
 
    function Add_Wrap (Left, Right : U8x16) return U8x16 is
-      Result : U8x16;
-   begin
-      for Lane in Lane_Index_8x16 loop
-         pragma Loop_Optimize (Vector);
-         Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
-      end loop;
-      return Result;
-   end Add_Wrap;
-
+     (NEON_Add_Wrap (Left, Right));
+   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
+     (NEON_Subtract_Wrap (Left, Right));
    function Add_Saturate (Left, Right : U8x16) return U8x16 is
+     (NEON_Add_Saturate (Left, Right));
+   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
+     (NEON_Subtract_Saturate (Left, Right));
+   function Bitwise_And (Left, Right : U8x16) return U8x16 is
+     (NEON_Bitwise_And (Left, Right));
+   function Bitwise_Or (Left, Right : U8x16) return U8x16 is
+     (NEON_Bitwise_Or (Left, Right));
+   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is
+     (NEON_Bitwise_Xor (Left, Right));
+   function Bitwise_Not (Value : U8x16) return U8x16 is
+     (NEON_Bitwise_Not (Value));
+
+   function Shift_Left_Logical
+     (Value : U8x16; Count : Natural) return U8x16
+   is
       Result : U8x16;
    begin
+      if Count >= 8 then
+         return Zero;
+      end if;
       Asm
         (Template =>
            "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
-           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
-           "uqadd v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
+           "dup v1.16b, %w2" & ASCII.LF & ASCII.HT &
+           "ushl v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
            "str q0, [%0]",
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "v0,v1,memory",
-         Volatile => True);
+            System.Address'Asm_Input ("r", Value'Address),
+            Natural'Asm_Input ("r", Count)],
+         Clobber => "v0,v1,memory", Volatile => True);
       return Result;
-   end Add_Saturate;
+   end Shift_Left_Logical;
 
-   function Bitwise_And (Left, Right : U8x16) return U8x16 is
+   function Shift_Right_Logical
+     (Value : U8x16; Count : Natural) return U8x16
+   is
       Result : U8x16;
    begin
-      for Lane in Lane_Index_8x16 loop
-         pragma Loop_Optimize (Vector);
-         Result.Lanes (Lane) := Left.Lanes (Lane) and Right.Lanes (Lane);
-      end loop;
+      if Count >= 8 then
+         return Zero;
+      end if;
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "neg w9, %w2" & ASCII.LF & ASCII.HT &
+           "dup v1.16b, w9" & ASCII.LF & ASCII.HT &
+           "ushl v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
+           "str q0, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address),
+            Natural'Asm_Input ("r", Count)],
+         Clobber => "v0,v1,x9,memory", Volatile => True);
       return Result;
-   end Bitwise_And;
+   end Shift_Right_Logical;
 
    function Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Equal_Mask (Left, Right)));
+     (Mask_From_Bit_Mask (Equal_Bits (Left, Right)));
+   function Less_Than (Left, Right : U8x16) return Mask_8x16 is
+     (Mask_From_Bit_Mask (Greater_Bits (Left => Right, Right => Left)));
+   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is
+     (Mask_From_Bit_Mask
+        (Greater_Equal_Bits (Left => Right, Right => Left)));
+   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is
+     (Mask_From_Bit_Mask (Greater_Bits (Left, Right)));
+   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is
+     (Mask_From_Bit_Mask (Greater_Equal_Bits (Left, Right)));
 
    function Select_Value
-     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Min (Left, Right : U8x16) return U8x16 is
+     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16
+   is
       Result : U8x16;
    begin
       Asm
         (Template =>
-           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
-           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
-           "umin v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
-           "str q0, [%0]",
+           "dup v3.16b, %w1" & ASCII.LF & ASCII.HT &
+           "lsr w9, %w1, #8" & ASCII.LF & ASCII.HT &
+           "dup v4.16b, w9" & ASCII.LF & ASCII.HT &
+           "ins v3.d[1], v4.d[0]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%4]" & ASCII.LF & ASCII.HT &
+           "cmtst v3.16b, v3.16b, v2.16b" & ASCII.LF & ASCII.HT &
+           "ldr q0, [%2]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%3]" & ASCII.LF & ASCII.HT &
+           "bsl v3.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
+           "str q3, [%0]",
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "v0,v1,memory", Volatile => True);
+            Interfaces.Unsigned_16'Asm_Input ("r", Mask.Bits),
+            System.Address'Asm_Input ("r", If_True'Address),
+            System.Address'Asm_Input ("r", If_False'Address),
+            System.Address'Asm_Input ("r", Weights_8x16'Address)],
+         Clobber => "v0,v1,v2,v3,v4,x9,memory", Volatile => True);
       return Result;
-   end Min;
+   end Select_Value;
 
+   function NEON_Min is new Binary_Operation
+     ("umin v0.16b, v0.16b, v1.16b");
+   function NEON_Max is new Binary_Operation
+     ("umax v0.16b, v0.16b, v1.16b");
+   function Min (Left, Right : U8x16) return U8x16 is
+     (NEON_Min (Left, Right));
    function Max (Left, Right : U8x16) return U8x16 is
-      Result : U8x16;
+     (NEON_Max (Left, Right));
+
+   function Horizontal_Sum (Value : U8x16) return Natural is
+      Result : Interfaces.Unsigned_32;
    begin
       Asm
         (Template =>
            "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
-           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
-           "umax v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT &
-           "str q0, [%0]",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "v0,v1,memory", Volatile => True);
-      return Result;
-   end Max;
+           "uaddlv h0, v0.16b" & ASCII.LF & ASCII.HT &
+           "umov %w0, v0.h[0]",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs => System.Address'Asm_Input ("r", Value'Address),
+         Clobber => "v0,memory", Volatile => True);
+      return Natural (Result);
+   end Horizontal_Sum;
+
+   function Reverse_Bytes (Value : U8x16) return U8x16 is
+     (NEON_Reverse_Bytes (Value));
+   function Interleave_Low (Left, Right : U8x16) return U8x16 is
+     (NEON_Interleave_Low (Left, Right));
+   function Interleave_High (Left, Right : U8x16) return U8x16 is
+     (NEON_Interleave_High (Left, Right));
+
+   function Mask_From_Bit_Mask
+     (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
+     (Bits => Bits);
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
      (Mask.Bits);
+   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
+     ((Mask.Bits and Interfaces.Shift_Left
+         (Interfaces.Unsigned_16'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_8x16) return Boolean is (Mask.Bits /= 0);
+   function All_True (Mask : Mask_8x16) return Boolean is
+     (Mask.Bits = Interfaces.Unsigned_16'Last);
+   function None_True (Mask : Mask_8x16) return Boolean is (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is
+      Bits : Interfaces.Unsigned_16 := Mask.Bits;
+      Result : Lane_Count_8x16 := 0;
+   begin
+      while Bits /= 0 loop
+         Result := Result + 1;
+         Bits := Bits and (Bits - 1);
+      end loop;
+      return Result;
+   end Population_Count;
+
+   function Load (Data : Byte_Array; Start : Natural) return U8x16 is
+     (Load_Unaligned (Data, Start));
+   procedure Store
+     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+   begin
+      Store_Unaligned (Data, Start, Value);
+   end Store;
 
    function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
       Result : U8x16;
    begin
       Asm
-        (Template =>
-           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
-           "str q0, [%0]",
+        (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]",
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
             System.Address'Asm_Input ("r", Data (Start)'Address)],
-         Clobber => "v0,memory",
-         Volatile => True);
+         Clobber => "v0,memory", Volatile => True);
       return Result;
    end Load_Unaligned;
 
@@ -135,15 +309,20 @@ package body Flyology_SIMD.Backends.Native is
      (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
    begin
       Asm
-        (Template =>
-           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
-           "str q0, [%0]",
+        (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]",
          Inputs =>
            [System.Address'Asm_Input ("r", Data (Start)'Address),
             System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "v0,memory",
-         Volatile => True);
+         Clobber => "v0,memory", Volatile => True);
    end Store_Unaligned;
+
+   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
+     (Load_Unaligned (Data, Start));
+   procedure Store_Aligned
+     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+   begin
+      Store_Unaligned (Data, Start, Value);
+   end Store_Aligned;
 
    function Load_Partial
      (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
@@ -157,4 +336,817 @@ package body Flyology_SIMD.Backends.Native is
    begin
       Flyology_SIMD.Store_Partial (Data, Start, Count, Value);
    end Store_Partial;
+
+   --  BEGIN GENERATED FULL-FAMILY NEON BODIES
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+   function NEON_Binary_128 (Left, Right : Vector_Type) return Vector_Type;
+   function NEON_Binary_128 (Left, Right : Vector_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%2]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address)],
+           Clobber => "v0,v1,v2,memory", Volatile => True);
+      return Result;
+   end NEON_Binary_128;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+   function NEON_Unary_128 (Value : Vector_Type) return Vector_Type;
+   function NEON_Unary_128 (Value : Vector_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end NEON_Unary_128;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Compact : String;
+   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_8;
+   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_8 is
+      Result : Interfaces.Unsigned_32;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "ldr q1, [%2]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Compact,
+           Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+           Inputs => [System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address), System.Address'Asm_Input ("r", Weights)],
+           Clobber => "v0,v1,v2,memory", Volatile => True);
+      return Interfaces.Unsigned_8 (Result and 16#FF#);
+   end NEON_Compare_128;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_16;
+   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_16 is
+      Result : Interfaces.Unsigned_32;
+   begin
+      Asm (Template => "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "ldr q1, [%2]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "and v0.16b, v0.16b, v2.16b" & ASCII.LF & ASCII.HT & "ext v1.16b, v0.16b, v0.16b, #8" & ASCII.LF & ASCII.HT & "uaddlv h0, v0.8b" & ASCII.LF & ASCII.HT & "uaddlv h1, v1.8b" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]" & ASCII.LF & ASCII.HT & "umov w9, v1.h[0]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #8",
+           Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result), Inputs => [System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address), System.Address'Asm_Input ("r", Weights)], Clobber => "v0,v1,v2,x9,memory", Volatile => True);
+      return Interfaces.Unsigned_16 (Result and 16#FFFF#);
+   end NEON_Compare_16_Lanes;
+
+   generic
+      type Vector_Type is private;
+      Dup_Instruction : String;
+      Shift_Instruction : String;
+   function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type;
+   function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Dup_Instruction & ASCII.LF & ASCII.HT & Shift_Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address), Interfaces.Integer_64'Asm_Input ("r", Amount)],
+           Clobber => "v0,v1,memory", Volatile => True);
+      return Result;
+   end NEON_Shift_128;
+
+   Weights_16x8 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];
+   Weights_32x4 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
+   Weights_64x2 : aliased constant Lane_Values_U64x2 := [1, 2];
+
+   function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
+   function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
+   function Native_Subtract_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "sub v0.16b, v0.16b, v1.16b");
+   function Subtract_Wrap (Left, Right : I8x16) return I8x16 is (Native_Subtract_Wrap_I8x16 (Left, Right));
+   function Native_Add_Saturate_I8x16 is new NEON_Binary_128 (I8x16, "sqadd v0.16b, v0.16b, v1.16b");
+   function Add_Saturate (Left, Right : I8x16) return I8x16 is (Native_Add_Saturate_I8x16 (Left, Right));
+   function Native_Subtract_Saturate_I8x16 is new NEON_Binary_128 (I8x16, "sqsub v0.16b, v0.16b, v1.16b");
+   function Subtract_Saturate (Left, Right : I8x16) return I8x16 is (Native_Subtract_Saturate_I8x16 (Left, Right));
+   function Native_Bitwise_And_I8x16 is new NEON_Binary_128 (I8x16, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : I8x16) return I8x16 is (Native_Bitwise_And_I8x16 (Left, Right));
+   function Native_Bitwise_Or_I8x16 is new NEON_Binary_128 (I8x16, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : I8x16) return I8x16 is (Native_Bitwise_Or_I8x16 (Left, Right));
+   function Native_Bitwise_Xor_I8x16 is new NEON_Binary_128 (I8x16, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : I8x16) return I8x16 is (Native_Bitwise_Xor_I8x16 (Left, Right));
+   function Native_Min_I8x16 is new NEON_Binary_128 (I8x16, "smin v0.16b, v0.16b, v1.16b");
+   function Min (Left, Right : I8x16) return I8x16 is (Native_Min_I8x16 (Left, Right));
+   function Native_Max_I8x16 is new NEON_Binary_128 (I8x16, "smax v0.16b, v0.16b, v1.16b");
+   function Max (Left, Right : I8x16) return I8x16 is (Native_Max_I8x16 (Left, Right));
+   function Native_Interleave_Low_I8x16 is new NEON_Binary_128 (I8x16, "zip1 v0.16b, v0.16b, v1.16b");
+   function Interleave_Low (Left, Right : I8x16) return I8x16 is (Native_Interleave_Low_I8x16 (Left, Right));
+   function Native_Interleave_High_I8x16 is new NEON_Binary_128 (I8x16, "zip2 v0.16b, v0.16b, v1.16b");
+   function Interleave_High (Left, Right : I8x16) return I8x16 is (Native_Interleave_High_I8x16 (Left, Right));
+   function Native_Multiply_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "mul v0.16b, v0.16b, v1.16b");
+   function Multiply_Wrap (Left, Right : I8x16) return I8x16 is (Native_Multiply_Wrap_I8x16 (Left, Right));
+   function Native_Not_I8x16 is new NEON_Unary_128 (I8x16, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : I8x16) return I8x16 is (Native_Not_I8x16 (Value));
+   function Native_Reverse_I8x16 is new NEON_Unary_128 (I8x16, "rev64 v0.16b, v0.16b" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : I8x16) return I8x16 is (Native_Reverse_I8x16 (Value));
+   function Zero return I8x16 is (Flyology_SIMD.Zero);
+   function Splat (Value : I8) return I8x16 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : I8x16; Lane : Lane_Index_8x16) return I8 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : I8x16; Lane : Lane_Index_8x16; With_Value : I8) return I8x16 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Native_Shift_Left_Logical_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "ushl v0.16b, v0.16b, v1.16b");
+   function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is
+     (if Count >= 8 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I8x16 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "ushl v0.16b, v0.16b, v1.16b");
+   function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is
+     (if Count >= 8 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I8x16 (Value, -Interfaces.Integer_64 (Count)));
+   function Native_SRA_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "sshl v0.16b, v0.16b, v1.16b");
+   function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16 is
+     (if Count >= 8 then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SRA_I8x16 (Value, -Interfaces.Integer_64 (Count)));
+   function Compare_I8x16 is new NEON_Compare_16_Lanes (I8x16, "cmeq v0.16b, v0.16b, v1.16b");
+   function Compare_Greater_I8x16 is new NEON_Compare_16_Lanes (I8x16, "cmgt v0.16b, v0.16b, v1.16b");
+   function Compare_Greater_Equal_I8x16 is new NEON_Compare_16_Lanes (I8x16, "cmge v0.16b, v0.16b, v1.16b");
+   function Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_I8x16 (Left, Right, Weights_8x16'Address)));
+   function Greater_Than (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_I8x16 (Left, Right, Weights_8x16'Address)));
+   function Greater_Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I8x16 (Left, Right, Weights_8x16'Address)));
+   function Less_Than (Left, Right : I8x16) return Mask_8x16 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : I8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : I8x16) return I8 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : I8x16) return I8 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : I8x16) return I8 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x16 is
+      Result : I8x16;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x16) return I8x16 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_U16x8 is new NEON_Compare_128 (U16x8, "cmeq v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Compare_Greater_U16x8 is new NEON_Compare_128 (U16x8, "cmhi v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Compare_Greater_Equal_U16x8 is new NEON_Compare_128 (U16x8, "cmhs v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Native_Add_Wrap_U16x8 is new NEON_Binary_128 (U16x8, "add v0.8h, v0.8h, v1.8h");
+   function Add_Wrap (Left, Right : U16x8) return U16x8 is (Native_Add_Wrap_U16x8 (Left, Right));
+   function Native_Subtract_Wrap_U16x8 is new NEON_Binary_128 (U16x8, "sub v0.8h, v0.8h, v1.8h");
+   function Subtract_Wrap (Left, Right : U16x8) return U16x8 is (Native_Subtract_Wrap_U16x8 (Left, Right));
+   function Native_Add_Saturate_U16x8 is new NEON_Binary_128 (U16x8, "uqadd v0.8h, v0.8h, v1.8h");
+   function Add_Saturate (Left, Right : U16x8) return U16x8 is (Native_Add_Saturate_U16x8 (Left, Right));
+   function Native_Subtract_Saturate_U16x8 is new NEON_Binary_128 (U16x8, "uqsub v0.8h, v0.8h, v1.8h");
+   function Subtract_Saturate (Left, Right : U16x8) return U16x8 is (Native_Subtract_Saturate_U16x8 (Left, Right));
+   function Native_Bitwise_And_U16x8 is new NEON_Binary_128 (U16x8, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : U16x8) return U16x8 is (Native_Bitwise_And_U16x8 (Left, Right));
+   function Native_Bitwise_Or_U16x8 is new NEON_Binary_128 (U16x8, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : U16x8) return U16x8 is (Native_Bitwise_Or_U16x8 (Left, Right));
+   function Native_Bitwise_Xor_U16x8 is new NEON_Binary_128 (U16x8, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : U16x8) return U16x8 is (Native_Bitwise_Xor_U16x8 (Left, Right));
+   function Native_Min_U16x8 is new NEON_Binary_128 (U16x8, "umin v0.8h, v0.8h, v1.8h");
+   function Min (Left, Right : U16x8) return U16x8 is (Native_Min_U16x8 (Left, Right));
+   function Native_Max_U16x8 is new NEON_Binary_128 (U16x8, "umax v0.8h, v0.8h, v1.8h");
+   function Max (Left, Right : U16x8) return U16x8 is (Native_Max_U16x8 (Left, Right));
+   function Native_Interleave_Low_U16x8 is new NEON_Binary_128 (U16x8, "zip1 v0.8h, v0.8h, v1.8h");
+   function Interleave_Low (Left, Right : U16x8) return U16x8 is (Native_Interleave_Low_U16x8 (Left, Right));
+   function Native_Interleave_High_U16x8 is new NEON_Binary_128 (U16x8, "zip2 v0.8h, v0.8h, v1.8h");
+   function Interleave_High (Left, Right : U16x8) return U16x8 is (Native_Interleave_High_U16x8 (Left, Right));
+   function Native_Multiply_Wrap_U16x8 is new NEON_Binary_128 (U16x8, "mul v0.8h, v0.8h, v1.8h");
+   function Multiply_Wrap (Left, Right : U16x8) return U16x8 is (Native_Multiply_Wrap_U16x8 (Left, Right));
+   function Native_Not_U16x8 is new NEON_Unary_128 (U16x8, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : U16x8) return U16x8 is (Native_Not_U16x8 (Value));
+   function Native_Reverse_U16x8 is new NEON_Unary_128 (U16x8, "rev64 v0.8h, v0.8h" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : U16x8) return U16x8 is (Native_Reverse_U16x8 (Value));
+   function Zero return U16x8 is (Flyology_SIMD.Zero);
+   function Splat (Value : U16) return U16x8 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : U16x8; Lane : Lane_Index_16x8) return U16 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : U16x8; Lane : Lane_Index_16x8; With_Value : U16) return U16x8 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Native_Shift_Left_Logical_U16x8 is new NEON_Shift_128 (U16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
+   function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is
+     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U16x8 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_U16x8 is new NEON_Shift_128 (U16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
+   function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is
+     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U16x8 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_U16x8 (Left, Right, Weights_16x8'Address)));
+   function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_U16x8 (Left, Right, Weights_16x8'Address)));
+   function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U16x8 (Left, Right, Weights_16x8'Address)));
+   function Less_Than (Left, Right : U16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : U16x8) return U16 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : U16x8) return U16 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : U16x8) return U16 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x8 is
+      Result : U16x8;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x8) return U16x8 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_I16x8 is new NEON_Compare_128 (I16x8, "cmeq v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Compare_Greater_I16x8 is new NEON_Compare_128 (I16x8, "cmgt v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Compare_Greater_Equal_I16x8 is new NEON_Compare_128 (I16x8, "cmge v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
+   function Native_Add_Wrap_I16x8 is new NEON_Binary_128 (I16x8, "add v0.8h, v0.8h, v1.8h");
+   function Add_Wrap (Left, Right : I16x8) return I16x8 is (Native_Add_Wrap_I16x8 (Left, Right));
+   function Native_Subtract_Wrap_I16x8 is new NEON_Binary_128 (I16x8, "sub v0.8h, v0.8h, v1.8h");
+   function Subtract_Wrap (Left, Right : I16x8) return I16x8 is (Native_Subtract_Wrap_I16x8 (Left, Right));
+   function Native_Add_Saturate_I16x8 is new NEON_Binary_128 (I16x8, "sqadd v0.8h, v0.8h, v1.8h");
+   function Add_Saturate (Left, Right : I16x8) return I16x8 is (Native_Add_Saturate_I16x8 (Left, Right));
+   function Native_Subtract_Saturate_I16x8 is new NEON_Binary_128 (I16x8, "sqsub v0.8h, v0.8h, v1.8h");
+   function Subtract_Saturate (Left, Right : I16x8) return I16x8 is (Native_Subtract_Saturate_I16x8 (Left, Right));
+   function Native_Bitwise_And_I16x8 is new NEON_Binary_128 (I16x8, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : I16x8) return I16x8 is (Native_Bitwise_And_I16x8 (Left, Right));
+   function Native_Bitwise_Or_I16x8 is new NEON_Binary_128 (I16x8, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : I16x8) return I16x8 is (Native_Bitwise_Or_I16x8 (Left, Right));
+   function Native_Bitwise_Xor_I16x8 is new NEON_Binary_128 (I16x8, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : I16x8) return I16x8 is (Native_Bitwise_Xor_I16x8 (Left, Right));
+   function Native_Min_I16x8 is new NEON_Binary_128 (I16x8, "smin v0.8h, v0.8h, v1.8h");
+   function Min (Left, Right : I16x8) return I16x8 is (Native_Min_I16x8 (Left, Right));
+   function Native_Max_I16x8 is new NEON_Binary_128 (I16x8, "smax v0.8h, v0.8h, v1.8h");
+   function Max (Left, Right : I16x8) return I16x8 is (Native_Max_I16x8 (Left, Right));
+   function Native_Interleave_Low_I16x8 is new NEON_Binary_128 (I16x8, "zip1 v0.8h, v0.8h, v1.8h");
+   function Interleave_Low (Left, Right : I16x8) return I16x8 is (Native_Interleave_Low_I16x8 (Left, Right));
+   function Native_Interleave_High_I16x8 is new NEON_Binary_128 (I16x8, "zip2 v0.8h, v0.8h, v1.8h");
+   function Interleave_High (Left, Right : I16x8) return I16x8 is (Native_Interleave_High_I16x8 (Left, Right));
+   function Native_Multiply_Wrap_I16x8 is new NEON_Binary_128 (I16x8, "mul v0.8h, v0.8h, v1.8h");
+   function Multiply_Wrap (Left, Right : I16x8) return I16x8 is (Native_Multiply_Wrap_I16x8 (Left, Right));
+   function Native_Not_I16x8 is new NEON_Unary_128 (I16x8, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : I16x8) return I16x8 is (Native_Not_I16x8 (Value));
+   function Native_Reverse_I16x8 is new NEON_Unary_128 (I16x8, "rev64 v0.8h, v0.8h" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : I16x8) return I16x8 is (Native_Reverse_I16x8 (Value));
+   function Zero return I16x8 is (Flyology_SIMD.Zero);
+   function Splat (Value : I16) return I16x8 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : I16x8; Lane : Lane_Index_16x8) return I16 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : I16x8; Lane : Lane_Index_16x8; With_Value : I16) return I16x8 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Native_Shift_Left_Logical_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
+   function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is
+     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I16x8 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
+   function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is
+     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I16x8 (Value, -Interfaces.Integer_64 (Count)));
+   function Native_SRA_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "sshl v0.8h, v0.8h, v1.8h");
+   function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8 is
+     (if Count >= 16 then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SRA_I16x8 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_I16x8 (Left, Right, Weights_16x8'Address)));
+   function Greater_Than (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_I16x8 (Left, Right, Weights_16x8'Address)));
+   function Greater_Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I16x8 (Left, Right, Weights_16x8'Address)));
+   function Less_Than (Left, Right : I16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : I16x8) return I16 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : I16x8) return I16 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : I16x8) return I16 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x8 is
+      Result : I16x8;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x8) return I16x8 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_U32x4 is new NEON_Compare_128 (U32x4, "cmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Compare_Greater_U32x4 is new NEON_Compare_128 (U32x4, "cmhi v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Compare_Greater_Equal_U32x4 is new NEON_Compare_128 (U32x4, "cmhs v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Native_Add_Wrap_U32x4 is new NEON_Binary_128 (U32x4, "add v0.4s, v0.4s, v1.4s");
+   function Add_Wrap (Left, Right : U32x4) return U32x4 is (Native_Add_Wrap_U32x4 (Left, Right));
+   function Native_Subtract_Wrap_U32x4 is new NEON_Binary_128 (U32x4, "sub v0.4s, v0.4s, v1.4s");
+   function Subtract_Wrap (Left, Right : U32x4) return U32x4 is (Native_Subtract_Wrap_U32x4 (Left, Right));
+   function Native_Add_Saturate_U32x4 is new NEON_Binary_128 (U32x4, "uqadd v0.4s, v0.4s, v1.4s");
+   function Add_Saturate (Left, Right : U32x4) return U32x4 is (Native_Add_Saturate_U32x4 (Left, Right));
+   function Native_Subtract_Saturate_U32x4 is new NEON_Binary_128 (U32x4, "uqsub v0.4s, v0.4s, v1.4s");
+   function Subtract_Saturate (Left, Right : U32x4) return U32x4 is (Native_Subtract_Saturate_U32x4 (Left, Right));
+   function Native_Bitwise_And_U32x4 is new NEON_Binary_128 (U32x4, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : U32x4) return U32x4 is (Native_Bitwise_And_U32x4 (Left, Right));
+   function Native_Bitwise_Or_U32x4 is new NEON_Binary_128 (U32x4, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : U32x4) return U32x4 is (Native_Bitwise_Or_U32x4 (Left, Right));
+   function Native_Bitwise_Xor_U32x4 is new NEON_Binary_128 (U32x4, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : U32x4) return U32x4 is (Native_Bitwise_Xor_U32x4 (Left, Right));
+   function Native_Min_U32x4 is new NEON_Binary_128 (U32x4, "umin v0.4s, v0.4s, v1.4s");
+   function Min (Left, Right : U32x4) return U32x4 is (Native_Min_U32x4 (Left, Right));
+   function Native_Max_U32x4 is new NEON_Binary_128 (U32x4, "umax v0.4s, v0.4s, v1.4s");
+   function Max (Left, Right : U32x4) return U32x4 is (Native_Max_U32x4 (Left, Right));
+   function Native_Interleave_Low_U32x4 is new NEON_Binary_128 (U32x4, "zip1 v0.4s, v0.4s, v1.4s");
+   function Interleave_Low (Left, Right : U32x4) return U32x4 is (Native_Interleave_Low_U32x4 (Left, Right));
+   function Native_Interleave_High_U32x4 is new NEON_Binary_128 (U32x4, "zip2 v0.4s, v0.4s, v1.4s");
+   function Interleave_High (Left, Right : U32x4) return U32x4 is (Native_Interleave_High_U32x4 (Left, Right));
+   function Native_Multiply_Wrap_U32x4 is new NEON_Binary_128 (U32x4, "mul v0.4s, v0.4s, v1.4s");
+   function Multiply_Wrap (Left, Right : U32x4) return U32x4 is (Native_Multiply_Wrap_U32x4 (Left, Right));
+   function Native_Not_U32x4 is new NEON_Unary_128 (U32x4, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : U32x4) return U32x4 is (Native_Not_U32x4 (Value));
+   function Native_Reverse_U32x4 is new NEON_Unary_128 (U32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : U32x4) return U32x4 is (Native_Reverse_U32x4 (Value));
+   function Zero return U32x4 is (Flyology_SIMD.Zero);
+   function Splat (Value : U32) return U32x4 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : U32x4; Lane : Lane_Index_32x4) return U32 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : U32x4; Lane : Lane_Index_32x4; With_Value : U32) return U32x4 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Native_Shift_Left_Logical_U32x4 is new NEON_Shift_128 (U32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
+   function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is
+     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U32x4 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_U32x4 is new NEON_Shift_128 (U32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
+   function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is
+     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U32x4 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_U32x4 (Left, Right, Weights_32x4'Address)));
+   function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_U32x4 (Left, Right, Weights_32x4'Address)));
+   function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U32x4 (Left, Right, Weights_32x4'Address)));
+   function Less_Than (Left, Right : U32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : U32x4) return U32 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : U32x4) return U32 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : U32x4) return U32 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x4 is
+      Result : U32x4;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x4) return U32x4 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_I32x4 is new NEON_Compare_128 (I32x4, "cmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Compare_Greater_I32x4 is new NEON_Compare_128 (I32x4, "cmgt v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Compare_Greater_Equal_I32x4 is new NEON_Compare_128 (I32x4, "cmge v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Native_Add_Wrap_I32x4 is new NEON_Binary_128 (I32x4, "add v0.4s, v0.4s, v1.4s");
+   function Add_Wrap (Left, Right : I32x4) return I32x4 is (Native_Add_Wrap_I32x4 (Left, Right));
+   function Native_Subtract_Wrap_I32x4 is new NEON_Binary_128 (I32x4, "sub v0.4s, v0.4s, v1.4s");
+   function Subtract_Wrap (Left, Right : I32x4) return I32x4 is (Native_Subtract_Wrap_I32x4 (Left, Right));
+   function Native_Add_Saturate_I32x4 is new NEON_Binary_128 (I32x4, "sqadd v0.4s, v0.4s, v1.4s");
+   function Add_Saturate (Left, Right : I32x4) return I32x4 is (Native_Add_Saturate_I32x4 (Left, Right));
+   function Native_Subtract_Saturate_I32x4 is new NEON_Binary_128 (I32x4, "sqsub v0.4s, v0.4s, v1.4s");
+   function Subtract_Saturate (Left, Right : I32x4) return I32x4 is (Native_Subtract_Saturate_I32x4 (Left, Right));
+   function Native_Bitwise_And_I32x4 is new NEON_Binary_128 (I32x4, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : I32x4) return I32x4 is (Native_Bitwise_And_I32x4 (Left, Right));
+   function Native_Bitwise_Or_I32x4 is new NEON_Binary_128 (I32x4, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : I32x4) return I32x4 is (Native_Bitwise_Or_I32x4 (Left, Right));
+   function Native_Bitwise_Xor_I32x4 is new NEON_Binary_128 (I32x4, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : I32x4) return I32x4 is (Native_Bitwise_Xor_I32x4 (Left, Right));
+   function Native_Min_I32x4 is new NEON_Binary_128 (I32x4, "smin v0.4s, v0.4s, v1.4s");
+   function Min (Left, Right : I32x4) return I32x4 is (Native_Min_I32x4 (Left, Right));
+   function Native_Max_I32x4 is new NEON_Binary_128 (I32x4, "smax v0.4s, v0.4s, v1.4s");
+   function Max (Left, Right : I32x4) return I32x4 is (Native_Max_I32x4 (Left, Right));
+   function Native_Interleave_Low_I32x4 is new NEON_Binary_128 (I32x4, "zip1 v0.4s, v0.4s, v1.4s");
+   function Interleave_Low (Left, Right : I32x4) return I32x4 is (Native_Interleave_Low_I32x4 (Left, Right));
+   function Native_Interleave_High_I32x4 is new NEON_Binary_128 (I32x4, "zip2 v0.4s, v0.4s, v1.4s");
+   function Interleave_High (Left, Right : I32x4) return I32x4 is (Native_Interleave_High_I32x4 (Left, Right));
+   function Native_Multiply_Wrap_I32x4 is new NEON_Binary_128 (I32x4, "mul v0.4s, v0.4s, v1.4s");
+   function Multiply_Wrap (Left, Right : I32x4) return I32x4 is (Native_Multiply_Wrap_I32x4 (Left, Right));
+   function Native_Not_I32x4 is new NEON_Unary_128 (I32x4, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : I32x4) return I32x4 is (Native_Not_I32x4 (Value));
+   function Native_Reverse_I32x4 is new NEON_Unary_128 (I32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : I32x4) return I32x4 is (Native_Reverse_I32x4 (Value));
+   function Zero return I32x4 is (Flyology_SIMD.Zero);
+   function Splat (Value : I32) return I32x4 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : I32x4; Lane : Lane_Index_32x4) return I32 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : I32x4; Lane : Lane_Index_32x4; With_Value : I32) return I32x4 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Native_Shift_Left_Logical_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
+   function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is
+     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I32x4 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
+   function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is
+     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I32x4 (Value, -Interfaces.Integer_64 (Count)));
+   function Native_SRA_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "sshl v0.4s, v0.4s, v1.4s");
+   function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4 is
+     (if Count >= 32 then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SRA_I32x4 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_I32x4 (Left, Right, Weights_32x4'Address)));
+   function Greater_Than (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_I32x4 (Left, Right, Weights_32x4'Address)));
+   function Greater_Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I32x4 (Left, Right, Weights_32x4'Address)));
+   function Less_Than (Left, Right : I32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : I32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : I32x4) return I32 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : I32x4) return I32 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : I32x4) return I32 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x4 is
+      Result : I32x4;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x4) return I32x4 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_U64x2 is new NEON_Compare_128 (U64x2, "cmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Compare_Greater_U64x2 is new NEON_Compare_128 (U64x2, "cmhi v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Compare_Greater_Equal_U64x2 is new NEON_Compare_128 (U64x2, "cmhs v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Native_Add_Wrap_U64x2 is new NEON_Binary_128 (U64x2, "add v0.2d, v0.2d, v1.2d");
+   function Add_Wrap (Left, Right : U64x2) return U64x2 is (Native_Add_Wrap_U64x2 (Left, Right));
+   function Native_Subtract_Wrap_U64x2 is new NEON_Binary_128 (U64x2, "sub v0.2d, v0.2d, v1.2d");
+   function Subtract_Wrap (Left, Right : U64x2) return U64x2 is (Native_Subtract_Wrap_U64x2 (Left, Right));
+   function Native_Add_Saturate_U64x2 is new NEON_Binary_128 (U64x2, "uqadd v0.2d, v0.2d, v1.2d");
+   function Add_Saturate (Left, Right : U64x2) return U64x2 is (Native_Add_Saturate_U64x2 (Left, Right));
+   function Native_Subtract_Saturate_U64x2 is new NEON_Binary_128 (U64x2, "uqsub v0.2d, v0.2d, v1.2d");
+   function Subtract_Saturate (Left, Right : U64x2) return U64x2 is (Native_Subtract_Saturate_U64x2 (Left, Right));
+   function Native_Bitwise_And_U64x2 is new NEON_Binary_128 (U64x2, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : U64x2) return U64x2 is (Native_Bitwise_And_U64x2 (Left, Right));
+   function Native_Bitwise_Or_U64x2 is new NEON_Binary_128 (U64x2, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : U64x2) return U64x2 is (Native_Bitwise_Or_U64x2 (Left, Right));
+   function Native_Bitwise_Xor_U64x2 is new NEON_Binary_128 (U64x2, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : U64x2) return U64x2 is (Native_Bitwise_Xor_U64x2 (Left, Right));
+   function Native_Min_U64x2 is new NEON_Binary_128 (U64x2, "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b");
+   function Min (Left, Right : U64x2) return U64x2 is (Native_Min_U64x2 (Left, Right));
+   function Native_Max_U64x2 is new NEON_Binary_128 (U64x2, "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b");
+   function Max (Left, Right : U64x2) return U64x2 is (Native_Max_U64x2 (Left, Right));
+   function Native_Interleave_Low_U64x2 is new NEON_Binary_128 (U64x2, "zip1 v0.2d, v0.2d, v1.2d");
+   function Interleave_Low (Left, Right : U64x2) return U64x2 is (Native_Interleave_Low_U64x2 (Left, Right));
+   function Native_Interleave_High_U64x2 is new NEON_Binary_128 (U64x2, "zip2 v0.2d, v0.2d, v1.2d");
+   function Interleave_High (Left, Right : U64x2) return U64x2 is (Native_Interleave_High_U64x2 (Left, Right));
+   function Native_Not_U64x2 is new NEON_Unary_128 (U64x2, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
+   function Native_Reverse_U64x2 is new NEON_Unary_128 (U64x2, "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : U64x2) return U64x2 is (Native_Reverse_U64x2 (Value));
+   function Zero return U64x2 is (Flyology_SIMD.Zero);
+   function Splat (Value : U64) return U64x2 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : U64x2; Lane : Lane_Index_64x2) return U64 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : U64x2; Lane : Lane_Index_64x2; With_Value : U64) return U64x2 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Multiply_Wrap (Left, Right : U64x2) return U64x2 is
+     (Flyology_SIMD.Multiply_Wrap (Left, Right));
+   function Native_Shift_Left_Logical_U64x2 is new NEON_Shift_128 (U64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
+   function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
+     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U64x2 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_U64x2 is new NEON_Shift_128 (U64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
+   function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is
+     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U64x2 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_U64x2 (Left, Right, Weights_64x2'Address)));
+   function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_U64x2 (Left, Right, Weights_64x2'Address)));
+   function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U64x2 (Left, Right, Weights_64x2'Address)));
+   function Less_Than (Left, Right : U64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : U64x2) return U64 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : U64x2) return U64 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : U64x2) return U64 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x2 is
+      Result : U64x2;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x2) return U64x2 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Compare_I64x2 is new NEON_Compare_128 (I64x2, "cmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Compare_Greater_I64x2 is new NEON_Compare_128 (I64x2, "cmgt v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Compare_Greater_Equal_I64x2 is new NEON_Compare_128 (I64x2, "cmge v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Native_Add_Wrap_I64x2 is new NEON_Binary_128 (I64x2, "add v0.2d, v0.2d, v1.2d");
+   function Add_Wrap (Left, Right : I64x2) return I64x2 is (Native_Add_Wrap_I64x2 (Left, Right));
+   function Native_Subtract_Wrap_I64x2 is new NEON_Binary_128 (I64x2, "sub v0.2d, v0.2d, v1.2d");
+   function Subtract_Wrap (Left, Right : I64x2) return I64x2 is (Native_Subtract_Wrap_I64x2 (Left, Right));
+   function Native_Add_Saturate_I64x2 is new NEON_Binary_128 (I64x2, "sqadd v0.2d, v0.2d, v1.2d");
+   function Add_Saturate (Left, Right : I64x2) return I64x2 is (Native_Add_Saturate_I64x2 (Left, Right));
+   function Native_Subtract_Saturate_I64x2 is new NEON_Binary_128 (I64x2, "sqsub v0.2d, v0.2d, v1.2d");
+   function Subtract_Saturate (Left, Right : I64x2) return I64x2 is (Native_Subtract_Saturate_I64x2 (Left, Right));
+   function Native_Bitwise_And_I64x2 is new NEON_Binary_128 (I64x2, "and v0.16b, v0.16b, v1.16b");
+   function Bitwise_And (Left, Right : I64x2) return I64x2 is (Native_Bitwise_And_I64x2 (Left, Right));
+   function Native_Bitwise_Or_I64x2 is new NEON_Binary_128 (I64x2, "orr v0.16b, v0.16b, v1.16b");
+   function Bitwise_Or (Left, Right : I64x2) return I64x2 is (Native_Bitwise_Or_I64x2 (Left, Right));
+   function Native_Bitwise_Xor_I64x2 is new NEON_Binary_128 (I64x2, "eor v0.16b, v0.16b, v1.16b");
+   function Bitwise_Xor (Left, Right : I64x2) return I64x2 is (Native_Bitwise_Xor_I64x2 (Left, Right));
+   function Native_Min_I64x2 is new NEON_Binary_128 (I64x2, "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b");
+   function Min (Left, Right : I64x2) return I64x2 is (Native_Min_I64x2 (Left, Right));
+   function Native_Max_I64x2 is new NEON_Binary_128 (I64x2, "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b");
+   function Max (Left, Right : I64x2) return I64x2 is (Native_Max_I64x2 (Left, Right));
+   function Native_Interleave_Low_I64x2 is new NEON_Binary_128 (I64x2, "zip1 v0.2d, v0.2d, v1.2d");
+   function Interleave_Low (Left, Right : I64x2) return I64x2 is (Native_Interleave_Low_I64x2 (Left, Right));
+   function Native_Interleave_High_I64x2 is new NEON_Binary_128 (I64x2, "zip2 v0.2d, v0.2d, v1.2d");
+   function Interleave_High (Left, Right : I64x2) return I64x2 is (Native_Interleave_High_I64x2 (Left, Right));
+   function Native_Not_I64x2 is new NEON_Unary_128 (I64x2, "mvn v0.16b, v0.16b");
+   function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
+   function Native_Reverse_I64x2 is new NEON_Unary_128 (I64x2, "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : I64x2) return I64x2 is (Native_Reverse_I64x2 (Value));
+   function Zero return I64x2 is (Flyology_SIMD.Zero);
+   function Splat (Value : I64) return I64x2 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : I64x2; Lane : Lane_Index_64x2) return I64 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : I64x2; Lane : Lane_Index_64x2; With_Value : I64) return I64x2 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Multiply_Wrap (Left, Right : I64x2) return I64x2 is
+     (Flyology_SIMD.Multiply_Wrap (Left, Right));
+   function Native_Shift_Left_Logical_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
+   function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
+     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I64x2 (Value, Interfaces.Integer_64 (Count)));
+   function Native_Shift_Right_Logical_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
+   function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is
+     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I64x2 (Value, -Interfaces.Integer_64 (Count)));
+   function Native_SRA_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "sshl v0.2d, v0.2d, v1.2d");
+   function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is
+     (if Count >= 64 then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SRA_I64x2 (Value, -Interfaces.Integer_64 (Count)));
+   function Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_I64x2 (Left, Right, Weights_64x2'Address)));
+   function Greater_Than (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_I64x2 (Left, Right, Weights_64x2'Address)));
+   function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I64x2 (Left, Right, Weights_64x2'Address)));
+   function Less_Than (Left, Right : I64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : I64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : I64x2) return I64 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : I64x2) return I64 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : I64x2) return I64 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x2 is
+      Result : I64x2;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x2) return I64x2 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Native_Add_F32x4 is new NEON_Binary_128 (F32x4, "fadd v0.4s, v0.4s, v1.4s");
+   function Add (Left, Right : F32x4) return F32x4 is (Native_Add_F32x4 (Left, Right));
+   function Native_Subtract_F32x4 is new NEON_Binary_128 (F32x4, "fsub v0.4s, v0.4s, v1.4s");
+   function Subtract (Left, Right : F32x4) return F32x4 is (Native_Subtract_F32x4 (Left, Right));
+   function Native_Multiply_F32x4 is new NEON_Binary_128 (F32x4, "fmul v0.4s, v0.4s, v1.4s");
+   function Multiply (Left, Right : F32x4) return F32x4 is (Native_Multiply_F32x4 (Left, Right));
+   function Native_Divide_F32x4 is new NEON_Binary_128 (F32x4, "fdiv v0.4s, v0.4s, v1.4s");
+   function Divide (Left, Right : F32x4) return F32x4 is (Native_Divide_F32x4 (Left, Right));
+   function Native_Min_Number_F32x4 is new NEON_Binary_128 (F32x4, "fminnm v0.4s, v0.4s, v1.4s");
+   function Min_Number (Left, Right : F32x4) return F32x4 is (Native_Min_Number_F32x4 (Left, Right));
+   function Native_Max_Number_F32x4 is new NEON_Binary_128 (F32x4, "fmaxnm v0.4s, v0.4s, v1.4s");
+   function Max_Number (Left, Right : F32x4) return F32x4 is (Native_Max_Number_F32x4 (Left, Right));
+   function Native_Interleave_Low_F32x4 is new NEON_Binary_128 (F32x4, "zip1 v0.4s, v0.4s, v1.4s");
+   function Interleave_Low (Left, Right : F32x4) return F32x4 is (Native_Interleave_Low_F32x4 (Left, Right));
+   function Native_Interleave_High_F32x4 is new NEON_Binary_128 (F32x4, "zip2 v0.4s, v0.4s, v1.4s");
+   function Interleave_High (Left, Right : F32x4) return F32x4 is (Native_Interleave_High_F32x4 (Left, Right));
+   function Native_Reverse_F32x4 is new NEON_Unary_128 (F32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : F32x4) return F32x4 is (Native_Reverse_F32x4 (Value));
+   function Compare_Equal_F32x4 is new NEON_Compare_128 (F32x4, "fcmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Equal_F32x4 (Left, Right, Weights_32x4'Address)));
+   function Compare_Greater_Than_F32x4 is new NEON_Compare_128 (F32x4, "fcmgt v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Greater_Than (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Than_F32x4 (Left, Right, Weights_32x4'Address)));
+   function Compare_Greater_Equal_F32x4 is new NEON_Compare_128 (F32x4, "fcmge v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Greater_Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_F32x4 (Left, Right, Weights_32x4'Address)));
+   function Unordered (Left, Right : F32x4) return Mask_32x4 is
+     (Flyology_SIMD.Unordered (Left, Right));
+   function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
+   function Zero return F32x4 is (Flyology_SIMD.Zero);
+   function Splat (Value : F32) return F32x4 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : F32x4; Lane : Lane_Index_32x4) return F32 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : F32x4; Lane : Lane_Index_32x4; With_Value : F32) return F32x4 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add (Value : F32x4) return F32 is
+     (Flyology_SIMD.Reduce_Add (Value));
+   function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x4 is
+      Result : F32x4;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x4) return F32x4 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Native_Add_F64x2 is new NEON_Binary_128 (F64x2, "fadd v0.2d, v0.2d, v1.2d");
+   function Add (Left, Right : F64x2) return F64x2 is (Native_Add_F64x2 (Left, Right));
+   function Native_Subtract_F64x2 is new NEON_Binary_128 (F64x2, "fsub v0.2d, v0.2d, v1.2d");
+   function Subtract (Left, Right : F64x2) return F64x2 is (Native_Subtract_F64x2 (Left, Right));
+   function Native_Multiply_F64x2 is new NEON_Binary_128 (F64x2, "fmul v0.2d, v0.2d, v1.2d");
+   function Multiply (Left, Right : F64x2) return F64x2 is (Native_Multiply_F64x2 (Left, Right));
+   function Native_Divide_F64x2 is new NEON_Binary_128 (F64x2, "fdiv v0.2d, v0.2d, v1.2d");
+   function Divide (Left, Right : F64x2) return F64x2 is (Native_Divide_F64x2 (Left, Right));
+   function Native_Min_Number_F64x2 is new NEON_Binary_128 (F64x2, "fminnm v0.2d, v0.2d, v1.2d");
+   function Min_Number (Left, Right : F64x2) return F64x2 is (Native_Min_Number_F64x2 (Left, Right));
+   function Native_Max_Number_F64x2 is new NEON_Binary_128 (F64x2, "fmaxnm v0.2d, v0.2d, v1.2d");
+   function Max_Number (Left, Right : F64x2) return F64x2 is (Native_Max_Number_F64x2 (Left, Right));
+   function Native_Interleave_Low_F64x2 is new NEON_Binary_128 (F64x2, "zip1 v0.2d, v0.2d, v1.2d");
+   function Interleave_Low (Left, Right : F64x2) return F64x2 is (Native_Interleave_Low_F64x2 (Left, Right));
+   function Native_Interleave_High_F64x2 is new NEON_Binary_128 (F64x2, "zip2 v0.2d, v0.2d, v1.2d");
+   function Interleave_High (Left, Right : F64x2) return F64x2 is (Native_Interleave_High_F64x2 (Left, Right));
+   function Native_Reverse_F64x2 is new NEON_Unary_128 (F64x2, "ext v0.16b, v0.16b, v0.16b, #8");
+   function Reverse_Lanes (Value : F64x2) return F64x2 is (Native_Reverse_F64x2 (Value));
+   function Compare_Equal_F64x2 is new NEON_Compare_128 (F64x2, "fcmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Equal_F64x2 (Left, Right, Weights_64x2'Address)));
+   function Compare_Greater_Than_F64x2 is new NEON_Compare_128 (F64x2, "fcmgt v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Greater_Than (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Than_F64x2 (Left, Right, Weights_64x2'Address)));
+   function Compare_Greater_Equal_F64x2 is new NEON_Compare_128 (F64x2, "fcmge v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Greater_Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_F64x2 (Left, Right, Weights_64x2'Address)));
+   function Unordered (Left, Right : F64x2) return Mask_64x2 is
+     (Flyology_SIMD.Unordered (Left, Right));
+   function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
+   function Zero return F64x2 is (Flyology_SIMD.Zero);
+   function Splat (Value : F64) return F64x2 is
+     (Flyology_SIMD.Splat (Value));
+   function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : F64x2; Lane : Lane_Index_64x2) return F64 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : F64x2; Lane : Lane_Index_64x2; With_Value : F64) return F64x2 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add (Value : F64x2) return F64 is
+     (Flyology_SIMD.Reduce_Add (Value));
+   function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x2 is
+      Result : F64x2;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+   end Store_Unaligned;
+   function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x2) return F64x2 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
+     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is
+     (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Test (Mask : Mask_16x8; Lane : Lane_Index_16x8) return Boolean is
+     (Flyology_SIMD.Test (Mask, Lane));
+   function Any_True (Mask : Mask_16x8) return Boolean is
+     (Flyology_SIMD.Any_True (Mask));
+   function All_True (Mask : Mask_16x8) return Boolean is
+     (Flyology_SIMD.All_True (Mask));
+   function None_True (Mask : Mask_16x8) return Boolean is
+     (Flyology_SIMD.None_True (Mask));
+   function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is
+     (Flyology_SIMD.Population_Count (Mask));
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is
+     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
+     (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Test (Mask : Mask_32x4; Lane : Lane_Index_32x4) return Boolean is
+     (Flyology_SIMD.Test (Mask, Lane));
+   function Any_True (Mask : Mask_32x4) return Boolean is
+     (Flyology_SIMD.Any_True (Mask));
+   function All_True (Mask : Mask_32x4) return Boolean is
+     (Flyology_SIMD.All_True (Mask));
+   function None_True (Mask : Mask_32x4) return Boolean is
+     (Flyology_SIMD.None_True (Mask));
+   function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is
+     (Flyology_SIMD.Population_Count (Mask));
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is
+     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
+     (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Test (Mask : Mask_64x2; Lane : Lane_Index_64x2) return Boolean is
+     (Flyology_SIMD.Test (Mask, Lane));
+   function Any_True (Mask : Mask_64x2) return Boolean is
+     (Flyology_SIMD.Any_True (Mask));
+   function All_True (Mask : Mask_64x2) return Boolean is
+     (Flyology_SIMD.All_True (Mask));
+   function None_True (Mask : Mask_64x2) return Boolean is
+     (Flyology_SIMD.None_True (Mask));
+   function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is
+     (Flyology_SIMD.Population_Count (Mask));
+   --  END GENERATED FULL-FAMILY NEON BODIES
 end Flyology_SIMD.Backends.Native;

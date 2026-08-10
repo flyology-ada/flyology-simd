@@ -1,4 +1,8 @@
 /alire/
+/benchmarks/alire/
+/benchmarks/config/
+/benchmarks/obj/
+/benchmarks/bin/
 /config/
 /obj/
 /lib/
@@ -9,3 +13,4 @@
 *.o
 *.a
 *.dSYM/
+__pycache__/

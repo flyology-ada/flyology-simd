@@ -74,8 +74,11 @@ procedure SIMD_Tests is
       Added : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
       Saturated : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
    begin
-      Check (Extract (Zero, 0) = 0 and Extract (Zero, 15) = 0, "zero");
-      Check (Extract (Splat (77), 9) = 77, "splat");
+      Check
+        (Extract (U8x16'(Zero), 0) = 0
+         and Extract (U8x16'(Zero), 15) = 0,
+         "zero");
+      Check (Extract (U8x16'(Splat (U8'(77))), 9) = 77, "splat");
       Check (Extract (Replace (A, 5, 42), 5) = 42, "replace");
       Check (Added (6) = 0 and Added (7) = 0, "wrapping addition");
       Check (Extract (Subtract_Wrap (A, B), 1) = 255,
@@ -120,11 +123,25 @@ procedure SIMD_Tests is
             Mask : constant Mask_8x16 := Mask_From_Bit_Mask (Bits);
          begin
             Check (To_Bit_Mask (Mask) = Bits, "mask round trip" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits)) = Bits,
+               "native mask round trip" & Raw'Image);
             Check (Population_Count (Mask) = Reference_Popcount (Bits),
                    "mask popcount" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.Population_Count (Mask) =
+                 Reference_Popcount (Bits),
+               "native mask popcount" & Raw'Image);
             Check (Any_True (Mask) = (Raw /= 0), "mask any" & Raw'Image);
             Check (None_True (Mask) = (Raw = 0), "mask none" & Raw'Image);
             Check (All_True (Mask) = (Raw = 65_535), "mask all" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.Any_True (Mask) = (Raw /= 0)
+               and then Flyology_SIMD.Backends.Native.None_True (Mask) = (Raw = 0)
+               and then Flyology_SIMD.Backends.Native.All_True (Mask) =
+                 (Raw = 65_535),
+               "native mask reductions" & Raw'Image);
          end;
       end loop;
    end Test_All_Masks;
@@ -188,21 +205,90 @@ procedure SIMD_Tests is
             Check (Same (Flyology_SIMD.Backends.Native.Splat (U8 (Iteration mod 256)),
                          Splat (U8 (Iteration mod 256))),
                    "native splat" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.From_Lanes
+                    (Flyology_SIMD.Backends.Native.To_Lanes (A)),
+                  A),
+               "native lane round trip" & Iteration'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.Extract (A, Count mod 16) =
+                 Extract (A, Count mod 16),
+               "native extract" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Replace
+                    (A, Count mod 16, U8 (Iteration mod 256)),
+                  Replace (A, Count mod 16, U8 (Iteration mod 256))),
+               "native replace" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Add_Wrap (A, B),
                          Add_Wrap (A, B)), "native add" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Subtract_Wrap (A, B),
+                         Subtract_Wrap (A, B)),
+                   "native subtract" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Add_Saturate (A, B),
                          Add_Saturate (A, B)), "native saturate" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Subtract_Saturate (A, B),
+                  Subtract_Saturate (A, B)),
+               "native subtract saturate" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Bitwise_And (A, B),
                          Bitwise_And (A, B)), "native and" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Or (A, B),
+                         Bitwise_Or (A, B)), "native or" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Xor (A, B),
+                         Bitwise_Xor (A, B)), "native xor" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Not (A),
+                         Bitwise_Not (A)), "native not" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Shift_Left_Logical (A, Shift),
+                  Shift_Left_Logical (A, Shift)),
+               "native left shift" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Shift_Right_Logical (A, Shift),
+                  Shift_Right_Logical (A, Shift)),
+               "native right shift" & Iteration'Image);
             Check (Flyology_SIMD.Backends.Native.To_Bit_Mask
                      (Flyology_SIMD.Backends.Native.Equal (A, B)) =
                    To_Bit_Mask (M), "native compare/mask" & Iteration'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Less_Than (A, B)) =
+                 To_Bit_Mask (Less_Than (A, B))
+               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Less_Equal (A, B)) =
+                 To_Bit_Mask (Less_Equal (A, B))
+               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Greater_Than (A, B)) =
+                 To_Bit_Mask (Greater_Than (A, B))
+               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Greater_Equal (A, B)) =
+                 To_Bit_Mask (Greater_Equal (A, B)),
+               "native ordered comparisons" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Select_Value (M, A, B),
                          Select_Value (M, A, B)), "native select" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Min (A, B), Min (A, B)),
                    "native min" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Max (A, B), Max (A, B)),
                    "native max" & Iteration'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
+                 Horizontal_Sum (A),
+               "native horizontal sum" & Iteration'Image);
+            Check
+              (Same (Flyology_SIMD.Backends.Native.Reverse_Bytes (A),
+                     Reverse_Bytes (A)),
+               "native reverse" & Iteration'Image);
+            Check
+              (Same (Flyology_SIMD.Backends.Native.Interleave_Low (A, B),
+                     Interleave_Low (A, B))
+               and then Same
+                 (Flyology_SIMD.Backends.Native.Interleave_High (A, B),
+                  Interleave_High (A, B)),
+               "native interleave" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),
@@ -220,6 +306,9 @@ procedure SIMD_Tests is
                       "scalar comparison lane" & Lane'Image);
             end loop;
             Store_Unaligned (Buffer, 1, A);
+            Check
+              (Same (Flyology_SIMD.Backends.Native.Load (Buffer, 1), A),
+               "native ordinary load" & Iteration'Image);
             Check (Same
                      (Flyology_SIMD.Backends.Native.Load_Unaligned (Buffer, 1), A),
                    "native unaligned load" & Iteration'Image);
@@ -228,6 +317,12 @@ procedure SIMD_Tests is
             Store_Unaligned (Reference_Buffer, 1, B);
             Check (Buffer = Reference_Buffer,
                    "native unaligned store" & Iteration'Image);
+            Buffer := [others => 0];
+            Reference_Buffer := [others => 0];
+            Flyology_SIMD.Backends.Native.Store (Buffer, 1, B);
+            Store (Reference_Buffer, 1, B);
+            Check (Buffer = Reference_Buffer,
+                   "native ordinary store" & Iteration'Image);
             Buffer := [others => 16#CC#];
             Reference_Buffer := [others => 16#CC#];
             Flyology_SIMD.Backends.Native.Store_Partial

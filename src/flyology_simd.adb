@@ -1,8 +1,18 @@
+with Ada.Unchecked_Conversion;
 with System.Storage_Elements;
 
 package body Flyology_SIMD is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_64;
+   use type Interfaces.Integer_8;
+   use type Interfaces.Integer_16;
+   use type Interfaces.Integer_32;
+   use type Interfaces.Integer_64;
+   use type Interfaces.IEEE_Float_32;
+   use type Interfaces.IEEE_Float_64;
+   use type System.Storage_Elements.Integer_Address;
 
    function Zero return U8x16 is (Lanes => [others => 0]);
 
@@ -329,4 +339,1952 @@ package body Flyology_SIMD is
          end loop;
       end if;
    end Store_Partial;
+
+   --  BEGIN GENERATED 128-BIT SCALAR BODIES
+   function To_U8 is new Ada.Unchecked_Conversion (I8, U8);
+   function To_I8 is new Ada.Unchecked_Conversion (U8, I8);
+
+   function Zero return I8x16 is (Lanes => [others => 0]);
+   function Splat (Value : I8) return I8x16 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is (Lanes => Values);
+   function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is (Value.Lanes);
+   function Extract (Value : I8x16; Lane : Lane_Index_8x16) return I8 is (Value.Lanes (Lane));
+   function Replace (Value : I8x16; Lane : Lane_Index_8x16; With_Value : I8) return I8x16 is
+      Result : I8x16 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) + To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) - To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) * To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) > I8'Last - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I8'Last;
+         elsif Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) < I8'First - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I8'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) > I8'Last + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I8'Last;
+         elsif Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) < I8'First + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I8'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) and To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) or To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (To_U8 (Left.Lanes (Lane)) xor To_U8 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (not To_U8 (Value.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16;
+   begin
+      if Count >= 8 then return Zero; end if;
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (Interfaces.Shift_Left (To_U8 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16;
+   begin
+      if Count >= 8 then return Zero; end if;
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (Interfaces.Shift_Right (To_U8 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16;
+   begin
+      if Count >= 8 then
+         for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := (if Value.Lanes (Lane) < 0 then -1 else 0); end loop;
+         return Result;
+      end if;
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := To_I8 (Interfaces.Shift_Right_Arithmetic (To_U8 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Arithmetic;
+
+   function Compare_I8x16 (Left, Right : I8x16; Kind : Character) return Mask_8x16 is
+      Bits : Interfaces.Unsigned_16 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_I8x16;
+   function Equal (Left, Right : I8x16) return Mask_8x16 is (Compare_I8x16 (Left, Right, '='));
+   function Less_Than (Left, Right : I8x16) return Mask_8x16 is (Compare_I8x16 (Left, Right, '<'));
+   function Less_Equal (Left, Right : I8x16) return Mask_8x16 is (Compare_I8x16 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : I8x16) return Mask_8x16 is (Compare_I8x16 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : I8x16) return Mask_8x16 is (Compare_I8x16 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := I8'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := I8'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : I8x16) return I8 is
+      Result : I8 := 0;
+   begin
+      for Lane in Lane_Index_8x16 loop Result := To_I8 (To_U8 (Result) + To_U8 (Value.Lanes (Lane))); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : I8x16) return I8 is
+      Result : I8 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_8x16 range 1 .. 15 loop Result := I8'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : I8x16) return I8 is
+      Result : I8 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_8x16 range 1 .. 15 loop Result := I8'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := Value.Lanes (15 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 8);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 8);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is
+   begin
+      for Lane in Lane_Index_8x16 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x16) return I8x16 is
+      Result : I8x16 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function Zero return U16x8 is (Lanes => [others => 0]);
+   function Splat (Value : U16) return U16x8 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is (Lanes => Values);
+   function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is (Value.Lanes);
+   function Extract (Value : U16x8; Lane : Lane_Index_16x8) return U16 is (Value.Lanes (Lane));
+   function Replace (Value : U16x8; Lane : Lane_Index_16x8; With_Value : U16) return U16x8 is
+      Result : U16x8 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) > U16'Last - Right.Lanes (Lane) then U16'Last else Left.Lanes (Lane) + Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) < Right.Lanes (Lane) then 0 else Left.Lanes (Lane) - Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) and Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) or Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) xor Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := not Value.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is
+      Result : U16x8;
+   begin
+      if Count >= 16 then return Zero; end if;
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Left (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is
+      Result : U16x8;
+   begin
+      if Count >= 16 then return Zero; end if;
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Right (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Compare_U16x8 (Left, Right : U16x8; Kind : Character) return Mask_16x8 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_U16x8;
+   function Equal (Left, Right : U16x8) return Mask_16x8 is (Compare_U16x8 (Left, Right, '='));
+   function Less_Than (Left, Right : U16x8) return Mask_16x8 is (Compare_U16x8 (Left, Right, '<'));
+   function Less_Equal (Left, Right : U16x8) return Mask_16x8 is (Compare_U16x8 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Compare_U16x8 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Compare_U16x8 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := U16'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := U16'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : U16x8) return U16 is
+      Result : U16 := 0;
+   begin
+      for Lane in Lane_Index_16x8 loop Result := Result + Value.Lanes (Lane); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : U16x8) return U16 is
+      Result : U16 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_16x8 range 1 .. 7 loop Result := U16'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : U16x8) return U16 is
+      Result : U16 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_16x8 range 1 .. 7 loop Result := U16'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := Value.Lanes (7 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 4);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 4);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is
+   begin
+      for Lane in Lane_Index_16x8 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x8) return U16x8 is
+      Result : U16x8 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function To_U16 is new Ada.Unchecked_Conversion (I16, U16);
+   function To_I16 is new Ada.Unchecked_Conversion (U16, I16);
+
+   function Zero return I16x8 is (Lanes => [others => 0]);
+   function Splat (Value : I16) return I16x8 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is (Lanes => Values);
+   function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is (Value.Lanes);
+   function Extract (Value : I16x8; Lane : Lane_Index_16x8) return I16 is (Value.Lanes (Lane));
+   function Replace (Value : I16x8; Lane : Lane_Index_16x8; With_Value : I16) return I16x8 is
+      Result : I16x8 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) + To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) - To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) * To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         if Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) > I16'Last - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I16'Last;
+         elsif Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) < I16'First - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I16'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         if Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) > I16'Last + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I16'Last;
+         elsif Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) < I16'First + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I16'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) and To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) or To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (To_U16 (Left.Lanes (Lane)) xor To_U16 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (not To_U16 (Value.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8;
+   begin
+      if Count >= 16 then return Zero; end if;
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (Interfaces.Shift_Left (To_U16 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8;
+   begin
+      if Count >= 16 then return Zero; end if;
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (Interfaces.Shift_Right (To_U16 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8;
+   begin
+      if Count >= 16 then
+         for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := (if Value.Lanes (Lane) < 0 then -1 else 0); end loop;
+         return Result;
+      end if;
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := To_I16 (Interfaces.Shift_Right_Arithmetic (To_U16 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Arithmetic;
+
+   function Compare_I16x8 (Left, Right : I16x8; Kind : Character) return Mask_16x8 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_I16x8;
+   function Equal (Left, Right : I16x8) return Mask_16x8 is (Compare_I16x8 (Left, Right, '='));
+   function Less_Than (Left, Right : I16x8) return Mask_16x8 is (Compare_I16x8 (Left, Right, '<'));
+   function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Compare_I16x8 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : I16x8) return Mask_16x8 is (Compare_I16x8 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : I16x8) return Mask_16x8 is (Compare_I16x8 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := I16'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := I16'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : I16x8) return I16 is
+      Result : I16 := 0;
+   begin
+      for Lane in Lane_Index_16x8 loop Result := To_I16 (To_U16 (Result) + To_U16 (Value.Lanes (Lane))); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : I16x8) return I16 is
+      Result : I16 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_16x8 range 1 .. 7 loop Result := I16'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : I16x8) return I16 is
+      Result : I16 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_16x8 range 1 .. 7 loop Result := I16'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := Value.Lanes (7 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 4);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 4);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is
+   begin
+      for Lane in Lane_Index_16x8 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x8) return I16x8 is
+      Result : I16x8 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function Zero return U32x4 is (Lanes => [others => 0]);
+   function Splat (Value : U32) return U32x4 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is (Lanes => Values);
+   function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is (Value.Lanes);
+   function Extract (Value : U32x4; Lane : Lane_Index_32x4) return U32 is (Value.Lanes (Lane));
+   function Replace (Value : U32x4; Lane : Lane_Index_32x4; With_Value : U32) return U32x4 is
+      Result : U32x4 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) > U32'Last - Right.Lanes (Lane) then U32'Last else Left.Lanes (Lane) + Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) < Right.Lanes (Lane) then 0 else Left.Lanes (Lane) - Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) and Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) or Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) xor Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := not Value.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is
+      Result : U32x4;
+   begin
+      if Count >= 32 then return Zero; end if;
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Left (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is
+      Result : U32x4;
+   begin
+      if Count >= 32 then return Zero; end if;
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Right (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Compare_U32x4 (Left, Right : U32x4; Kind : Character) return Mask_32x4 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_U32x4;
+   function Equal (Left, Right : U32x4) return Mask_32x4 is (Compare_U32x4 (Left, Right, '='));
+   function Less_Than (Left, Right : U32x4) return Mask_32x4 is (Compare_U32x4 (Left, Right, '<'));
+   function Less_Equal (Left, Right : U32x4) return Mask_32x4 is (Compare_U32x4 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Compare_U32x4 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Compare_U32x4 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := U32'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := U32'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : U32x4) return U32 is
+      Result : U32 := 0;
+   begin
+      for Lane in Lane_Index_32x4 loop Result := Result + Value.Lanes (Lane); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : U32x4) return U32 is
+      Result : U32 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop Result := U32'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : U32x4) return U32 is
+      Result : U32 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop Result := U32'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Value.Lanes (3 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 2);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 2);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is
+   begin
+      for Lane in Lane_Index_32x4 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x4) return U32x4 is
+      Result : U32x4 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function To_U32 is new Ada.Unchecked_Conversion (I32, U32);
+   function To_I32 is new Ada.Unchecked_Conversion (U32, I32);
+
+   function Zero return I32x4 is (Lanes => [others => 0]);
+   function Splat (Value : I32) return I32x4 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is (Lanes => Values);
+   function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is (Value.Lanes);
+   function Extract (Value : I32x4; Lane : Lane_Index_32x4) return I32 is (Value.Lanes (Lane));
+   function Replace (Value : I32x4; Lane : Lane_Index_32x4; With_Value : I32) return I32x4 is
+      Result : I32x4 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) + To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) - To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) * To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         if Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) > I32'Last - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I32'Last;
+         elsif Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) < I32'First - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I32'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         if Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) > I32'Last + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I32'Last;
+         elsif Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) < I32'First + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I32'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) and To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) or To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (To_U32 (Left.Lanes (Lane)) xor To_U32 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (not To_U32 (Value.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4;
+   begin
+      if Count >= 32 then return Zero; end if;
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (Interfaces.Shift_Left (To_U32 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4;
+   begin
+      if Count >= 32 then return Zero; end if;
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (Interfaces.Shift_Right (To_U32 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4;
+   begin
+      if Count >= 32 then
+         for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := (if Value.Lanes (Lane) < 0 then -1 else 0); end loop;
+         return Result;
+      end if;
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := To_I32 (Interfaces.Shift_Right_Arithmetic (To_U32 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Arithmetic;
+
+   function Compare_I32x4 (Left, Right : I32x4; Kind : Character) return Mask_32x4 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_I32x4;
+   function Equal (Left, Right : I32x4) return Mask_32x4 is (Compare_I32x4 (Left, Right, '='));
+   function Less_Than (Left, Right : I32x4) return Mask_32x4 is (Compare_I32x4 (Left, Right, '<'));
+   function Less_Equal (Left, Right : I32x4) return Mask_32x4 is (Compare_I32x4 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : I32x4) return Mask_32x4 is (Compare_I32x4 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : I32x4) return Mask_32x4 is (Compare_I32x4 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := I32'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := I32'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : I32x4) return I32 is
+      Result : I32 := 0;
+   begin
+      for Lane in Lane_Index_32x4 loop Result := To_I32 (To_U32 (Result) + To_U32 (Value.Lanes (Lane))); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : I32x4) return I32 is
+      Result : I32 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop Result := I32'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : I32x4) return I32 is
+      Result : I32 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop Result := I32'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Value.Lanes (3 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 2);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 2);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is
+   begin
+      for Lane in Lane_Index_32x4 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x4) return I32x4 is
+      Result : I32x4 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function Zero return U64x2 is (Lanes => [others => 0]);
+   function Splat (Value : U64) return U64x2 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is (Lanes => Values);
+   function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is (Value.Lanes);
+   function Extract (Value : U64x2; Lane : Lane_Index_64x2) return U64 is (Value.Lanes (Lane));
+   function Replace (Value : U64x2; Lane : Lane_Index_64x2; With_Value : U64) return U64x2 is
+      Result : U64x2 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) > U64'Last - Right.Lanes (Lane) then U64'Last else Left.Lanes (Lane) + Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := (if Left.Lanes (Lane) < Right.Lanes (Lane) then 0 else Left.Lanes (Lane) - Right.Lanes (Lane));
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) and Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) or Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) xor Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := not Value.Lanes (Lane);
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
+      Result : U64x2;
+   begin
+      if Count >= 64 then return Zero; end if;
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Left (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is
+      Result : U64x2;
+   begin
+      if Count >= 64 then return Zero; end if;
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Interfaces.Shift_Right (Value.Lanes (Lane), Count);
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Compare_U64x2 (Left, Right : U64x2; Kind : Character) return Mask_64x2 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_U64x2;
+   function Equal (Left, Right : U64x2) return Mask_64x2 is (Compare_U64x2 (Left, Right, '='));
+   function Less_Than (Left, Right : U64x2) return Mask_64x2 is (Compare_U64x2 (Left, Right, '<'));
+   function Less_Equal (Left, Right : U64x2) return Mask_64x2 is (Compare_U64x2 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Compare_U64x2 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Compare_U64x2 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := U64'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := U64'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : U64x2) return U64 is
+      Result : U64 := 0;
+   begin
+      for Lane in Lane_Index_64x2 loop Result := Result + Value.Lanes (Lane); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : U64x2) return U64 is
+      Result : U64 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop Result := U64'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : U64x2) return U64 is
+      Result : U64 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop Result := U64'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Value.Lanes (1 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 1);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 1);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is
+   begin
+      for Lane in Lane_Index_64x2 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x2) return U64x2 is
+      Result : U64x2 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function To_U64 is new Ada.Unchecked_Conversion (I64, U64);
+   function To_I64 is new Ada.Unchecked_Conversion (U64, I64);
+
+   function Zero return I64x2 is (Lanes => [others => 0]);
+   function Splat (Value : I64) return I64x2 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is (Lanes => Values);
+   function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is (Value.Lanes);
+   function Extract (Value : I64x2; Lane : Lane_Index_64x2) return I64 is (Value.Lanes (Lane));
+   function Replace (Value : I64x2; Lane : Lane_Index_64x2; With_Value : I64) return I64x2 is
+      Result : I64x2 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+
+   function Add_Wrap (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) + To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Add_Wrap;
+
+   function Subtract_Wrap (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) - To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Subtract_Wrap;
+
+   function Multiply_Wrap (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) * To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
+   function Add_Saturate (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         if Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) > I64'Last - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I64'Last;
+         elsif Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) < I64'First - Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I64'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Add_Saturate;
+
+   function Subtract_Saturate (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         if Right.Lanes (Lane) < 0 and then Left.Lanes (Lane) > I64'Last + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I64'Last;
+         elsif Right.Lanes (Lane) > 0 and then Left.Lanes (Lane) < I64'First + Right.Lanes (Lane) then
+            Result.Lanes (Lane) := I64'First;
+         else
+            Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane);
+         end if;
+      end loop;
+      return Result;
+   end Subtract_Saturate;
+
+   function Bitwise_And (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) and To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_And;
+
+   function Bitwise_Or (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) or To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Or;
+
+   function Bitwise_Xor (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (To_U64 (Left.Lanes (Lane)) xor To_U64 (Right.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Xor;
+
+   function Bitwise_Not (Value : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (not To_U64 (Value.Lanes (Lane)));
+      end loop;
+      return Result;
+   end Bitwise_Not;
+
+   function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2;
+   begin
+      if Count >= 64 then return Zero; end if;
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (Interfaces.Shift_Left (To_U64 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Left_Logical;
+
+   function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2;
+   begin
+      if Count >= 64 then return Zero; end if;
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (Interfaces.Shift_Right (To_U64 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Logical;
+
+   function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2;
+   begin
+      if Count >= 64 then
+         for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := (if Value.Lanes (Lane) < 0 then -1 else 0); end loop;
+         return Result;
+      end if;
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := To_I64 (Interfaces.Shift_Right_Arithmetic (To_U64 (Value.Lanes (Lane)), Count));
+      end loop;
+      return Result;
+   end Shift_Right_Arithmetic;
+
+   function Compare_I64x2 (Left, Right : I64x2; Kind : Character) return Mask_64x2 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_I64x2;
+   function Equal (Left, Right : I64x2) return Mask_64x2 is (Compare_I64x2 (Left, Right, '='));
+   function Less_Than (Left, Right : I64x2) return Mask_64x2 is (Compare_I64x2 (Left, Right, '<'));
+   function Less_Equal (Left, Right : I64x2) return Mask_64x2 is (Compare_I64x2 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : I64x2) return Mask_64x2 is (Compare_I64x2 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Compare_I64x2 (Left, Right, 'G'));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := I64'Min (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Min;
+   function Max (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := I64'Max (Left.Lanes (Lane), Right.Lanes (Lane)); end loop;
+      return Result;
+   end Max;
+   function Reduce_Add_Wrap (Value : I64x2) return I64 is
+      Result : I64 := 0;
+   begin
+      for Lane in Lane_Index_64x2 loop Result := To_I64 (To_U64 (Result) + To_U64 (Value.Lanes (Lane))); end loop;
+      return Result;
+   end Reduce_Add_Wrap;
+   function Reduce_Min (Value : I64x2) return I64 is
+      Result : I64 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop Result := I64'Min (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Min;
+   function Reduce_Max (Value : I64x2) return I64 is
+      Result : I64 := Value.Lanes (0);
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop Result := I64'Max (Result, Value.Lanes (Lane)); end loop;
+      return Result;
+   end Reduce_Max;
+
+   function Reverse_Lanes (Value : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Value.Lanes (1 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0);
+      end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (2 * Lane) := Left.Lanes (Lane + 1);
+         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 1);
+      end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is
+   begin
+      for Lane in Lane_Index_64x2 loop Data (Start + Lane) := Value.Lanes (Lane); end loop;
+   end Store_Unaligned;
+   function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x2) return I64x2 is
+      Result : I64x2 := Zero;
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is
+   begin
+      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;
+   end Store_Partial;
+
+   function Bits_Of_F32 is new Ada.Unchecked_Conversion (F32, U32);
+   function Zero return F32x4 is (Lanes => [others => 0.0]);
+   function Splat (Value : F32) return F32x4 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is (Lanes => Values);
+   function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is (Value.Lanes);
+   function Extract (Value : F32x4; Lane : Lane_Index_32x4) return F32 is (Value.Lanes (Lane));
+   function Replace (Value : F32x4; Lane : Lane_Index_32x4; With_Value : F32) return F32x4 is
+      Result : F32x4 := Value;
+   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;
+   function Add (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane); end loop;
+      return Result;
+   end Add;
+   function Subtract (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane); end loop;
+      return Result;
+   end Subtract;
+   function Multiply (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane); end loop;
+      return Result;
+   end Multiply;
+   function Divide (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Left.Lanes (Lane) / Right.Lanes (Lane); end loop;
+      return Result;
+   end Divide;
+   function Compare_F32x4 (Left, Right : F32x4; Kind : Character) return Mask_32x4 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when 'G' => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) /= Left.Lanes (Lane) or else Right.Lanes (Lane) /= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_F32x4;
+   function Equal (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, '='));
+   function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, '<'));
+   function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, 'G'));
+   function Unordered (Left, Right : F32x4) return Mask_32x4 is (Compare_F32x4 (Left, Right, 'U'));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min_Number (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F32 (Left.Lanes (Lane)) and 2 ** 31) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) < Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;
+      end loop;
+      return Result;
+   end Min_Number;
+   function Max_Number (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F32 (Left.Lanes (Lane)) and 2 ** 31) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) > Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;
+      end loop;
+      return Result;
+   end Max_Number;
+   function Reduce_Add (Value : F32x4) return F32 is
+      Result : F32 := 0.0;
+   begin
+      for Lane in Lane_Index_32x4 loop Result := Result + Value.Lanes (Lane); end loop;
+      return Result;
+   end Reduce_Add;
+   function Reverse_Lanes (Value : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Value.Lanes (3 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0); end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 2); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 2); end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin for Lane in Lane_Index_32x4 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end Store_Unaligned;
+   function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x4) return F32x4 is
+      Result : F32x4 := Zero;
+   begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if; return Result; end Load_Partial;
+   procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if; end Store_Partial;
+
+   function Bits_Of_F64 is new Ada.Unchecked_Conversion (F64, U64);
+   function Zero return F64x2 is (Lanes => [others => 0.0]);
+   function Splat (Value : F64) return F64x2 is (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is (Lanes => Values);
+   function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is (Value.Lanes);
+   function Extract (Value : F64x2; Lane : Lane_Index_64x2) return F64 is (Value.Lanes (Lane));
+   function Replace (Value : F64x2; Lane : Lane_Index_64x2; With_Value : F64) return F64x2 is
+      Result : F64x2 := Value;
+   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;
+   function Add (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Left.Lanes (Lane) + Right.Lanes (Lane); end loop;
+      return Result;
+   end Add;
+   function Subtract (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Left.Lanes (Lane) - Right.Lanes (Lane); end loop;
+      return Result;
+   end Subtract;
+   function Multiply (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane); end loop;
+      return Result;
+   end Multiply;
+   function Divide (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Left.Lanes (Lane) / Right.Lanes (Lane); end loop;
+      return Result;
+   end Divide;
+   function Compare_F64x2 (Left, Right : F64x2; Kind : Character) return Mask_64x2 is
+      Bits : Interfaces.Unsigned_8 := 0;
+      Truth : Boolean;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         case Kind is
+            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);
+            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);
+            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);
+            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);
+            when 'G' => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);
+            when others => Truth := Left.Lanes (Lane) /= Left.Lanes (Lane) or else Right.Lanes (Lane) /= Right.Lanes (Lane);
+         end case;
+         if Truth then Bits := Bits or Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane); end if;
+      end loop;
+      return (Bits => Bits);
+   end Compare_F64x2;
+   function Equal (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, '='));
+   function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, '<'));
+   function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, 'L'));
+   function Greater_Than (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, '>'));
+   function Greater_Equal (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, 'G'));
+   function Unordered (Left, Right : F64x2) return Mask_64x2 is (Compare_F64x2 (Left, Right, 'U'));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;
+      return Result;
+   end Select_Value;
+   function Min_Number (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F64 (Left.Lanes (Lane)) and 2 ** 63) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) < Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;
+      end loop;
+      return Result;
+   end Min_Number;
+   function Max_Number (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F64 (Left.Lanes (Lane)) and 2 ** 63) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) > Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
+         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;
+      end loop;
+      return Result;
+   end Max_Number;
+   function Reduce_Add (Value : F64x2) return F64 is
+      Result : F64 := 0.0;
+   begin
+      for Lane in Lane_Index_64x2 loop Result := Result + Value.Lanes (Lane); end loop;
+      return Result;
+   end Reduce_Add;
+   function Reverse_Lanes (Value : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Value.Lanes (1 - Lane); end loop;
+      return Result;
+   end Reverse_Lanes;
+   function Interleave_Low (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 0); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 0); end loop;
+      return Result;
+   end Interleave_Low;
+   function Interleave_High (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 1); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 1); end loop;
+      return Result;
+   end Interleave_High;
+   function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
+   function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result.Lanes (Lane) := Data (Start + Lane); end loop;
+      return Result;
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin for Lane in Lane_Index_64x2 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end Store_Unaligned;
+   function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x2) return F64x2 is
+      Result : F64x2 := Zero;
+   begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if; return Result; end Load_Partial;
+   procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if; end Store_Partial;
+
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is (Bits => Bits and 255);
+   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is (Mask.Bits);
+   function Test (Mask : Mask_16x8; Lane : Lane_Index_16x8) return Boolean is ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_16x8) return Boolean is (Mask.Bits /= 0);
+   function All_True (Mask : Mask_16x8) return Boolean is (Mask.Bits = 255);
+   function None_True (Mask : Mask_16x8) return Boolean is (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is
+      Bits : Interfaces.Unsigned_8 := Mask.Bits;
+      Result : Lane_Count_16x8 := 0;
+   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is (Bits => Bits and 15);
+   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is (Mask.Bits);
+   function Test (Mask : Mask_32x4; Lane : Lane_Index_32x4) return Boolean is ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_32x4) return Boolean is (Mask.Bits /= 0);
+   function All_True (Mask : Mask_32x4) return Boolean is (Mask.Bits = 15);
+   function None_True (Mask : Mask_32x4) return Boolean is (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is
+      Bits : Interfaces.Unsigned_8 := Mask.Bits;
+      Result : Lane_Count_32x4 := 0;
+   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is (Bits => Bits and 3);
+   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is (Mask.Bits);
+   function Test (Mask : Mask_64x2; Lane : Lane_Index_64x2) return Boolean is ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_64x2) return Boolean is (Mask.Bits /= 0);
+   function All_True (Mask : Mask_64x2) return Boolean is (Mask.Bits = 3);
+   function None_True (Mask : Mask_64x2) return Boolean is (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is
+      Bits : Interfaces.Unsigned_8 := Mask.Bits;
+      Result : Lane_Count_64x2 := 0;
+   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+   --  END GENERATED 128-BIT SCALAR BODIES
 end Flyology_SIMD;
