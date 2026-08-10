@@ -74,9 +74,9 @@ explicit.  Integer-to-floating conversion uses the default IEEE rounding mode.
 A backend is complete only when every operation in this profile either emits a
 verified target instruction sequence or is documented as a safe scalar or
 two-half composition because the ISA lacks a corresponding operation.  Source
-presence alone is not completion.  Every NEON entry is differentially tested
-against the scalar authority, including special floating values, and critical
-instruction classes are checked in generated code.
+presence alone is not completion. Every NEON and SSE2 entry is differentially
+tested against the scalar authority, including special floating values, and
+critical instruction classes are checked in generated code.
 
 GNAT/GCC vector-type arithmetic was tested first, as required by the mechanism
 policy.  GNAT FSF 16.1.0 on Darwin AArch64 crashes compiling arithmetic on a

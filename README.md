@@ -55,8 +55,9 @@ Build the example with `examples/examples.gpr`.  See
 - `Flyology_SIMD.Backends.Native` supplies **architecture-specific lowering**.
   The complete 128-bit AArch64 family uses narrow Ada `System.Machine_Code`
   leaves because the installed GNAT crashes on the tested GCC-vector arithmetic
-  representation.  The existing x86-64 byte path remains provisional while
-  NEON is completed first.
+  representation.  The complete x86-64 family uses SSE2 leaves and documented
+  scalar composition where SSE2 has no semantics-preserving instruction;
+  optional AVX2 whole-buffer algorithms remain in separately compiled objects.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.

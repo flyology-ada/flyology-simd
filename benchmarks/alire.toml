@@ -18,6 +18,7 @@ flyology_bench = "*"
 
 [[pins]]
 flyology_simd = { path = ".." }
+flyology_bench = { url = "https://github.com/flyology-ada/flyology.git", subdir = "flyology_bench", commit = "a6a6f0b2f25c5660c267fca817d25143534492f5" }
 
 [build-switches]
 "*".ada_version = "Ada2022"

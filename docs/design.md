@@ -29,9 +29,9 @@ The original byte-oriented surface proved the representation, mask, memory and
 backend boundaries.  Before v0.1 stabilization it is being expanded to the
 complete signed, unsigned and floating 128-bit family and corresponding
 portable 256-bit family.  The exact operation and floating-point contracts are
-recorded in [api-scope.md](api-scope.md).  AArch64 NEON is completed and
-executed first; x86-64 optimization is deferred until that family and its test
-matrix are stable.
+recorded in [api-scope.md](api-scope.md).  AArch64 NEON and the x86-64 SSE2
+baseline implement the 128-bit family; the portable 256-bit value surface is
+still deferred.
 
 ## Normative semantics
 
@@ -65,7 +65,8 @@ profile and is selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 
 - `scalar`: portable scalar implementation;
 - `aarch64`: audited `System.Machine_Code` Advanced SIMD/NEON leaves;
-- `x86_64`: provisional byte SSE2 lowering plus full scalar family fallback;
+- `x86_64`: full-family SSE2 lowering with explicit scalar composition for
+  operations not expressible in SSE2 without changing semantics;
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
@@ -79,9 +80,10 @@ permits inlining through complete buffer loops.  Named scalar/native
 instantiations are supplied.  Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation.
 
-Feature information is immutable after construction and computed without a
-racy writable cache.  Repeated detection is acceptable at the coarse algorithm
-boundary in v0.1; applications can retain the returned feature record.
+Feature information is immutable and computed once during package elaboration,
+without a racy writable cache.  The x86 detector executes baseline CPUID and a
+CPUID-gated XGETBV leaf; it executes no AVX or AVX2 instruction.  Runtime
+selection still occurs once per complete buffer operation, never per vector.
 
 ## Memory mechanism
 
