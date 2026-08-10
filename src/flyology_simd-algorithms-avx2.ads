@@ -1,3 +1,4 @@
+--  Baseline-safe entry points for optional AVX2 complete-buffer algorithms.
 package Flyology_SIMD.Algorithms.AVX2 is
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result;
    function Count (Data : Byte_Array; Needle : U8) return Natural;

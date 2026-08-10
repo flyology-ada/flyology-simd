@@ -1,3 +1,4 @@
+--  Compiled backend reporting, safe CPU availability, and coarse selection.
 package Flyology_SIMD.Features is
    type Backend_Kind is (Scalar, NEON, SSE2, AVX2);
    Backend_Unavailable : exception;

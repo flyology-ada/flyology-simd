@@ -1,0 +1,26 @@
+# Flyology SIMD
+
+Flyology SIMD is an experimental, standalone, strongly typed SIMD library for Ada.
+It has zero runtime dependencies and does not define a Flyology parent package.
+
+Canonical site: https://simd.flyology.org/
+Guide: https://simd.flyology.org/guide/
+Memory operations: https://simd.flyology.org/guide/memory/
+Backend selection: https://simd.flyology.org/guide/dispatch/
+Benchmark reproduction: https://simd.flyology.org/guide/benchmarking/
+Architecture: https://simd.flyology.org/architecture/
+Support matrix: https://simd.flyology.org/support/
+Generated API reference: https://simd.flyology.org/api/
+Source: https://github.com/flyology-ada/flyology-simd
+
+Key constraints:
+- The scalar backend defines public behavior.
+- Public vector and mask representations are private.
+- Lane zero is the first logical element loaded from memory.
+- Partial loads and stores touch only the caller-declared valid extent.
+- Primitive operations use compile-time backend selection.
+- Runtime CPU dispatch occurs once at complete-buffer algorithm boundaries.
+- AArch64 NEON and x86-64 SSE2 implement the full 128-bit family.
+- AVX2 is optional and enters only after CPU and OS extended-state checks.
+- No low-level operation allocates, performs I/O, locks, waits, or starts a task.
+- The project initially requires GCC-based GNAT and remains experimental.

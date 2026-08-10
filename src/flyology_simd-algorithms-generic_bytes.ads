@@ -8,6 +8,7 @@ generic
      (Mask : Mask_8x16) return Interfaces.Unsigned_16;
    with function Backend_Load_Unaligned
      (Data : Byte_Array; Start : Natural) return U8x16;
+--  Complete-buffer byte algorithms composed from a statically known backend.
 package Flyology_SIMD.Algorithms.Generic_Bytes
   with Preelaborate
 is

@@ -1,5 +1,6 @@
 with Flyology_SIMD.Features;
 
+--  Complete-buffer algorithms with one coarse runtime backend selection.
 package Flyology_SIMD.Algorithms.Runtime is
    function Find_First
      (Data : Byte_Array;

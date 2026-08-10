@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compose Flyology SIMD algorithms with a compile-time backend, or select one available backend once for a complete buffer operation.">
+  <title>Backend selection · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/dispatch/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
+</head><body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
+    <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+    <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
+    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M4 17h16"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
+  </nav></header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../../">Overview</a></li><li><a href="../">Guide</a></li><li>Backend selection</li></ol><h1>Dispatch outside the inner loop.</h1></div><p class="doc-hero-copy">Primitive operations remain statically selected and inlineable. Runtime feature selection occurs only at complete-buffer algorithm boundaries.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#static">Select statically</a></li><li><a href="#runtime">Select at runtime</a></li><li><a href="#features">Inspect availability</a></li><li><a href="#safety">Keep the baseline safe</a></li></ul></aside>
+      <article class="prose">
+        <section id="static"><h2>Select a known backend at build time</h2><p><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Flyology_SIMD.Algorithms.Generic_Bytes</code></a> is the compile-time composition contract for representative byte algorithms. The repository instantiates it as <a data-api="Flyology_SIMD.Algorithms.Scalar"><code>Algorithms.Scalar</code></a> and <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a>.</p><pre><code class="language-ada">Result :=
+  Flyology_SIMD.Algorithms.Native.Find_First (Data, Needle);</code></pre><p>The selected native backend is AArch64 NEON, x86-64 SSE2, or scalar according to the GPR scenario. The generic receives primitive operations as formal subprograms so GNAT can inline through the complete loop.</p></section>
+        <section id="runtime"><h2>Select once for a complete buffer</h2><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Flyology_SIMD.Algorithms.Runtime</code></a> accepts an optional backend for <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a>. The default is the best safe backend available to the process.</p><pre><code class="language-ada">Matches :=
+  Flyology_SIMD.Algorithms.Runtime.Count
+    (Data    => Data,
+     Needle  => Flyology_SIMD.U8 (16#2C#),
+     Backend => Flyology_SIMD.Features.Best_Available);</code></pre><p>The runtime package performs one case selection for the array operation. It does not probe features or call an indirect target for every vector primitive.</p></section>
+        <section id="features"><h2>Inspect and require availability</h2><p><a data-api="Flyology_SIMD.Features"><code>Flyology_SIMD.Features</code></a> distinguishes a backend that was compiled from one that can execute safely on the current processor and operating system. <a data-api="Flyology_SIMD.Features.Available"><code>Available</code></a> performs the complete availability test. <a data-api="Flyology_SIMD.Features.Require"><code>Require</code></a> raises <a data-api="Flyology_SIMD.Features.Backend_Unavailable"><code>Backend_Unavailable</code></a> instead of entering unsupported code.</p><p><a data-api="Flyology_SIMD.Features.Best_Available"><code>Best_Available</code></a> returns NEON on AArch64, AVX2 when the complete x86 gate succeeds, SSE2 on the x86-64 baseline, or scalar elsewhere.</p></section>
+        <section id="safety"><h2>Keep optional instructions out of baseline objects</h2><p>On x86-64, AVX2 detection checks CPU feature bits and operating-system extended-state support. The AVX2 implementation is a separate object configuration. Linking it does not execute an AVX2 instruction during elaboration.</p><p>The feature detector, scalar backend, and SSE2 backend compile with AVX disabled. Focused code-generation checks reject AVX instructions outside the optional object and reject primitive calls inside the representative vector loop.</p><div class="semantic-callout"><strong>AArch64 differs</strong><p>Advanced SIMD is part of the AArch64 architecture baseline. The runtime facility therefore does not add a redundant NEON probe.</p></div><div class="next-links"><a href="../memory/"><span>Previous</span>Preserve the memory extent</a><a href="../benchmarking/"><span>Next</span>Measure complete algorithms</a></div></section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>Runtime dispatch is coarse by design.</span><div class="footer-links"><a href="../../support/">Support</a><a href="../../architecture/">Architecture</a><a href="../../api/">API</a></div></div></footer>
+</body></html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Use aligned, unaligned, and partial Flyology SIMD memory operations without reading or writing outside the declared Ada array extent.">
+  <title>Memory operations · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/memory/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
+</head><body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
+    <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+    <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
+    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
+  </nav></header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../../">Overview</a></li><li><a href="../">Guide</a></li><li>Memory</li></ol><h1>Touch only the declared extent.</h1></div><p class="doc-hero-copy">Typed array operations separate full, aligned, unaligned, and partial access. Public preconditions keep extent and alignment requirements visible.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#lane-order">Lane order</a></li><li><a href="#full">Full access</a></li><li><a href="#aligned">Aligned access</a></li><li><a href="#partial">Partial access</a></li><li><a href="#tail">Handle a tail</a></li></ul></aside>
+      <article class="prose">
+        <section id="lane-order"><h2>Map lane zero to the first element</h2><p>The memory contract for <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> is logical, not machine-endian. Lane zero receives the element at <code>Start</code>. Lane one receives the next array element.</p><div class="semantic-callout"><strong>Representation remains private</strong><p>The lane-order rule does not promise a portable record layout, vector ABI, or register byte order.</p></div></section>
+        <section id="full"><h2>Use full access for one complete vector</h2><p><a data-api="Flyology_SIMD.Load"><code>Load</code></a> and <a data-api="Flyology_SIMD.Store"><code>Store</code></a> require one full vector of valid elements. These operations make no alignment assertion.</p><p>The explicitly named <a data-api="Flyology_SIMD.Load_Unaligned"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD.Store_Unaligned"><code>Store_Unaligned</code></a> operations have the same extent requirement. Their names make the absence of an alignment requirement visible at the call site.</p><pre><code class="language-ada">declare
+   Block : constant Flyology_SIMD.U8x16 :=
+     Flyology_SIMD.Load_Unaligned (Data, Start);
+begin
+   Flyology_SIMD.Store_Unaligned (Output, Start, Block);
+end;</code></pre></section>
+        <section id="aligned"><h2>Prove alignment before aligned access</h2><p><a data-api="Flyology_SIMD.Is_Aligned_16"><code>Is_Aligned_16</code></a> checks the address of the selected first element. <a data-api="Flyology_SIMD.Load_Aligned"><code>Load_Aligned</code></a> and <a data-api="Flyology_SIMD.Store_Aligned"><code>Store_Aligned</code></a> require 16-byte alignment and a full valid extent.</p><p>When assertion checks are enabled, the Ada precondition detects a contract violation. A caller must still satisfy the precondition when checks are disabled.</p></section>
+        <section id="partial"><h2>Use partial access for every tail length</h2><p><a data-api="Flyology_SIMD.Load_Partial"><code>Load_Partial</code></a> reads exactly <code>Count</code> elements and zero-fills the remaining lanes. A zero count reads no element.</p><p><a data-api="Flyology_SIMD.Store_Partial"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements. It does not modify elements outside the caller-declared valid extent, and a zero count writes nothing.</p><div class="semantic-callout"><strong>No masked overread</strong><p>The implementation does not perform an out-of-bounds full vector access followed by masking. Differential tests cover every tail length, and guarded-page tests exercise the boundary where the host supports them.</p></div></section>
+        <section id="tail"><h2>Handle the final elements directly</h2><p>Compute the number of remaining logical elements before the call. Pass that count to the partial operation.</p><pre><code class="language-ada">declare
+   Remaining : constant Flyology_SIMD.Lane_Count_8x16 :=
+     Flyology_SIMD.Lane_Count_8x16 (Data'Last - Start + 1);
+   Tail : constant Flyology_SIMD.U8x16 :=
+     Flyology_SIMD.Load_Partial (Data, Start, Remaining);
+begin
+   --  Process Tail. Lanes Remaining through 15 contain zero.
+   null;
+end;</code></pre><p>Do not round the valid extent up to a vector width. The partial operation exists so the caller can preserve the exact boundary.</p><div class="next-links"><a href="../"><span>Previous</span>Start with the vector family</a><a href="../dispatch/"><span>Next</span>Select a backend</a></div></section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>Memory extent is part of the public operation contract.</span><div class="footer-links"><a href="../">Guide</a><a href="../../architecture/">Architecture</a><a href="../../api/">API</a></div></div></footer>
+</body></html>

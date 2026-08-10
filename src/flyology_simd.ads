@@ -1,5 +1,10 @@
 with Interfaces;
 
+--  Portable, fixed-width SIMD values and operations.
+--
+--  The scalar implementation defines the result of every operation. Optimized
+--  backends preserve those semantics behind private vector and mask types.
+--  Lane zero is the first logical element loaded from memory.
 package Flyology_SIMD
   with Preelaborate
 is

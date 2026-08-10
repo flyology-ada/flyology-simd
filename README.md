@@ -4,6 +4,9 @@
 Ada programs.  It has no runtime dependencies, no dependency on Flyology, and
 does not define a `Flyology` parent unit.  The public root is `Flyology_SIMD`.
 
+The guide, backend support matrix, and generated API reference are published at
+[simd.flyology.org](https://simd.flyology.org/).
+
 The v0.1 surface under stabilization contains the full private 128-bit family:
 `U8x16`/`I8x16`, `U16x8`/`I16x8`, `U32x4`/`I32x4`,
 `U64x2`/`I64x2`, `F32x4`, and `F64x2`, with compact typed masks.  Integer
@@ -44,6 +47,22 @@ alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
 Build the example with `examples/examples.gpr`.  See
 [benchmarking](docs/benchmarking.md) for benchmark commands and
 [backend support](docs/backends.md) for the exact status matrix.
+
+## Documentation site
+
+The authored site is under `website/`. The build generates GNATdoc from the
+public units, resolves authored API links against the generated search index,
+and validates local links.
+
+```sh
+git submodule update --init
+alr install gnatdoc_bin
+./scripts/build-site.sh
+```
+
+The complete artifact is written to the ignored `build/site/` directory. The
+GNATdoc warning baseline prevents new undocumented declarations from entering
+silently while the generated full-family API documentation is expanded.
 
 ## Five different mechanisms
 

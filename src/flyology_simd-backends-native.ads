@@ -1,5 +1,6 @@
 with Interfaces;
 
+--  Primitive operation contract implemented by the selected target backend.
 package Flyology_SIMD.Backends.Native
   with Preelaborate
 is

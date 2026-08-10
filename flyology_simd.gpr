@@ -42,4 +42,8 @@ project Flyology_SIMD is
             null;
       end case;
    end Compiler;
+
+   package Documentation is
+      for Resources_Dir ("html") use "docs/gnatdoc/html";
+   end Documentation;
 end Flyology_SIMD;

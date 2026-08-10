@@ -1,6 +1,7 @@
 with Flyology_SIMD.Algorithms.Generic_Bytes;
 with Flyology_SIMD.Backends.Native;
 
+--  Complete-buffer byte algorithms instantiated with the compiled backend.
 package Flyology_SIMD.Algorithms.Native is new
   Flyology_SIMD.Algorithms.Generic_Bytes
     (Backend_Splat          => Flyology_SIMD.Backends.Native.Splat,

@@ -1,3 +1,4 @@
+--  Result types shared by complete-buffer SIMD algorithms.
 package Flyology_SIMD.Algorithms
   with Preelaborate
 is

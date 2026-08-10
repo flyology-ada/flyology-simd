@@ -7,6 +7,9 @@
 /obj/
 /lib/
 /bin/
+/build/
+/docs/api/
+/docs/gnatdoc/
 /.build/
 /benchmark-results/
 *.ali

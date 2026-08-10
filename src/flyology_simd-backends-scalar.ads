@@ -1,5 +1,6 @@
 with Interfaces;
 
+--  Authoritative scalar implementation of the primitive operation contract.
 package Flyology_SIMD.Backends.Scalar
   with Preelaborate
 is

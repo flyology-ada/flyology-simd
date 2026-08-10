@@ -4,6 +4,8 @@ version = "0.1.0-dev"
 licenses = "MIT OR Apache-2.0"
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+website = "https://simd.flyology.org/"
 project-files = ["flyology_simd.gpr"]
 tags = ["simd", "vector", "portable", "neon", "sse2", "avx2"]
 
