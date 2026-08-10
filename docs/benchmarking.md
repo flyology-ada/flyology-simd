@@ -7,8 +7,7 @@ local `flyology_simd`; no Flyology dependency enters the library closure.
 ```sh
 cd benchmarks
 alr build --release -- -XFLYOLOGY_SIMD_ARCH=aarch64
-cd ..
-FLYOLOGY_BENCH_OUTPUT=terminal ./bin/simd_benchmark
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
 ```
 
 `FLYOLOGY_BENCH_OUTPUT` also accepts `csv` and `json`. Set
