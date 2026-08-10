@@ -8,6 +8,10 @@ project-files = ["benchmarks.gpr"]
 executables = ["simd_benchmark"]
 tags = ["simd", "benchmark", "neon", "performance"]
 
+[gpr-set-externals.'case(host-arch)']
+aarch64 = { FLYOLOGY_SIMD_ARCH = "aarch64" }
+x86-64 = { FLYOLOGY_SIMD_ARCH = "x86_64" }
+
 [[depends-on]]
 flyology_simd = "*"
 flyology_bench = "*"

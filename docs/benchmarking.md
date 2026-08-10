@@ -6,9 +6,13 @@ local `flyology_simd`; no Flyology dependency enters the library closure.
 
 ```sh
 cd benchmarks
-alr build --release -- -XFLYOLOGY_SIMD_ARCH=aarch64
+alr build --release
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
 ```
+
+Alire selects AArch64 NEON or x86-64 automatically from the host architecture.
+For scalar measurement, cross-compilation, or backend testing, override it with
+`-- -XFLYOLOGY_SIMD_ARCH=scalar` (or `aarch64`/`x86_64`).
 
 `FLYOLOGY_BENCH_OUTPUT` also accepts `csv` and `json`. Set
 `FLYOLOGY_SIMD_BENCH_CPU` to request host-supported thread pinning and

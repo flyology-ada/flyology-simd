@@ -25,8 +25,10 @@ alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/family_tests
 ```
 
-The default is the scalar fallback so an unknown target never receives an
-unsupported instruction.  Select an implemented native source set explicitly:
+Alire automatically selects the AArch64 or x86-64 host backend. The GPR default
+remains scalar, so an unknown target or a build outside Alire never receives an
+unsupported instruction. Override the selection explicitly for scalar testing
+or cross-compilation:
 
 ```sh
 # AArch64 Advanced SIMD/NEON

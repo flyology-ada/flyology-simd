@@ -7,6 +7,10 @@ maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
 project-files = ["flyology_simd.gpr"]
 tags = ["simd", "vector", "portable", "neon", "sse2", "avx2"]
 
+[gpr-set-externals.'case(host-arch)']
+aarch64 = { FLYOLOGY_SIMD_ARCH = "aarch64" }
+x86-64 = { FLYOLOGY_SIMD_ARCH = "x86_64" }
+
 [build-switches]
 "*".ada_version = "Ada2022"
 development.optimization = "Debug"
