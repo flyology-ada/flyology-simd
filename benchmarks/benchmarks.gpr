@@ -1,0 +1,13 @@
+with "../flyology_simd.gpr";
+
+project Benchmarks is
+   for Source_Dirs use (".");
+   for Object_Dir use "../obj/benchmarks";
+   for Exec_Dir use "../bin";
+   for Main use ("simd_benchmark.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnata", "-O3", "-ftree-vectorize");
+   end Compiler;
+end Benchmarks;

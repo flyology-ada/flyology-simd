@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86-64:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: scalar
+            avx2: disabled
+            release: false
+          - architecture: x86_64
+            avx2: disabled
+            release: true
+          - architecture: x86_64
+            avx2: enabled
+            release: true
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: alire-project/setup-alire@v6.0.0
+      - name: Select verified toolchain
+        run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Build debug library
+        if: ${{ !matrix.release }}
+        run: >-
+          alr build --
+          -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
+          -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+      - name: Build release library
+        if: ${{ matrix.release }}
+        run: >-
+          alr build --release --
+          -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
+          -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+      - name: Build tests
+        run: >-
+          alr exec -- gprbuild -p -P tests/tests.gpr
+          -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
+          -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+      - name: Run differential tests
+        run: ./bin/simd_tests
+      - name: Check generated code
+        if: ${{ matrix.architecture == 'x86_64' }}
+        run: ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}
+
+  linux-sanitizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: alire-project/setup-alire@v6.0.0
+      - name: Select verified toolchain
+        run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Run scalar AddressSanitizer suite
+        run: ./scripts/run_sanitized_tests.sh scalar
+
+  macos-aarch64:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [false, true]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: alire-project/setup-alire@v6.0.0
+      - name: Select verified toolchain
+        run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Build debug library
+        if: ${{ !matrix.release }}
+        run: alr build -- -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build release library
+        if: ${{ matrix.release }}
+        run: alr build --release -- -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build tests
+        run: >-
+          alr exec -- gprbuild -p -P tests/tests.gpr
+          -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Run differential tests
+        run: ./bin/simd_tests
+      - name: Check generated code
+        run: ./scripts/check_codegen.sh aarch64 disabled

@@ -1,0 +1,327 @@
+with Ada.Command_Line;
+with Ada.Exceptions;
+with Ada.Text_IO;
+with Interfaces;
+with Flyology_SIMD;
+with Flyology_SIMD.Algorithms.AVX2;
+with Flyology_SIMD.Algorithms.Native;
+with Flyology_SIMD.Algorithms.Runtime;
+with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Features;
+
+procedure SIMD_Tests is
+   use Ada.Text_IO;
+   use Flyology_SIMD;
+   use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+   use type Flyology_SIMD.Algorithms.Search_Result;
+
+   Seed : constant Interfaces.Unsigned_32 := 16#5EED_0123#;
+   State : Interfaces.Unsigned_32 := Seed;
+   Failures : Natural := 0;
+
+   procedure Check (Condition : Boolean; Message : String) is
+   begin
+      if not Condition then
+         Failures := Failures + 1;
+         Put_Line ("FAIL: " & Message);
+      end if;
+   end Check;
+
+   function Next_U8 return U8 is
+   begin
+      State := State xor Interfaces.Shift_Left (State, 13);
+      State := State xor Interfaces.Shift_Right (State, 17);
+      State := State xor Interfaces.Shift_Left (State, 5);
+      return U8 (State and 16#FF#);
+   end Next_U8;
+
+   function Random_Lanes return Lane_Values_8x16 is
+      Result : Lane_Values_8x16;
+   begin
+      for Lane in Result'Range loop
+         Result (Lane) := Next_U8;
+      end loop;
+      return Result;
+   end Random_Lanes;
+
+   function Same (Left, Right : U8x16) return Boolean is
+     (To_Lanes (Left) = To_Lanes (Right));
+
+   function Reference_Popcount (Bits : Interfaces.Unsigned_16) return Natural is
+      Value : constant Interfaces.Unsigned_16 := Bits;
+      Count : Natural := 0;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if (Value and Interfaces.Shift_Left
+               (Interfaces.Unsigned_16'(1), Lane)) /= 0
+         then
+            Count := Count + 1;
+         end if;
+      end loop;
+      return Count;
+   end Reference_Popcount;
+
+   procedure Test_Core_Semantics is
+      A : constant U8x16 := From_Lanes
+        ([0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
+          16#AA#, 16#55#, 10, 20, 30, 40, 50, 60]);
+      B : constant U8x16 := From_Lanes
+        ([0, 2, 1, 3, 1, 16#80#, 2, 1,
+          16#55#, 16#AA#, 250, 240, 230, 220, 210, 200]);
+      Added : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
+      Saturated : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
+   begin
+      Check (Extract (Zero, 0) = 0 and Extract (Zero, 15) = 0, "zero");
+      Check (Extract (Splat (77), 9) = 77, "splat");
+      Check (Extract (Replace (A, 5, 42), 5) = 42, "replace");
+      Check (Added (6) = 0 and Added (7) = 0, "wrapping addition");
+      Check (Extract (Subtract_Wrap (A, B), 1) = 255,
+             "wrapping subtraction");
+      Check (Saturated (6) = 255 and Saturated (7) = 255,
+             "saturating addition");
+      Check (Extract (Subtract_Saturate (A, B), 1) = 0,
+             "saturating subtraction");
+      Check (Extract (Bitwise_And (A, B), 8) = 0
+             and Extract (Bitwise_Or (A, B), 8) = 255
+             and Extract (Bitwise_Xor (A, B), 8) = 255
+             and Extract (Bitwise_Not (A), 0) = 255,
+             "bitwise operations");
+      Check (Same (Shift_Left_Logical (Splat (255), 8), Zero),
+             "oversized left shift");
+      Check (Same (Shift_Right_Logical (Splat (255), 100), Zero),
+             "oversized right shift");
+      Check (To_Bit_Mask (Equal (A, B)) = 16#0029#, "equality lane mask");
+      Check (Test (Less_Than (A, B), 1) and not Test (Less_Than (A, B), 2),
+             "unsigned ordered comparison");
+      Check (Test (Less_Equal (A, B), 0)
+             and Test (Greater_Than (A, B), 2)
+             and Test (Greater_Equal (A, B), 3),
+             "all ordered comparisons");
+      Check (Same (Select_Value (Equal (A, B), A, B), B), "select semantics");
+      Check (Extract (Min (A, B), 6) = 2 and Extract (Max (A, B), 6) = 254,
+             "unsigned min/max");
+      Check (Horizontal_Sum (Splat (255)) = 4_080, "horizontal sum");
+      Check (Extract (Reverse_Bytes (A), 0) = Extract (A, 15), "reverse");
+      Check (Extract (Interleave_Low (A, B), 2) = Extract (A, 1)
+             and Extract (Interleave_Low (A, B), 3) = Extract (B, 1),
+             "interleave low");
+      Check (Extract (Interleave_High (A, B), 0) = Extract (A, 8),
+             "interleave high");
+   end Test_Core_Semantics;
+
+   procedure Test_All_Masks is
+   begin
+      for Raw in Natural range 0 .. 65_535 loop
+         declare
+            Bits : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Raw);
+            Mask : constant Mask_8x16 := Mask_From_Bit_Mask (Bits);
+         begin
+            Check (To_Bit_Mask (Mask) = Bits, "mask round trip" & Raw'Image);
+            Check (Population_Count (Mask) = Reference_Popcount (Bits),
+                   "mask popcount" & Raw'Image);
+            Check (Any_True (Mask) = (Raw /= 0), "mask any" & Raw'Image);
+            Check (None_True (Mask) = (Raw = 0), "mask none" & Raw'Image);
+            Check (All_True (Mask) = (Raw = 65_535), "mask all" & Raw'Image);
+         end;
+      end loop;
+   end Test_All_Masks;
+
+   procedure Test_Memory is
+      Data : Byte_Array (0 .. 95) := [others => 16#CC#];
+      for Data'Alignment use 16;
+      Value : constant U8x16 := From_Lanes
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+      Aligned_Start : Natural := 0;
+   begin
+      while not Is_Aligned_16 (Data, Aligned_Start) loop
+         Aligned_Start := Aligned_Start + 1;
+      end loop;
+      Store_Aligned (Data, Aligned_Start, Value);
+      Check (Same (Load_Aligned (Data, Aligned_Start), Value), "aligned memory");
+      Store (Data, Aligned_Start, Value);
+      Check (Same (Load (Data, Aligned_Start), Value), "ordinary full memory");
+      Store_Unaligned (Data, Aligned_Start + 1, Value);
+      Check (Same (Load_Unaligned (Data, Aligned_Start + 1), Value),
+             "deliberately unaligned memory");
+
+      for Count in Lane_Count_8x16 loop
+         Data := [others => 16#CC#];
+         Store_Partial (Data, 17, Count, Value);
+         for Offset in Data'Range loop
+            if Count > 0 and then Offset in 17 .. 17 + Count - 1 then
+               Check (Data (Offset) = U8 (Offset - 17),
+                      "partial store content" & Count'Image);
+            else
+               Check (Data (Offset) = 16#CC#,
+                      "partial store boundary" & Count'Image);
+            end if;
+         end loop;
+         Check (Same
+                  (Load_Partial (Data, 17, Count),
+                   From_Lanes
+                     ([for Lane in Lane_Index_8x16 =>
+                        (if Lane < Count then U8 (Lane) else 0)])),
+                "partial load zero fill" & Count'Image);
+      end loop;
+      Store_Partial (Data, Natural'Last, 0, Value);
+      Check (Same (Load_Partial (Data, Natural'Last, 0), Zero),
+             "zero partial operation touches no address");
+   end Test_Memory;
+
+   procedure Test_Native_Differential is
+   begin
+      for Iteration in 1 .. 2_000 loop
+         declare
+            A : constant U8x16 := From_Lanes (Random_Lanes);
+            B : constant U8x16 := From_Lanes (Random_Lanes);
+            M : constant Mask_8x16 := Equal (A, B);
+            Buffer : Byte_Array (0 .. 32) := [others => 0];
+            Reference_Buffer : Byte_Array (0 .. 32) := [others => 0];
+            Count : constant Lane_Count_8x16 := Iteration mod 17;
+            Shift : constant Natural := Iteration mod 13;
+         begin
+            Check (Same (Flyology_SIMD.Backends.Native.Zero, Zero),
+                   "native zero" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Splat (U8 (Iteration mod 256)),
+                         Splat (U8 (Iteration mod 256))),
+                   "native splat" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Add_Wrap (A, B),
+                         Add_Wrap (A, B)), "native add" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Add_Saturate (A, B),
+                         Add_Saturate (A, B)), "native saturate" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_And (A, B),
+                         Bitwise_And (A, B)), "native and" & Iteration'Image);
+            Check (Flyology_SIMD.Backends.Native.To_Bit_Mask
+                     (Flyology_SIMD.Backends.Native.Equal (A, B)) =
+                   To_Bit_Mask (M), "native compare/mask" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Select_Value (M, A, B),
+                         Select_Value (M, A, B)), "native select" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Min (A, B), Min (A, B)),
+                   "native min" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Max (A, B), Max (A, B)),
+                   "native max" & Iteration'Image);
+            for Lane in Lane_Index_8x16 loop
+               Check (Extract (Subtract_Wrap (A, B), Lane) =
+                        Extract (A, Lane) - Extract (B, Lane),
+                      "scalar subtract lane" & Lane'Image);
+               Check (Extract (Shift_Left_Logical (A, Shift), Lane) =
+                        (if Shift >= 8 then 0
+                         else Interfaces.Shift_Left (Extract (A, Lane), Shift)),
+                      "scalar left shift" & Shift'Image);
+               Check (Extract (Shift_Right_Logical (A, Shift), Lane) =
+                        (if Shift >= 8 then 0
+                         else Interfaces.Shift_Right (Extract (A, Lane), Shift)),
+                      "scalar right shift" & Shift'Image);
+               Check (Test (Less_Than (A, B), Lane) =
+                        (Extract (A, Lane) < Extract (B, Lane)),
+                      "scalar comparison lane" & Lane'Image);
+            end loop;
+            Store_Unaligned (Buffer, 1, A);
+            Check (Same
+                     (Flyology_SIMD.Backends.Native.Load_Unaligned (Buffer, 1), A),
+                   "native unaligned load" & Iteration'Image);
+            Flyology_SIMD.Backends.Native.Store_Unaligned
+              (Buffer, 1, B);
+            Store_Unaligned (Reference_Buffer, 1, B);
+            Check (Buffer = Reference_Buffer,
+                   "native unaligned store" & Iteration'Image);
+            Buffer := [others => 16#CC#];
+            Reference_Buffer := [others => 16#CC#];
+            Flyology_SIMD.Backends.Native.Store_Partial
+              (Buffer, 3, Count, A);
+            Store_Partial (Reference_Buffer, 3, Count, A);
+            Check (Buffer = Reference_Buffer,
+                   "native partial store" & Iteration'Image);
+            Check (Same
+                     (Flyology_SIMD.Backends.Native.Load_Partial
+                        (Buffer, 3, Count),
+                      Load_Partial (Buffer, 3, Count)),
+                   "native partial load" & Iteration'Image);
+         end;
+      end loop;
+   end Test_Native_Differential;
+
+   procedure Test_Algorithms_For_Length (Length : Natural) is
+      Data : Byte_Array (1 .. Length);
+      Reference_Find, Native_Find, Runtime_Find : Algorithms.Search_Result;
+   begin
+      for Index in Data'Range loop
+         Data (Index) := Next_U8;
+      end loop;
+      if Length > 0 then
+         Data (Data'Last) := 42;
+      end if;
+      Reference_Find := Algorithms.Scalar.Find_First (Data, 42);
+      Native_Find := Algorithms.Native.Find_First (Data, 42);
+      Runtime_Find := Algorithms.Runtime.Find_First (Data, 42);
+      Check (Native_Find = Reference_Find, "native find length" & Length'Image);
+      Check (Runtime_Find = Reference_Find, "runtime find length" & Length'Image);
+      Check (Algorithms.Native.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+             "native count length" & Length'Image);
+      Check (Algorithms.Runtime.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+             "runtime count length" & Length'Image);
+      Check (Algorithms.Native.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+             "native ASCII length" & Length'Image);
+      Check (Algorithms.Runtime.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+             "runtime ASCII length" & Length'Image);
+      if Features.Available (Features.AVX2) then
+         Check (Algorithms.AVX2.Find_First (Data, 42) = Reference_Find,
+                "AVX2 find length" & Length'Image);
+         Check (Algorithms.AVX2.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+                "AVX2 count length" & Length'Image);
+         Check (Algorithms.AVX2.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+                "AVX2 ASCII length" & Length'Image);
+      end if;
+   end Test_Algorithms_For_Length;
+
+   procedure Test_Algorithms is
+   begin
+      for Length in Natural range 0 .. 80 loop
+         Test_Algorithms_For_Length (Length);
+      end loop;
+      Test_Algorithms_For_Length (4_096);
+   end Test_Algorithms;
+
+   procedure Test_Unavailable_Rejection is
+      Data : constant Byte_Array (1 .. 1) := [1 => 0];
+      Result : Natural;
+   begin
+      if not Features.Available (Features.AVX2) then
+         begin
+            Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
+            Check (False, "unavailable AVX2 accepted" & Result'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+      end if;
+   end Test_Unavailable_Rejection;
+begin
+   Put_Line ("flyology_simd deterministic seed:" & Seed'Image);
+   Put_Line ("architecture: " & Features.Architecture_Name &
+             "; best backend: " & Features.Name (Features.Best_Available));
+   if Features.Compiled (Features.AVX2) and then not Features.Available (Features.AVX2)
+   then
+      Put_Line ("SKIP avx2 execution: compiled, but CPU/OS AVX state is unavailable");
+   elsif not Features.Compiled (Features.AVX2) then
+      Put_Line ("SKIP avx2 execution: backend was not compiled in this configuration");
+   end if;
+   Test_Core_Semantics;
+   Test_All_Masks;
+   Test_Memory;
+   Test_Native_Differential;
+   Test_Algorithms;
+   Test_Unavailable_Rejection;
+   if Failures = 0 then
+      Put_Line ("PASS");
+   else
+      Put_Line ("FAILURES:" & Failures'Image);
+      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
+   end if;
+exception
+   when Error : others =>
+      Put_Line ("UNCAUGHT: " & Ada.Exceptions.Exception_Information (Error));
+      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
+end SIMD_Tests;
