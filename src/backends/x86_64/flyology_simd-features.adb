@@ -60,6 +60,12 @@ package body Flyology_SIMD.Features is
       return (EBX and AVX2_Bit) /= 0;
    end Host_Has_AVX2;
 
+   --  Immutable elaboration-time detection is race-free.  XGETBV is reached
+   --  only after CPUID reports OSXSAVE and AVX; no AVX or AVX2 instruction is
+   --  executed by this detector.
+   Host_AVX2_Available : constant Boolean :=
+     (Configuration.AVX2_Compiled and then Host_Has_AVX2);
+
    function Compiled (Backend : Backend_Kind) return Boolean is
      (case Backend is
          when Scalar | SSE2 => True,
@@ -69,7 +75,7 @@ package body Flyology_SIMD.Features is
    function Available (Backend : Backend_Kind) return Boolean is
      (case Backend is
          when Scalar | SSE2 => True,
-         when AVX2 => Configuration.AVX2_Compiled and then Host_Has_AVX2,
+         when AVX2 => Host_AVX2_Available,
          when NEON => False);
 
    function Best_Available return Backend_Kind is

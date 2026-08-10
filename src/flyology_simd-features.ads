@@ -1,6 +1,4 @@
-package Flyology_SIMD.Features
-  with Preelaborate
-is
+package Flyology_SIMD.Features is
    type Backend_Kind is (Scalar, NEON, SSE2, AVX2);
    Backend_Unavailable : exception;
 

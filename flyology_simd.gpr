@@ -18,7 +18,7 @@ project Flyology_SIMD is
    package Compiler is
       Common_Ada :=
         ("-gnat2022", "-gnata", "-gnatwa", "-fstack-check",
-         "-fno-strict-aliasing", "-O2", "-ftree-vectorize");
+         "-fno-strict-aliasing", "-O2", "-ftree-vectorize", "-gnatn2");
       for Default_Switches ("Ada") use Common_Ada;
 
       case Architecture is

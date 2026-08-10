@@ -48,6 +48,18 @@ package body Flyology_SIMD.Algorithms.AVX2 is
    end High_Bit_Mask_32;
    pragma Inline_Always (High_Bit_Mask_32);
 
+   function First_Set_Bit (Bits : Interfaces.Unsigned_32) return Natural is
+      Result : Interfaces.Unsigned_32;
+   begin
+      Asm
+        (Template => "bsfl %1, %0",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs => Interfaces.Unsigned_32'Asm_Input ("r", Bits),
+         Volatile => True);
+      return Natural (Result);
+   end First_Set_Bit;
+   pragma Inline_Always (First_Set_Bit);
+
    function Popcount (Value : Interfaces.Unsigned_32) return Natural is
       Bits : Interfaces.Unsigned_32 := Value;
       Result : Natural := 0;
@@ -66,13 +78,9 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       while Data'Length - Offset >= 32 loop
          Bits := Equal_Mask_32 (Data, Data'First + Offset, Needle);
          if Bits /= 0 then
-            for Lane in Natural range 0 .. 31 loop
-               if (Bits and Interfaces.Shift_Left
-                     (Interfaces.Unsigned_32'(1), Lane)) /= 0
-               then
-                  return (Found => True, Index => Data'First + Offset + Lane);
-               end if;
-            end loop;
+            return
+              (Found => True,
+               Index => Data'First + Offset + First_Set_Bit (Bits));
          end if;
          Offset := Offset + 32;
       end loop;

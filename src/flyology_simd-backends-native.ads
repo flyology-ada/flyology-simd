@@ -77,6 +77,16 @@ is
       Value : U8x16)
      with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
 
+   --  These are the primitive operations used by the statically instantiated
+   --  whole-buffer algorithms.  Inter-unit inlining removes one call boundary
+   --  per vector while preserving the same backend contract for generic code.
+   pragma Inline_Always (Splat);
+   pragma Inline_Always (Bitwise_And);
+   pragma Inline_Always (Equal);
+   pragma Inline_Always (Mask_From_Bit_Mask);
+   pragma Inline_Always (To_Bit_Mask);
+   pragma Inline_Always (Load_Unaligned);
+
    --  BEGIN GENERATED FULL-FAMILY BACKEND CONTRACT
    function Zero return I8x16;
    function Splat (Value : I8) return I8x16;

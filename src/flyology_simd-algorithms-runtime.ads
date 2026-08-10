@@ -1,8 +1,6 @@
 with Flyology_SIMD.Features;
 
-package Flyology_SIMD.Algorithms.Runtime
-  with Preelaborate
-is
+package Flyology_SIMD.Algorithms.Runtime is
    function Find_First
      (Data : Byte_Array;
       Needle : U8;

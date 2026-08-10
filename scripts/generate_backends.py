@@ -19,9 +19,9 @@ from generate_full_family import (
 
 SPEC = ROOT / "src" / "flyology_simd-backends-native.ads"
 NEON = ROOT / "src" / "backends" / "aarch64" / "flyology_simd-backends-native.adb"
+X86 = ROOT / "src" / "backends" / "x86_64" / "flyology_simd-backends-native.adb"
 FALLBACKS = [
     ROOT / "src" / "backends" / "scalar" / "flyology_simd-backends-native.adb",
-    ROOT / "src" / "backends" / "x86_64" / "flyology_simd-backends-native.adb",
 ]
 TEST = ROOT / "tests" / "family_tests.adb"
 
@@ -384,6 +384,320 @@ def memory_body(vector: str, arr: str, count: str) -> list[str]:
     ]
 
 
+def x86_helpers() -> list[str]:
+    """SSE2-only leaves shared by the generated 128-bit x86 family."""
+    return [
+        "   Sign_8 : aliased constant Lane_Values_8x16 := [others => 16#80#];",
+        "   Sign_16 : aliased constant Lane_Values_8x16 := [for Lane in Lane_Index_8x16 => (if Lane mod 2 = 1 then 16#80# else 0)];",
+        "   Sign_32 : aliased constant Lane_Values_8x16 := [for Lane in Lane_Index_8x16 => (if Lane mod 4 = 3 then 16#80# else 0)];",
+        "   Weights_X86_8 : aliased constant Lane_Values_8x16 := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
+        "   Weights_X86_16 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];",
+        "   Weights_X86_32 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];",
+        "   Weights_X86_64 : aliased constant Lane_Values_U64x2 := [1, 2];",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type;",
+        "   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Binary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type;",
+        "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Unary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      Lane_Bits : Positive;",
+        "      Instruction : String;",
+        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16;",
+        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16 is",
+        "      Raw, Packed : Interfaces.Unsigned_32;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & \"movdqu (%3), %%xmm7\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"pmovmskb %%xmm0, %0\", Outputs => Interfaces.Unsigned_32'Asm_Output (\"=r\", Raw), Inputs => [System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address), System.Address'Asm_Input (\"r\", Sign)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      case Lane_Bits is",
+        "         when 8 => Packed := Raw and 16#FFFF#;",
+        "         when 16 => Packed := Interfaces.Shift_Right (Raw, 1) and 16#5555#; Packed := (Packed or Interfaces.Shift_Right (Packed, 1)) and 16#3333#; Packed := (Packed or Interfaces.Shift_Right (Packed, 2)) and 16#0F0F#; Packed := (Packed or Interfaces.Shift_Right (Packed, 4)) and 16#00FF#;",
+        "         when 32 => Packed := Interfaces.Shift_Right (Raw, 3) and 16#1111#; Packed := (Packed or Interfaces.Shift_Right (Packed, 3)) and 16#0303#; Packed := (Packed or Interfaces.Shift_Right (Packed, 6)) and 16#000F#;",
+        "         when others => Packed := Interfaces.Shift_Right (Raw, 7) and 16#0101#; Packed := (Packed or Interfaces.Shift_Right (Packed, 7)) and 3;",
+        "      end case;",
+        "      return Interfaces.Unsigned_16 (Packed);",
+        "   end SSE2_Compare_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type;",
+        "   function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type is",
+        "      Result : Vector_Type; Local_Count : aliased Interfaces.Unsigned_32 := Count;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movd (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Local_Count'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Shift_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      Lane_Bits : Positive;",
+        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;",
+        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is",
+        "      Result : Vector_Type; Local_Bits : aliased Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Bits);",
+        "      Expand : constant String := (case Lane_Bits is when 8 => \"punpcklbw %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"punpcklwd %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"punpckldq %%xmm2, %%xmm2\", when 16 => \"pshuflw $0, %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"pshufd $0, %%xmm2, %%xmm2\", when 32 => \"pshufd $0, %%xmm2, %%xmm2\", when others => \"punpcklqdq %%xmm2, %%xmm2\");",
+        "      Compare : constant String := (if Lane_Bits = 8 then \"pcmpeqb\" elsif Lane_Bits = 16 then \"pcmpeqw\" else \"pcmpeqd\");",
+        "      Replicate_64 : constant String := (if Lane_Bits = 64 then \"pshufd $0xA0, %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT else \"\");",
+        "   begin",
+        "      Asm (Template => \"movd (%1), %%xmm2\" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT & \"pand (%2), %%xmm2\" & ASCII.LF & ASCII.HT & \"pxor %%xmm3, %%xmm3\" & ASCII.LF & ASCII.HT & Compare & \" %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & Replicate_64 & \"pcmpeqd %%xmm3, %%xmm3\" & ASCII.LF & ASCII.HT & \"pxor %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm2, %%xmm3\" & ASCII.LF & ASCII.HT & \"pand (%3), %%xmm3\" & ASCII.LF & ASCII.HT & \"pandn (%4), %%xmm2\" & ASCII.LF & ASCII.HT & \"por %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm2, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Local_Bits'Address), System.Address'Asm_Input (\"r\", Weights), System.Address'Asm_Input (\"r\", If_True'Address), System.Address'Asm_Input (\"r\", If_False'Address)], Clobber => \"xmm2,xmm3,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Select_128;",
+        "",
+    ]
+
+
+def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
+    return [
+        call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
+        f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
+        f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;",
+        f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is",
+        f"      Result : {vector};",
+        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Unaligned;",
+        f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
+        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Unaligned;",
+        f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is",
+        f"      Result : {vector};",
+        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Aligned;",
+        f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
+        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Aligned;",
+        call("Load_Partial", vector, "Data, Start, Count", f"Data : {arr}; Start : Natural; Count : {count}"),
+        f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;",
+    ]
+
+
+def x86_ada_instruction(instruction: str) -> str:
+    return instruction.replace("\n", '" & ASCII.LF & ASCII.HT & "')
+
+
+def x86_body() -> str:
+    out = x86_helpers()
+    multiplication = {
+        8: (
+            "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"
+            "pxor %%xmm3, %%xmm3\npunpcklbw %%xmm3, %%xmm0\npunpckhbw %%xmm3, %%xmm2\n"
+            "punpcklbw %%xmm3, %%xmm4\npunpckhbw %%xmm3, %%xmm5\npmullw %%xmm4, %%xmm0\n"
+            "pmullw %%xmm5, %%xmm2\npcmpeqd %%xmm6, %%xmm6\npsrlw $8, %%xmm6\n"
+            "pand %%xmm6, %%xmm0\npand %%xmm6, %%xmm2\npackuswb %%xmm2, %%xmm0"
+        ),
+        16: "pmullw %%xmm1, %%xmm0",
+        32: (
+            "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm3\npsrldq $4, %%xmm2\n"
+            "psrldq $4, %%xmm3\npmuludq %%xmm1, %%xmm0\npmuludq %%xmm3, %%xmm2\n"
+            "pshufd $0x88, %%xmm0, %%xmm0\npshufd $0x88, %%xmm2, %%xmm2\n"
+            "punpckldq %%xmm2, %%xmm0"
+        ),
+        64: (
+            "movdqu %%xmm0, %%xmm2\npshufd $0xB1, %%xmm2, %%xmm2\npmuludq %%xmm1, %%xmm2\n"
+            "movdqu %%xmm1, %%xmm3\npshufd $0xB1, %%xmm3, %%xmm3\nmovdqu %%xmm0, %%xmm4\n"
+            "pmuludq %%xmm3, %%xmm4\npaddq %%xmm4, %%xmm2\npsllq $32, %%xmm2\n"
+            "pmuludq %%xmm1, %%xmm0\npaddq %%xmm2, %%xmm0"
+        ),
+    }
+    reverse = {
+        8: "movdqu %%xmm0, %%xmm1\npsrlw $8, %%xmm0\npsllw $8, %%xmm1\npor %%xmm1, %%xmm0\npshuflw $0x1B, %%xmm0, %%xmm0\npshufhw $0x1B, %%xmm0, %%xmm0\npshufd $0x4E, %%xmm0, %%xmm0",
+        16: "pshuflw $0x1B, %%xmm0, %%xmm0\npshufhw $0x1B, %%xmm0, %%xmm0\npshufd $0x4E, %%xmm0, %%xmm0",
+        32: "pshufd $0x1B, %%xmm0, %%xmm0",
+        64: "pshufd $0x4E, %%xmm0, %%xmm0",
+    }
+    interleave = {
+        8: ("punpcklbw", "punpckhbw"),
+        16: ("punpcklwd", "punpckhwd"),
+        32: ("punpckldq", "punpckhdq"),
+        64: ("punpcklqdq", "punpckhqdq"),
+    }
+    shift_left = {
+        8: "movdqu %%xmm0, %%xmm2\npxor %%xmm3, %%xmm3\npunpcklbw %%xmm3, %%xmm0\npunpckhbw %%xmm3, %%xmm2\npsllw %%xmm1, %%xmm0\npsllw %%xmm1, %%xmm2\npcmpeqd %%xmm3, %%xmm3\npsrlw $8, %%xmm3\npand %%xmm3, %%xmm0\npand %%xmm3, %%xmm2\npackuswb %%xmm2, %%xmm0",
+        16: "psllw %%xmm1, %%xmm0",
+        32: "pslld %%xmm1, %%xmm0",
+        64: "psllq %%xmm1, %%xmm0",
+    }
+    shift_right = {
+        8: "movdqu %%xmm0, %%xmm2\npxor %%xmm3, %%xmm3\npunpcklbw %%xmm3, %%xmm0\npunpckhbw %%xmm3, %%xmm2\npsrlw %%xmm1, %%xmm0\npsrlw %%xmm1, %%xmm2\npackuswb %%xmm2, %%xmm0",
+        16: "psrlw %%xmm1, %%xmm0",
+        32: "psrld %%xmm1, %%xmm0",
+        64: "psrlq %%xmm1, %%xmm0",
+    }
+    shift_arithmetic = {
+        8: "movdqu %%xmm0, %%xmm2\npxor %%xmm3, %%xmm3\npunpcklbw %%xmm3, %%xmm0\npunpckhbw %%xmm3, %%xmm2\npsllw $8, %%xmm0\npsllw $8, %%xmm2\npsraw $8, %%xmm0\npsraw $8, %%xmm2\npsraw %%xmm1, %%xmm0\npsraw %%xmm1, %%xmm2\npacksswb %%xmm2, %%xmm0",
+        16: "psraw %%xmm1, %%xmm0",
+        32: "psrad %%xmm1, %%xmm0",
+    }
+    eq_instruction = {
+        8: "pcmpeqb %%xmm1, %%xmm0",
+        16: "pcmpeqw %%xmm1, %%xmm0",
+        32: "pcmpeqd %%xmm1, %%xmm0",
+        64: "pcmpeqd %%xmm1, %%xmm0\npshufd $0xB1, %%xmm0, %%xmm2\npand %%xmm2, %%xmm0\npshufd $0xA0, %%xmm0, %%xmm0",
+    }
+    signed_gt = {
+        8: "pcmpgtb %%xmm1, %%xmm0",
+        16: "pcmpgtw %%xmm1, %%xmm0",
+        32: "pcmpgtd %%xmm1, %%xmm0",
+        64: (
+            "movdqu %%xmm0, %%xmm2\npcmpgtd %%xmm1, %%xmm2\npshufd $0xF5, %%xmm2, %%xmm2\n"
+            "movdqu %%xmm0, %%xmm3\npcmpeqd %%xmm1, %%xmm3\npshufd $0xF5, %%xmm3, %%xmm3\n"
+            "movdqu %%xmm0, %%xmm4\nmovdqu %%xmm1, %%xmm5\npxor %%xmm7, %%xmm4\npxor %%xmm7, %%xmm5\n"
+            "pcmpgtd %%xmm5, %%xmm4\npshufd $0xA0, %%xmm4, %%xmm4\npand %%xmm3, %%xmm4\npor %%xmm4, %%xmm2\nmovdqu %%xmm2, %%xmm0"
+        ),
+    }
+    unsigned_gt = {
+        bits: (
+            f"pxor %%xmm7, %%xmm0\npxor %%xmm7, %%xmm1\n{ {8:'pcmpgtb',16:'pcmpgtw',32:'pcmpgtd'}[bits] } %%xmm1, %%xmm0"
+        ) for bits in (8, 16, 32)
+    }
+    unsigned_gt[64] = (
+        "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm3\npxor %%xmm7, %%xmm2\npxor %%xmm7, %%xmm3\n"
+        "pcmpgtd %%xmm3, %%xmm2\npshufd $0xF5, %%xmm2, %%xmm2\nmovdqu %%xmm0, %%xmm3\n"
+        "pcmpeqd %%xmm1, %%xmm3\npshufd $0xF5, %%xmm3, %%xmm3\npxor %%xmm7, %%xmm0\n"
+        "pxor %%xmm7, %%xmm1\npcmpgtd %%xmm1, %%xmm0\npshufd $0xA0, %%xmm0, %%xmm0\n"
+        "pand %%xmm3, %%xmm0\npor %%xmm2, %%xmm0"
+    )
+
+    for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
+        if vector == "U8x16":
+            continue
+        idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
+        arr, count = array_name(scalar), lane_count(bits, lanes)
+        sign = "Sign_8'Address" if bits == 8 else ("Sign_16'Address" if bits == 16 else "Sign_32'Address")
+        weights = f"Weights_X86_{bits}'Address"
+        storage_cast = "" if lanes == 16 else "Interfaces.Unsigned_8"
+        bit = lambda expression: expression if not storage_cast else f"{storage_cast} ({expression})"
+        instructions = {
+            "Add_Wrap": f"padd{ {8:'b',16:'w',32:'d',64:'q'}[bits] } %%xmm1, %%xmm0",
+            "Subtract_Wrap": f"psub{ {8:'b',16:'w',32:'d',64:'q'}[bits] } %%xmm1, %%xmm0",
+            "Multiply_Wrap": multiplication[bits],
+            "Bitwise_And": "pand %%xmm1, %%xmm0",
+            "Bitwise_Or": "por %%xmm1, %%xmm0",
+            "Bitwise_Xor": "pxor %%xmm1, %%xmm0",
+            "Interleave_Low": f"{interleave[bits][0]} %%xmm1, %%xmm0",
+            "Interleave_High": f"{interleave[bits][1]} %%xmm1, %%xmm0",
+        }
+        if bits <= 16:
+            prefix = "s" if signed else "us"
+            instructions["Add_Saturate"] = f"padd{prefix}{'b' if bits == 8 else 'w'} %%xmm1, %%xmm0"
+            instructions["Subtract_Saturate"] = f"psub{prefix}{'b' if bits == 8 else 'w'} %%xmm1, %%xmm0"
+        if (not signed and bits == 8) or (signed and bits == 16):
+            instructions["Min"] = f"pmin{'ub' if bits == 8 else 'sw'} %%xmm1, %%xmm0"
+            instructions["Max"] = f"pmax{'ub' if bits == 8 else 'sw'} %%xmm1, %%xmm0"
+        for name, instruction in instructions.items():
+            out += [
+                f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{x86_ada_instruction(instruction)}\");",
+                f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));",
+            ]
+        out += [
+            f"   function Native_Not_{vector} is new SSE2_Unary_128 ({vector}, \"pcmpeqd %%xmm1, %%xmm1\" & ASCII.LF & ASCII.HT & \"pxor %%xmm1, %%xmm0\");",
+            f"   function Bitwise_Not (Value : {vector}) return {vector} is (Native_Not_{vector} (Value));",
+            f"   function Native_Reverse_{vector} is new SSE2_Unary_128 ({vector}, \"{x86_ada_instruction(reverse[bits])}\");",
+            f"   function Reverse_Lanes (Value : {vector}) return {vector} is (Native_Reverse_{vector} (Value));",
+            f"   function Compare_Equal_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction(eq_instruction[bits])}\");",
+            f"   function Compare_Greater_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction((signed_gt if signed else unsigned_gt)[bits])}\");",
+            f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
+            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
+            call("Splat", vector, "Value", f"Value : {scalar}"),
+            call("From_Lanes", vector, "Values", f"Values : {vals}"),
+            call("To_Lanes", vals, "Value", f"Value : {vector}"),
+            call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
+            call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+        ]
+        if bits > 16:
+            out += [
+                call("Add_Saturate", vector, "Left, Right", f"Left, Right : {vector}"),
+                call("Subtract_Saturate", vector, "Left, Right", f"Left, Right : {vector}"),
+            ]
+        out += [
+            f"   function Native_SHL_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_left[bits])}\");",
+            f"   function Native_SHR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_right[bits])}\");",
+            f"   function Shift_Left_Logical (Value : {vector}; Count : Natural) return {vector} is (if Count >= {bits} then Flyology_SIMD.Zero else Native_SHL_{vector} (Value, Interfaces.Unsigned_32 (Count)));",
+            f"   function Shift_Right_Logical (Value : {vector}; Count : Natural) return {vector} is (if Count >= {bits} then Flyology_SIMD.Zero else Native_SHR_{vector} (Value, Interfaces.Unsigned_32 (Count)));",
+        ]
+        if signed:
+            if bits < 64:
+                out += [
+                    f"   function Native_SAR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_arithmetic[bits])}\");",
+                    f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is (if Count >= {bits} then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SAR_{vector} (Value, Interfaces.Unsigned_32 (Count)));",
+                ]
+            else:
+                out.append(call("Shift_Right_Arithmetic", vector, "Value, Count", f"Value : {vector}; Count : Natural"))
+        out += [
+            f"   function Equal (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask ({bit(f'Compare_Equal_{vector} (Left, Right, {sign})')}));",
+            f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask ({bit(f'Compare_Greater_{vector} (Left, Right, {sign})')}));",
+            f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask ({bit(f'Compare_Greater_{vector} (Left, Right, {sign}) or Compare_Equal_{vector} (Left, Right, {sign})')}));",
+            f"   function Less_Than (Left, Right : {vector}) return {mask} is (Greater_Than (Left => Right, Right => Left));",
+            f"   function Less_Equal (Left, Right : {vector}) return {mask} is (Greater_Equal (Left => Right, Right => Left));",
+            f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} ({'To_Bit_Mask (Mask)' if lanes == 16 else 'Interfaces.Unsigned_16 (To_Bit_Mask (Mask))'}, {weights}, If_True, If_False));",
+        ]
+        if "Min" not in instructions:
+            out += [
+                f"   function Min (Left, Right : {vector}) return {vector} is (Select_Value (Less_Than (Left, Right), Left, Right));",
+                f"   function Max (Left, Right : {vector}) return {vector} is (Select_Value (Greater_Than (Left, Right), Left, Right));",
+            ]
+        out += [
+            call("Reduce_Add_Wrap", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Min", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Max", scalar, "Value", f"Value : {vector}"),
+        ]
+        out += x86_memory_body(vector, arr, count)
+
+    for vector, scalar, bits, lanes in FLOAT_TYPES:
+        idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
+        arr, count = array_name(scalar), lane_count(bits, lanes)
+        suffix = "ps" if bits == 32 else "pd"
+        weights = f"Weights_X86_{bits}'Address"
+        arithmetic = {"Add": "add", "Subtract": "sub", "Multiply": "mul", "Divide": "div"}
+        for name, op in arithmetic.items():
+            out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{op}{suffix} %%xmm1, %%xmm0\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
+        for name, instruction in (("Interleave_Low", f"unpckl{suffix}"), ("Interleave_High", f"unpckh{suffix}")):
+            out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{instruction} %%xmm1, %%xmm0\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
+        reverse_float = reverse[bits]
+        out += [
+            f"   function Native_Reverse_{vector} is new SSE2_Unary_128 ({vector}, \"{x86_ada_instruction(reverse_float)}\");",
+            f"   function Reverse_Lanes (Value : {vector}) return {vector} is (Native_Reverse_{vector} (Value));",
+        ]
+        compare_ops = (("Equal", "cmpeq"), ("Less_Than", "cmplt"), ("Less_Equal", "cmple"), ("Unordered", "cmpunord"))
+        for name, op in compare_ops:
+            out += [
+                f"   function Compare_{name}_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{op}{suffix} %%xmm1, %%xmm0\");",
+                f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_{name}_{vector} (Left, Right, Sign_32'Address))));",
+            ]
+        out += [
+            f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Less_Than (Left => Right, Right => Left));",
+            f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
+            f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
+            f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), {weights}, If_True, If_False));",
+            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
+            call("Splat", vector, "Value", f"Value : {scalar}"), call("From_Lanes", vector, "Values", f"Values : {vals}"),
+            call("To_Lanes", vals, "Value", f"Value : {vector}"), call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
+            call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
+            call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
+            call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
+        ]
+        out += x86_memory_body(vector, arr, count)
+
+    for bits, lanes, storage in MASKS:
+        mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
+        st = f"Interfaces.{storage}"
+        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
+    return "\n".join(out)
+
+
 def test_program() -> str:
     lines = [
         "with Ada.Command_Line;", "with Ada.Exceptions;", "with Ada.Text_IO;",
@@ -400,6 +714,7 @@ def test_program() -> str:
     ]
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         vals, arr, count = lane_values(vector), array_name(scalar), lane_count(bits, lanes)
+        mask = mask_for(bits, lanes)
         mask_storage = "Interfaces.Unsigned_16" if lanes == 16 else "Interfaces.Unsigned_8"
         if signed:
             av = [f"{scalar}'First", "-1", "0", "1", f"{scalar}'Last"]
@@ -415,6 +730,7 @@ def test_program() -> str:
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
             f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
+            f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
             "   begin",
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High"):
@@ -433,15 +749,27 @@ def test_program() -> str:
             lines.append(f"      Check (Backends.Native.To_Bit_Mask (Backends.Native.{name} (A, B)) = Flyology_SIMD.To_Bit_Mask ({name} (A, B)), \"{vector} {name}\");")
         lines += [
             f"      Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), \"{vector} select\");",
+            f"      for Pattern in Natural range 0 .. 2 ** {lanes} - 1 loop",
+            f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = {mask_storage} (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
+            f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            "      end loop;",
             f"      Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), \"{vector} reduce add\");",
             f"      Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), \"{vector} reduce min\");",
             f"      Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), \"{vector} reduce max\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
+            f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
+            f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
             f"      for N in {count} loop",
             "         Data := [others => 0]; Reference := [others => 0];",
             f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
             f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
+            "         declare",
+            f"            Exact : {arr} (1 .. N) := [others => 0];",
+            "         begin",
+            f"            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), \"{vector} exact-extent partial load\" & N'Image);",
+            f"            Backends.Native.Store_Partial (Exact, 1, N, B);",
+            "         end;",
             "      end loop;",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
@@ -456,6 +784,7 @@ def test_program() -> str:
         ]
     for vector, scalar, bits, lanes in FLOAT_TYPES:
         vals, arr, count = lane_values(vector), array_name(scalar), lane_count(bits, lanes)
+        mask = mask_for(bits, lanes)
         av = ["0.0", "-0.0", "1.5", "-2.25", "17.0"]
         bv = ["2.0", "-3.0", "0.5", "4.0", "-1.0"]
         agg_a = ", ".join(av[n % len(av)] for n in range(lanes))
@@ -464,7 +793,8 @@ def test_program() -> str:
             f"   function Same (Left, Right : {vector}) return Boolean is (To_Lanes (Left) = To_Lanes (Right));",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);", f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
-            f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];", "   begin",
+            f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
+            f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;", "   begin",
         ]
         for name in ("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number", "Interleave_Low", "Interleave_High"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
@@ -473,10 +803,26 @@ def test_program() -> str:
             lines.append(f"      Check (Backends.Native.To_Bit_Mask (Backends.Native.{name} (A, B)) = Flyology_SIMD.To_Bit_Mask ({name} (A, B)), \"{vector} {name}\");")
         lines += [
             f"      Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), \"{vector} select\");",
+            f"      for Pattern in Natural range 0 .. 2 ** {lanes} - 1 loop",
+            f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
+            f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            "      end loop;",
             f"      Check (Backends.Native.Reduce_Add (A) = Reduce_Add (A), \"{vector} reduce\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
-            f"      for N in {count} loop Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B); Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image); end loop;",
+            f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
+            f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
+            f"      for N in {count} loop",
+            "         Data := [others => 0.0]; Reference := [others => 0.0];",
+            f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
+            f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
+            "         declare",
+            f"            Exact : {arr} (1 .. N) := [others => 0.0];",
+            "         begin",
+            f"            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), \"{vector} exact-extent partial load\" & N'Image);",
+            f"            Backends.Native.Store_Partial (Exact, 1, N, B);",
+            "         end;",
+            "      end loop;",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
             f"            R_A : constant {vector} := From_Lanes ([for Lane in {lane_index(bits, lanes)} => {scalar} (Iteration * 37 + Lane * 19) / 7.0]);",
@@ -528,6 +874,11 @@ def main() -> None:
     SPEC.write_text(replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract()))
     text = NEON.read_text()
     NEON.write_text(replace_block(text, "GENERATED FULL-FAMILY NEON BODIES", neon_body()))
+    text = X86.read_text().replace(
+        "GENERATED FULL-FAMILY FALLBACK BODIES",
+        "GENERATED FULL-FAMILY X86 BODIES",
+    )
+    X86.write_text(replace_block(text, "GENERATED FULL-FAMILY X86 BODIES", x86_body()))
     generated = fallback_body()
     for path in FALLBACKS:
         text = path.read_text()

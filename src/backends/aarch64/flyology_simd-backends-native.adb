@@ -94,6 +94,7 @@ package body Flyology_SIMD.Backends.Native is
      ("uqsub v0.16b, v0.16b, v1.16b");
    function NEON_Bitwise_And is new Binary_Operation
      ("and v0.16b, v0.16b, v1.16b");
+   pragma Inline_Always (NEON_Bitwise_And);
    function NEON_Bitwise_Or is new Binary_Operation
      ("orr v0.16b, v0.16b, v1.16b");
    function NEON_Bitwise_Xor is new Binary_Operation
@@ -109,6 +110,7 @@ package body Flyology_SIMD.Backends.Native is
 
    function Equal_Bits is new Comparison_Bits
      ("cmeq v0.16b, v0.16b, v1.16b");
+   pragma Inline_Always (Equal_Bits);
    function Greater_Bits is new Comparison_Bits
      ("cmhi v0.16b, v0.16b, v1.16b");
    function Greater_Equal_Bits is new Comparison_Bits
