@@ -1,4 +1,5 @@
-with "../flyology_simd.gpr";
+with "flyology_simd.gpr";
+with "flyology_bench.gpr";
 
 project Benchmarks is
    for Source_Dirs use (".");

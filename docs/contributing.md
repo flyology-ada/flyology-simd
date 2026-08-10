@@ -23,4 +23,6 @@ fixed random seed; preserve reproducibility or print any replacement seed.
    continuously executed status.
 
 New vector families need explicit conversion, bit-cast, shift, overflow,
-narrowing, and floating-point semantics before their types become public.
+narrowing, and floating-point semantics before their types become public. Run
+both `simd_tests` and `family_tests`; generated family files are reproduced by
+`scripts/generate_full_family.py` followed by `scripts/generate_backends.py`.

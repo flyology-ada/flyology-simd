@@ -23,39 +23,28 @@ GCC-based GNAT is the initial compiler.  GNAT LLVM is a compatibility target,
 not an implemented or verified backend.  SVE, AVX-512, RISC-V V, WebAssembly
 SIMD, GPUs, and vendor-intrinsic coverage are outside v0.1.
 
-## Stabilized v0.1 surface
+## v0.1 surface under stabilization
 
-The first surface is intentionally byte-oriented:
-
-- `U8x16`, with sixteen `Interfaces.Unsigned_8` lanes;
-- `Mask_8x16`, whose truth values are observable only through mask operations;
-- construction, extraction, replacement, wrapping and saturating arithmetic;
-- bitwise operations, defined logical shifts, unsigned comparisons, selection,
-  minimum/maximum, horizontal sum, reversal, and low/high interleave;
-- compact comparison masks and mask reductions;
-- typed aligned, unaligned, full, and partial memory operations.
-
-The complete integer and floating family (`I8x16`, 16/32/64-bit lanes,
-`F32x4`, `F64x2`) and public 256-bit types was evaluated but is deferred.  It
-would multiply the conversion, narrowing, floating NaN, and backend test matrix
-before the compiler/backend matrix is proven.  Numeric `Convert`, `Bit_Cast`,
-`Narrow_Truncate`, and `Narrow_Saturate` therefore are not prematurely exposed.
-The private backend boundary can add those types without changing the byte API.
-AVX2 still benefits whole-buffer byte algorithms through an internal 32-byte
-kernel.
+The original byte-oriented surface proved the representation, mask, memory and
+backend boundaries.  Before v0.1 stabilization it is being expanded to the
+complete signed, unsigned and floating 128-bit family and corresponding
+portable 256-bit family.  The exact operation and floating-point contracts are
+recorded in [api-scope.md](api-scope.md).  AArch64 NEON is completed and
+executed first; x86-64 optimization is deferred until that family and its test
+matrix are stable.
 
 ## Normative semantics
 
 - Lane zero is the first logical element loaded from memory.
-- Integer `Add_Wrap` and `Subtract_Wrap` are modulo 256.  Saturating operations
+- Integer wrapping operations are modulo the lane width. Saturating operations
   have `Saturate` in their names.
-- A logical shift count of 8 or more yields zero in every lane.  Counts are not
-  reduced modulo the lane width.
+- A shift count at least the lane width yields zero for logical shifts and sign
+  fill for signed arithmetic right shift. Counts are not reduced modulo width.
 - Masks express Boolean lane truth.  No all-bits-set representation is public
   or promised.
 - `Select (M, If_True, If_False)` selects `If_True` exactly where `M` is true.
-- `Min` and `Max` use unsigned byte ordering.
-- `Horizontal_Sum` returns the exact mathematical sum in `0 .. 4080`.
+- Integer `Min`/`Max` use the lane type's signedness. Floating number min/max
+  follows the NaN and signed-zero contract in `api-scope.md`.
 - Partial loads read exactly `Count` elements and zero the remaining lanes.
   Partial stores write exactly `Count` elements.  A count of zero touches no
   element, including at an otherwise invalid start index permitted by the
@@ -64,7 +53,8 @@ kernel.
   checked Ada precondition requiring a 16-byte address and a full extent.
 - No operation allocates, performs I/O, locks, waits, starts a task, reads
   environment variables, or consults mutable process configuration.
-- No build mode enables `-ffast-math` or globally suppresses Ada checks.
+- No build mode enables `-ffast-math` or globally suppresses Ada checks. GNAT
+  validity checking is intentionally omitted because it rejects IEEE NaNs.
 
 ## Backend boundary
 
@@ -74,8 +64,8 @@ simple lane code.  `Flyology_SIMD.Backends.Native` has the same operation
 profile and is selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 
 - `scalar`: portable scalar implementation;
-- `aarch64`: 128-bit GCC vector types, expected to lower to Advanced SIMD/NEON;
-- `x86_64`: 128-bit GCC vector types, restricted to the x86-64 SSE2 baseline;
+- `aarch64`: audited `System.Machine_Code` Advanced SIMD/NEON leaves;
+- `x86_64`: provisional byte SSE2 lowering plus full scalar family fallback;
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.

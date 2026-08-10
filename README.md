@@ -4,10 +4,11 @@
 Ada programs.  It has no runtime dependencies, no dependency on Flyology, and
 does not define a `Flyology` parent unit.  The public root is `Flyology_SIMD`.
 
-The v0.1 surface deliberately stabilizes one rigorously tested family:
-private `U8x16` vectors, private 16-lane masks, explicit wrapping and saturating
-byte arithmetic, bitwise and comparison operations, selection, reductions,
-shuffles, and safe typed memory operations.  `Find_First`, `Count`, and
+The v0.1 surface under stabilization contains the full private 128-bit family:
+`U8x16`/`I8x16`, `U16x8`/`I16x8`, `U32x4`/`I32x4`,
+`U64x2`/`I64x2`, `F32x4`, and `F64x2`, with compact typed masks.  Integer
+operations name wrapping and saturation explicitly; floating operations retain
+IEEE NaNs and signed zero without fast-math.  `Find_First`, `Count`, and
 `Is_ASCII` demonstrate complete-buffer composition.
 
 The project is experimental until its API, compiler matrix, and backend checks
@@ -21,6 +22,7 @@ GNAT 16.1 and Alire 2.1 are the locally verified toolchain versions.
 alr build
 alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/simd_tests
+./bin/family_tests
 ```
 
 The default is the scalar fallback so an unknown target never receives an
@@ -48,10 +50,11 @@ Build the example with `examples/examples.gpr`.  See
   a benchmark baseline.
 - `Flyology_SIMD` offers **explicit portable vector operations** with fixed
   width and target-independent semantics.
-- `Flyology_SIMD.Backends.Native` supplies **architecture-specific lowering**:
-  NEON on AArch64 and SSE2 on x86-64.  GNAT loops are used where their emitted
-  code is verified; small Ada assembly leaves cover operations GNAT cannot
-  express reliably, such as compact mask extraction.
+- `Flyology_SIMD.Backends.Native` supplies **architecture-specific lowering**.
+  The complete 128-bit AArch64 family uses narrow Ada `System.Machine_Code`
+  leaves because the installed GNAT crashes on the tested GCC-vector arithmetic
+  representation.  The existing x86-64 byte path remains provisional while
+  NEON is completed first.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.
@@ -70,7 +73,7 @@ floating defaults are not globally disabled; `-ffast-math` is not used.
 Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `All_True`, and `None_True`.
 
-Full normative details and the deliberately deferred numeric families are in
+Full normative details and the deliberately deferred conversion/256-bit work are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).
 
 ## License

@@ -1,0 +1,21 @@
+name = "flyology_simd_benchmarks"
+description = "Statistical backend benchmarks for flyology_simd"
+version = "0.1.0-dev"
+licenses = "MIT OR Apache-2.0"
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+project-files = ["benchmarks.gpr"]
+executables = ["simd_benchmark"]
+tags = ["simd", "benchmark", "neon", "performance"]
+
+[[depends-on]]
+flyology_simd = "*"
+flyology_bench = "*"
+
+[[pins]]
+flyology_simd = { path = ".." }
+
+[build-switches]
+"*".ada_version = "Ada2022"
+release.optimization = "Performance"
+release.compile_checks = "Warnings"
