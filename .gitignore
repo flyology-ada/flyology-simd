@@ -1,0 +1,11 @@
+/alire/
+/config/
+/obj/
+/lib/
+/bin/
+/.build/
+/benchmark-results/
+*.ali
+*.o
+*.a
+*.dSYM/
