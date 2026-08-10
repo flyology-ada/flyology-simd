@@ -1,0 +1,147 @@
+# Flyology SIMD design
+
+Status: experimental v0.1 design, 2026-08-10.
+
+## Goals and portability
+
+`flyology_simd` is a standalone, allocation-free Ada library.  It has no
+dependency on Flyology or any other crate and deliberately does not provide a
+`Flyology` parent unit.  Its root unit is `Flyology_SIMD`.
+
+Portable has three independent meanings here:
+
+1. Public operations have identical semantics on every target.
+2. The same source remains usable through the scalar fallback.
+3. Selected targets lower important operations to efficient machine SIMD.
+
+The representation and ABI of vectors are not portable between compilers,
+compiler switches, architectures, or enabled instruction sets.  Public vector
+and mask types are private.  Values should not cross foreign or persistent ABI
+boundaries without being stored as lanes first.
+
+GCC-based GNAT is the initial compiler.  GNAT LLVM is a compatibility target,
+not an implemented or verified backend.  SVE, AVX-512, RISC-V V, WebAssembly
+SIMD, GPUs, and vendor-intrinsic coverage are outside v0.1.
+
+## Stabilized v0.1 surface
+
+The first surface is intentionally byte-oriented:
+
+- `U8x16`, with sixteen `Interfaces.Unsigned_8` lanes;
+- `Mask_8x16`, whose truth values are observable only through mask operations;
+- construction, extraction, replacement, wrapping and saturating arithmetic;
+- bitwise operations, defined logical shifts, unsigned comparisons, selection,
+  minimum/maximum, horizontal sum, reversal, and low/high interleave;
+- compact comparison masks and mask reductions;
+- typed aligned, unaligned, full, and partial memory operations.
+
+The complete integer and floating family (`I8x16`, 16/32/64-bit lanes,
+`F32x4`, `F64x2`) and public 256-bit types was evaluated but is deferred.  It
+would multiply the conversion, narrowing, floating NaN, and backend test matrix
+before the compiler/backend matrix is proven.  Numeric `Convert`, `Bit_Cast`,
+`Narrow_Truncate`, and `Narrow_Saturate` therefore are not prematurely exposed.
+The private backend boundary can add those types without changing the byte API.
+AVX2 still benefits whole-buffer byte algorithms through an internal 32-byte
+kernel.
+
+## Normative semantics
+
+- Lane zero is the first logical element loaded from memory.
+- Integer `Add_Wrap` and `Subtract_Wrap` are modulo 256.  Saturating operations
+  have `Saturate` in their names.
+- A logical shift count of 8 or more yields zero in every lane.  Counts are not
+  reduced modulo the lane width.
+- Masks express Boolean lane truth.  No all-bits-set representation is public
+  or promised.
+- `Select (M, If_True, If_False)` selects `If_True` exactly where `M` is true.
+- `Min` and `Max` use unsigned byte ordering.
+- `Horizontal_Sum` returns the exact mathematical sum in `0 .. 4080`.
+- Partial loads read exactly `Count` elements and zero the remaining lanes.
+  Partial stores write exactly `Count` elements.  A count of zero touches no
+  element, including at an otherwise invalid start index permitted by the
+  zero-count contract.
+- Unaligned operations make no alignment assertion.  Aligned operations have a
+  checked Ada precondition requiring a 16-byte address and a full extent.
+- No operation allocates, performs I/O, locks, waits, starts a task, reads
+  environment variables, or consults mutable process configuration.
+- No build mode enables `-ffast-math` or globally suppresses Ada checks.
+
+## Backend boundary
+
+The public value representation is an implementation detail shared by child
+units.  `Flyology_SIMD.Backends.Scalar` is the semantic authority and is kept as
+simple lane code.  `Flyology_SIMD.Backends.Native` has the same operation
+profile and is selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
+
+- `scalar`: portable scalar implementation;
+- `aarch64`: 128-bit GCC vector types, expected to lower to Advanced SIMD/NEON;
+- `x86_64`: 128-bit GCC vector types, restricted to the x86-64 SSE2 baseline;
+- optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
+
+The scalar and 128-bit implementations never receive AVX2 compiler switches.
+The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.
+AVX2 availability requires CPU AVX2 support and OS vector-state support.  No
+optional instruction is executed during elaboration.
+
+`Flyology_SIMD.Algorithms.Generic_Bytes` takes a backend operation package as a
+generic formal package.  This makes static selection visible to the compiler and
+permits inlining through complete buffer loops.  Named scalar/native
+instantiations are supplied.  Runtime selection is performed once in the
+non-generic algorithm facade, never once per primitive operation.
+
+Feature information is immutable after construction and computed without a
+racy writable cache.  Repeated detection is acceptable at the coarse algorithm
+boundary in v0.1; applications can retain the returned feature record.
+
+## Memory mechanism
+
+Ordinary public memory operations accept an unconstrained `Byte_Array` and a
+logical start index.  Preconditions prove a full or partial extent before a
+backend may reinterpret any representation.  Partial operations use bounded
+lane loops and are never implemented as an out-of-range full load plus masking.
+Address-based overloads are deliberately absent from v0.1.
+
+Optimized full-load and compact-mask paths use small target-specific Ada
+`System.Machine_Code` leaves.  They read or write exactly one statically sized
+128-bit object.  Public array bounds and alignment checks occur before that
+mechanism.
+
+## CPU and compiler facts behind the design
+
+GNAT documents loop auto-vectorization separately from explicit vector types;
+the former is useful for scalar code but is not an explicit SIMD API.  GCC
+vector shifts are undefined for oversized counts, so the public shift contract
+must guard counts before using a machine operation.  GCC also warns that runtime
+dispatch requires feature-specific files to be compiled separately.  AArch64
+always provides Advanced SIMD in the Arm C Language Extensions model.
+
+Matreshka's BSD-3-Clause SIMD packages were reviewed as prior Ada art.  They use
+GNAT vector types and imported target intrinsics, but expose ISA-shaped APIs and
+their historical AVX detector does not validate OS extended-state support.  No
+Matreshka source is copied.  The only SIMD-named crate found in the current
+Alire community index was `orka_simd` 1.0.0: it is x86-specific, depends on
+`orka_types`, and its recorded repository was unavailable during this review.
+It is not used.
+
+## Rejected alternatives
+
+- A `Flyology` parent unit: conflicts when used with Flyology and violates crate
+  independence.
+- Public GCC vector arrays: exposes unstable representation and permits callers
+  to depend on target lane/mask accidents.
+- Per-operation runtime dispatch: blocks inlining and adds avoidable branches.
+- A large C intrinsic facade: moves Ada policy and contracts across an ABI for
+  no semantic benefit.
+- Whole-vector tail loads followed by masking: can read beyond the caller's
+  declared extent and fail at a page boundary.
+- Whole-library `-march=native`, `-mavx2`, `-gnatp`, or `-ffast-math`: makes
+  baseline safety or semantic equivalence unverifiable.
+
+## Adding a backend
+
+A backend must implement the common byte-operation profile, have no elaboration
+side effects, and match scalar results for every lane and mask pattern tested.
+It must add a distinct GPR source selection, target-only compiler switches,
+differential tests, assembly checks for required instruction classes and
+forbidden leakage, and truthful support-matrix documentation.  Source presence,
+cross-compilation, execution, and continuous execution are recorded separately.
