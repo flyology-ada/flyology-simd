@@ -128,6 +128,8 @@ def emit_spec() -> str:
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
+            f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
+            f"   function Deinterleave_Odd (Left, Right : {vector}) return {vector};",
             f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean;",
             f"   function Load (Data : {arr}; Start : Natural) return {vector}",
             f"     with Pre => {extent};",
@@ -173,6 +175,8 @@ def emit_spec() -> str:
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
+            f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
+            f"   function Deinterleave_Odd (Left, Right : {vector}) return {vector};",
             f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean;",
             f"   function Load (Data : {arr}; Start : Natural) return {vector} with Pre => {extent};",
             f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) with Pre => {extent};",
@@ -377,6 +381,8 @@ def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: b
     out += [f"   function Reverse_Lanes (Value : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Value.Lanes ({lanes - 1} - Lane); end loop;", "      return Result;", "   end Reverse_Lanes;"]
     for name, offset in (("Interleave_Low", 0), ("Interleave_High", lanes // 2)):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop", f"         Result.Lanes (2 * Lane) := Left.Lanes (Lane + {offset});", f"         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + {offset});", "      end loop;", "      return Result;", f"   end {name};"]
+    for name, parity in (("Deinterleave_Even", 0), ("Deinterleave_Odd", 1)):
+        out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop", f"         Result.Lanes (Lane) := Left.Lanes (2 * Lane + {parity});", f"         Result.Lanes (Lane + {lanes // 2}) := Right.Lanes (2 * Lane + {parity});", "      end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);", f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;", f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Data (Start + Lane); end loop;", "      return Result;", "   end Load_Unaligned;", f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is", "   begin", f"      for Lane in {idx} loop Data (Start + Lane) := Value.Lanes (Lane); end loop;", "   end Store_Unaligned;", f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;", f"   function Load_Partial (Data : {arr}; Start : Natural; Count : {count}) return {vector} is", "      Result : " + vector + " := Zero;", "   begin", "      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;", "      return Result;", "   end Load_Partial;", f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is", "   begin", "      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;", "   end Store_Partial;", ""]
     return out
 
@@ -390,7 +396,30 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
     storage = "Interfaces.Unsigned_8"
     uint = f"U{bits}"
     sign = f"2 ** {bits - 1}"
-    out = [f"   function Bits_Of_{scalar} is new Ada.Unchecked_Conversion ({scalar}, {uint});", f"   function Zero return {vector} is (Lanes => [others => 0.0]);", f"   function Splat (Value : {scalar}) return {vector} is (Lanes => [others => Value]);", f"   function From_Lanes (Values : {vals}) return {vector} is (Lanes => Values);", f"   function To_Lanes (Value : {vector}) return {vals} is (Value.Lanes);", f"   function Extract (Value : {vector}; Lane : {idx}) return {scalar} is (Value.Lanes (Lane));", f"   function Replace (Value : {vector}; Lane : {idx}; With_Value : {scalar}) return {vector} is", f"      Result : {vector} := Value;", "   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;"]
+    exponent = "16#7F80_0000#" if bits == 32 else "16#7FF0_0000_0000_0000#"
+    fraction = "16#007F_FFFF#" if bits == 32 else "16#000F_FFFF_FFFF_FFFF#"
+    quiet = "16#0040_0000#" if bits == 32 else "16#0008_0000_0000_0000#"
+    out = [
+        f"   function Bits_Of_{scalar} is new Ada.Unchecked_Conversion ({scalar}, {uint});",
+        f"   function {scalar}_Of_Bits is new Ada.Unchecked_Conversion ({uint}, {scalar});",
+        f"   function Is_Signaling_NaN (Value : {scalar}) return Boolean is",
+        f"      Bits : constant {uint} := Bits_Of_{scalar} (Value);",
+        "   begin",
+        f"      return (Bits and {exponent}) = {exponent}",
+        f"        and then (Bits and {fraction}) /= 0",
+        f"        and then (Bits and {quiet}) = 0;",
+        "   end Is_Signaling_NaN;",
+        f"   function Quiet_NaN (Value : {scalar}) return {scalar} is",
+        f"     ({scalar}_Of_Bits (Bits_Of_{scalar} (Value) or {quiet}));",
+        f"   function Zero return {vector} is (Lanes => [others => 0.0]);",
+        f"   function Splat (Value : {scalar}) return {vector} is (Lanes => [others => Value]);",
+        f"   function From_Lanes (Values : {vals}) return {vector} is (Lanes => Values);",
+        f"   function To_Lanes (Value : {vector}) return {vals} is (Value.Lanes);",
+        f"   function Extract (Value : {vector}; Lane : {idx}) return {scalar} is (Value.Lanes (Lane));",
+        f"   function Replace (Value : {vector}; Lane : {idx}; With_Value : {scalar}) return {vector} is",
+        f"      Result : {vector} := Value;",
+        "   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;",
+    ]
     for name, op in (("Add", "+"), ("Subtract", "-"), ("Multiply", "*"), ("Divide", "/")):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Left.Lanes (Lane) {op} Right.Lanes (Lane); end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Compare_{vector} (Left, Right : {vector}; Kind : Character) return {mask} is", f"      Bits : {storage} := 0;", "      Truth : Boolean;", "   begin", f"      for Lane in {idx} loop", "         case Kind is", "            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);", "            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);", "            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);", "            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);", "            when 'G' => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);", "            when others => Truth := Left.Lanes (Lane) /= Left.Lanes (Lane) or else Right.Lanes (Lane) /= Right.Lanes (Lane);", "         end case;", f"         if Truth then Bits := Bits or Interfaces.Shift_Left ({storage}'(1), Lane); end if;", "      end loop;", "      return (Bits => Bits);", f"   end Compare_{vector};"]
@@ -399,10 +428,12 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
     out += [f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := (if Test (Mask, Lane) then If_True.Lanes (Lane) else If_False.Lanes (Lane)); end loop;", "      return Result;", "   end Select_Value;"]
     for name, choose in (("Min_Number", "<"), ("Max_Number", ">")):
         zero_choice = (f"(if (Bits_Of_{scalar} (Left.Lanes (Lane)) and {sign}) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane))" if name == "Min_Number" else f"(if (Bits_Of_{scalar} (Left.Lanes (Lane)) and {sign}) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane))")
-        out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop", "         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);", "         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", f"         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := {zero_choice};", f"         elsif Left.Lanes (Lane) {choose} Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", "         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;", "      end loop;", "      return Result;", f"   end {name};"]
+        out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop", "         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));", "         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));", "         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);", "         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", f"         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := {zero_choice};", f"         elsif Left.Lanes (Lane) {choose} Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", "         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;", "      end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Reduce_Add (Value : {vector}) return {scalar} is", f"      Result : {scalar} := 0.0;", "   begin", f"      for Lane in {idx} loop Result := Result + Value.Lanes (Lane); end loop;", "      return Result;", "   end Reduce_Add;", f"   function Reverse_Lanes (Value : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Value.Lanes ({lanes - 1} - Lane); end loop;", "      return Result;", "   end Reverse_Lanes;"]
     for name, offset in (("Interleave_Low", 0), ("Interleave_High", lanes // 2)):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + {offset}); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + {offset}); end loop;", "      return Result;", f"   end {name};"]
+    for name, parity in (("Deinterleave_Even", 0), ("Deinterleave_Odd", 1)):
+        out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + {parity}); Result.Lanes (Lane + {lanes // 2}) := Right.Lanes (2 * Lane + {parity}); end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);", f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;", f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Data (Start + Lane); end loop;", "      return Result;", "   end Load_Unaligned;", f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin for Lane in {idx} loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end Store_Unaligned;", f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;", f"   function Load_Partial (Data : {arr}; Start : Natural; Count : {count}) return {vector} is", f"      Result : {vector} := Zero;", "   begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if; return Result; end Load_Partial;", f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if; end Store_Partial;", ""]
     return out
 

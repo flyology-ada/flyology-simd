@@ -55,6 +55,15 @@ package body Flyology_SIMD is
       return Result;
    end Subtract_Wrap;
 
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := Left.Lanes (Lane) * Right.Lanes (Lane);
+      end loop;
+      return Result;
+   end Multiply_Wrap;
+
    function Add_Saturate (Left, Right : U8x16) return U8x16 is
       Result : U8x16;
       Sum    : Natural;
@@ -239,6 +248,26 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane);
+         Result.Lanes (Lane + 8) := Right.Lanes (2 * Lane);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 8) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
      (Bits => Bits);
@@ -564,6 +593,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 8) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : I8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 8) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -785,6 +832,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 4) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : U16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 4) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1034,6 +1099,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 4) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : I16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 4) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1255,6 +1338,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1504,6 +1605,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1725,6 +1844,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1974,6 +2111,24 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0);
+         Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 0);
+      end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop
+         Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1);
+         Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 1);
+      end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2001,6 +2156,16 @@ package body Flyology_SIMD is
    end Store_Partial;
 
    function Bits_Of_F32 is new Ada.Unchecked_Conversion (F32, U32);
+   function F32_Of_Bits is new Ada.Unchecked_Conversion (U32, F32);
+   function Is_Signaling_NaN (Value : F32) return Boolean is
+      Bits : constant U32 := Bits_Of_F32 (Value);
+   begin
+      return (Bits and 16#7F80_0000#) = 16#7F80_0000#
+        and then (Bits and 16#007F_FFFF#) /= 0
+        and then (Bits and 16#0040_0000#) = 0;
+   end Is_Signaling_NaN;
+   function Quiet_NaN (Value : F32) return F32 is
+     (F32_Of_Bits (Bits_Of_F32 (Value) or 16#0040_0000#));
    function Zero return F32x4 is (Lanes => [others => 0.0]);
    function Splat (Value : F32) return F32x4 is (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is (Lanes => Values);
@@ -2066,7 +2231,9 @@ package body Flyology_SIMD is
       Result : F32x4;
    begin
       for Lane in Lane_Index_32x4 loop
-         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));
+         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
          elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
          elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F32 (Left.Lanes (Lane)) and 2 ** 31) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
          elsif Left.Lanes (Lane) < Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
@@ -2078,7 +2245,9 @@ package body Flyology_SIMD is
       Result : F32x4;
    begin
       for Lane in Lane_Index_32x4 loop
-         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));
+         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
          elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
          elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F32 (Left.Lanes (Lane)) and 2 ** 31) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
          elsif Left.Lanes (Lane) > Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
@@ -2110,6 +2279,18 @@ package body Flyology_SIMD is
       for Lane in Natural range 0 .. 1 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 2); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 2); end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0); Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 0); end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1); Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 1); end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2128,6 +2309,16 @@ package body Flyology_SIMD is
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if; end Store_Partial;
 
    function Bits_Of_F64 is new Ada.Unchecked_Conversion (F64, U64);
+   function F64_Of_Bits is new Ada.Unchecked_Conversion (U64, F64);
+   function Is_Signaling_NaN (Value : F64) return Boolean is
+      Bits : constant U64 := Bits_Of_F64 (Value);
+   begin
+      return (Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+        and then (Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0
+        and then (Bits and 16#0008_0000_0000_0000#) = 0;
+   end Is_Signaling_NaN;
+   function Quiet_NaN (Value : F64) return F64 is
+     (F64_Of_Bits (Bits_Of_F64 (Value) or 16#0008_0000_0000_0000#));
    function Zero return F64x2 is (Lanes => [others => 0.0]);
    function Splat (Value : F64) return F64x2 is (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is (Lanes => Values);
@@ -2193,7 +2384,9 @@ package body Flyology_SIMD is
       Result : F64x2;
    begin
       for Lane in Lane_Index_64x2 loop
-         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));
+         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
          elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
          elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F64 (Left.Lanes (Lane)) and 2 ** 63) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
          elsif Left.Lanes (Lane) < Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
@@ -2205,7 +2398,9 @@ package body Flyology_SIMD is
       Result : F64x2;
    begin
       for Lane in Lane_Index_64x2 loop
-         if Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
+         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));
+         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));
+         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);
          elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
          elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := (if (Bits_Of_F64 (Left.Lanes (Lane)) and 2 ** 63) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane));
          elsif Left.Lanes (Lane) > Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);
@@ -2237,6 +2432,18 @@ package body Flyology_SIMD is
       for Lane in Natural range 0 .. 0 loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + 1); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + 1); end loop;
       return Result;
    end Interleave_High;
+   function Deinterleave_Even (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 0); Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 0); end loop;
+      return Result;
+   end Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 0 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1); Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 1); end loop;
+      return Result;
+   end Deinterleave_Odd;
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;

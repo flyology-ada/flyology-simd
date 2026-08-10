@@ -23,6 +23,7 @@ is
 
    function Add_Wrap (Left, Right : U8x16) return U8x16;
    function Subtract_Wrap (Left, Right : U8x16) return U8x16;
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16;
    function Add_Saturate (Left, Right : U8x16) return U8x16;
    function Subtract_Saturate (Left, Right : U8x16) return U8x16;
 
@@ -51,6 +52,8 @@ is
    function Reverse_Bytes (Value : U8x16) return U8x16;
    function Interleave_Low (Left, Right : U8x16) return U8x16;
    function Interleave_High (Left, Right : U8x16) return U8x16;
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16;
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16;
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16;
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16;
@@ -184,6 +187,8 @@ is
    function Reverse_Lanes (Value : I8x16) return I8x16;
    function Interleave_Low (Left, Right : I8x16) return I8x16;
    function Interleave_High (Left, Right : I8x16) return I8x16;
+   function Deinterleave_Even (Left, Right : I8x16) return I8x16;
+   function Deinterleave_Odd (Left, Right : I8x16) return I8x16;
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean;
    function Load (Data : I8_Array; Start : Natural) return I8x16
      with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
@@ -226,6 +231,8 @@ is
    function Reverse_Lanes (Value : U16x8) return U16x8;
    function Interleave_Low (Left, Right : U16x8) return U16x8;
    function Interleave_High (Left, Right : U16x8) return U16x8;
+   function Deinterleave_Even (Left, Right : U16x8) return U16x8;
+   function Deinterleave_Odd (Left, Right : U16x8) return U16x8;
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean;
    function Load (Data : U16_Array; Start : Natural) return U16x8
      with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
@@ -269,6 +276,8 @@ is
    function Reverse_Lanes (Value : I16x8) return I16x8;
    function Interleave_Low (Left, Right : I16x8) return I16x8;
    function Interleave_High (Left, Right : I16x8) return I16x8;
+   function Deinterleave_Even (Left, Right : I16x8) return I16x8;
+   function Deinterleave_Odd (Left, Right : I16x8) return I16x8;
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean;
    function Load (Data : I16_Array; Start : Natural) return I16x8
      with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
@@ -311,6 +320,8 @@ is
    function Reverse_Lanes (Value : U32x4) return U32x4;
    function Interleave_Low (Left, Right : U32x4) return U32x4;
    function Interleave_High (Left, Right : U32x4) return U32x4;
+   function Deinterleave_Even (Left, Right : U32x4) return U32x4;
+   function Deinterleave_Odd (Left, Right : U32x4) return U32x4;
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean;
    function Load (Data : U32_Array; Start : Natural) return U32x4
      with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
@@ -354,6 +365,8 @@ is
    function Reverse_Lanes (Value : I32x4) return I32x4;
    function Interleave_Low (Left, Right : I32x4) return I32x4;
    function Interleave_High (Left, Right : I32x4) return I32x4;
+   function Deinterleave_Even (Left, Right : I32x4) return I32x4;
+   function Deinterleave_Odd (Left, Right : I32x4) return I32x4;
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean;
    function Load (Data : I32_Array; Start : Natural) return I32x4
      with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
@@ -396,6 +409,8 @@ is
    function Reverse_Lanes (Value : U64x2) return U64x2;
    function Interleave_Low (Left, Right : U64x2) return U64x2;
    function Interleave_High (Left, Right : U64x2) return U64x2;
+   function Deinterleave_Even (Left, Right : U64x2) return U64x2;
+   function Deinterleave_Odd (Left, Right : U64x2) return U64x2;
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean;
    function Load (Data : U64_Array; Start : Natural) return U64x2
      with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
@@ -439,6 +454,8 @@ is
    function Reverse_Lanes (Value : I64x2) return I64x2;
    function Interleave_Low (Left, Right : I64x2) return I64x2;
    function Interleave_High (Left, Right : I64x2) return I64x2;
+   function Deinterleave_Even (Left, Right : I64x2) return I64x2;
+   function Deinterleave_Odd (Left, Right : I64x2) return I64x2;
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean;
    function Load (Data : I64_Array; Start : Natural) return I64x2
      with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
@@ -473,6 +490,8 @@ is
    function Reverse_Lanes (Value : F32x4) return F32x4;
    function Interleave_Low (Left, Right : F32x4) return F32x4;
    function Interleave_High (Left, Right : F32x4) return F32x4;
+   function Deinterleave_Even (Left, Right : F32x4) return F32x4;
+   function Deinterleave_Odd (Left, Right : F32x4) return F32x4;
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean;
    function Load (Data : F32_Array; Start : Natural) return F32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
@@ -506,6 +525,8 @@ is
    function Reverse_Lanes (Value : F64x2) return F64x2;
    function Interleave_Low (Left, Right : F64x2) return F64x2;
    function Interleave_High (Left, Right : F64x2) return F64x2;
+   function Deinterleave_Even (Left, Right : F64x2) return F64x2;
+   function Deinterleave_Odd (Left, Right : F64x2) return F64x2;
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean;
    function Load (Data : F64_Array; Start : Natural) return F64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);

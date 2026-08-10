@@ -25,7 +25,8 @@ package body Flyology_SIMD.Backends.Native is
            [System.Address'Asm_Input ("r", Result'Address),
             System.Address'Asm_Input ("r", Left'Address),
             System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
+         Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,memory",
+         Volatile => True);
       return Result;
    end U8_Binary;
 
@@ -49,6 +50,22 @@ package body Flyology_SIMD.Backends.Native is
 
    function U8_Add_Wrap is new U8_Binary ("paddb %%xmm1, %%xmm0");
    function U8_Subtract_Wrap is new U8_Binary ("psubb %%xmm1, %%xmm0");
+   function U8_Multiply_Wrap is new U8_Binary
+     ("movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
+      "movdqu %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT &
+      "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT &
+      "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
+      "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
+      "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
+      "punpcklbw %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT &
+      "punpckhbw %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT &
+      "pmullw %%xmm4, %%xmm0" & ASCII.LF & ASCII.HT &
+      "pmullw %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT &
+      "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT &
+      "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
+      "pand %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
+      "packuswb %%xmm2, %%xmm0");
    function U8_Add_Saturate is new U8_Binary ("paddusb %%xmm1, %%xmm0");
    function U8_Subtract_Saturate is new U8_Binary ("psubusb %%xmm1, %%xmm0");
    function U8_And is new U8_Binary ("pand %%xmm1, %%xmm0");
@@ -70,6 +87,16 @@ package body Flyology_SIMD.Backends.Native is
      ("punpcklbw %%xmm1, %%xmm0");
    function U8_Interleave_High is new U8_Binary
      ("punpckhbw %%xmm1, %%xmm0");
+   function U8_Deinterleave_Even is new U8_Binary
+     ("pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT &
+      "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT &
+      "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
+      "packuswb %%xmm1, %%xmm0");
+   function U8_Deinterleave_Odd is new U8_Binary
+     ("psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
+      "packuswb %%xmm1, %%xmm0");
 
    function Equal_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
       Result : Interfaces.Unsigned_32;
@@ -125,6 +152,8 @@ package body Flyology_SIMD.Backends.Native is
      (U8_Add_Saturate (Left, Right));
    function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
      (U8_Subtract_Wrap (Left, Right));
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
+     (U8_Multiply_Wrap (Left, Right));
    function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
      (U8_Subtract_Saturate (Left, Right));
 
@@ -298,6 +327,10 @@ package body Flyology_SIMD.Backends.Native is
      (U8_Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U8x16) return U8x16 is
      (U8_Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
+     (U8_Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
+     (U8_Deinterleave_Odd (Left, Right));
    function Mask_From_Bit_Mask
      (Bits : Interfaces.Unsigned_16) return Mask_8x16 is (Bits => Bits);
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
@@ -343,7 +376,7 @@ package body Flyology_SIMD.Backends.Native is
       Asm
         (Template =>
            "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, (%0)",
+           "movdqu %%xmm0, (%0)",
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
             System.Address'Asm_Input ("r", Data (Start)'Address)],
@@ -355,7 +388,7 @@ package body Flyology_SIMD.Backends.Native is
    begin
       Asm
         (Template =>
-           "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
            "movdqa %%xmm0, (%0)",
          Inputs =>
            [System.Address'Asm_Input ("r", Data (Start)'Address),
@@ -465,6 +498,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I8x16) return I8x16 is (Native_Interleave_Low_I8x16 (Left, Right));
    function Native_Interleave_High_I8x16 is new SSE2_Binary_128 (I8x16, "punpckhbw %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : I8x16) return I8x16 is (Native_Interleave_High_I8x16 (Left, Right));
+   function Native_Deinterleave_Even_I8x16 is new SSE2_Binary_128 (I8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Even_I8x16 (Left, Right));
+   function Native_Deinterleave_Odd_I8x16 is new SSE2_Binary_128 (I8x16, "psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Odd_I8x16 (Left, Right));
    function Native_Add_Saturate_I8x16 is new SSE2_Binary_128 (I8x16, "paddsb %%xmm1, %%xmm0");
    function Add_Saturate (Left, Right : I8x16) return I8x16 is (Native_Add_Saturate_I8x16 (Left, Right));
    function Native_Subtract_Saturate_I8x16 is new SSE2_Binary_128 (I8x16, "psubsb %%xmm1, %%xmm0");
@@ -518,9 +555,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 is
       Result : I8x16;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x16) return I8x16 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -540,6 +577,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U16x8) return U16x8 is (Native_Interleave_Low_U16x8 (Left, Right));
    function Native_Interleave_High_U16x8 is new SSE2_Binary_128 (U16x8, "punpckhwd %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : U16x8) return U16x8 is (Native_Interleave_High_U16x8 (Left, Right));
+   function Native_Deinterleave_Even_U16x8 is new SSE2_Binary_128 (U16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Even_U16x8 (Left, Right));
+   function Native_Deinterleave_Odd_U16x8 is new SSE2_Binary_128 (U16x8, "pshuflw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Odd_U16x8 (Left, Right));
    function Native_Add_Saturate_U16x8 is new SSE2_Binary_128 (U16x8, "paddusw %%xmm1, %%xmm0");
    function Add_Saturate (Left, Right : U16x8) return U16x8 is (Native_Add_Saturate_U16x8 (Left, Right));
    function Native_Subtract_Saturate_U16x8 is new SSE2_Binary_128 (U16x8, "psubusw %%xmm1, %%xmm0");
@@ -591,9 +632,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 is
       Result : U16x8;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x8) return U16x8 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -613,6 +654,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I16x8) return I16x8 is (Native_Interleave_Low_I16x8 (Left, Right));
    function Native_Interleave_High_I16x8 is new SSE2_Binary_128 (I16x8, "punpckhwd %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : I16x8) return I16x8 is (Native_Interleave_High_I16x8 (Left, Right));
+   function Native_Deinterleave_Even_I16x8 is new SSE2_Binary_128 (I16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Even_I16x8 (Left, Right));
+   function Native_Deinterleave_Odd_I16x8 is new SSE2_Binary_128 (I16x8, "pshuflw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Odd_I16x8 (Left, Right));
    function Native_Add_Saturate_I16x8 is new SSE2_Binary_128 (I16x8, "paddsw %%xmm1, %%xmm0");
    function Add_Saturate (Left, Right : I16x8) return I16x8 is (Native_Add_Saturate_I16x8 (Left, Right));
    function Native_Subtract_Saturate_I16x8 is new SSE2_Binary_128 (I16x8, "psubsw %%xmm1, %%xmm0");
@@ -668,9 +713,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 is
       Result : I16x8;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x8) return I16x8 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -690,6 +735,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U32x4) return U32x4 is (Native_Interleave_Low_U32x4 (Left, Right));
    function Native_Interleave_High_U32x4 is new SSE2_Binary_128 (U32x4, "punpckhdq %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : U32x4) return U32x4 is (Native_Interleave_High_U32x4 (Left, Right));
+   function Native_Deinterleave_Even_U32x4 is new SSE2_Binary_128 (U32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Even_U32x4 (Left, Right));
+   function Native_Deinterleave_Odd_U32x4 is new SSE2_Binary_128 (U32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Odd_U32x4 (Left, Right));
    function Native_Not_U32x4 is new SSE2_Unary_128 (U32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : U32x4) return U32x4 is (Native_Not_U32x4 (Value));
    function Native_Reverse_U32x4 is new SSE2_Unary_128 (U32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
@@ -741,9 +790,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 is
       Result : U32x4;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x4) return U32x4 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -763,6 +812,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I32x4) return I32x4 is (Native_Interleave_Low_I32x4 (Left, Right));
    function Native_Interleave_High_I32x4 is new SSE2_Binary_128 (I32x4, "punpckhdq %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : I32x4) return I32x4 is (Native_Interleave_High_I32x4 (Left, Right));
+   function Native_Deinterleave_Even_I32x4 is new SSE2_Binary_128 (I32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Even_I32x4 (Left, Right));
+   function Native_Deinterleave_Odd_I32x4 is new SSE2_Binary_128 (I32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Odd_I32x4 (Left, Right));
    function Native_Not_I32x4 is new SSE2_Unary_128 (I32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : I32x4) return I32x4 is (Native_Not_I32x4 (Value));
    function Native_Reverse_I32x4 is new SSE2_Unary_128 (I32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
@@ -816,9 +869,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 is
       Result : I32x4;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x4) return I32x4 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -838,6 +891,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U64x2) return U64x2 is (Native_Interleave_Low_U64x2 (Left, Right));
    function Native_Interleave_High_U64x2 is new SSE2_Binary_128 (U64x2, "punpckhqdq %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : U64x2) return U64x2 is (Native_Interleave_High_U64x2 (Left, Right));
+   function Native_Deinterleave_Even_U64x2 is new SSE2_Binary_128 (U64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Even_U64x2 (Left, Right));
+   function Native_Deinterleave_Odd_U64x2 is new SSE2_Binary_128 (U64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Odd_U64x2 (Left, Right));
    function Native_Not_U64x2 is new SSE2_Unary_128 (U64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
    function Native_Reverse_U64x2 is new SSE2_Unary_128 (U64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
@@ -889,9 +946,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 is
       Result : U64x2;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x2) return U64x2 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -911,6 +968,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I64x2) return I64x2 is (Native_Interleave_Low_I64x2 (Left, Right));
    function Native_Interleave_High_I64x2 is new SSE2_Binary_128 (I64x2, "punpckhqdq %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : I64x2) return I64x2 is (Native_Interleave_High_I64x2 (Left, Right));
+   function Native_Deinterleave_Even_I64x2 is new SSE2_Binary_128 (I64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Even_I64x2 (Left, Right));
+   function Native_Deinterleave_Odd_I64x2 is new SSE2_Binary_128 (I64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Odd_I64x2 (Left, Right));
    function Native_Not_I64x2 is new SSE2_Unary_128 (I64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
    function Native_Reverse_I64x2 is new SSE2_Unary_128 (I64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
@@ -964,9 +1025,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 is
       Result : I64x2;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x2) return I64x2 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -982,6 +1043,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : F32x4) return F32x4 is (Native_Interleave_Low_F32x4 (Left, Right));
    function Native_Interleave_High_F32x4 is new SSE2_Binary_128 (F32x4, "unpckhps %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : F32x4) return F32x4 is (Native_Interleave_High_F32x4 (Left, Right));
+   function Native_Deinterleave_Even_F32x4 is new SSE2_Binary_128 (F32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Even_F32x4 (Left, Right));
+   function Native_Deinterleave_Odd_F32x4 is new SSE2_Binary_128 (F32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Odd_F32x4 (Left, Right));
    function Native_Reverse_F32x4 is new SSE2_Unary_128 (F32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
    function Reverse_Lanes (Value : F32x4) return F32x4 is (Native_Reverse_F32x4 (Value));
    function Compare_Equal_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpeqps %%xmm1, %%xmm0");
@@ -1024,9 +1089,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 is
       Result : F32x4;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x4) return F32x4 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
@@ -1042,6 +1107,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : F64x2) return F64x2 is (Native_Interleave_Low_F64x2 (Left, Right));
    function Native_Interleave_High_F64x2 is new SSE2_Binary_128 (F64x2, "unpckhpd %%xmm1, %%xmm0");
    function Interleave_High (Left, Right : F64x2) return F64x2 is (Native_Interleave_High_F64x2 (Left, Right));
+   function Native_Deinterleave_Even_F64x2 is new SSE2_Binary_128 (F64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Deinterleave_Even (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Even_F64x2 (Left, Right));
+   function Native_Deinterleave_Odd_F64x2 is new SSE2_Binary_128 (F64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Odd_F64x2 (Left, Right));
    function Native_Reverse_F64x2 is new SSE2_Unary_128 (F64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
    function Reverse_Lanes (Value : F64x2) return F64x2 is (Native_Reverse_F64x2 (Value));
    function Compare_Equal_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpeqpd %%xmm1, %%xmm0");
@@ -1084,9 +1153,9 @@ package body Flyology_SIMD.Backends.Native is
    begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Unaligned;
    function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 is
       Result : F64x2;
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
+   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "xmm0,memory", Volatile => True); return Result; end Load_Aligned;
    procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is
-   begin Asm (Template => "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
+   begin Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,memory", Volatile => True); end Store_Aligned;
    function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x2) return F64x2 is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;

@@ -55,7 +55,8 @@ def fallback_body() -> str:
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate",
                      "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max",
-                     "Interleave_Low", "Interleave_High"):
+                     "Interleave_Low", "Interleave_High", "Deinterleave_Even",
+                     "Deinterleave_Odd"):
             out.append(call(name, vector, "Left, Right", f"Left, Right : {vector}"))
         out.append(call("Bitwise_Not", vector, "Value", f"Value : {vector}"))
         for name in ("Shift_Left_Logical", "Shift_Right_Logical"):
@@ -102,6 +103,8 @@ def fallback_body() -> str:
             call("Reverse_Lanes", vector, "Value", f"Value : {vector}"),
             call("Interleave_Low", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Interleave_High", vector, "Left, Right", f"Left, Right : {vector}"),
+            call("Deinterleave_Even", vector, "Left, Right", f"Left, Right : {vector}"),
+            call("Deinterleave_Odd", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
             call("Load", vector, "Data, Start", f"Data : {arr}; Start : Natural"),
             f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is\n   begin Flyology_SIMD.Store (Data, Start, Value); end Store;",
@@ -258,6 +261,8 @@ def neon_body() -> str:
             "Max": (f"{prefix}max v0.{shape}, v0.{shape}, v1.{shape}" if bits < 64 else f"cm{'gt' if signed else 'hi'} v2.2d, v0.2d, v1.2d" + ASCII_PLACEHOLDER),
             "Interleave_Low": f"zip1 v0.{shape}, v0.{shape}, v1.{shape}",
             "Interleave_High": f"zip2 v0.{shape}, v0.{shape}, v1.{shape}",
+            "Deinterleave_Even": f"uzp1 v0.{shape}, v0.{shape}, v1.{shape}",
+            "Deinterleave_Odd": f"uzp2 v0.{shape}, v0.{shape}, v1.{shape}",
         }
         if bits < 64:
             inst["Multiply_Wrap"] = f"mul v0.{shape}, v0.{shape}, v1.{shape}"
@@ -332,7 +337,7 @@ def neon_body() -> str:
         arr, count = array_name(scalar), lane_count(bits, lanes)
         shape = f"{lanes}{'s' if bits == 32 else 'd'}"
         weight = f"Weights_{bits}x{lanes}'Address"
-        for name, op in (("Add", "fadd"), ("Subtract", "fsub"), ("Multiply", "fmul"), ("Divide", "fdiv"), ("Min_Number", "fminnm"), ("Max_Number", "fmaxnm"), ("Interleave_Low", "zip1"), ("Interleave_High", "zip2")):
+        for name, op in (("Add", "fadd"), ("Subtract", "fsub"), ("Multiply", "fmul"), ("Divide", "fdiv"), ("Min_Number", "fminnm"), ("Max_Number", "fmaxnm"), ("Interleave_Low", "zip1"), ("Interleave_High", "zip2"), ("Deinterleave_Even", "uzp1"), ("Deinterleave_Odd", "uzp2")):
             instruction = f"{op} v0.{shape}, v0.{shape}, v1.{shape}"
             out += [f"   function Native_{name}_{vector} is new NEON_Binary_128 ({vector}, \"{instruction}\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
         reverse = ("rev64 v0.4s, v0.4s\" & ASCII.LF & ASCII.HT & \"ext v0.16b, v0.16b, v0.16b, #8" if bits == 32 else "ext v0.16b, v0.16b, v0.16b, #8")
@@ -475,9 +480,9 @@ def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
         "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Unaligned;",
         f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is",
         f"      Result : {vector};",
-        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Aligned;",
+        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Aligned;",
         f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
-        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Aligned;",
+        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Aligned;",
         call("Load_Partial", vector, "Data, Start, Count", f"Data : {arr}; Start : Natural; Count : {count}"),
         f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;",
     ]
@@ -522,6 +527,21 @@ def x86_body() -> str:
         16: ("punpcklwd", "punpckhwd"),
         32: ("punpckldq", "punpckhdq"),
         64: ("punpcklqdq", "punpckhqdq"),
+    }
+    deinterleave = {
+        8: (
+            "pcmpeqd %%xmm2, %%xmm2\npsrlw $8, %%xmm2\npand %%xmm2, %%xmm0\npand %%xmm2, %%xmm1\npackuswb %%xmm1, %%xmm0",
+            "psrlw $8, %%xmm0\npsrlw $8, %%xmm1\npackuswb %%xmm1, %%xmm0",
+        ),
+        16: (
+            "pshuflw $0x88, %%xmm0, %%xmm0\npshufhw $0x88, %%xmm0, %%xmm0\npshufd $0x88, %%xmm0, %%xmm0\npshuflw $0x88, %%xmm1, %%xmm1\npshufhw $0x88, %%xmm1, %%xmm1\npshufd $0x88, %%xmm1, %%xmm1\npunpcklqdq %%xmm1, %%xmm0",
+            "pshuflw $0xDD, %%xmm0, %%xmm0\npshufhw $0xDD, %%xmm0, %%xmm0\npshufd $0x88, %%xmm0, %%xmm0\npshuflw $0xDD, %%xmm1, %%xmm1\npshufhw $0xDD, %%xmm1, %%xmm1\npshufd $0x88, %%xmm1, %%xmm1\npunpcklqdq %%xmm1, %%xmm0",
+        ),
+        32: (
+            "pshufd $0x88, %%xmm0, %%xmm0\npshufd $0x88, %%xmm1, %%xmm1\npunpcklqdq %%xmm1, %%xmm0",
+            "pshufd $0xDD, %%xmm0, %%xmm0\npshufd $0xDD, %%xmm1, %%xmm1\npunpcklqdq %%xmm1, %%xmm0",
+        ),
+        64: ("punpcklqdq %%xmm1, %%xmm0", "punpckhqdq %%xmm1, %%xmm0"),
     }
     shift_left = {
         8: "movdqu %%xmm0, %%xmm2\npxor %%xmm3, %%xmm3\npunpcklbw %%xmm3, %%xmm0\npunpckhbw %%xmm3, %%xmm2\npsllw %%xmm1, %%xmm0\npsllw %%xmm1, %%xmm2\npcmpeqd %%xmm3, %%xmm3\npsrlw $8, %%xmm3\npand %%xmm3, %%xmm0\npand %%xmm3, %%xmm2\npackuswb %%xmm2, %%xmm0",
@@ -588,6 +608,8 @@ def x86_body() -> str:
             "Bitwise_Xor": "pxor %%xmm1, %%xmm0",
             "Interleave_Low": f"{interleave[bits][0]} %%xmm1, %%xmm0",
             "Interleave_High": f"{interleave[bits][1]} %%xmm1, %%xmm0",
+            "Deinterleave_Even": deinterleave[bits][0],
+            "Deinterleave_Odd": deinterleave[bits][1],
         }
         if bits <= 16:
             prefix = "s" if signed else "us"
@@ -665,6 +687,8 @@ def x86_body() -> str:
             out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{op}{suffix} %%xmm1, %%xmm0\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
         for name, instruction in (("Interleave_Low", f"unpckl{suffix}"), ("Interleave_High", f"unpckh{suffix}")):
             out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{instruction} %%xmm1, %%xmm0\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
+        for name, instruction in (("Deinterleave_Even", deinterleave[bits][0]), ("Deinterleave_Odd", deinterleave[bits][1])):
+            out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{x86_ada_instruction(instruction)}\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
         reverse_float = reverse[bits]
         out += [
             f"   function Native_Reverse_{vector} is new SSE2_Unary_128 ({vector}, \"{x86_ada_instruction(reverse_float)}\");",
@@ -711,6 +735,13 @@ def test_program() -> str:
         "   use type Interfaces.IEEE_Float_32;", "   use type Interfaces.IEEE_Float_64;",
         "   Failures : Natural := 0;", "   procedure Check (Condition : Boolean; Message : String) is",
         "   begin if not Condition then Failures := Failures + 1; Put_Line (\"FAIL: \" & Message); end if; end Check;", "",
+        "   function Reference_Popcount (Value : Natural) return Natural is",
+        "      Bits : Natural := Value;",
+        "      Count : Natural := 0;",
+        "   begin",
+        "      while Bits /= 0 loop Count := Count + Bits mod 2; Bits := Bits / 2; end loop;",
+        "      return Count;",
+        "   end Reference_Popcount;", "",
     ]
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         vals, arr, count = lane_values(vector), array_name(scalar), lane_count(bits, lanes)
@@ -732,8 +763,16 @@ def test_program() -> str:
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
             "   begin",
+            f"      Check (To_Lanes (A) = [{agg_a}], \"{vector} scalar lane construction\");",
+            f"      Check (Same ({vector}'(Backends.Native.Zero), {vector}'(Zero)) and then Same ({vector}'(Backends.Native.Splat (To_Lanes (A) (0))), {vector}'(Splat (To_Lanes (A) (0)))), \"{vector} native construction\");",
+            f"      Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), \"{vector} native lane roundtrip\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (A, Lane) = To_Lanes (A) (Lane), \"{vector} scalar extract\" & Lane'Image);",
+            f"         Check (Extract (Replace (A, Lane, To_Lanes (B) (Lane)), Lane) = To_Lanes (B) (Lane), \"{vector} scalar replace\" & Lane'Image);",
+            f"         Check (Backends.Native.Extract (A, Lane) = Extract (A, Lane) and then Same (Backends.Native.Replace (A, Lane, To_Lanes (B) (Lane)), Replace (A, Lane, To_Lanes (B) (Lane))), \"{vector} native lane access\" & Lane'Image);",
+            "      end loop;",
         ]
-        for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High"):
+        for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
@@ -751,6 +790,10 @@ def test_program() -> str:
             f"      Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), \"{vector} select\");",
             f"      for Pattern in Natural range 0 .. 2 ** {lanes} - 1 loop",
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = {mask_storage} (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
+            f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
+            f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             "      end loop;",
             f"      Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), \"{vector} reduce add\");",
@@ -758,6 +801,9 @@ def test_program() -> str:
             f"      Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), \"{vector} reduce max\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
+            f"      Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
+            f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
+            f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
             f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
             f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
             f"      for N in {count} loop",
@@ -789,14 +835,31 @@ def test_program() -> str:
         bv = ["2.0", "-3.0", "0.5", "4.0", "-1.0"]
         agg_a = ", ".join(av[n % len(av)] for n in range(lanes))
         agg_b = ", ".join(bv[n % len(bv)] for n in range(lanes))
+        uint = f"Interfaces.Unsigned_{bits}"
         lines += [
-            f"   function Same (Left, Right : {vector}) return Boolean is (To_Lanes (Left) = To_Lanes (Right));",
+            f"   function Bits_{vector} is new Ada.Unchecked_Conversion ({scalar}, {uint});",
+            f"   function Same (Left, Right : {vector}) return Boolean is",
+            f"      L : constant {vals} := To_Lanes (Left);",
+            f"      R : constant {vals} := To_Lanes (Right);",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         if Bits_{vector} (L (Lane)) /= Bits_{vector} (R (Lane)) then return False; end if;",
+            "      end loop;",
+            "      return True;",
+            "   end Same;",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);", f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;", "   begin",
+            f"      Check (Same (A, From_Lanes (To_Lanes (A))), \"{vector} scalar lane roundtrip\");",
+            f"      Check (Same ({vector}'(Backends.Native.Zero), {vector}'(Zero)) and then Same ({vector}'(Backends.Native.Splat (To_Lanes (A) (0))), {vector}'(Splat (To_Lanes (A) (0)))), \"{vector} native construction\");",
+            f"      Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Same (Backends.Native.From_Lanes (Backends.Native.To_Lanes (A)), A), \"{vector} native lane roundtrip\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Bits_{vector} (Extract (A, Lane)) = Bits_{vector} (To_Lanes (A) (Lane)), \"{vector} scalar extract\" & Lane'Image);",
+            f"         Check (Bits_{vector} (Backends.Native.Extract (A, Lane)) = Bits_{vector} (Extract (A, Lane)) and then Same (Backends.Native.Replace (A, Lane, To_Lanes (B) (Lane)), Replace (A, Lane, To_Lanes (B) (Lane))), \"{vector} native lane access\" & Lane'Image);",
+            "      end loop;",
         ]
-        for name in ("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number", "Interleave_Low", "Interleave_High"):
+        for name in ("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
         lines += [f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");"]
         for name in ("Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal", "Unordered"):
@@ -805,11 +868,18 @@ def test_program() -> str:
             f"      Check (Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), \"{vector} select\");",
             f"      for Pattern in Natural range 0 .. 2 ** {lanes} - 1 loop",
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
+            f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
+            f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             "      end loop;",
             f"      Check (Backends.Native.Reduce_Add (A) = Reduce_Add (A), \"{vector} reduce\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
+            f"      Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
+            f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
+            f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
             f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
             f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
             f"      for N in {count} loop",
@@ -842,18 +912,24 @@ def test_program() -> str:
         "   procedure Test_Floating_Specials is",
         "      pragma Suppress (Validity_Check);",
         "      NaN32 : constant F32 := To_F32 (16#7FC0_0001#);",
+        "      SNaN32 : constant F32 := To_F32 (16#7F80_0001#);",
         "      Inf32 : constant F32 := To_F32 (16#7F80_0000#);",
         "      Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);",
         "      A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);",
         "      B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);",
         "      NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);",
+        "      SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);",
         "      Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);",
         "      A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);",
         "      B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
         "   begin",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), \"F32 NaN unordered\");",
+        "      Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, \"F32 quiet NaN returns number\");",
+        "      Check ((F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), B32), 0)) and 16#7FC0_0000#) = 16#7FC0_0000#, \"F32 signaling NaN is quieted\");",
         "      Check (F32_Bits (Extract (Backends.Native.Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (A32, B32), 2)) = 0, \"F32 signed zero min/max\");",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A64, B64)) = Flyology_SIMD.To_Bit_Mask (Unordered (A64, B64)), \"F64 NaN unordered\");",
+        "      Check (Extract (Backends.Native.Min_Number (A64, B64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A64, B64), 0) = 1.0, \"F64 quiet NaN returns number\");",
+        "      Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, \"F64 signaling NaN is quieted\");",
         "      Check (F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0, \"F64 signed zero min/max\");",
         "   end Test_Floating_Specials;", "",
         "begin", "   Put_Line (\"full-family differential tests seed=0x5EED0123\");",

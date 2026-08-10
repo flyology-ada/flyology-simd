@@ -66,7 +66,9 @@ procedure SIMD_Benchmark is
       end loop;
       --  One observable write per calibrated batch keeps every complete buffer
       --  operation live without charging an out-of-line barrier per operation.
-      Checksum := Checksum xor Local;
+      Checksum := Checksum + Local
+        + Interfaces.Unsigned_64 (Candidate'Pos (Which) + 1)
+        + Interfaces.Unsigned_64 (Current_Size);
    end Batch;
 
    procedure Compare_All is new Flyology_Bench.Compare_Many
@@ -148,6 +150,10 @@ begin
      ("architecture=" & Features.Architecture_Name &
       " best_backend=" & Features.Name (Features.Best_Available));
    Put_Line ("compiler=" & Compiler.Version);
+   Put_Line
+     ("project_switches=library:-gnat2022,-gnata,-gnatwa,-fstack-check," &
+      "-fno-strict-aliasing,-O2,-ftree-vectorize,-gnatn2;" &
+      "benchmark:-gnat2022,-gnata,-O3,-ftree-vectorize");
    Put_Line
      ("method=flyology_bench balanced_rounds equal_time warmup=0.25s " &
       "measurement=3s samples=75 seed=0x5EED0123");

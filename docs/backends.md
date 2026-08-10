@@ -30,7 +30,9 @@ AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once
 with baseline-safe code. Detection and SSE2 objects are built with AVX disabled;
-AVX and AVX2 instructions are absent outside the AVX2-only object.
+AVX and AVX2 instructions are absent outside the AVX2-only object. The public
+AVX2 package is a baseline-safe wrapper that rejects an unavailable backend
+before entering that private object.
 
 The workflow contains no `continue-on-error`.  Hosted CI should only be called
 green after an actual workflow run; this repository has not yet had one.

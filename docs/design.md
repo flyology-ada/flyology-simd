@@ -26,12 +26,11 @@ SIMD, GPUs, and vendor-intrinsic coverage are outside v0.1.
 ## v0.1 surface under stabilization
 
 The original byte-oriented surface proved the representation, mask, memory and
-backend boundaries.  Before v0.1 stabilization it is being expanded to the
-complete signed, unsigned and floating 128-bit family and corresponding
-portable 256-bit family.  The exact operation and floating-point contracts are
-recorded in [api-scope.md](api-scope.md).  AArch64 NEON and the x86-64 SSE2
-baseline implement the 128-bit family; the portable 256-bit value surface is
-still deferred.
+backend boundaries. The v0.1 surface under stabilization is the complete
+signed, unsigned and floating 128-bit family. The exact operation and
+floating-point contracts are recorded in [api-scope.md](api-scope.md).
+AArch64 NEON and the x86-64 SSE2 baseline implement that family; the portable
+256-bit value surface is a later milestone.
 
 ## Normative semantics
 
@@ -71,8 +70,9 @@ profile and is selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
 The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.
-AVX2 availability requires CPU AVX2 support and OS vector-state support.  No
-optional instruction is executed during elaboration.
+AVX2 availability requires CPU AVX2 support and OS vector-state support. During
+elaboration, XGETBV executes only after CPUID reports AVX and OSXSAVE; no AVX or
+AVX2 instruction executes, and no unsupported instruction is attempted.
 
 `Flyology_SIMD.Algorithms.Generic_Bytes` takes a backend operation package as a
 generic formal package.  This makes static selection visible to the compiler and
@@ -131,8 +131,9 @@ It is not used.
 
 ## Adding a backend
 
-A backend must implement the common byte-operation profile, have no elaboration
-side effects, and match scalar results for every lane and mask pattern tested.
+A backend must implement the complete stabilized 128-bit operation profile,
+have no elaboration side effects, and match scalar results for every lane and
+mask pattern tested.
 It must add a distinct GPR source selection, target-only compiler switches,
 differential tests, assembly checks for required instruction classes and
 forbidden leakage, and truthful support-matrix documentation.  Source presence,

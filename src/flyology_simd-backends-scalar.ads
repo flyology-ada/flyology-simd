@@ -18,6 +18,8 @@ is
      renames Flyology_SIMD.Add_Wrap;
    function Subtract_Wrap (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Subtract_Wrap;
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16
+     renames Flyology_SIMD.Multiply_Wrap;
    function Add_Saturate (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Add_Saturate;
    function Subtract_Saturate (Left, Right : U8x16) return U8x16
@@ -59,6 +61,10 @@ is
      renames Flyology_SIMD.Interleave_Low;
    function Interleave_High (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Interleave_High;
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16
+     renames Flyology_SIMD.Deinterleave_Even;
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16
+     renames Flyology_SIMD.Deinterleave_Odd;
    function Mask_From_Bit_Mask
      (Bits : Interfaces.Unsigned_16) return Mask_8x16
      renames Flyology_SIMD.Mask_From_Bit_Mask;

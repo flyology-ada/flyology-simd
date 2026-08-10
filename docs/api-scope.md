@@ -46,7 +46,8 @@ Planned conversions are explicit and will live in
 - floating-to-integer conversion names state truncation and saturation.
 
 There are no implicit signed/unsigned, integer/floating, width-changing, or
-mask/value conversions.
+mask/value conversions. The conversion names above describe the next public
+surface milestone; they are not part of v0.1 yet.
 
 ## Floating-point contract
 
@@ -59,10 +60,11 @@ verified results assume the platform's default round-to-nearest,
 ties-to-even environment.
 
 Ordered comparisons are false if either input is NaN.  Equality considers
-`+0.0` and `-0.0` equal.  `Min_Number` and `Max_Number` return the numeric
-operand when exactly one operand is NaN, choose `-0.0` for a minimum of zeros
-and `+0.0` for a maximum of zeros, and return a quiet NaN when both operands
-are NaNs.  The both-NaN payload is not specified.
+`+0.0` and `-0.0` equal. For quiet NaNs, `Min_Number` and `Max_Number` return
+the numeric operand when exactly one operand is NaN. If either operand is a
+signaling NaN, they return a quiet NaN. They choose `-0.0` for a minimum of
+zeros and `+0.0` for a maximum of zeros, and return a quiet NaN when both
+operands are NaNs. NaN payload selection is not specified.
 
 `Convert_Truncate_Saturate` maps NaN to zero, truncates finite fractional
 values toward zero, and clamps values outside the destination range.  Exact or
@@ -73,10 +75,11 @@ explicit.  Integer-to-floating conversion uses the default IEEE rounding mode.
 
 A backend is complete only when every operation in this profile either emits a
 verified target instruction sequence or is documented as a safe scalar or
-two-half composition because the ISA lacks a corresponding operation.  Source
+two-half composition because the ISA lacks a corresponding operation. Source
 presence alone is not completion. Every NEON and SSE2 entry is differentially
-tested against the scalar authority, including special floating values, and
-critical instruction classes are checked in generated code.
+tested against the scalar authority. Targeted floating tests add
+quiet/signaling NaNs, infinities, and signed zeros, and critical instruction
+classes are checked in generated code.
 
 GNAT/GCC vector-type arithmetic was tested first, as required by the mechanism
 policy.  GNAT FSF 16.1.0 on Darwin AArch64 crashes compiling arithmetic on a

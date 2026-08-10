@@ -32,9 +32,8 @@ project Flyology_SIMD is
                  "-mno-avx2");
             case AVX2 is
                when "enabled" =>
-                  for Switches ("flyology_simd-backends-avx2.adb") use
-                    Common_Ada & ("-O3", "-mavx2");
-                  for Switches ("flyology_simd-algorithms-avx2.adb") use
+                  for Switches
+                    ("flyology_simd-algorithms-avx2_implementation.adb") use
                     Common_Ada & ("-O3", "-mavx2");
                when "disabled" =>
                   null;

@@ -64,6 +64,8 @@ case "$architecture" in
         require_pattern 'rev64.*16b' "$temporary/native.txt" 'NEON byte reversal'
         require_pattern 'zip1.*16b' "$temporary/native.txt" 'NEON low interleave'
         require_pattern 'zip2.*16b' "$temporary/native.txt" 'NEON high interleave'
+        require_pattern 'uzp1.*16b' "$temporary/native.txt" 'NEON even deinterleave'
+        require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/native.txt" '128-bit unaligned load'
         require_pattern 'uaddlv' "$temporary/native.txt" 'vector mask/sum reduction'
         require_pattern 'sqadd.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed saturating arithmetic'
@@ -85,7 +87,7 @@ case "$architecture" in
         : >"$temporary/baseline.txt"
         for object in "obj/x86_64/$avx2"/*.o; do
             case "$object" in
-                *flyology_simd-algorithms-avx2.o) continue ;;
+                *flyology_simd-algorithms-avx2_implementation.o) continue ;;
             esac
             disassemble "$object" >>"$temporary/baseline.txt"
         done
@@ -128,7 +130,7 @@ case "$architecture" in
         forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
           "$temporary/baseline.txt" 'AVX instructions outside the AVX2-only object'
         if [ "$avx2" = enabled ]; then
-            avx_object="obj/x86_64/enabled/flyology_simd-algorithms-avx2.o"
+            avx_object="obj/x86_64/enabled/flyology_simd-algorithms-avx2_implementation.o"
             disassemble "$avx_object" >"$temporary/avx2.txt"
             require_pattern 'ymm[0-9]+|vp[a-z]+' "$temporary/avx2.txt" \
               'AVX2 vectorization in the AVX2-only algorithm object'

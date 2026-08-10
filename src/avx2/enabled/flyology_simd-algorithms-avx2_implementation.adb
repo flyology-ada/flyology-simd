@@ -1,7 +1,7 @@
 with Interfaces;
 with System.Machine_Code;
 
-package body Flyology_SIMD.Algorithms.AVX2 is
+package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use System.Machine_Code;
@@ -128,4 +128,4 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       end loop;
       return True;
    end Is_ASCII;
-end Flyology_SIMD.Algorithms.AVX2;
+end Flyology_SIMD.Algorithms.AVX2_Implementation;

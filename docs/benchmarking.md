@@ -31,6 +31,8 @@ checksum. It does not silently discard outliers or subtract timer cost. The
 sizes 7, 15, 16, 17, 4,096, and 1,048,576 cover sub-vector, boundary, cache, and
 streaming behavior. Candidates are ordinary Ada, scalar backend, statically
 selected native backend, and coarse runtime dispatch.
+Each run prints the compiler version and the project-declared library and
+benchmark switches alongside the backend and CPU-feature selection.
 
 This method follows the controls described by the
 [Flyology benchmarking guide](https://flyology.org/guide/benchmarking/), the
@@ -47,12 +49,14 @@ uncontrolled-host run produced these medians:
 
 | Bytes | Ordinary Ada | Scalar | Static NEON | Runtime | NEON/Ada |
 |---:|---:|---:|---:|---:|---:|
-| 16 | 6.91 ns | 17.25 ns | 7.34 ns | 9.03 ns | 0.95× |
-| 4,096 | 1,350.91 ns | 3,816.02 ns | 1,024.08 ns | 1,027.78 ns | 1.32× |
-| 1,048,576 | 333,833 ns | 976,058 ns | 257,151 ns | 256,901 ns | 1.30× |
+| 16 | 7.07 ns | 14.20 ns | 5.86 ns | 7.25 ns | 1.21× |
+| 4,096 | 1,349.29 ns | 3,130.04 ns | 661.40 ns | 665.77 ns | 2.04× |
+| 1,048,576 | 336,895 ns | 799,979 ns | 167,006 ns | 166,945 ns | 2.02× |
 
-At 7–17 bytes the ordinary loop wins because vector setup and tail handling
-dominate. At 4 KiB and 1 MiB NEON wins in this run. An earlier result showing
+Below one vector the ordinary loop wins because vector setup and tail handling
+dominate. At 16 and 17 bytes the statically selected NEON path wins in this
+run, while runtime dispatch overhead still leaves the ordinary loop slightly
+ahead. At 4 KiB and 1 MiB both NEON paths win. An earlier result showing
 NEON at roughly 1.36 GB/s versus the Ada loop near 3.2 GB/s was a build error:
 only the primitive backend body had `-O3`, while the complete imported algorithm
 loop had no optimization. Inspecting verbose compiler commands exposed it; the

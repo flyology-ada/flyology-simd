@@ -17,11 +17,12 @@ right shift sign-fills.  Integer comparison/min/max uses the type's signedness.
 `Select_Value` chooses its true argument in exactly the true mask lanes.
 
 Floating ordered comparisons are false for NaN; `Unordered` is true when either
-lane is NaN. `Min_Number`/`Max_Number` return the numeric operand for one NaN,
-choose negative/positive zero respectively, and return an unspecified quiet-NaN
-payload for two NaNs. No build enables fast-math. GNAT `-gnatV` validity checks
-are not enabled because GNAT treats IEEE NaN encodings as invalid data; range,
-assertion, precondition, and stack checks remain enabled.
+lane is NaN. For one quiet NaN, `Min_Number`/`Max_Number` return the numeric
+operand. A signaling NaN produces a quiet NaN. The operations choose
+negative/positive zero respectively and return a quiet NaN for two NaNs; NaN
+payload selection is unspecified. No build enables fast-math. GNAT `-gnatV`
+validity checks are not enabled because GNAT treats IEEE NaN encodings as
+invalid data; range, assertion, precondition, and stack checks remain enabled.
 
 No implicit signed/unsigned, integer/floating, width-changing, or mask/value
 conversion exists. Explicit widening, narrowing, numeric conversion, bit-cast,
@@ -46,5 +47,6 @@ value before writing the destination.  v0.1 exposes no raw-address overload.
 ## Side effects
 
 Low-level operations allocate no heap memory and perform no tasking, I/O,
-locking, waiting, environment lookup, or lazy mutable initialization.  Feature
-detection uses local values at coarse runtime-dispatch boundaries.
+locking, waiting, environment lookup, or lazy mutable initialization. Feature
+information is computed once into immutable state during package elaboration;
+algorithm dispatch reads it only at coarse buffer-operation boundaries.

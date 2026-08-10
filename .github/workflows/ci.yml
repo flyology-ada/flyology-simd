@@ -49,6 +49,9 @@ jobs:
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+      - name: Require executable AVX2 coverage
+        if: ${{ matrix.avx2 == 'enabled' }}
+        run: ./bin/simd_tests --require-avx2
       - name: Check generated code
         if: ${{ matrix.architecture == 'x86_64' }}
         run: ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}

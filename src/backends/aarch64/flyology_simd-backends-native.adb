@@ -88,6 +88,8 @@ package body Flyology_SIMD.Backends.Native is
      ("add v0.16b, v0.16b, v1.16b");
    function NEON_Subtract_Wrap is new Binary_Operation
      ("sub v0.16b, v0.16b, v1.16b");
+   function NEON_Multiply_Wrap is new Binary_Operation
+     ("mul v0.16b, v0.16b, v1.16b");
    function NEON_Add_Saturate is new Binary_Operation
      ("uqadd v0.16b, v0.16b, v1.16b");
    function NEON_Subtract_Saturate is new Binary_Operation
@@ -107,6 +109,10 @@ package body Flyology_SIMD.Backends.Native is
      ("zip1 v0.16b, v0.16b, v1.16b");
    function NEON_Interleave_High is new Binary_Operation
      ("zip2 v0.16b, v0.16b, v1.16b");
+   function NEON_Deinterleave_Even is new Binary_Operation
+     ("uzp1 v0.16b, v0.16b, v1.16b");
+   function NEON_Deinterleave_Odd is new Binary_Operation
+     ("uzp2 v0.16b, v0.16b, v1.16b");
 
    function Equal_Bits is new Comparison_Bits
      ("cmeq v0.16b, v0.16b, v1.16b");
@@ -137,6 +143,8 @@ package body Flyology_SIMD.Backends.Native is
      (NEON_Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
      (NEON_Subtract_Wrap (Left, Right));
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
+     (NEON_Multiply_Wrap (Left, Right));
    function Add_Saturate (Left, Right : U8x16) return U8x16 is
      (NEON_Add_Saturate (Left, Right));
    function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
@@ -263,6 +271,10 @@ package body Flyology_SIMD.Backends.Native is
      (NEON_Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U8x16) return U8x16 is
      (NEON_Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
+     (NEON_Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
+     (NEON_Deinterleave_Odd (Left, Right));
 
    function Mask_From_Bit_Mask
      (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
@@ -434,6 +446,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I8x16) return I8x16 is (Native_Interleave_Low_I8x16 (Left, Right));
    function Native_Interleave_High_I8x16 is new NEON_Binary_128 (I8x16, "zip2 v0.16b, v0.16b, v1.16b");
    function Interleave_High (Left, Right : I8x16) return I8x16 is (Native_Interleave_High_I8x16 (Left, Right));
+   function Native_Deinterleave_Even_I8x16 is new NEON_Binary_128 (I8x16, "uzp1 v0.16b, v0.16b, v1.16b");
+   function Deinterleave_Even (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Even_I8x16 (Left, Right));
+   function Native_Deinterleave_Odd_I8x16 is new NEON_Binary_128 (I8x16, "uzp2 v0.16b, v0.16b, v1.16b");
+   function Deinterleave_Odd (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Odd_I8x16 (Left, Right));
    function Native_Multiply_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "mul v0.16b, v0.16b, v1.16b");
    function Multiply_Wrap (Left, Right : I8x16) return I8x16 is (Native_Multiply_Wrap_I8x16 (Left, Right));
    function Native_Not_I8x16 is new NEON_Unary_128 (I8x16, "mvn v0.16b, v0.16b");
@@ -520,6 +536,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U16x8) return U16x8 is (Native_Interleave_Low_U16x8 (Left, Right));
    function Native_Interleave_High_U16x8 is new NEON_Binary_128 (U16x8, "zip2 v0.8h, v0.8h, v1.8h");
    function Interleave_High (Left, Right : U16x8) return U16x8 is (Native_Interleave_High_U16x8 (Left, Right));
+   function Native_Deinterleave_Even_U16x8 is new NEON_Binary_128 (U16x8, "uzp1 v0.8h, v0.8h, v1.8h");
+   function Deinterleave_Even (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Even_U16x8 (Left, Right));
+   function Native_Deinterleave_Odd_U16x8 is new NEON_Binary_128 (U16x8, "uzp2 v0.8h, v0.8h, v1.8h");
+   function Deinterleave_Odd (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Odd_U16x8 (Left, Right));
    function Native_Multiply_Wrap_U16x8 is new NEON_Binary_128 (U16x8, "mul v0.8h, v0.8h, v1.8h");
    function Multiply_Wrap (Left, Right : U16x8) return U16x8 is (Native_Multiply_Wrap_U16x8 (Left, Right));
    function Native_Not_U16x8 is new NEON_Unary_128 (U16x8, "mvn v0.16b, v0.16b");
@@ -600,6 +620,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I16x8) return I16x8 is (Native_Interleave_Low_I16x8 (Left, Right));
    function Native_Interleave_High_I16x8 is new NEON_Binary_128 (I16x8, "zip2 v0.8h, v0.8h, v1.8h");
    function Interleave_High (Left, Right : I16x8) return I16x8 is (Native_Interleave_High_I16x8 (Left, Right));
+   function Native_Deinterleave_Even_I16x8 is new NEON_Binary_128 (I16x8, "uzp1 v0.8h, v0.8h, v1.8h");
+   function Deinterleave_Even (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Even_I16x8 (Left, Right));
+   function Native_Deinterleave_Odd_I16x8 is new NEON_Binary_128 (I16x8, "uzp2 v0.8h, v0.8h, v1.8h");
+   function Deinterleave_Odd (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Odd_I16x8 (Left, Right));
    function Native_Multiply_Wrap_I16x8 is new NEON_Binary_128 (I16x8, "mul v0.8h, v0.8h, v1.8h");
    function Multiply_Wrap (Left, Right : I16x8) return I16x8 is (Native_Multiply_Wrap_I16x8 (Left, Right));
    function Native_Not_I16x8 is new NEON_Unary_128 (I16x8, "mvn v0.16b, v0.16b");
@@ -683,6 +707,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U32x4) return U32x4 is (Native_Interleave_Low_U32x4 (Left, Right));
    function Native_Interleave_High_U32x4 is new NEON_Binary_128 (U32x4, "zip2 v0.4s, v0.4s, v1.4s");
    function Interleave_High (Left, Right : U32x4) return U32x4 is (Native_Interleave_High_U32x4 (Left, Right));
+   function Native_Deinterleave_Even_U32x4 is new NEON_Binary_128 (U32x4, "uzp1 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Even (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Even_U32x4 (Left, Right));
+   function Native_Deinterleave_Odd_U32x4 is new NEON_Binary_128 (U32x4, "uzp2 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Odd_U32x4 (Left, Right));
    function Native_Multiply_Wrap_U32x4 is new NEON_Binary_128 (U32x4, "mul v0.4s, v0.4s, v1.4s");
    function Multiply_Wrap (Left, Right : U32x4) return U32x4 is (Native_Multiply_Wrap_U32x4 (Left, Right));
    function Native_Not_U32x4 is new NEON_Unary_128 (U32x4, "mvn v0.16b, v0.16b");
@@ -763,6 +791,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I32x4) return I32x4 is (Native_Interleave_Low_I32x4 (Left, Right));
    function Native_Interleave_High_I32x4 is new NEON_Binary_128 (I32x4, "zip2 v0.4s, v0.4s, v1.4s");
    function Interleave_High (Left, Right : I32x4) return I32x4 is (Native_Interleave_High_I32x4 (Left, Right));
+   function Native_Deinterleave_Even_I32x4 is new NEON_Binary_128 (I32x4, "uzp1 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Even (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Even_I32x4 (Left, Right));
+   function Native_Deinterleave_Odd_I32x4 is new NEON_Binary_128 (I32x4, "uzp2 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Odd_I32x4 (Left, Right));
    function Native_Multiply_Wrap_I32x4 is new NEON_Binary_128 (I32x4, "mul v0.4s, v0.4s, v1.4s");
    function Multiply_Wrap (Left, Right : I32x4) return I32x4 is (Native_Multiply_Wrap_I32x4 (Left, Right));
    function Native_Not_I32x4 is new NEON_Unary_128 (I32x4, "mvn v0.16b, v0.16b");
@@ -846,6 +878,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : U64x2) return U64x2 is (Native_Interleave_Low_U64x2 (Left, Right));
    function Native_Interleave_High_U64x2 is new NEON_Binary_128 (U64x2, "zip2 v0.2d, v0.2d, v1.2d");
    function Interleave_High (Left, Right : U64x2) return U64x2 is (Native_Interleave_High_U64x2 (Left, Right));
+   function Native_Deinterleave_Even_U64x2 is new NEON_Binary_128 (U64x2, "uzp1 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Even (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Even_U64x2 (Left, Right));
+   function Native_Deinterleave_Odd_U64x2 is new NEON_Binary_128 (U64x2, "uzp2 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Odd_U64x2 (Left, Right));
    function Native_Not_U64x2 is new NEON_Unary_128 (U64x2, "mvn v0.16b, v0.16b");
    function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
    function Native_Reverse_U64x2 is new NEON_Unary_128 (U64x2, "ext v0.16b, v0.16b, v0.16b, #8");
@@ -926,6 +962,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : I64x2) return I64x2 is (Native_Interleave_Low_I64x2 (Left, Right));
    function Native_Interleave_High_I64x2 is new NEON_Binary_128 (I64x2, "zip2 v0.2d, v0.2d, v1.2d");
    function Interleave_High (Left, Right : I64x2) return I64x2 is (Native_Interleave_High_I64x2 (Left, Right));
+   function Native_Deinterleave_Even_I64x2 is new NEON_Binary_128 (I64x2, "uzp1 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Even (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Even_I64x2 (Left, Right));
+   function Native_Deinterleave_Odd_I64x2 is new NEON_Binary_128 (I64x2, "uzp2 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Odd_I64x2 (Left, Right));
    function Native_Not_I64x2 is new NEON_Unary_128 (I64x2, "mvn v0.16b, v0.16b");
    function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
    function Native_Reverse_I64x2 is new NEON_Unary_128 (I64x2, "ext v0.16b, v0.16b, v0.16b, #8");
@@ -1000,6 +1040,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : F32x4) return F32x4 is (Native_Interleave_Low_F32x4 (Left, Right));
    function Native_Interleave_High_F32x4 is new NEON_Binary_128 (F32x4, "zip2 v0.4s, v0.4s, v1.4s");
    function Interleave_High (Left, Right : F32x4) return F32x4 is (Native_Interleave_High_F32x4 (Left, Right));
+   function Native_Deinterleave_Even_F32x4 is new NEON_Binary_128 (F32x4, "uzp1 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Even (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Even_F32x4 (Left, Right));
+   function Native_Deinterleave_Odd_F32x4 is new NEON_Binary_128 (F32x4, "uzp2 v0.4s, v0.4s, v1.4s");
+   function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Odd_F32x4 (Left, Right));
    function Native_Reverse_F32x4 is new NEON_Unary_128 (F32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : F32x4) return F32x4 is (Native_Reverse_F32x4 (Value));
    function Compare_Equal_F32x4 is new NEON_Compare_128 (F32x4, "fcmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
@@ -1062,6 +1106,10 @@ package body Flyology_SIMD.Backends.Native is
    function Interleave_Low (Left, Right : F64x2) return F64x2 is (Native_Interleave_Low_F64x2 (Left, Right));
    function Native_Interleave_High_F64x2 is new NEON_Binary_128 (F64x2, "zip2 v0.2d, v0.2d, v1.2d");
    function Interleave_High (Left, Right : F64x2) return F64x2 is (Native_Interleave_High_F64x2 (Left, Right));
+   function Native_Deinterleave_Even_F64x2 is new NEON_Binary_128 (F64x2, "uzp1 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Even (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Even_F64x2 (Left, Right));
+   function Native_Deinterleave_Odd_F64x2 is new NEON_Binary_128 (F64x2, "uzp2 v0.2d, v0.2d, v1.2d");
+   function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Odd_F64x2 (Left, Right));
    function Native_Reverse_F64x2 is new NEON_Unary_128 (F64x2, "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : F64x2) return F64x2 is (Native_Reverse_F64x2 (Value));
    function Compare_Equal_F64x2 is new NEON_Compare_128 (F64x2, "fcmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");

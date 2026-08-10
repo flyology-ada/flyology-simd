@@ -10,6 +10,7 @@ package body Flyology_SIMD.Backends.Native is
    function Add_Saturate (Left, Right : U8x16) return U8x16 is
      (Flyology_SIMD.Add_Saturate (Left, Right));
    function Subtract_Wrap (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Subtract_Wrap (Left, Right));
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Multiply_Wrap (Left, Right));
    function Subtract_Saturate (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Subtract_Saturate (Left, Right));
    function Bitwise_And (Left, Right : U8x16) return U8x16 is
      (Flyology_SIMD.Bitwise_And (Left, Right));
@@ -35,6 +36,8 @@ package body Flyology_SIMD.Backends.Native is
    function Reverse_Bytes (Value : U8x16) return U8x16 is (Flyology_SIMD.Reverse_Bytes (Value));
    function Interleave_Low (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
      (Flyology_SIMD.To_Bit_Mask (Mask));
@@ -103,6 +106,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : I8x16) return I8x16 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : I8x16) return I8x16 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : I8x16) return I8x16 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I8x16) return I8x16 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is
@@ -184,6 +191,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U16x8) return U16x8 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U16x8) return U16x8 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U16x8) return U16x8 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U16x8) return U16x8 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is
@@ -263,6 +274,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : I16x8) return I16x8 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : I16x8) return I16x8 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : I16x8) return I16x8 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I16x8) return I16x8 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is
@@ -344,6 +359,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U32x4) return U32x4 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U32x4) return U32x4 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U32x4) return U32x4 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is
@@ -423,6 +442,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : I32x4) return I32x4 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : I32x4) return I32x4 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I32x4) return I32x4 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is
@@ -504,6 +527,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U64x2) return U64x2 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U64x2) return U64x2 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U64x2) return U64x2 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
@@ -583,6 +610,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : I64x2) return I64x2 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : I64x2) return I64x2 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I64x2) return I64x2 is
      (Flyology_SIMD.Bitwise_Not (Value));
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
@@ -674,6 +705,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : F32x4) return F32x4 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : F32x4) return F32x4 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F32_Array; Start : Natural) return F32x4 is
@@ -737,6 +772,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : F64x2) return F64x2 is
      (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : F64x2) return F64x2 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F64_Array; Start : Natural) return F64x2 is

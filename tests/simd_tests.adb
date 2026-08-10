@@ -83,6 +83,9 @@ procedure SIMD_Tests is
       Check (Added (6) = 0 and Added (7) = 0, "wrapping addition");
       Check (Extract (Subtract_Wrap (A, B), 1) = 255,
              "wrapping subtraction");
+      Check (Extract (Multiply_Wrap (A, B), 6) = 252
+             and Extract (Multiply_Wrap (A, B), 7) = 255,
+             "wrapping multiplication");
       Check (Saturated (6) = 255 and Saturated (7) = 255,
              "saturating addition");
       Check (Extract (Subtract_Saturate (A, B), 1) = 0,
@@ -113,6 +116,12 @@ procedure SIMD_Tests is
              "interleave low");
       Check (Extract (Interleave_High (A, B), 0) = Extract (A, 8),
              "interleave high");
+      Check (Extract (Deinterleave_Even (A, B), 1) = Extract (A, 2)
+             and Extract (Deinterleave_Even (A, B), 9) = Extract (B, 2),
+             "deinterleave even");
+      Check (Extract (Deinterleave_Odd (A, B), 1) = Extract (A, 3)
+             and Extract (Deinterleave_Odd (A, B), 9) = Extract (B, 3),
+             "deinterleave odd");
    end Test_Core_Semantics;
 
    procedure Test_All_Masks is
@@ -151,6 +160,10 @@ procedure SIMD_Tests is
       for Data'Alignment use 16;
       Value : constant U8x16 := From_Lanes
         ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+      Private_Storage : Byte_Array (0 .. 16) := [others => 0]
+        with Alignment => 16;
+      Misaligned_Value : U8x16;
+      for Misaligned_Value'Address use Private_Storage (1)'Address;
       Aligned_Start : Natural := 0;
    begin
       while not Is_Aligned_16 (Data, Aligned_Start) loop
@@ -158,6 +171,12 @@ procedure SIMD_Tests is
       end loop;
       Store_Aligned (Data, Aligned_Start, Value);
       Check (Same (Load_Aligned (Data, Aligned_Start), Value), "aligned memory");
+      Misaligned_Value := Value;
+      Flyology_SIMD.Backends.Native.Store_Aligned
+        (Data, Aligned_Start, Misaligned_Value);
+      Check (Same (Flyology_SIMD.Backends.Native.Load_Aligned
+                     (Data, Aligned_Start), Value),
+             "aligned memory does not assume private vector alignment");
       Store (Data, Aligned_Start, Value);
       Check (Same (Load (Data, Aligned_Start), Value), "ordinary full memory");
       Store_Unaligned (Data, Aligned_Start + 1, Value);
@@ -226,6 +245,9 @@ procedure SIMD_Tests is
             Check (Same (Flyology_SIMD.Backends.Native.Subtract_Wrap (A, B),
                          Subtract_Wrap (A, B)),
                    "native subtract" & Iteration'Image);
+            Check (Same (Flyology_SIMD.Backends.Native.Multiply_Wrap (A, B),
+                         Multiply_Wrap (A, B)),
+                   "native multiply" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Add_Saturate (A, B),
                          Add_Saturate (A, B)), "native saturate" & Iteration'Image);
             Check
@@ -289,10 +311,20 @@ procedure SIMD_Tests is
                  (Flyology_SIMD.Backends.Native.Interleave_High (A, B),
                   Interleave_High (A, B)),
                "native interleave" & Iteration'Image);
+            Check
+              (Same (Flyology_SIMD.Backends.Native.Deinterleave_Even (A, B),
+                     Deinterleave_Even (A, B))
+               and then Same
+                 (Flyology_SIMD.Backends.Native.Deinterleave_Odd (A, B),
+                  Deinterleave_Odd (A, B)),
+               "native deinterleave" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),
                       "scalar subtract lane" & Lane'Image);
+               Check (Extract (Multiply_Wrap (A, B), Lane) =
+                        Extract (A, Lane) * Extract (B, Lane),
+                      "scalar multiply lane" & Lane'Image);
                Check (Extract (Shift_Left_Logical (A, Shift), Lane) =
                         (if Shift >= 8 then 0
                          else Interfaces.Shift_Left (Extract (A, Lane), Shift)),
@@ -402,12 +434,26 @@ procedure SIMD_Tests is
          exception
             when Features.Backend_Unavailable => null;
          end;
+         begin
+            Result := Algorithms.AVX2.Count (Data, 0);
+            Check (False, "direct unavailable AVX2 accepted" & Result'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
       end if;
    end Test_Unavailable_Rejection;
 begin
    Put_Line ("flyology_simd deterministic seed:" & Seed'Image);
    Put_Line ("architecture: " & Features.Architecture_Name &
              "; best backend: " & Features.Name (Features.Best_Available));
+   if Ada.Command_Line.Argument_Count > 0
+     and then Ada.Command_Line.Argument (1) = "--require-avx2"
+   then
+      Check (Features.Compiled (Features.AVX2),
+             "AVX2 was required but not compiled");
+      Check (Features.Available (Features.AVX2),
+             "AVX2 was required but is not available");
+   end if;
    if Features.Compiled (Features.AVX2) and then not Features.Available (Features.AVX2)
    then
       Put_Line ("SKIP avx2 execution: compiled, but CPU/OS AVX state is unavailable");
