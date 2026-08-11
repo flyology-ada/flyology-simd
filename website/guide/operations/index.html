@@ -71,7 +71,7 @@
       <article class="prose">
         <section id="types">
           <h2>Public vector and mask types</h2>
-          <p>Each value vector is 128 bits. The type name gives the scalar type and lane count. For example, <code>I32x4</code> contains four signed 32-bit lanes.</p>
+          <p>Each value vector is 128 bits. The type name gives the scalar type and lane count. For example, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> contains four signed 32-bit lanes.</p>
           <table class="support-table">
             <thead>
               <tr><th>Lane type</th><th>Value types</th><th>Mask type</th></tr>
@@ -113,12 +113,12 @@
               <tr><th>Group</th><th>Operations</th><th>Types</th></tr>
             </thead>
             <tbody>
-              <tr><td>Construction</td><td><code>Zero</code>, <code>Splat</code>, <code>From_Lanes</code>, <code>To_Lanes</code>, <code>Extract</code>, <code>Replace</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Construction</td><td><a data-api="Flyology_SIMD"><code>Zero</code>, <code>Splat</code>, <code>From_Lanes</code>, <code>To_Lanes</code>, <code>Extract</code>, <code>Replace</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Arithmetic</td><td><a data-api="Flyology_SIMD"><code>Add</code>, <code>Subtract</code>, <code>Multiply</code>, <code>Divide</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Comparison</td><td><code>Equal</code>, <code>Less_Than</code>, <code>Less_Equal</code>, <code>Greater_Than</code>, <code>Greater_Equal</code>, <a data-api="Flyology_SIMD"><code>Unordered</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Selection and limits</td><td><code>Select_Value</code>, <a data-api="Flyology_SIMD"><code>Min_Number</code>, <code>Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Reduction</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
-              <tr><td>Lane permutations</td><td><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Lane permutations</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
             </tbody>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>

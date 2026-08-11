@@ -172,15 +172,30 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I8x16 := From_Lanes (Random_I8x16_Lanes);
+            R_Lanes : constant Lane_Values_I8x16 := Random_I8x16_Lanes;
+            R_A : constant I8x16 := From_Lanes (R_Lanes);
             R_B : constant I8x16 := From_Lanes (Random_I8x16_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 11);
+            Tail : constant Lane_Count_8x16 := Lane_Count_8x16 (Next_U64 mod 17);
+            Pattern : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Next_U64 mod 2 ** 16);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I8x16 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I8x16 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I8x16 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I8x16 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I8x16 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I8x16 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I8x16 randomized native logical shifts");
+            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I8x16 randomized native arithmetic shift");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I8x16 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I8x16 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I8x16 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I8x16 randomized native partial memory");
             for Lane in Lane_Index_8x16 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I8x16 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) + I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) - I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) * I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent multiply oracle" & Lane'Image);
@@ -317,15 +332,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U16x8 := From_Lanes (Random_U16x8_Lanes);
+            R_Lanes : constant Lane_Values_U16x8 := Random_U16x8_Lanes;
+            R_A : constant U16x8 := From_Lanes (R_Lanes);
             R_B : constant U16x8 := From_Lanes (Random_U16x8_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 19);
+            Tail : constant Lane_Count_16x8 := Lane_Count_16x8 (Next_U64 mod 9);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U16x8 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U16x8 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U16x8 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U16x8 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "U16x8 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U16x8 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U16x8 randomized native logical shifts");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U16x8 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U16x8 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U16x8 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U16x8 randomized native partial memory");
             for Lane in Lane_Index_16x8 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U16x8 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U16x8 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U16x8 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U16x8 independent multiply oracle" & Lane'Image);
@@ -469,15 +498,30 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I16x8 := From_Lanes (Random_I16x8_Lanes);
+            R_Lanes : constant Lane_Values_I16x8 := Random_I16x8_Lanes;
+            R_A : constant I16x8 := From_Lanes (R_Lanes);
             R_B : constant I16x8 := From_Lanes (Random_I16x8_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 19);
+            Tail : constant Lane_Count_16x8 := Lane_Count_16x8 (Next_U64 mod 9);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I16x8 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I16x8 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I16x8 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I16x8 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I16x8 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I16x8 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I16x8 randomized native logical shifts");
+            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I16x8 randomized native arithmetic shift");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I16x8 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I16x8 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I16x8 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I16x8 randomized native partial memory");
             for Lane in Lane_Index_16x8 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I16x8 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) + I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) - I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) * I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent multiply oracle" & Lane'Image);
@@ -614,15 +658,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U32x4 := From_Lanes (Random_U32x4_Lanes);
+            R_Lanes : constant Lane_Values_U32x4 := Random_U32x4_Lanes;
+            R_A : constant U32x4 := From_Lanes (R_Lanes);
             R_B : constant U32x4 := From_Lanes (Random_U32x4_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 35);
+            Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U32x4 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U32x4 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U32x4 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U32x4 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "U32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U32x4 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U32x4 randomized native logical shifts");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U32x4 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U32x4 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U32x4 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U32x4 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U32x4 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U32x4 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U32x4 independent multiply oracle" & Lane'Image);
@@ -766,15 +824,30 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I32x4 := From_Lanes (Random_I32x4_Lanes);
+            R_Lanes : constant Lane_Values_I32x4 := Random_I32x4_Lanes;
+            R_A : constant I32x4 := From_Lanes (R_Lanes);
             R_B : constant I32x4 := From_Lanes (Random_I32x4_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 35);
+            Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I32x4 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I32x4 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I32x4 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I32x4 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I32x4 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I32x4 randomized native logical shifts");
+            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I32x4 randomized native arithmetic shift");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I32x4 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I32x4 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I32x4 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I32x4 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) + I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) - I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) * I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent multiply oracle" & Lane'Image);
@@ -911,15 +984,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U64x2 := From_Lanes (Random_U64x2_Lanes);
+            R_Lanes : constant Lane_Values_U64x2 := Random_U64x2_Lanes;
+            R_A : constant U64x2 := From_Lanes (R_Lanes);
             R_B : constant U64x2 := From_Lanes (Random_U64x2_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 67);
+            Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U64x2 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U64x2 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U64x2 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U64x2 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "U64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U64x2 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U64x2 randomized native logical shifts");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U64x2 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U64x2 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U64x2 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U64x2 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U64x2 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U64x2 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U64x2 independent multiply oracle" & Lane'Image);
@@ -1063,15 +1150,30 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I64x2 := From_Lanes (Random_I64x2_Lanes);
+            R_Lanes : constant Lane_Values_I64x2 := Random_I64x2_Lanes;
+            R_A : constant I64x2 := From_Lanes (R_Lanes);
             R_B : constant I64x2 := From_Lanes (Random_I64x2_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 67);
+            Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I64x2 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I64x2 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I64x2 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I64x2 randomized native bitwise");
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I64x2 randomized native comparisons");
+            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I64x2 randomized native logical shifts");
+            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I64x2 randomized native arithmetic shift");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I64x2 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I64x2 randomized native select");
+            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I64x2 randomized native full memory");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I64x2 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) + I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) - I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent subtract oracle" & Lane'Image);
                Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) * I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent multiply oracle" & Lane'Image);
@@ -1186,13 +1288,25 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
+            R_Lanes : constant Lane_Values_F32x4 := Random_F32x4_Lanes;
+            R_A : constant F32x4 := From_Lanes (R_Lanes);
             R_B : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
+            Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F32x4 randomized native construction");
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F32x4 randomized native arithmetic");
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F32x4 randomized native comparisons");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F32x4 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F32x4 randomized native select");
+            Check (Bits_F32x4 (Backends.Native.Reduce_Add (R_A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (R_A)), "F32x4 randomized native reduction");
+            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F32x4 randomized native full memory");
+            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
+               Check (Bits_F32x4 (Backends.Native.Extract (R_A, Lane)) = Bits_F32x4 (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "F32x4 randomized native lane access" & Lane'Image);
                Check (Bits_F32x4 (Extract (Add (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F32x4 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F32x4 (Extract (Divide (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F32x4 randomized independent division" & Lane'Image); end if;
                Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), "F32x4 randomized independent comparison" & Lane'Image);
@@ -1304,13 +1418,25 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
+            R_Lanes : constant Lane_Values_F64x2 := Random_F64x2_Lanes;
+            R_A : constant F64x2 := From_Lanes (R_Lanes);
             R_B : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
+            Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F64x2 randomized native construction");
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F64x2 randomized native arithmetic");
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F64x2 randomized native comparisons");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F64x2 randomized native permutations");
+            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F64x2 randomized native select");
+            Check (Bits_F64x2 (Backends.Native.Reduce_Add (R_A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (R_A)), "F64x2 randomized native reduction");
+            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F64x2 randomized native full memory");
+            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
+               Check (Bits_F64x2 (Backends.Native.Extract (R_A, Lane)) = Bits_F64x2 (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "F64x2 randomized native lane access" & Lane'Image);
                Check (Bits_F64x2 (Extract (Add (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F64x2 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F64x2 (Extract (Divide (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F64x2 randomized independent division" & Lane'Image); end if;
                Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), "F64x2 randomized independent comparison" & Lane'Image);
@@ -1364,10 +1490,13 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), "F32 NaN unordered");
       Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, "F32 quiet NaN returns number");
       Check ((F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), B32), 0)) and 16#7FC0_0000#) = 16#7FC0_0000#, "F32 signaling NaN is quieted");
-      Check (F32_Bits (Extract (Backends.Native.Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (A32, B32), 2)) = 0, "F32 signed zero min/max");
+      Check (F32_Bits (Extract (Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Max_Number (A32, B32), 2)) = 0 and then F32_Bits (Extract (Min_Number (B32, A32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Max_Number (B32, A32), 2)) = 0 and then F32_Bits (Extract (Backends.Native.Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (A32, B32), 2)) = 0 and then F32_Bits (Extract (Backends.Native.Min_Number (B32, A32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (B32, A32), 2)) = 0, "F32 signed zero operand orders");
       Check (Extract (Min_Number (Quiet32, Number32), 0) = 1.0 and then Extract (Max_Number (Quiet32, Number32), 0) = 1.0 and then Extract (Min_Number (Number32, Quiet32), 0) = 1.0 and then Extract (Max_Number (Number32, Quiet32), 0) = 1.0 and then Extract (Backends.Native.Min_Number (Quiet32, Number32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (Quiet32, Number32), 0) = 1.0 and then Extract (Backends.Native.Min_Number (Number32, Quiet32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (Number32, Quiet32), 0) = 1.0, "F32 quiet NaN operand orders");
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Number32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Number32), 0)) and then Is_Quiet_NaN (Extract (Min_Number (Number32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Number32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Number32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Number32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Number32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Number32, Signal32), 0)), "F32 signaling NaN operand orders");
-      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet32, Quiet32), 0)), "F32 two NaNs");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet32, Quiet32), 0)), "F32 two quiet NaNs");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Quiet32), 0)), "F32 signaling then quiet NaN");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet32, Signal32), 0)), "F32 quiet then signaling NaN");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Signal32), 0)), "F32 two signaling NaNs");
       Check (Is_NaN (Extract (Add (A32, B32), 0)) and then Is_NaN (Extract (Backends.Native.Add (A32, B32), 0)), "F32 NaN addition");
       Check (Is_NaN (Extract (Subtract (A32, B32), 1)) and then Is_NaN (Extract (Backends.Native.Subtract (A32, B32), 1)), "F32 infinity subtraction");
       Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, "F32 infinity multiplication");
@@ -1376,10 +1505,13 @@ procedure Family_Tests is
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A64, B64)) = Flyology_SIMD.To_Bit_Mask (Unordered (A64, B64)), "F64 NaN unordered");
       Check (Extract (Backends.Native.Min_Number (A64, B64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A64, B64), 0) = 1.0, "F64 quiet NaN returns number");
       Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, "F64 signaling NaN is quieted");
-      Check (F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0, "F64 signed zero min/max");
+      Check (F64_Bits (Extract (Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Max_Number (A64, B64), 1)) = 0 and then F64_Bits (Extract (Min_Number (B64, A64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Max_Number (B64, A64), 1)) = 0 and then F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0 and then F64_Bits (Extract (Backends.Native.Min_Number (B64, A64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (B64, A64), 1)) = 0, "F64 signed zero operand orders");
       Check (Extract (Min_Number (Quiet64, Number64), 0) = 1.0 and then Extract (Max_Number (Quiet64, Number64), 0) = 1.0 and then Extract (Min_Number (Number64, Quiet64), 0) = 1.0 and then Extract (Max_Number (Number64, Quiet64), 0) = 1.0 and then Extract (Backends.Native.Min_Number (Quiet64, Number64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (Quiet64, Number64), 0) = 1.0 and then Extract (Backends.Native.Min_Number (Number64, Quiet64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (Number64, Quiet64), 0) = 1.0, "F64 quiet NaN operand orders");
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Number64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Number64), 0)) and then Is_Quiet_NaN (Extract (Min_Number (Number64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Number64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Number64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Number64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Number64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Number64, Signal64), 0)), "F64 signaling NaN operand orders");
-      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet64, Quiet64), 0)), "F64 two NaNs");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet64, Quiet64), 0)), "F64 two quiet NaNs");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Quiet64), 0)), "F64 signaling then quiet NaN");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet64, Signal64), 0)), "F64 quiet then signaling NaN");
+      Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Signal64), 0)), "F64 two signaling NaNs");
       Check (Is_NaN (Extract (Add (A64, B64), 0)) and then Is_NaN (Extract (Backends.Native.Add (A64, B64), 0)), "F64 NaN addition");
       Check (Is_NaN (Extract (Subtract (Infinity64, Infinity64), 0)) and then Is_NaN (Extract (Backends.Native.Subtract (Infinity64, Infinity64), 0)), "F64 infinity subtraction");
       Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, "F64 infinity multiplication");

@@ -17,8 +17,8 @@ tested backend, because the available toolchain does not provide equivalent
 verified intrinsic/assembly lowering.
 
 AArch64 Advanced SIMD is architecturally available and no runtime NEON probe is
-needed. Its integer and floating operation classes are differentially executed
-and assembly-audited locally. `Multiply_Wrap`, `Select_Value`,
+needed. Its integer and floating operation classes have differential tests and
+focused code-generation checks. `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`.

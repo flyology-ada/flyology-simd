@@ -51,7 +51,7 @@
         </section>
         <section id="static">
           <h2>Run the complete backend-selection example</h2>
-          <p>The repository builds <code>examples/backend_selection.adb</code>. The program compares static native selection, default runtime selection, and an explicit request for the best available backend.</p>
+          <p>The repository builds <code>examples/backend_selection.adb</code>. The program compares compile-time native selection, default runtime selection, and an explicit request for the best available backend. <a data-api="Flyology_SIMD.Features.Backend_Kind"><code>Features.Backend_Kind</code></a> identifies a backend.</p>
           <pre><code class="language-ada">Data : constant Flyology_SIMD.Byte_Array :=
   [1, 44, 2, 44, 3, 4, 44, 5, 6, 7, 8, 9, 10, 11, 12, 13,
    14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
@@ -72,7 +72,7 @@ Forced_Count : constant Natural :=
           <p>The byte algorithm is a generic instantiation. GNAT can inline its primitive loads and comparisons into the loop.</p>
         </section>
         <section id="runtime">
-          <h2>Choose once for the whole-buffer</h2>
+          <h2>Choose once per whole-buffer operation</h2>
           <p><code>Runtime_Count</code> uses the default backend parameter. <code>Forced_Count</code> supplies that parameter explicitly. <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
           <p>The runtime package currently provides <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <code>Count</code>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a>.</p>
         </section>
@@ -87,7 +87,7 @@ Forced_Count : constant Natural :=
         <section id="x86">
           <h2>Keep the x86-64 baseline separate from AVX2</h2>
           <p>The x86-64 baseline uses SSE2 and compiles with AVX disabled. The AVX2 algorithm code is in separate objects.</p>
-          <p>The AVX2 availability test checks AVX, OSXSAVE, XMM and YMM state in XCR0, and the AVX2 CPUID bit. A test that checks only the AVX2 bit is not sufficient.</p>
+          <p>The AVX2 availability test checks the AVX and AVX2 processor bits. It also checks OSXSAVE, which reports operating-system support for extended processor state. The XCR0 register must enable the operating system to save the XMM and YMM register state. A test that checks only the AVX2 bit is not sufficient.</p>
           <p>AArch64 does not need this type of NEON gate because Advanced SIMD is part of the AArch64 baseline.</p>
           <div class="next-links"><a href="../memory/"><span>Memory</span>Process exact tails</a><a href="../benchmarking/"><span>Benchmark</span>Measure complete operations</a></div>
         </section>

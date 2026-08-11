@@ -82,7 +82,7 @@ bits:     1   0   1   0  = compact mask 0b0101</code></pre>
         <section id="backends">
           <h2>Keep semantics separate from the machine backend</h2>
           <p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> is the scalar reference. It defines the portable result. <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> provides the backend selected at build time.</p>
-          <p>Use a static native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one whole-buffer operation must select from the backends that the processor and operating system can execute.</p>
+          <p>Use the compile-time-selected native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one whole-buffer operation must select from the backends that the processor and operating system can execute.</p>
           <p>Runtime dispatch occurs once for the buffer. It does not occur for each vector operation or lane.</p>
         </section>
         <section id="loop">
