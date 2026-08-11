@@ -29,10 +29,11 @@ bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
 reductions. Floating families supply arithmetic, number minimum and maximum,
 and add/minimum/maximum reductions.
 
-The byte family also supplies `Table_Lookup`. Each unsigned index lane selects
-the table lane with the same number when the index is from 0 through 15. An
-index of 16 or greater produces zero in that result lane. The operation does
-not reduce an index modulo 16.
+The byte family also supplies `Table_Lookup`. For each result lane, the
+operation reads the unsigned value from the index lane at the same position. A
+value from 0 through 15 selects the table lane whose lane index equals that
+value. A larger value produces zero. The operation does not reduce an index
+modulo 16.
 
 Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths

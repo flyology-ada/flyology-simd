@@ -161,7 +161,7 @@ alr build</code></pre>
         <section id="boundary">
           <h2>Know what this guide does not promise</h2>
           <p>The <a href="operations/">operation matrix</a> is a reference, not a chapter in the byte-count walkthrough. Use it to check type coverage and exact edge semantics.</p>
-          <p>The API is experimental. The current value family is 128 bits wide. The operation matrix lists the byte-table lookup and the remaining general-shuffle and 256-bit work.</p>
+          <p>The API is experimental. The current value family is 128 bits wide. The matrix includes the 16-entry byte-table lookup. It also lists unimplemented general lane-index shuffles, lane slides, compression, and 256-bit types.</p>
           <p>The scalar backend defines the result on every supported GNAT target. Target-specific code exists for AArch64 NEON and x86-64 SSE2, with an AVX2 path for selected whole-buffer byte algorithms. The <a href="../support/">support page</a> distinguishes implemented, executed, and continuously tested configurations.</p>
           <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Process one 16-byte block</a><a href="operations/"><span>Reference</span>Check operation coverage</a></div>
         </section>

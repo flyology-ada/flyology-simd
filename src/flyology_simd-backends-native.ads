@@ -576,7 +576,7 @@ is
    --  @param Value The input value.
    --  @return The operation result.
    function Table_Lookup (Table, Indices : U8x16) return U8x16;
-   --  Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.
+   --  Use the unsigned value in each index lane for the corresponding result lane. A value from zero through 15 selects the table lane with the same lane index. A larger value returns zero.
    --  @param Table The 16 selectable byte lanes.
    --  @param Indices One unsigned table index for each result lane.
    --  @return The operation result.

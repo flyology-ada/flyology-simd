@@ -130,8 +130,9 @@ OPERATION_DOCS = {
     "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
     "Deinterleave_Odd": "Collect odd lanes from the left input, then odd lanes from the right input.",
     "Table_Lookup": (
-        "Select one table byte for each index lane. An index from zero through "
-        "15 selects that table lane. An index of 16 or greater returns zero."
+        "Use the unsigned value in each index lane for the corresponding result "
+        "lane. A value from zero through 15 selects the table lane with the "
+        "same lane index. A larger value returns zero."
     ),
     "Is_Aligned_16": "Report whether the selected first element has a 16-byte-aligned address.",
     "Load": "Load one complete vector without an alignment requirement.",
@@ -308,6 +309,7 @@ def strip_generated_docs(text: str) -> str:
         {
             "Convert the low source half to wider lanes without loss.",
             "Convert the high source half to wider lanes without loss.",
+            "Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.",
             CONVERT_SATURATE_SIGNED_DOC,
             CONVERT_SATURATE_UNSIGNED_DOC,
         }
