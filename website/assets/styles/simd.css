@@ -386,6 +386,13 @@
   font-size: 1.4rem;
 }
 
+.chapter-lead {
+  margin: 0 0 3rem;
+  color: var(--ink);
+  font-size: clamp(1.08rem, 1.6vw, 1.28rem);
+  line-height: 1.55;
+}
+
 .prose p,
 .prose li,
 .prose td {
@@ -439,6 +446,42 @@
 .support-table td.yes {
   color: var(--ink);
   font-weight: 650;
+}
+
+.guide-sequence {
+  margin: 2rem 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  counter-reset: guide-chapter;
+  list-style: none;
+}
+
+.guide-sequence li {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  padding-block: 1.15rem;
+  border-bottom: 1px solid var(--line);
+  counter-increment: guide-chapter;
+  gap: 1rem;
+}
+
+.guide-sequence li::before {
+  color: var(--path);
+  content: counter(guide-chapter, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.guide-sequence a {
+  color: var(--ink);
+  font-size: 1.08rem;
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.guide-sequence p {
+  margin: 0.35rem 0 0;
 }
 
 .next-links {

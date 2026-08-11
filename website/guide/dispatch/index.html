@@ -34,12 +34,13 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Backend selection</li></ol><h1>Backend selection</h1></div>
-      <p class="doc-hero-copy">Primitive operations use the backend selected at build time. A complete byte-buffer operation can accept an explicit backend parameter and make one runtime selection.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>4. Backend selection</li></ol><h1>Choose a backend</h1></div>
+      <p class="doc-hero-copy">Chapter 4 separates two decisions: the build selects primitive implementations, and a whole-buffer call can select once among compiled, available backends.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#terms">Terms</a></li><li><a href="#static">Static call</a></li><li><a href="#runtime">Runtime call</a></li><li><a href="#force">Require a backend</a></li><li><a href="#x86">x86 safety</a></li></ul></aside>
       <article class="prose">
+        <p class="chapter-lead">The guide start used <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a>. The direct loops in Chapter 2 used <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a>. The loop and memory contract stay the same, but the two interfaces choose a backend at different boundaries.</p>
         <section id="terms">
           <h2>Use three feature terms</h2>
           <ul>
@@ -89,7 +90,7 @@ Forced_Count : constant Natural :=
           <p>The x86-64 baseline uses SSE2 and compiles with AVX disabled. The AVX2 algorithm code is in separate objects.</p>
           <p>The AVX2 availability test checks the AVX and AVX2 processor bits. It also checks OSXSAVE, which reports operating-system support for extended processor state. The XCR0 register must enable the operating system to save the XMM and YMM register state. A test that checks only the AVX2 bit is not sufficient.</p>
           <p>AArch64 does not need this type of NEON gate because Advanced SIMD is part of the AArch64 baseline.</p>
-          <div class="next-links"><a href="../memory/"><span>Memory</span>Process exact tails</a><a href="../benchmarking/"><span>Benchmark</span>Measure complete operations</a></div>
+          <div class="next-links"><a href="../memory/"><span>Chapter 3</span>Review the memory contract</a><a href="../operations/"><span>Chapter 5</span>Check every available primitive</a></div>
         </section>
       </article>
     </div>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Install Flyology SIMD and run byte, integer, floating-point, and partial-memory examples.">
+  <meta name="description" content="Follow a linear path from one working Ada SIMD program to safe vector loops, backend selection, operation semantics, and measurement.">
   <title>Guide · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/">
   <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
@@ -52,42 +52,58 @@
           <li><a href="../">Overview</a></li>
           <li>Guide</li>
         </ol>
-        <h1>Build and run the examples</h1>
+        <h1>From first result to a vector loop</h1>
       </div>
-      <p class="doc-hero-copy">Start with a whole-buffer search. Then run direct integer, floating-point, and partial-memory operations.</p>
+      <p class="doc-hero-copy">Run one maintained program first. Then learn the data model, build a direct vector loop, handle the tail, choose a backend, and verify the result.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
-          <li><a href="#introduction">Introduction</a></li>
-          <li><a href="#practical">Practical examples</a></li>
-          <li><a href="#install">Install</a></li>
-          <li><a href="#examples">Build the examples</a></li>
-          <li><a href="#search">Search a byte array</a></li>
-          <li><a href="#integer">Use integer vectors</a></li>
-          <li><a href="#float">Use floating vectors</a></li>
-          <li><a href="#choose">Choose an interface</a></li>
+          <li><a href="#run">Run the first program</a></li>
+          <li><a href="#result">Read the result</a></li>
+          <li><a href="#install">Add the dependency</a></li>
+          <li><a href="#path">Follow the guide</a></li>
+          <li><a href="#shortcuts">Choose a shortcut</a></li>
+          <li><a href="#boundary">Know the boundary</a></li>
         </ul>
       </aside>
       <article class="prose">
-        <section id="introduction">
-          <h2>Learn the SIMD concepts first</h2>
-          <p>Read <a href="introduction/">SIMD from first principles</a> first. It explains lanes, masks, vector width, overflow rules, partial memory operations, and backend selection. Each concept links to this library's Ada API.</p>
+        <section id="run">
+          <h2>Run one complete program</h2>
+          <p>The first program answers one question: where is the first exclamation-mark byte in an Ada array? Clone the repository and run the maintained source:</p>
+          <pre><code class="language-shell">git clone https://github.com/flyology-ada/flyology-simd.git
+cd flyology-simd
+alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/find_byte</code></pre>
+          <p>Expected output:</p>
+          <pre><code class="language-text">Found '!' at Ada array index 21</code></pre>
+          <p>The build creates all maintained examples in <code>bin</code>. This first run uses a whole-buffer operation, so backend selection and tail handling remain inside the library.</p>
         </section>
-        <section id="practical">
-          <h2>Apply SIMD to complete tasks</h2>
-          <p>The <a href="practical/">practical examples</a> inspect comma-delimited bytes, count ASCII digits, and scale floating-point measurements. Each example is a complete repository program with expected output.</p>
+        <section id="result">
+          <h2>Read what the program did</h2>
+          <p>The input is a <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a> with bounds 1 through 23. Its <a data-api="Flyology_SIMD.U8"><code>U8</code></a> elements hold byte values. The value 33 is element 21 and represents <code>'!'</code>.</p>
+          <pre><code class="language-ada">Data : Byte_Array (1 .. 23) :=
+  [70, 108, 121, 111, 108, 111, 103, 121, 32, 83, 73, 77, 68,
+   32, 105, 115, 32, 65, 100, 97, 33, 10, 0];
+
+Result : constant Algorithms.Search_Result :=
+  Algorithms.Runtime.Find_First
+    (Data, U8 (Character'Pos ('!')));</code></pre>
+          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Algorithms.Runtime.Find_First</code></a> selects one safe backend before it scans the array. The function returns an <a data-api="Flyology_SIMD.Algorithms.Search_Result"><code>Algorithms.Search_Result</code></a> that contains Ada index 21, not a zero-based byte offset.</p>
+          <p>This call hides its vector loop. Chapter 2 builds a different vector loop and shows how loads, comparisons, masks, reductions, and a partial tail compose.</p>
         </section>
         <section id="install">
-          <h2>Install from the Flyology Alire index</h2>
-          <p><code>flyology_simd</code> version <code>0.1.0-dev</code> is in the Flyology index. Keep the community index because Alire uses it to find the compiler toolchain.</p>
+          <h2>Add the crate to an application</h2>
+          <p>Add the Flyology index once. You can run these index commands from any directory:</p>
           <pre><code class="language-shell">alr index --reset-community
 alr index --add=git+https://github.com/flyology-ada/alire-index.git \
-  --name=flyology --before=community
+  --name=flyology --before=community</code></pre>
+          <p>Keep the community index. Alire uses it to find the compiler toolchain. Run <code>alr index --list</code> to inspect the configured indexes.</p>
+          <p>Then change to the root of your own Alire application. Add the crate there, not in the <code>flyology-simd</code> checkout:</p>
+          <pre><code class="language-shell">cd /path/to/your/application
 alr with flyology_simd
 alr build</code></pre>
-          <p>You only add the Flyology index once. Run <code>alr index --list</code> to see the configured indexes.</p>
           <p>The GPR project detects <code>aarch64</code> and <code>x86_64</code> hosts. You do not need to set <code>FLYOLOGY_SIMD_ARCH</code> for a native build. Use an override for a scalar-only test or for cross-compilation.</p>
           <pre><code class="language-shell">alr build -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre>
           <div class="semantic-callout">
@@ -95,92 +111,38 @@ alr build</code></pre>
             <p>The library has no runtime dependency on Flyology. It defines <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a>, not a <code>Flyology</code> parent package.</p>
           </div>
         </section>
-        <section id="examples">
-          <h2>Build the repository examples</h2>
-          <p>Run this command from the repository root:</p>
-          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr</code></pre>
-          <p>The command creates nine programs in <code>bin</code>. Run them from the repository root:</p>
-          <pre><code class="language-shell">./bin/find_byte
-./bin/integer_vectors
-./bin/floating_vectors
-./bin/partial_tail
-./bin/backend_selection
-./bin/inspect_delimited_bytes
-./bin/count_digits
-./bin/scale_measurements
-./bin/conversions</code></pre>
-          <p>The CI workflow compiles these examples. This check prevents the guide from depending on stale source.</p>
+        <section id="path">
+          <h2>Follow the guide in order</h2>
+          <p>The chapters build one model. Each chapter assumes the result of the previous chapter.</p>
+          <ol class="guide-sequence">
+            <li><div><a href="introduction/">SIMD from first principles</a><p>Learn vector width, lanes, masks, overflow names, and the difference between semantics and representation.</p></div></li>
+            <li><div><a href="practical/">Build complete SIMD tasks</a><p>Start with a whole-buffer call. Then build a byte classifier and a floating-point transform from direct operations.</p></div></li>
+            <li><div><a href="memory/">Handle memory and tails</a><p>Connect lane order to Ada array indexes. Process every length without an out-of-bounds full-vector read.</p></div></li>
+            <li><div><a href="dispatch/">Choose a backend</a><p>Separate compile-time primitive selection from one runtime choice at a whole-buffer boundary.</p></div></li>
+            <li><div><a href="operations/">Check operation semantics</a><p>Use the family matrix and exact edge contracts for arithmetic, masks, conversion, reduction, and memory.</p></div></li>
+            <li><div><a href="benchmarking/">Measure a complete algorithm</a><p>Build the standalone benchmark, keep candidate work equivalent, and interpret repeated measurements.</p></div></li>
+          </ol>
         </section>
-        <section id="search">
-          <h2>Search a complete byte array</h2>
-          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Algorithms.Runtime.Find_First</code></a> selects one available backend before it scans the array. The processor and operating system can execute an available backend. The function returns an Ada array index, not a zero-based byte offset.</p>
-          <pre><code class="language-ada">with Ada.Text_IO;
-with Flyology_SIMD;
-with Flyology_SIMD.Algorithms.Runtime;
-
-procedure Find_Byte is
-   Data : Flyology_SIMD.Byte_Array (1 .. 6) :=
-     [83, 73, 77, 68, 33, 10];
-   Result : constant Flyology_SIMD.Algorithms.Search_Result :=
-     Flyology_SIMD.Algorithms.Runtime.Find_First
-       (Data, Flyology_SIMD.U8 (Character'Pos ('!')));
-begin
-   if Result.Found then
-      Ada.Text_IO.Put_Line ("Found at" & Result.Index'Image);
-   end if;
-end Find_Byte;</code></pre>
-          <p>The value 33 is <code>'!'</code>. It is the fifth element of this array. The program prints <code>Found at 5</code>.</p>
-        </section>
-        <section id="integer">
-          <h2>Choose the integer overflow rule</h2>
-          <p>The direct-vector examples use <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a>. This package is the compiled target backend. The scalar root package defines the reference semantics.</p>
-          <p>This example uses <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> to add 10 to eight unsigned 16-bit lanes. It calls the native <a data-api="Flyology_SIMD.Backends.Native"><code>Add_Wrap</code></a> and <a data-api="Flyology_SIMD.Backends.Native"><code>Add_Saturate</code></a> overloads:</p>
-          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
-
-Input : constant U16x8 :=
-  Native.From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
-Increment : constant U16x8 := Native.Splat (10);
-
-Wrapped : constant U16x8 := Native.Add_Wrap (Input, Increment);
-Saturated : constant U16x8 := Native.Add_Saturate (Input, Increment);</code></pre>
-          <p><a data-api="Flyology_SIMD"><code>Extract (Wrapped, 0)</code></a> returns 4 because wrapping addition is modulo 65,536. <code>Extract (Saturated, 0)</code> returns 65,535 because saturating addition clamps to the lane maximum.</p>
-          <p>The complete <code>integer_vectors</code> example also compares every lane with 150. The result is a <a data-api="Flyology_SIMD.Mask_16x8"><code>Mask_16x8</code></a>. Bit 0 of its compact mask represents lane 0.</p>
-        </section>
-        <section id="float">
-          <h2>Use the floating-point family</h2>
-          <p><a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> contains four IEEE binary32 lanes. The following code multiplies each lane by 2 and compares each result with zero:</p>
-          <pre><code class="language-ada">Samples : constant F32x4 :=
-  Native.From_Lanes ([-1.5, 0.0, 2.25, 10.0]);
-Scaled : constant F32x4 :=
-  Native.Multiply (Samples, Native.Splat (2.0));
-Negative : constant Mask_32x4 :=
-  Native.Less_Than (Scaled, Native.Zero);</code></pre>
-          <p>The scaled lanes are -3.0, 0.0, 4.5, and 20.0. Only lane 0 is negative, so <code>To_Bit_Mask (Negative)</code> returns 1.</p>
-          <p>The default build does not enable fast-math. Read the <a href="operations/#floats">floating operation table</a> before code depends on NaN or signed-zero behavior.</p>
-        </section>
-        <section id="choose">
-          <h2>Choose one of three interfaces</h2>
+        <section id="shortcuts">
+          <h2>Choose a direct route when you know the model</h2>
           <table class="support-table">
             <thead>
-              <tr><th>Need</th><th>Interface</th><th>Backend decision</th></tr>
+              <tr><th>Question</th><th>Go to</th></tr>
             </thead>
             <tbody>
-              <tr><td>Direct vector operations</td><td><code>Flyology_SIMD</code> for scalar semantics or <code>Backends.Native</code> for the compiled target</td><td>At build time</td></tr>
-              <tr><td>A reusable generic byte loop</td><td><code>Algorithms.Generic_Bytes</code></td><td>At generic instantiation</td></tr>
-              <tr><td>A whole-buffer operation</td><td><code>Algorithms.Runtime</code></td><td>Once per operation</td></tr>
+              <tr><td>Does the operation I need exist?</td><td><a href="operations/">Operation coverage</a></td></tr>
+              <tr><td>How do I process the last elements safely?</td><td><a href="memory/">Memory operations</a></td></tr>
+              <tr><td>Which backend runs, and when is it chosen?</td><td><a href="dispatch/">Backend selection</a></td></tr>
+              <tr><td>Which targets have executed tests?</td><td><a href="../support/">Support and verification</a></td></tr>
+              <tr><td>What is the exact Ada declaration?</td><td><a href="../api/">Generated API reference</a></td></tr>
             </tbody>
           </table>
-          <p>The runtime interface does not detect features for each vector addition or comparison. It selects an implementation once, then that implementation runs the vector loop.</p>
-          <div class="next-links">
-            <a href="operations/">
-              <span>Operations</span>
-              Check the exact API coverage
-            </a>
-            <a href="memory/">
-              <span>Memory</span>
-              Process a final partial vector
-            </a>
-          </div>
+        </section>
+        <section id="boundary">
+          <h2>Know what this guide does not promise</h2>
+          <p>The API is experimental. The current value family is 128 bits wide. The operation matrix lists missing conversion, shuffle, table-lookup, and 256-bit work.</p>
+          <p>The scalar backend defines the result on every supported GNAT target. Target-specific code exists for AArch64 NEON and x86-64 SSE2, with an AVX2 path for selected whole-buffer byte algorithms. The <a href="../support/">support page</a> distinguishes implemented, executed, and continuously tested configurations.</p>
+          <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Build the SIMD mental model</a><a href="practical/"><span>Chapter 2</span>See the complete programs</a></div>
         </section>
       </article>
     </div>

@@ -34,12 +34,13 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Benchmarking</li></ol><h1>Run the benchmark</h1></div>
-      <p class="doc-hero-copy">The benchmark is a separate Alire crate. It uses flyology_bench and measures complete byte-count operations.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Measurement</li></ol><h1>Measure a complete algorithm</h1></div>
+      <p class="doc-hero-copy">Chapter 6 measures the loop as an application uses it. The standalone benchmark uses flyology_bench to compare equivalent whole-buffer byte-count implementations.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Commands</a></li><li><a href="#cases">Cases</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
+        <p class="chapter-lead">This chapter measures the byte-count operation from Chapter 4. Correct primitive assembly is necessary, but it does not predict whole-buffer cost. Measure after the semantic, memory, and backend boundaries are fixed.</p>
         <section id="run">
           <h2>Build and run from the benchmark crate</h2>
           <pre><code class="language-shell">cd benchmarks
@@ -88,7 +89,7 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
           <p>An earlier large-buffer result showed the ordinary Ada loop with a lower time than the SIMD loop. That result was a build error, not an Ada language effect. The imported library algorithm lacked optimization while the benchmark unit used release optimization.</p>
           <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks also inspect the complete algorithm loop.</p>
           <p>Do not generalize the recorded table to another host. Repeat the measurement, keep the diagnostics, and inspect the generated code. See the <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> for the statistical procedure.</p>
-          <div class="next-links"><a href="../dispatch/"><span>Dispatch</span>Understand the compared paths</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
+          <div class="next-links"><a href="../operations/"><span>Chapter 5</span>Review the measured primitives</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
         </section>
       </article>
     </div>

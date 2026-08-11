@@ -50,11 +50,11 @@
       <div>
         <ol class="breadcrumb">
           <li><a href="../">Guide</a></li>
-          <li>Memory</li>
+          <li>3. Memory and tails</li>
         </ol>
         <h1>Memory operations</h1>
       </div>
-      <p class="doc-hero-copy">Use typed arrays. State the valid element count. Use a partial operation for the final elements.</p>
+      <p class="doc-hero-copy">Chapter 3 follows the loop to its array boundary. It connects lane order, valid extent, alignment, and the final partial vector.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -69,6 +69,7 @@
         </ul>
       </aside>
       <article class="prose">
+        <p class="chapter-lead">The digit-counting loop in Chapter 2 processes 21 input bytes. It reads 16 bytes, then a five-byte tail. This chapter states exactly which elements each memory operation can read or modify.</p>
         <section id="lane-order">
           <h2>Lane 0 maps to the first selected element</h2>
           <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
@@ -119,13 +120,13 @@ end loop;</code></pre>
           <p><code>guard_page_tests</code> allocates two pages and denies all access to the second page. For each count from 0 through 16, it puts the valid bytes directly before that protected page.</p>
           <p>The test calls scalar and native partial loads and stores. An access beyond the valid count enters the protected page and terminates the test. The suite also runs exact-size array tests and AddressSanitizer builds.</p>
           <div class="next-links">
-            <a href="../operations/">
-              <span>Operations</span>
-              Check all memory variants
+            <a href="../practical/">
+              <span>Chapter 2</span>
+              Return to the complete loops
             </a>
             <a href="../dispatch/">
-              <span>Dispatch</span>
-              Select a backend once
+              <span>Chapter 4</span>
+              Choose a backend
             </a>
           </div>
         </section>

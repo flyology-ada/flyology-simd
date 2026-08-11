@@ -34,15 +34,17 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Introduction</li></ol><h1>SIMD from first principles</h1></div>
-      <p class="doc-hero-copy">SIMD applies one operation to several independent values. This chapter maps that model to Ada types, masks, and memory operations.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>1. First principles</li></ol><h1>SIMD from first principles</h1></div>
+      <p class="doc-hero-copy">Chapter 1 builds the model used by every later example: vectors contain lanes, comparisons produce masks, and buffer loops end with a partial vector.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#one-operation">One operation, several lanes</a></li><li><a href="#types">Width and lane types</a></li><li><a href="#masks">Comparisons and masks</a></li><li><a href="#semantics">Choose the semantics</a></li><li><a href="#memory">Load complete and partial vectors</a></li><li><a href="#backends">Select a backend</a></li><li><a href="#loop">A complete loop</a></li></ul></aside>
       <article class="prose">
+        <p class="chapter-lead">The guide will build a byte-classification loop in Chapter 2. This chapter defines the pieces in that loop before the code combines them.</p>
         <section id="one-operation">
           <h2>One operation changes several lanes</h2>
           <p>SIMD means <em>single instruction, multiple data</em>. A vector contains several lanes of one scalar type. An arithmetic or comparison operation processes corresponding lanes independently.</p>
+          <p>In this library, one vector operation defines several lane results. A backend can use one instruction, an instruction sequence, or scalar composition.</p>
           <table class="support-table">
             <thead><tr><th>Lane</th><th>Left</th><th>Right</th><th>Left + Right</th></tr></thead>
             <tbody><tr><td>0</td><td>10</td><td>1</td><td>11</td></tr><tr><td>1</td><td>20</td><td>2</td><td>22</td></tr><tr><td>2</td><td>30</td><td>3</td><td>33</td></tr><tr><td>3</td><td>40</td><td>4</td><td>44</td></tr></tbody>
@@ -99,7 +101,7 @@ while Start &lt;= Data'Last loop
    Start := Start + Count;
 end loop;</code></pre>
           <p>The repository program <code>examples/partial_tail.adb</code> contains the complete declarations and output. The practical examples apply the same loop structure to byte classification and floating-point data.</p>
-          <div class="next-links"><a href="../practical/"><span>Practical examples</span>Run complete Ada programs</a><a href="../operations/"><span>Operations</span>Check exact coverage</a></div>
+          <div class="next-links"><a href="../"><span>Guide start</span>Run the first whole-buffer program</a><a href="../practical/"><span>Chapter 2</span>Build complete SIMD tasks</a></div>
         </section>
       </article>
     </div>

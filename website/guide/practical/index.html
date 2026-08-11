@@ -34,8 +34,8 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Practical examples</li></ol><h1>Practical SIMD examples</h1></div>
-      <p class="doc-hero-copy">When a library-provided whole-buffer operation has the required contract, use that operation. Otherwise, build a vector loop with the compile-time-selected native package.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Complete tasks</li></ol><h1>Build complete SIMD tasks</h1></div>
+      <p class="doc-hero-copy">Chapter 2 starts with a provided whole-buffer operation. It then opens the loop and composes byte masks and floating-point operations directly.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -49,6 +49,7 @@
         </ul>
       </aside>
       <article class="prose">
+        <p class="chapter-lead">The first program uses a whole-buffer operation. The second builds a custom predicate from primitives. The third applies the same loop shape to numeric data.</p>
         <section id="build">
           <h2>Build and run the programs</h2>
           <p>If you do not have a source checkout, clone the repository:</p>
@@ -212,7 +213,7 @@ sample 7: 1.00000E+02</code></pre>
             </tbody>
           </table>
           <p>Use a library-provided whole-buffer operation when its contract provides the required result. Use direct vector operations when the application needs a different loop.</p>
-          <div class="next-links"><a href="../operations/"><span>Operations</span>Check the available building blocks</a><a href="../memory/"><span>Memory</span>Review full and partial access rules</a></div>
+          <div class="next-links"><a href="../introduction/"><span>Chapter 1</span>Review lanes and masks</a><a href="../memory/"><span>Chapter 3</span>Verify the tail access rules</a></div>
         </section>
       </article>
     </div>

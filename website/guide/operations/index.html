@@ -50,11 +50,11 @@
       <div>
         <ol class="breadcrumb">
           <li><a href="../">Guide</a></li>
-          <li>Operations</li>
+          <li>5. Operation semantics</li>
         </ol>
-        <h1>Operation coverage in 0.1.0-dev</h1>
+        <h1>Check operation semantics</h1>
       </div>
-      <p class="doc-hero-copy">This page lists the coherent family-wide operation profile. It also lists byte-specific compatibility names, memory queries, and groups that are not implemented.</p>
+      <p class="doc-hero-copy">Chapter 5 is the operation reference. Use it after the loop is clear to verify type coverage, edge semantics, conversions, masks, and missing work.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -70,6 +70,7 @@
         </ul>
       </aside>
       <article class="prose">
+        <p class="chapter-lead">The earlier loops used partial loads, comparisons, masks, arithmetic, minimum, maximum, and reductions. This chapter shows whether another primitive exists and defines its result on every backend.</p>
         <section id="types">
           <h2>Public vector and mask types</h2>
           <p>Each value vector is 128 bits. The type name gives the scalar type and lane count. For example, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> contains four signed 32-bit lanes.</p>
@@ -102,6 +103,7 @@
               <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Truncate</code></a></td><td>Keeps the low result-width bits</td><td>Adjacent integer widths with the same signedness</td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a></td><td>Clamps to the result range</td><td>Same-signedness and signed-to-unsigned integer narrowing</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Rounds binary64 lanes to binary32</td><td>Two <code>F64x2</code> inputs to one <code>F32x4</code> result</td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Convert_Round</code></a></td><td>Rounds integer values to floating point</td><td><code>I32x4</code> or <code>U32x4</code> to <code>F32x4</code>; <code>I64x2</code> or <code>U64x2</code> to <code>F64x2</code></td></tr>
             </tbody>
           </table>
           <p>Each narrowing operation takes two source vectors. <code>Low</code> supplies the low result half, and <code>High</code> supplies the high result half.</p>
@@ -142,6 +144,17 @@ Rounded : constant F32x4 := Narrow_Round (Low, High);
           <p><code>Low</code> lane 0 becomes result lane 0. <code>Low</code> lane 1 becomes result lane 1. Both source values are exact midpoints. Lane 0 rounds down to <code>16#3F80_0000#</code>, and lane 1 rounds up to <code>16#3F80_0002#</code>. Both results have an even low bit. <code>High</code> lanes 0 and 1 become result lanes 2 and 3. Therefore, negative zero appears in result lane 2.</p>
           <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/conversions.adb"><code>conversions.adb</code> example</a> prints the four encodings as decimal integers:</p>
           <pre><code>F64 narrowed bits: 1065353216 1065353218 2147483648 1082130432</code></pre>
+          <p><code>Convert_Round</code> keeps the lane count and lane positions. Source lane <em>n</em> becomes result lane <em>n</em>. The operation requires the platform's default round-to-nearest, ties-to-even environment. It does not modify the floating-point control register. Integer magnitudes through 2<sup>24</sup> are exact in <code>F32</code>. Integer magnitudes through 2<sup>53</sup> are exact in <code>F64</code>.</p>
+          <pre><code class="language-ada">Integers : constant I32x4 :=
+  From_Lanes ([0, 16_777_216, 16_777_217, I32'Last]);
+Floats : constant F32x4 := Convert_Round (Integers);
+Bits : constant U32x4 := Bit_Cast (Floats);
+
+--  Bits: 16#0000_0000#, 16#4B80_0000#,
+--        16#4B80_0000#, 16#4F00_0000#</code></pre>
+          <p>Lane 0 remains zero. Lane 1 is exact. Lane 2 contains 16,777,217, which is halfway between two binary32 values. It rounds to 16,777,216 because ties-to-even selects the result with an even low bit. Lane 3 contains the largest <a data-api="Flyology_SIMD.I32"><code>I32</code></a> value. It rounds to 2<sup>31</sup>. All integer-to-floating results are finite.</p>
+          <p>The maintained example prints these encodings as decimal integers:</p>
+          <pre><code>I32 rounded bits: 0 1266679808 1266679808 1325400064</code></pre>
         </section>
         <section id="integers">
           <h2>Integer operation coverage</h2>
@@ -226,7 +239,8 @@ end if;</code></pre>
           <h2>Not implemented in 0.1.0-dev</h2>
           <p>The following groups are design targets, not current API:</p>
           <ul>
-            <li>numeric <code>Convert</code> operations;</li>
+            <li>floating-to-integer conversion with explicit truncation and saturation;</li>
+            <li>same-width signed/unsigned numeric conversion;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>
@@ -235,13 +249,13 @@ end if;</code></pre>
             <p>“Full family” means that all ten 128-bit value types exist. It does not mean that every operation planned for the project exists.</p>
           </div>
           <div class="next-links">
-            <a href="../">
-              <span>Guide</span>
-              Build and run the examples
+            <a href="../dispatch/">
+              <span>Chapter 4</span>
+              Review backend selection
             </a>
-            <a href="../../support/">
-              <span>Support</span>
-              Check backend execution evidence
+            <a href="../benchmarking/">
+              <span>Chapter 6</span>
+              Measure a complete algorithm
             </a>
           </div>
         </section>
