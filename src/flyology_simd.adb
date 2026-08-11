@@ -714,6 +714,16 @@ package body Flyology_SIMD is
       return Result;
    end Widen_High;
 
+   function Narrow_Round (Low, High : F64x2) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := F32 (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := F32 (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Round;
+
    function Narrow_Truncate_U16x8_Lane (Item : U16) return U8 is
      (U8 (Item and U16 (U8'Last)));
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is

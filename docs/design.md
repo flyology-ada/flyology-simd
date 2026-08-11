@@ -33,7 +33,8 @@ floating-point contracts are recorded in [api-scope.md](api-scope.md).
 AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
 The 256-bit type family and general numeric conversion are not implemented.
 The 128-bit API implements lane-preserving bit casts, adjacent integer
-widening and narrowing, and exact finite `F32x4` to `F64x2` widening.
+widening and narrowing, exact finite `F32x4` to `F64x2` widening, and rounded
+`F64x2` to `F32x4` narrowing.
 
 ## Normative semantics
 
@@ -83,7 +84,8 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
 The AArch64 backend lowers widening and narrowing through verified NEON
-assembly leaves. The x86-64 SSE2 backend currently composes these conversion
+assembly leaves, including binary64-to-binary32 narrowing. The x86-64 SSE2
+backend currently composes these conversion
 operations from the scalar authority. This preserves the contract but does not
 claim an SSE2 instruction sequence for those operations.
 

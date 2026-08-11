@@ -6,6 +6,7 @@ from pathlib import Path
 from generate_full_family import (
     BIT_CAST_GROUPS,
     FLOAT_TYPES,
+    FLOAT_NARROWINGS,
     FLOAT_WIDENINGS,
     INTEGER_TYPES,
     MASKS,
@@ -72,6 +73,8 @@ def fallback_body() -> str:
         ]
     for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
         out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
+    for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
+        out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
@@ -370,6 +373,17 @@ def neon_body() -> str:
         out += [
             f"   function {native} is new NEON_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
             f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+        ]
+    for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
+        instruction = (
+            "fcvtn v0.2s, v0.2d" +
+            '" & ASCII.LF & ASCII.HT & "' +
+            "fcvtn2 v0.4s, v1.2d"
+        )
+        native = f"Native_Narrow_Round_{source_vector}_To_{target_vector}"
+        out += [
+            f"   function {native} is new NEON_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
         ]
     out.append("")
 
@@ -681,6 +695,8 @@ def x86_body() -> str:
         ]
     for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
         out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
+    for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
+        out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
     multiplication = {
         8: (
             "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"

@@ -4,6 +4,7 @@
 from pathlib import Path
 
 from generate_full_family import (
+    FLOAT_NARROWINGS,
     FLOAT_WIDENINGS,
     NARROWINGS,
     ROOT,
@@ -105,6 +106,25 @@ def emit_narrow_test(
     helper = f"Oracle_{name}_{source}_To_{target}"
     low_expression = low_expression or f"Random_{source}"
     high_expression = high_expression or f"Random_{source}"
+    def comparison(actual: str, expected: str) -> str:
+        if name == "Narrow_Round":
+            return f"Same ({actual}, {expected})"
+        return f"{actual} = {expected}"
+
+    scalar_low = comparison(
+        "Extract (Scalar_Result, Lane)", f"{helper} (Extract (Low, Lane))"
+    )
+    native_low = comparison(
+        "Extract (Native_Result, Lane)", f"{helper} (Extract (Low, Lane))"
+    )
+    scalar_high = comparison(
+        f"Extract (Scalar_Result, Lane + {source_lanes})",
+        f"{helper} (Extract (High, Lane))",
+    )
+    native_high = comparison(
+        f"Extract (Native_Result, Lane + {source_lanes})",
+        f"{helper} (Extract (High, Lane))",
+    )
     return [
         "      declare",
         f"         Low : constant {source} := {low_expression};",
@@ -113,10 +133,10 @@ def emit_narrow_test(
         f"         Native_Result : constant {target} := Backends.Native.{name} (Low, High);",
         "      begin",
         f"         for Lane in Natural range 0 .. {source_lanes - 1} loop",
-        f"            Check (Extract (Scalar_Result, Lane) = {helper} (Extract (Low, Lane)), \"scalar {name} {source} low lane\");",
-        f"            Check (Extract (Native_Result, Lane) = {helper} (Extract (Low, Lane)), \"native {name} {source} low lane\");",
-        f"            Check (Extract (Scalar_Result, Lane + {source_lanes}) = {helper} (Extract (High, Lane)), \"scalar {name} {source} high lane\");",
-        f"            Check (Extract (Native_Result, Lane + {source_lanes}) = {helper} (Extract (High, Lane)), \"native {name} {source} high lane\");",
+        f"            Check ({scalar_low}, \"scalar {name} {source} low lane\");",
+        f"            Check ({native_low}, \"native {name} {source} low lane\");",
+        f"            Check ({scalar_high}, \"scalar {name} {source} high lane\");",
+        f"            Check ({native_high}, \"native {name} {source} high lane\");",
         "         end loop;",
         "      end;",
     ]
@@ -216,6 +236,7 @@ def program() -> str:
         )
     out += [
         "   function F32_Of_Bits is new Ada.Unchecked_Conversion (U32, F32);",
+        "   function F64_Of_Bits is new Ada.Unchecked_Conversion (U64, F64);",
         "   function U32_Of_Bits is new Ada.Unchecked_Conversion (F32, U32);",
         "   function U64_Of_Bits is new Ada.Unchecked_Conversion (F64, U64);",
         "",
@@ -240,11 +261,37 @@ def program() -> str:
         "      return (Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#",
         "        and then (Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;",
         "   end Is_NaN;",
+        "   function Is_NaN (Value : F32) return Boolean is",
+        "      Bits : constant U32 := U32_Of_Bits (Value);",
+        "   begin",
+        "      return (Bits and 16#7F80_0000#) = 16#7F80_0000#",
+        "        and then (Bits and 16#007F_FFFF#) /= 0;",
+        "   end Is_NaN;",
         "",
     ]
 
     for vector in VECTOR_INFO:
         out += random_function(vector)
+
+    out += [
+        "   function Random_Narrow_F64x2 return F64x2 is",
+        "      Values : Lane_Values_F64x2;",
+        "   begin",
+        "      for Lane in Lane_Index_64x2 loop",
+        "         declare",
+        "            Sign_And_Fraction : constant U64 := Next_U64;",
+        "            Unbiased_Exponent : constant Integer := Integer (Next_U64 mod 288) - 160;",
+        "            Bits : constant U64 :=",
+        "              (Sign_And_Fraction and 16#800F_FFFF_FFFF_FFFF#)",
+        "              or Interfaces.Shift_Left (U64 (Unbiased_Exponent + 1_023), 52);",
+        "         begin",
+        "            Values (Lane) := F64_Of_Bits (Bits);",
+        "         end;",
+        "      end loop;",
+        "      return From_Lanes (Values);",
+        "   end Random_Narrow_F64x2;",
+        "",
+    ]
 
     for source, source_scalar, target, target_scalar, target_bits, _, signed in NARROWINGS:
         source_bits = target_bits * 2
@@ -262,6 +309,72 @@ def program() -> str:
         out.append(
             f"   function Oracle_Narrow_Saturate_{source}_To_{target} (Item : {source_scalar}) return {target_scalar} is (if Item < 0 then 0 elsif Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last else {target_scalar} (Item));"
         )
+    for source, _, target, _, _ in FLOAT_NARROWINGS:
+        out += [
+            f"   function Oracle_Narrow_Round_{source}_To_{target} (Item : F64) return F32 is",
+            "      Bits : constant U64 := U64_Of_Bits (Item);",
+            "      Sign : constant U32 :=",
+            "        (if (Bits and 16#8000_0000_0000_0000#) = 0 then 0 else 16#8000_0000#);",
+            "      Encoded_Exponent : constant Natural :=",
+            "        Natural (Interfaces.Shift_Right (Bits, 52) and 16#7FF#);",
+            "      Fraction : constant U64 := Bits and 16#000F_FFFF_FFFF_FFFF#;",
+            "",
+            "      function Round_Right (Value : U64; Count : Positive) return U64 is",
+            "         Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);",
+            "         Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);",
+            "         Remainder : constant U64 :=",
+            "           Value and (Interfaces.Shift_Left (1, Count) - 1);",
+            "      begin",
+            "         if Remainder > Half",
+            "           or else (Remainder = Half and then (Quotient and 1) /= 0)",
+            "         then",
+            "            return Quotient + 1;",
+            "         else",
+            "            return Quotient;",
+            "         end if;",
+            "      end Round_Right;",
+            "",
+            "      Exponent : Integer;",
+            "      Significant : U64;",
+            "      Rounded : U64;",
+            "   begin",
+            "      if Encoded_Exponent = 0 then",
+            "         return F32_Of_Bits (Sign);",
+            "      elsif Encoded_Exponent = 16#7FF# then",
+            "         if Fraction = 0 then",
+            "            return F32_Of_Bits (Sign or 16#7F80_0000#);",
+            "         else",
+            "            return F32_Of_Bits (Sign or 16#7FC0_0000#);",
+            "         end if;",
+            "      end if;",
+            "",
+            "      Exponent := Encoded_Exponent - 1_023;",
+            "      Significant := 16#0010_0000_0000_0000# or Fraction;",
+            "      if Exponent >= -126 then",
+            "         Rounded := Round_Right (Significant, 29);",
+            "         if Rounded = 16#0100_0000# then",
+            "            Rounded := 16#0080_0000#;",
+            "            Exponent := Exponent + 1;",
+            "         end if;",
+            "         if Exponent > 127 then",
+            "            return F32_Of_Bits (Sign or 16#7F80_0000#);",
+            "         end if;",
+            "         return F32_Of_Bits",
+            "           (Sign or Interfaces.Shift_Left (U32 (Exponent + 127), 23)",
+            "            or U32 (Rounded - 16#0080_0000#));",
+            "      end if;",
+            "",
+            "      declare",
+            "         Shift : constant Positive := -Exponent - 97;",
+            "      begin",
+            "         if Shift > 53 then",
+            "            return F32_Of_Bits (Sign);",
+            "         end if;",
+            "         Rounded := Round_Right (Significant, Shift);",
+            "         return F32_Of_Bits (Sign or U32 (Rounded));",
+            "      end;",
+            f"   end Oracle_Narrow_Round_{source}_To_{target};",
+        ]
 
     out += [
         "",
@@ -315,10 +428,78 @@ def program() -> str:
         "      end loop;",
         "   end Test_F32_Widen_Edges;",
         "",
+        "   procedure Test_F64_Narrow_Edges is",
+        "      Zeros_And_Infinities_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#0000_0000_0000_0000#), F64_Of_Bits (16#8000_0000_0000_0000#)]);",
+        "      Zeros_And_Infinities_High : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#7FF0_0000_0000_0000#), F64_Of_Bits (16#FFF0_0000_0000_0000#)]);",
+        "      Rounding_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#3FF0_0000_1000_0000#), F64_Of_Bits (16#3FF0_0000_1000_0001#)]);",
+        "      Rounding_High : constant F64x2 := From_Lanes",
+        "        ([F64 (F32_Of_Bits (16#7F7F_FFFF#)), F64_Of_Bits (16#7FEF_FFFF_FFFF_FFFF#)]);",
+        "      Negative_Rounding_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#BFF0_0000_1000_0000#), F64_Of_Bits (16#BFF0_0000_3000_0000#)]);",
+        "      Negative_Rounding_High : constant F64x2 := From_Lanes",
+        "        ([-F64 (F32_Of_Bits (16#7F7F_FFFF#)), F64_Of_Bits (16#FFEF_FFFF_FFFF_FFFF#)]);",
+        "      Subnormal_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#3690_0000_0000_0000#), F64_Of_Bits (16#3690_0000_0000_0001#)]);",
+        "      Subnormal_High : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#B690_0000_0000_0000#), F64_Of_Bits (16#B690_0000_0000_0001#)]);",
+        "      Positive_Overflow_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#47EF_FFFF_EFFF_FFFF#), F64_Of_Bits (16#47EF_FFFF_F000_0000#)]);",
+        "      Positive_Overflow_High : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#47EF_FFFF_F000_0001#), F64_Of_Bits (16#47EF_FFFF_E000_0000#)]);",
+        "      Negative_Overflow_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#C7EF_FFFF_EFFF_FFFF#), F64_Of_Bits (16#C7EF_FFFF_F000_0000#)]);",
+        "      Negative_Overflow_High : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#C7EF_FFFF_F000_0001#), F64_Of_Bits (16#C7EF_FFFF_E000_0000#)]);",
+        "      NaN_Low : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#7FF8_0000_0000_0001#), F64_Of_Bits (16#7FF0_0000_0000_0001#)]);",
+        "      NaN_High : constant F64x2 := From_Lanes",
+        "        ([F64_Of_Bits (16#FFF8_0000_0000_0001#), F64_Of_Bits (16#FFF0_0000_0000_0001#)]);",
+        "      Exact : constant F32x4 := Narrow_Round (Zeros_And_Infinities_Low, Zeros_And_Infinities_High);",
+        "      Native_Exact : constant F32x4 := Backends.Native.Narrow_Round (Zeros_And_Infinities_Low, Zeros_And_Infinities_High);",
+        "      Rounded : constant F32x4 := Narrow_Round (Rounding_Low, Rounding_High);",
+        "      Native_Rounded : constant F32x4 := Backends.Native.Narrow_Round (Rounding_Low, Rounding_High);",
+        "      Negative_Rounded : constant F32x4 := Narrow_Round (Negative_Rounding_Low, Negative_Rounding_High);",
+        "      Native_Negative_Rounded : constant F32x4 := Backends.Native.Narrow_Round (Negative_Rounding_Low, Negative_Rounding_High);",
+        "      Subnormal : constant F32x4 := Narrow_Round (Subnormal_Low, Subnormal_High);",
+        "      Native_Subnormal : constant F32x4 := Backends.Native.Narrow_Round (Subnormal_Low, Subnormal_High);",
+        "      Positive_Overflow : constant F32x4 := Narrow_Round (Positive_Overflow_Low, Positive_Overflow_High);",
+        "      Native_Positive_Overflow : constant F32x4 := Backends.Native.Narrow_Round (Positive_Overflow_Low, Positive_Overflow_High);",
+        "      Negative_Overflow : constant F32x4 := Narrow_Round (Negative_Overflow_Low, Negative_Overflow_High);",
+        "      Native_Negative_Overflow : constant F32x4 := Backends.Native.Narrow_Round (Negative_Overflow_Low, Negative_Overflow_High);",
+        "      NaNs : constant F32x4 := Narrow_Round (NaN_Low, NaN_High);",
+        "      Native_NaNs : constant F32x4 := Backends.Native.Narrow_Round (NaN_Low, NaN_High);",
+        "      Expected_Exact : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#)];",
+        "      Expected_Rounded : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#), F32_Of_Bits (16#7F7F_FFFF#), F32_Of_Bits (16#7F80_0000#)];",
+        "      Expected_Negative_Rounded : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#BF80_0000#), F32_Of_Bits (16#BF80_0002#), F32_Of_Bits (16#FF7F_FFFF#), F32_Of_Bits (16#FF80_0000#)];",
+        "      Expected_Subnormal : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#0000_0001#), F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#8000_0001#)];",
+        "      Expected_Positive_Overflow : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#7F7F_FFFF#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#7F7F_FFFF#)];",
+        "      Expected_Negative_Overflow : constant Lane_Values_F32x4 :=",
+        "        [F32_Of_Bits (16#FF7F_FFFF#), F32_Of_Bits (16#FF80_0000#), F32_Of_Bits (16#FF80_0000#), F32_Of_Bits (16#FF7F_FFFF#)];",
+        "   begin",
+        "      for Lane in Lane_Index_32x4 loop",
+        "         Check (Same (Extract (Exact, Lane), Expected_Exact (Lane)) and then Same (Extract (Native_Exact, Lane), Expected_Exact (Lane)), \"F64 narrowing zero/infinity edge\");",
+        "         Check (Same (Extract (Rounded, Lane), Expected_Rounded (Lane)) and then Same (Extract (Native_Rounded, Lane), Expected_Rounded (Lane)), \"F64 narrowing rounded edge\");",
+        "         Check (Same (Extract (Negative_Rounded, Lane), Expected_Negative_Rounded (Lane)) and then Same (Extract (Native_Negative_Rounded, Lane), Expected_Negative_Rounded (Lane)), \"F64 narrowing negative rounded edge\");",
+        "         Check (Same (Extract (Subnormal, Lane), Expected_Subnormal (Lane)) and then Same (Extract (Native_Subnormal, Lane), Expected_Subnormal (Lane)), \"F64 narrowing subnormal edge\");",
+        "         Check (Same (Extract (Positive_Overflow, Lane), Expected_Positive_Overflow (Lane)) and then Same (Extract (Native_Positive_Overflow, Lane), Expected_Positive_Overflow (Lane)), \"F64 narrowing positive overflow boundary\");",
+        "         Check (Same (Extract (Negative_Overflow, Lane), Expected_Negative_Overflow (Lane)) and then Same (Extract (Native_Negative_Overflow, Lane), Expected_Negative_Overflow (Lane)), \"F64 narrowing negative overflow boundary\");",
+        "         Check (Is_NaN (Extract (NaNs, Lane)) and then Is_NaN (Extract (Native_NaNs, Lane)), \"F64 narrowing NaN edge\");",
+        "      end loop;",
+        "   end Test_F64_Narrow_Edges;",
+        "",
         "",
         "begin",
         "   Put_Line (\"conversion differential tests seed=0xC0457A5712800A11\");",
         "   Test_F32_Widen_Edges;",
+        "   Test_F64_Narrow_Edges;",
     ]
     for source, source_scalar, target, target_scalar, _, source_lanes, _ in NARROWINGS:
         low, high = boundary_vectors(source, source_scalar, target_scalar, source_lanes, False)
@@ -342,6 +523,15 @@ def program() -> str:
         out += emit_narrow_test(source, target, source_lanes, "Narrow_Saturate")
     for source, _, target, _, _, source_lanes, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
         out += emit_narrow_test(source, target, source_lanes, "Narrow_Saturate")
+    for source, _, target, _, source_lanes in FLOAT_NARROWINGS:
+        out += emit_narrow_test(
+            source,
+            target,
+            source_lanes,
+            "Narrow_Round",
+            "Random_Narrow_F64x2",
+            "Random_Narrow_F64x2",
+        )
     out += [
         "   end loop;",
         "   if Failures = 0 then",

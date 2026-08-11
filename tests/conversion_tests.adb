@@ -45,6 +45,7 @@ procedure Conversion_Tests is
    function U32_Of_Bits is new Ada.Unchecked_Conversion (I32, U32);
    function U64_Of_Bits is new Ada.Unchecked_Conversion (I64, U64);
    function F32_Of_Bits is new Ada.Unchecked_Conversion (U32, F32);
+   function F64_Of_Bits is new Ada.Unchecked_Conversion (U64, F64);
    function U32_Of_Bits is new Ada.Unchecked_Conversion (F32, U32);
    function U64_Of_Bits is new Ada.Unchecked_Conversion (F64, U64);
 
@@ -81,6 +82,12 @@ procedure Conversion_Tests is
    begin
       return (Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
         and then (Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;
+   end Is_NaN;
+   function Is_NaN (Value : F32) return Boolean is
+      Bits : constant U32 := U32_Of_Bits (Value);
+   begin
+      return (Bits and 16#7F80_0000#) = 16#7F80_0000#
+        and then (Bits and 16#007F_FFFF#) /= 0;
    end Is_NaN;
 
    function Random_U8x16 return U8x16 is
@@ -153,6 +160,23 @@ procedure Conversion_Tests is
       return From_Lanes (Values);
    end Random_F64x2;
 
+   function Random_Narrow_F64x2 return F64x2 is
+      Values : Lane_Values_F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         declare
+            Sign_And_Fraction : constant U64 := Next_U64;
+            Unbiased_Exponent : constant Integer := Integer (Next_U64 mod 288) - 160;
+            Bits : constant U64 :=
+              (Sign_And_Fraction and 16#800F_FFFF_FFFF_FFFF#)
+              or Interfaces.Shift_Left (U64 (Unbiased_Exponent + 1_023), 52);
+         begin
+            Values (Lane) := F64_Of_Bits (Bits);
+         end;
+      end loop;
+      return From_Lanes (Values);
+   end Random_Narrow_F64x2;
+
    function Oracle_Narrow_Truncate_U16x8_To_U8x16 (Item : U16) return U8 is (U8 (Item and U16 (U8'Last)));
    function Oracle_Narrow_Saturate_U16x8_To_U8x16 (Item : U16) return U8 is ((if Item > U16 (U8'Last) then U8'Last else U8 (Item)));
    function Oracle_Narrow_Truncate_I16x8_To_I8x16 (Item : I16) return I8 is (I8_Of_Bits (U8 (U16_Of_Bits (Item) and U16 (U8'Last))));
@@ -168,6 +192,69 @@ procedure Conversion_Tests is
    function Oracle_Narrow_Saturate_I16x8_To_U8x16 (Item : I16) return U8 is (if Item < 0 then 0 elsif Item > I16 (U8'Last) then U8'Last else U8 (Item));
    function Oracle_Narrow_Saturate_I32x4_To_U16x8 (Item : I32) return U16 is (if Item < 0 then 0 elsif Item > I32 (U16'Last) then U16'Last else U16 (Item));
    function Oracle_Narrow_Saturate_I64x2_To_U32x4 (Item : I64) return U32 is (if Item < 0 then 0 elsif Item > I64 (U32'Last) then U32'Last else U32 (Item));
+   function Oracle_Narrow_Round_F64x2_To_F32x4 (Item : F64) return F32 is
+      Bits : constant U64 := U64_Of_Bits (Item);
+      Sign : constant U32 :=
+        (if (Bits and 16#8000_0000_0000_0000#) = 0 then 0 else 16#8000_0000#);
+      Encoded_Exponent : constant Natural :=
+        Natural (Interfaces.Shift_Right (Bits, 52) and 16#7FF#);
+      Fraction : constant U64 := Bits and 16#000F_FFFF_FFFF_FFFF#;
+
+      function Round_Right (Value : U64; Count : Positive) return U64 is
+         Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+         Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+         Remainder : constant U64 :=
+           Value and (Interfaces.Shift_Left (1, Count) - 1);
+      begin
+         if Remainder > Half
+           or else (Remainder = Half and then (Quotient and 1) /= 0)
+         then
+            return Quotient + 1;
+         else
+            return Quotient;
+         end if;
+      end Round_Right;
+
+      Exponent : Integer;
+      Significant : U64;
+      Rounded : U64;
+   begin
+      if Encoded_Exponent = 0 then
+         return F32_Of_Bits (Sign);
+      elsif Encoded_Exponent = 16#7FF# then
+         if Fraction = 0 then
+            return F32_Of_Bits (Sign or 16#7F80_0000#);
+         else
+            return F32_Of_Bits (Sign or 16#7FC0_0000#);
+         end if;
+      end if;
+
+      Exponent := Encoded_Exponent - 1_023;
+      Significant := 16#0010_0000_0000_0000# or Fraction;
+      if Exponent >= -126 then
+         Rounded := Round_Right (Significant, 29);
+         if Rounded = 16#0100_0000# then
+            Rounded := 16#0080_0000#;
+            Exponent := Exponent + 1;
+         end if;
+         if Exponent > 127 then
+            return F32_Of_Bits (Sign or 16#7F80_0000#);
+         end if;
+         return F32_Of_Bits
+           (Sign or Interfaces.Shift_Left (U32 (Exponent + 127), 23)
+            or U32 (Rounded - 16#0080_0000#));
+      end if;
+
+      declare
+         Shift : constant Positive := -Exponent - 97;
+      begin
+         if Shift > 53 then
+            return F32_Of_Bits (Sign);
+         end if;
+         Rounded := Round_Right (Significant, Shift);
+         return F32_Of_Bits (Sign or U32 (Rounded));
+      end;
+   end Oracle_Narrow_Round_F64x2_To_F32x4;
 
    procedure Test_F32_Widen_Edges is
       Zeros_And_Infinities : constant F32x4 := From_Lanes
@@ -219,10 +306,78 @@ procedure Conversion_Tests is
       end loop;
    end Test_F32_Widen_Edges;
 
+   procedure Test_F64_Narrow_Edges is
+      Zeros_And_Infinities_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#0000_0000_0000_0000#), F64_Of_Bits (16#8000_0000_0000_0000#)]);
+      Zeros_And_Infinities_High : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#7FF0_0000_0000_0000#), F64_Of_Bits (16#FFF0_0000_0000_0000#)]);
+      Rounding_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#3FF0_0000_1000_0000#), F64_Of_Bits (16#3FF0_0000_1000_0001#)]);
+      Rounding_High : constant F64x2 := From_Lanes
+        ([F64 (F32_Of_Bits (16#7F7F_FFFF#)), F64_Of_Bits (16#7FEF_FFFF_FFFF_FFFF#)]);
+      Negative_Rounding_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#BFF0_0000_1000_0000#), F64_Of_Bits (16#BFF0_0000_3000_0000#)]);
+      Negative_Rounding_High : constant F64x2 := From_Lanes
+        ([-F64 (F32_Of_Bits (16#7F7F_FFFF#)), F64_Of_Bits (16#FFEF_FFFF_FFFF_FFFF#)]);
+      Subnormal_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#3690_0000_0000_0000#), F64_Of_Bits (16#3690_0000_0000_0001#)]);
+      Subnormal_High : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#B690_0000_0000_0000#), F64_Of_Bits (16#B690_0000_0000_0001#)]);
+      Positive_Overflow_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#47EF_FFFF_EFFF_FFFF#), F64_Of_Bits (16#47EF_FFFF_F000_0000#)]);
+      Positive_Overflow_High : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#47EF_FFFF_F000_0001#), F64_Of_Bits (16#47EF_FFFF_E000_0000#)]);
+      Negative_Overflow_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#C7EF_FFFF_EFFF_FFFF#), F64_Of_Bits (16#C7EF_FFFF_F000_0000#)]);
+      Negative_Overflow_High : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#C7EF_FFFF_F000_0001#), F64_Of_Bits (16#C7EF_FFFF_E000_0000#)]);
+      NaN_Low : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#7FF8_0000_0000_0001#), F64_Of_Bits (16#7FF0_0000_0000_0001#)]);
+      NaN_High : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#FFF8_0000_0000_0001#), F64_Of_Bits (16#FFF0_0000_0000_0001#)]);
+      Exact : constant F32x4 := Narrow_Round (Zeros_And_Infinities_Low, Zeros_And_Infinities_High);
+      Native_Exact : constant F32x4 := Backends.Native.Narrow_Round (Zeros_And_Infinities_Low, Zeros_And_Infinities_High);
+      Rounded : constant F32x4 := Narrow_Round (Rounding_Low, Rounding_High);
+      Native_Rounded : constant F32x4 := Backends.Native.Narrow_Round (Rounding_Low, Rounding_High);
+      Negative_Rounded : constant F32x4 := Narrow_Round (Negative_Rounding_Low, Negative_Rounding_High);
+      Native_Negative_Rounded : constant F32x4 := Backends.Native.Narrow_Round (Negative_Rounding_Low, Negative_Rounding_High);
+      Subnormal : constant F32x4 := Narrow_Round (Subnormal_Low, Subnormal_High);
+      Native_Subnormal : constant F32x4 := Backends.Native.Narrow_Round (Subnormal_Low, Subnormal_High);
+      Positive_Overflow : constant F32x4 := Narrow_Round (Positive_Overflow_Low, Positive_Overflow_High);
+      Native_Positive_Overflow : constant F32x4 := Backends.Native.Narrow_Round (Positive_Overflow_Low, Positive_Overflow_High);
+      Negative_Overflow : constant F32x4 := Narrow_Round (Negative_Overflow_Low, Negative_Overflow_High);
+      Native_Negative_Overflow : constant F32x4 := Backends.Native.Narrow_Round (Negative_Overflow_Low, Negative_Overflow_High);
+      NaNs : constant F32x4 := Narrow_Round (NaN_Low, NaN_High);
+      Native_NaNs : constant F32x4 := Backends.Native.Narrow_Round (NaN_Low, NaN_High);
+      Expected_Exact : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#)];
+      Expected_Rounded : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#), F32_Of_Bits (16#7F7F_FFFF#), F32_Of_Bits (16#7F80_0000#)];
+      Expected_Negative_Rounded : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#BF80_0000#), F32_Of_Bits (16#BF80_0002#), F32_Of_Bits (16#FF7F_FFFF#), F32_Of_Bits (16#FF80_0000#)];
+      Expected_Subnormal : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#0000_0001#), F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#8000_0001#)];
+      Expected_Positive_Overflow : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#7F7F_FFFF#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#7F7F_FFFF#)];
+      Expected_Negative_Overflow : constant Lane_Values_F32x4 :=
+        [F32_Of_Bits (16#FF7F_FFFF#), F32_Of_Bits (16#FF80_0000#), F32_Of_Bits (16#FF80_0000#), F32_Of_Bits (16#FF7F_FFFF#)];
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Check (Same (Extract (Exact, Lane), Expected_Exact (Lane)) and then Same (Extract (Native_Exact, Lane), Expected_Exact (Lane)), "F64 narrowing zero/infinity edge");
+         Check (Same (Extract (Rounded, Lane), Expected_Rounded (Lane)) and then Same (Extract (Native_Rounded, Lane), Expected_Rounded (Lane)), "F64 narrowing rounded edge");
+         Check (Same (Extract (Negative_Rounded, Lane), Expected_Negative_Rounded (Lane)) and then Same (Extract (Native_Negative_Rounded, Lane), Expected_Negative_Rounded (Lane)), "F64 narrowing negative rounded edge");
+         Check (Same (Extract (Subnormal, Lane), Expected_Subnormal (Lane)) and then Same (Extract (Native_Subnormal, Lane), Expected_Subnormal (Lane)), "F64 narrowing subnormal edge");
+         Check (Same (Extract (Positive_Overflow, Lane), Expected_Positive_Overflow (Lane)) and then Same (Extract (Native_Positive_Overflow, Lane), Expected_Positive_Overflow (Lane)), "F64 narrowing positive overflow boundary");
+         Check (Same (Extract (Negative_Overflow, Lane), Expected_Negative_Overflow (Lane)) and then Same (Extract (Native_Negative_Overflow, Lane), Expected_Negative_Overflow (Lane)), "F64 narrowing negative overflow boundary");
+         Check (Is_NaN (Extract (NaNs, Lane)) and then Is_NaN (Extract (Native_NaNs, Lane)), "F64 narrowing NaN edge");
+      end loop;
+   end Test_F64_Narrow_Edges;
+
 
 begin
    Put_Line ("conversion differential tests seed=0xC0457A5712800A11");
    Test_F32_Widen_Edges;
+   Test_F64_Narrow_Edges;
       declare
          Low : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
          High : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
@@ -871,6 +1026,19 @@ begin
             Check (Extract (Native_Result, Lane) = Oracle_Narrow_Saturate_I64x2_To_U32x4 (Extract (Low, Lane)), "native Narrow_Saturate I64x2 low lane");
             Check (Extract (Scalar_Result, Lane + 2) = Oracle_Narrow_Saturate_I64x2_To_U32x4 (Extract (High, Lane)), "scalar Narrow_Saturate I64x2 high lane");
             Check (Extract (Native_Result, Lane + 2) = Oracle_Narrow_Saturate_I64x2_To_U32x4 (Extract (High, Lane)), "native Narrow_Saturate I64x2 high lane");
+         end loop;
+      end;
+      declare
+         Low : constant F64x2 := Random_Narrow_F64x2;
+         High : constant F64x2 := Random_Narrow_F64x2;
+         Scalar_Result : constant F32x4 := Narrow_Round (Low, High);
+         Native_Result : constant F32x4 := Backends.Native.Narrow_Round (Low, High);
+      begin
+         for Lane in Natural range 0 .. 1 loop
+            Check (Same (Extract (Scalar_Result, Lane), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (Low, Lane))), "scalar Narrow_Round F64x2 low lane");
+            Check (Same (Extract (Native_Result, Lane), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (Low, Lane))), "native Narrow_Round F64x2 low lane");
+            Check (Same (Extract (Scalar_Result, Lane + 2), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (High, Lane))), "scalar Narrow_Round F64x2 high lane");
+            Check (Same (Extract (Native_Result, Lane + 2), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (High, Lane))), "native Narrow_Round F64x2 high lane");
          end loop;
       end;
    end loop;

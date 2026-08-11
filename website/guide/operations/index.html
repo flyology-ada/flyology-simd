@@ -101,6 +101,7 @@
               <tr><td><a data-api="Flyology_SIMD"><code>Widen_High</code></a></td><td>Widens the high source half</td><td>Adjacent integer widths with the same signedness; <code>F32x4</code> to <code>F64x2</code></td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Truncate</code></a></td><td>Keeps the low result-width bits</td><td>Adjacent integer widths with the same signedness</td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a></td><td>Clamps to the result range</td><td>Same-signedness and signed-to-unsigned integer narrowing</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Rounds binary64 lanes to binary32</td><td>Two <code>F64x2</code> inputs to one <code>F32x4</code> result</td></tr>
             </tbody>
           </table>
           <p>Each narrowing operation takes two source vectors. <code>Low</code> supplies the low result half, and <code>High</code> supplies the high result half.</p>
@@ -128,7 +129,19 @@ Saturated : constant U8x16 :=
 
 --  Truncated lanes 0 .. 3: 254, 255, 0, 44
 --  Saturated lanes 0 .. 3: 254, 255, 255, 255</code></pre>
-          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/conversions.adb"><code>conversions.adb</code> example</a> runs the round trip and the boundary cases. It also prints the bit patterns of four <code>F32</code> lanes.</p>
+          <p>Floating narrowing gives the results below when the floating-point environment uses its default round-to-nearest, ties-to-even mode. The library does not modify the floating-point control register. The operation preserves signed zero and infinity. A finite value that overflows binary32 after rounding produces infinity with the same sign. Gradual underflow can produce a binary32 subnormal. A sufficiently small magnitude rounds to signed zero. A NaN remains a NaN, but its payload and signaling state are unspecified.</p>
+          <pre><code class="language-ada">Low : constant F64x2 :=
+  From_Lanes
+    ([1.000_000_059_604_644_775_390_625,
+      1.000_000_178_813_934_326_171_875]);
+High : constant F64x2 := From_Lanes ([-0.0, 4.0]);
+Rounded : constant F32x4 := Narrow_Round (Low, High);
+
+--  Rounded lane bits: 16#3F80_0000#, 16#3F80_0002#,
+--                     16#8000_0000#, 16#4080_0000#</code></pre>
+          <p><code>Low</code> lane 0 becomes result lane 0. <code>Low</code> lane 1 becomes result lane 1. Both source values are exact midpoints. Lane 0 rounds down to <code>16#3F80_0000#</code>, and lane 1 rounds up to <code>16#3F80_0002#</code>. Both results have an even low bit. <code>High</code> lanes 0 and 1 become result lanes 2 and 3. Therefore, negative zero appears in result lane 2.</p>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/conversions.adb"><code>conversions.adb</code> example</a> prints the four encodings as decimal integers:</p>
+          <pre><code>F64 narrowed bits: 1065353216 1065353218 2147483648 1082130432</code></pre>
         </section>
         <section id="integers">
           <h2>Integer operation coverage</h2>
@@ -214,7 +227,6 @@ end if;</code></pre>
           <p>The following groups are design targets, not current API:</p>
           <ul>
             <li>numeric <code>Convert</code> operations;</li>
-            <li>floating-point narrowing;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>

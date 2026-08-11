@@ -506,6 +506,11 @@ is
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
+   function Narrow_Round (Low, High : F64x2) return F32x4;
+   --  With the default round-to-nearest, ties-to-even environment, round Low into result lanes zero and one and High into lanes two and three. Signed zero and infinity are preserved. Overflow after rounding produces infinity. Gradual underflow can produce a subnormal, and a sufficiently small magnitude rounds to signed zero. A NaN remains a NaN, but its payload and signaling state are unspecified. The operation does not modify the floating-point control register.
+   --  @param Low The source for the low result half.
+   --  @param High The source for the high result half.
+   --  @return The operation result.
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.
    --  @return The operation result.

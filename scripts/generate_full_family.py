@@ -135,7 +135,15 @@ OPERATION_DOCS = {
     "Widen_High": "Convert the high source half according to the documented widening semantics.",
     "Narrow_Truncate": "Keep the low bits of each source lane and combine both source vectors.",
     "Narrow_Saturate": "Clamp each source lane to the result range and combine both source vectors.",
-    "Narrow_Round": "Round floating lanes to the narrower IEEE format and combine both source vectors.",
+    "Narrow_Round": (
+        "With the default round-to-nearest, ties-to-even environment, round "
+        "Low into result lanes zero and one and High into lanes two and three. "
+        "Signed zero and infinity are preserved. Overflow after rounding "
+        "produces infinity. Gradual underflow can produce a subnormal, and a "
+        "sufficiently small magnitude rounds to signed zero. A NaN remains a "
+        "NaN, but its payload and signaling state are unspecified. The operation "
+        "does not modify the floating-point control register."
+    ),
 }
 
 PARAM_DOCS = {
@@ -318,6 +326,10 @@ def emit_conversion_spec() -> str:
     for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
         out.append(
             f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector};"
+        )
+    for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
+        out.append(
+            f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector};"
         )
     out.append("")
     return document_spec("\n".join(out))
@@ -788,6 +800,20 @@ def emit_conversion_body() -> str:
                 f"   end {name};",
                 "",
             ]
+
+    for source_vector, _, target_vector, target_scalar, source_lanes in FLOAT_NARROWINGS:
+        out += [
+            f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+            f"         Result.Lanes (Lane) := {target_scalar} (Low.Lanes (Lane));",
+            f"         Result.Lanes (Lane + {source_lanes}) := {target_scalar} (High.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Narrow_Round;",
+            "",
+        ]
 
     for source_vector, source_scalar, target_vector, target_scalar, target_bits, source_lanes, signed in NARROWINGS:
         source_bits = target_bits * 2

@@ -54,8 +54,18 @@ half, and `High` supplies the high result half. `Narrow_Truncate` keeps the low
 destination-width bits. `Narrow_Saturate` clamps each numeric value to the
 destination range. Signed-to-unsigned saturation maps negative inputs to zero.
 
-General numeric conversion, floating-point narrowing, and the portable
-256-bit family remain pre-stabilization work.
+`Narrow_Round` combines two `F64x2` inputs. When the floating-point environment
+uses the platform's default round-to-nearest, ties-to-even mode,
+`Narrow_Round` rounds each lane to binary32. `Low` supplies lanes 0 and 1, and
+`High` supplies lanes 2 and 3. Signed zero and infinity keep their sign. A
+finite value that overflows after rounding produces infinity with the same
+sign. Gradual underflow can produce a binary32 subnormal. A sufficiently small
+magnitude rounds to signed zero. A NaN remains a NaN, but its payload and
+signaling state are unspecified. The library does not modify the
+floating-point control register.
+
+General numeric conversion and the portable 256-bit family remain
+pre-stabilization work.
 
 ## Memory
 

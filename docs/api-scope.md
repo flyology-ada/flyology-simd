@@ -33,7 +33,8 @@ Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths
 provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
 `Narrow_Saturate`. `F32x4` provides exact finite low-half and high-half
-widening to `F64x2`.
+widening to `F64x2`. `Narrow_Round` combines two `F64x2` inputs into one
+`F32x4` result.
 
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
 any/all/none reductions, population count, first/last true-lane queries, and
@@ -66,10 +67,19 @@ low result half. The high source supplies the high result half.
 same-signedness narrowing and signed-to-unsigned narrowing. A negative input
 to a signed-to-unsigned overload becomes zero.
 
+Floating narrowing rounds each binary64 lane value to binary32 when the
+floating-point environment uses the default round-to-nearest, ties-to-even
+mode. `Low` supplies result lanes 0 and 1. `High` supplies result lanes 2 and
+3. `Narrow_Round` preserves signed zero and infinity. A finite value that
+overflows binary32 after rounding becomes an infinity with the same sign. A
+finite value can round to a binary32 subnormal. A sufficiently small magnitude
+rounds to signed zero. A NaN input produces a NaN result; payload and signaling
+state are unspecified. The library does not modify the floating-point control
+register.
+
 The following conversion groups remain design targets:
 
 - `Convert` changes numeric value without changing lane width;
-- floating-point narrowing rounds from binary64 to binary32;
 - floating-to-integer conversion names state truncation and saturation;
 - integer-to-floating conversion names state their rounding contract.
 

@@ -6,6 +6,7 @@ procedure Conversions is
    use Ada.Text_IO;
    use Flyology_SIMD;
    use type F32;
+   use type F64;
    use type I16;
    package Native renames Flyology_SIMD.Backends.Native;
 
@@ -36,6 +37,15 @@ procedure Conversions is
    Samples : constant F32x4 :=
      Native.From_Lanes ([1.0, -2.0, 0.5, 4.0]);
    Encodings : constant U32x4 := Native.Bit_Cast (Samples);
+
+   Wide_Float_Low : constant F64x2 :=
+     Native.From_Lanes
+       ([1.000_000_059_604_644_775_390_625,
+         1.000_000_178_813_934_326_171_875]);
+   Wide_Float_High : constant F64x2 := Native.From_Lanes ([-0.0, 4.0]);
+   Narrowed_Floats : constant F32x4 :=
+     Native.Narrow_Round (Wide_Float_Low, Wide_Float_High);
+   Narrowed_Encodings : constant U32x4 := Native.Bit_Cast (Narrowed_Floats);
 begin
    Put_Line
      ("round trip:" &
@@ -58,6 +68,11 @@ begin
    Put ("F32 bits:");
    for Lane in Lane_Index_32x4 loop
       Put (U32'Image (Native.Extract (Encodings, Lane)));
+   end loop;
+   New_Line;
+   Put ("F64 narrowed bits:");
+   for Lane in Lane_Index_32x4 loop
+      Put (U32'Image (Native.Extract (Narrowed_Encodings, Lane)));
    end loop;
    New_Line;
 end Conversions;

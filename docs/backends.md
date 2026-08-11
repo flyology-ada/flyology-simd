@@ -20,7 +20,7 @@ AArch64 Advanced SIMD is architecturally available and no runtime NEON probe is
 needed. Its integer and floating operation classes have differential tests and
 focused code-generation checks. Integer widening and narrowing use `uxtl`,
 `sxtl`, `xtn`, `uqxtn`, `sqxtn`, and `sqxtun` instruction families. Floating
-widening uses `fcvtl`. `Multiply_Wrap`, `Select_Value`,
+widening uses `fcvtl`, and floating narrowing uses `fcvtn`. `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`. Floating minimum-number and
