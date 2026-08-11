@@ -60,33 +60,16 @@
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
-          <li><a href="#lane-order">Lane order</a></li>
-          <li><a href="#full">Full operations</a></li>
-          <li><a href="#aligned">Alignment</a></li>
           <li><a href="#partial">Partial operations</a></li>
           <li><a href="#tail">Complete tail loop</a></li>
           <li><a href="#tests">Boundary tests</a></li>
+          <li><a href="#lane-order">Lane order</a></li>
+          <li><a href="#full">Full operations</a></li>
+          <li><a href="#aligned">Alignment</a></li>
         </ul>
       </aside>
       <article class="prose">
         <p class="chapter-lead">The comma-counting input has 26 bytes. The first iteration processes 16 bytes. The final iteration must read the remaining ten bytes and no others.</p>
-        <section id="lane-order">
-          <h2>Lane 0 maps to the first selected element</h2>
-          <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
-          <p>This rule defines the logical result. It does not define a portable record layout, register layout, or calling convention.</p>
-        </section>
-        <section id="full">
-          <h2>Full operations require one complete vector</h2>
-          <p><code>Load</code> and <a data-api="Flyology_SIMD"><code>Store</code></a> require enough valid elements for one vector. For <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
-          <p><a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Unaligned</code></a> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
-          <pre><code class="language-ada">Block : constant U8x16 := Load_Unaligned (Data, Start);
-Store_Unaligned (Output, Start, Block);</code></pre>
-        </section>
-        <section id="aligned">
-          <h2>Aligned operations require a 16-byte-aligned address</h2>
-          <p><a data-api="Flyology_SIMD"><code>Is_Aligned_16</code></a> checks the address of <code>Data (Start)</code>. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Aligned</code></a> have a precondition that requires this check to be true.</p>
-          <p>Enabled assertion checks detect a false precondition. Your program must still meet the precondition when assertion checks are disabled.</p>
-        </section>
         <section id="partial">
           <h2>Partial operations use an exact count</h2>
           <p><a data-api="Flyology_SIMD"><code>Load_Partial</code></a> reads <code>Count</code> elements. It sets all remaining lanes to zero. <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> writes <code>Count</code> elements.</p>
@@ -94,8 +77,8 @@ Store_Unaligned (Output, Start, Block);</code></pre>
         </section>
         <section id="tail">
           <h2>Process the final partial count block</h2>
-          <p>The tutorial loop calculates the valid count before it loads. It advances by that same count:</p>
-          <p>The loop calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a>. Its <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> operation constructs the comma vector.</p>
+          <p>The tutorial loop calculates the valid count before each load and advances by that count.</p>
+          <p>The loop calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> and processes <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> values. Its <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> operation constructs the comma vector:</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
 Start : Natural := Data'First;
@@ -118,13 +101,30 @@ end loop;</code></pre>
           <p>The first load reads array indexes 1 through 16. The second load reads indexes 17 through 26. It fills lanes 10 through 15 with zero.</p>
           <p><code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>. <code>Matches</code> has type <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
           <p><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Native.Load_Partial</code></a> enforces the exact read extent. <a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Native.Equal</code></a> compares the lanes, and <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Native.Population_Count</code></a> counts matches.</p>
-          <p>The comma byte is not zero, so those filled lanes compare false. A general byte-count function must mask unused lanes or use a scalar tail when it can count zero.</p>
+          <p>The comma byte is not zero, so those filled lanes compare false. If a general byte-count function accepts zero as the searched value, it must mask unused lanes or use a scalar tail.</p>
           <p>The repository contains the complete tutorial in <code>examples/count_byte.adb</code>.</p>
         </section>
         <section id="tests">
           <h2>Test the page boundary</h2>
           <p><code>guard_page_tests</code> allocates two pages and denies all access to the second page. For each count from 0 through 16, it puts the valid bytes directly before that protected page.</p>
           <p>The test calls scalar and native partial loads and stores. An access beyond the valid count enters the protected page and terminates the test. The suite also runs exact-size array tests and AddressSanitizer builds.</p>
+        </section>
+        <section id="lane-order">
+          <h2>Apply lane order to every memory form</h2>
+          <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
+          <p>This rule defines the logical result. It does not define a portable record layout, register layout, or calling convention.</p>
+        </section>
+        <section id="full">
+          <h2>Full operations require one complete vector</h2>
+          <p><code>Load</code> and <a data-api="Flyology_SIMD"><code>Store</code></a> require enough valid elements for one vector. For <code>U8x16</code>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
+          <p><a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Unaligned</code></a> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
+          <pre><code class="language-ada">Block : constant U8x16 := Load_Unaligned (Data, Start);
+Store_Unaligned (Output, Start, Block);</code></pre>
+        </section>
+        <section id="aligned">
+          <h2>Aligned operations require a 16-byte-aligned address</h2>
+          <p><a data-api="Flyology_SIMD"><code>Is_Aligned_16</code></a> checks the address of <code>Data (Start)</code>. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Aligned</code></a> have a precondition that requires this check to be true.</p>
+          <p>Enabled assertion checks detect a false precondition. Your program must still meet the precondition when assertion checks are disabled.</p>
           <div class="next-links">
             <a href="../practical/">
               <span>Chapter 2</span>

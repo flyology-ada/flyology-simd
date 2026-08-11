@@ -53,6 +53,7 @@ end loop;</code></pre>
         <section id="block">
           <h2>Express one complete block with four operations</h2>
           <p><a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> supplies the vector operations selected at build time. A <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> value contains 16 unsigned byte lanes.</p>
+          <p>In this block, <code>Data</code> is the <code>Source</code> array and <code>Comma</code> is the <code>Needle</code> value from the ordinary loop.</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
 Wanted : constant U8x16 := Native.Splat (Comma);

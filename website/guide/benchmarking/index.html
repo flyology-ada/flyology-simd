@@ -59,13 +59,14 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
             <li>the statically selected native algorithm;</li>
             <li>the runtime-dispatched algorithm.</li>
           </ul>
+          <p>The benchmark does not include the tutorial-only <code>Explicit_Count_Commas</code> function. That function relies on a nonzero searched byte for its zero-filled tail. All four benchmark candidates implement the same general byte-count contract. The three library candidates call their maintained <code>Count</code> implementations.</p>
           <p>The input sizes are 7, 15, 16, 17, 4,096, and 1,048,576 bytes. These cases cover short input, the 16-byte boundary, cache-resident input, and larger streaming input.</p>
         </section>
         <section id="method">
           <h2>Use repeated and balanced measurements</h2>
           <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It uses 250 ms of warmup, equal-time calibration, 75 samples, balanced candidate order, and three seconds of measurement for each comparison.</p>
           <p>The report keeps raw samples and calculates bootstrap confidence intervals. It reports candidate-order effects and lag-one correlation. It does not remove outliers automatically or subtract an estimated timer cost.</p>
-          <p>A checksum makes each result observable. The report includes the compiler, build switches, selected backend, and CPU features.</p>
+          <p>A checksum makes each result observable. The report includes the compiler, build switches, selected architecture, and selected backend.</p>
           <div class="semantic-callout">
             <strong>Optional host controls</strong>
             <p>Set <code>FLYOLOGY_BENCH_QUIESCENCE=1</code> to wait for a quiet host. Set <code>FLYOLOGY_SIMD_BENCH_CPU</code> to request CPU pinning. The report states whether each control succeeded.</p>
@@ -75,7 +76,7 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
           <h2>Recorded AArch64 observation</h2>
           <p>On 2026-08-10, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Library objects used <code>-O2 -ftree-vectorize</code>. Benchmark code used <code>-O3</code>. The following values are medians from that run:</p>
           <table class="support-table">
-            <thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar</th><th>Static NEON</th><th>Runtime</th></tr></thead>
+            <thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar reference</th><th>Static NEON</th><th>Runtime</th></tr></thead>
             <tbody>
               <tr><td>16</td><td>7.07 ns</td><td>14.20 ns</td><td>5.86 ns</td><td>7.25 ns</td></tr>
               <tr><td>4,096</td><td>1,349.29 ns</td><td>3,130.04 ns</td><td>661.40 ns</td><td>665.77 ns</td></tr>
@@ -92,20 +93,20 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
 
 # x86-64 baseline host
 ./scripts/check_codegen.sh x86_64 disabled</code></pre>
-          <p>Do not run an architecture check on a host that cannot build and disassemble that target. For an enabled AVX2 build on a suitable x86-64 host, pass <code>enabled</code> as the second argument.</p>
-          <p>The script inspects primitive and whole-algorithm objects. For the native byte-count loop, it requires these instruction classes:</p>
+          <p>If the host cannot build and disassemble a target, do not run that target's architecture check. For an enabled AVX2 build on a suitable x86-64 host, pass <code>enabled</code> as the second argument.</p>
+          <p>The script inspects primitive and whole-algorithm objects. In the native algorithm object, it requires these instruction classes:</p>
           <ul>
             <li>a vector load;</li>
             <li>a vector byte comparison;</li>
             <li>a vector mask-extraction or reduction instruction.</li>
           </ul>
-          <p>The script also rejects an out-of-line backend primitive call in the representative loop. This check detects scalarization or failed inter-unit inlining that a primitive-only disassembly can miss.</p>
+          <p>The script also rejects unresolved calls to selected backend primitives from that object. These checks do not isolate the <code>Count</code> symbol from the other byte algorithms.</p>
           <p>The checks match required instruction classes, not complete disassembly text. Register allocation and harmless scheduling changes can therefore vary.</p>
         </section>
         <section id="interpret">
           <h2>Check build equivalence before interpretation</h2>
           <p>An earlier large-buffer result showed the ordinary Ada loop with a lower time than the SIMD loop. That result was a build error, not an Ada language effect. The imported library algorithm lacked optimization while the benchmark unit used release optimization.</p>
-          <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks also inspect the complete algorithm loop.</p>
+          <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks inspect the complete native algorithm object.</p>
           <p>Do not generalize the recorded table to another host. Repeat the measurement, keep the diagnostics, and inspect the generated code. See the <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> for the statistical procedure.</p>
           <div class="next-links"><a href="../operations/"><span>Reference</span>Review primitive semantics</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
         </section>
