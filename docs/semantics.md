@@ -20,6 +20,11 @@ right shift sign-fills.  Integer comparison/min/max uses the type's signedness.
 `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` apply the corresponding
 Boolean operation to each lane truth.
 
+`Table_Lookup` accepts one `U8x16` table and one `U8x16` index vector. Result
+lane N is table lane `Indices[N]` when that index is from 0 through 15. Result
+lane N is zero when that index is 16 or greater. The operation does not mask or
+reduce an index before the lookup.
+
 `First_True` returns the lowest true lane. `Last_True` returns the highest true
 lane. Both return the applicable `Lane_Count_*` subtype's last value when the
 mask has no true lane. This sentinel is one greater than the highest valid lane

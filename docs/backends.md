@@ -24,7 +24,8 @@ widening uses `fcvtl`, floating narrowing uses `fcvtn`, integer-to-floating
 conversion uses `scvtf` and `ucvtf`, and floating-to-integer conversion uses
 `fcvtzs` and `fcvtzu`. Same-width signed/unsigned conversion uses signed
 maximum and unsigned minimum instructions for 8-, 16-, and 32-bit lanes. The
-64-bit conversions use comparisons and bit selection. `Multiply_Wrap`, `Select_Value`,
+64-bit conversions use comparisons and bit selection. Byte-table lookup uses
+`tbl`, including its zero result for indexes above 15. `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`. Floating minimum-number and
@@ -42,7 +43,8 @@ composition. Floating minimum-number and maximum-number reductions also use
 scalar composition. The current bit casts, widening, narrowing, and numeric
 conversion operations use scalar composition on x86-64. These operations are
 implemented and differentially tested, but they do not yet have an SSE2
-code-generation claim.
+code-generation claim. The x86-64 byte-table lookup uses scalar composition
+because SSE2 has no equivalent indexed byte-table instruction.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

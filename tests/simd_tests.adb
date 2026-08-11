@@ -8,6 +8,7 @@ with Flyology_SIMD.Algorithms.Native;
 with Flyology_SIMD.Algorithms.Runtime;
 with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Backends.Scalar;
 with Flyology_SIMD.Features;
 
 procedure SIMD_Tests is
@@ -101,6 +102,18 @@ procedure SIMD_Tests is
           16#55#, 16#AA#, 250, 240, 230, 220, 210, 200]);
       Added : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
       Saturated : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
+      Lookup_Table : constant U8x16 := From_Lanes
+        ([16#A0#, 16#A1#, 16#A2#, 16#A3#,
+          16#A4#, 16#A5#, 16#A6#, 16#A7#,
+          16#A8#, 16#A9#, 16#AA#, 16#AB#,
+          16#AC#, 16#AD#, 16#AE#, 16#AF#]);
+      Lookup_Indices : constant U8x16 := From_Lanes
+        ([15, 0, 7, 16, 1, 14, 255, 8, 3, 128, 12, 2, 31, 5, 9, 4]);
+      Lookup_Expected : constant U8x16 := From_Lanes
+        ([16#AF#, 16#A0#, 16#A7#, 0,
+          16#A1#, 16#AE#, 0, 16#A8#,
+          16#A3#, 0, 16#AC#, 16#A2#,
+          0, 16#A5#, 16#A9#, 16#A4#]);
    begin
       Check
         (Extract (U8x16'(Zero), 0) = 0
@@ -150,7 +163,47 @@ procedure SIMD_Tests is
       Check (Extract (Deinterleave_Odd (A, B), 1) = Extract (A, 3)
              and Extract (Deinterleave_Odd (A, B), 9) = Extract (B, 3),
              "deinterleave odd");
+      Check (Same (Table_Lookup (Lookup_Table, Lookup_Indices), Lookup_Expected),
+             "table lookup literal semantics");
+      Check
+        (Same
+           (Flyology_SIMD.Backends.Scalar.Table_Lookup
+              (Lookup_Table, Lookup_Indices),
+            Lookup_Expected),
+         "scalar backend table lookup literal semantics");
+      Check
+        (Same
+           (Flyology_SIMD.Backends.Native.Table_Lookup
+              (Lookup_Table, Lookup_Indices),
+            Lookup_Expected),
+         "native table lookup literal semantics");
    end Test_Core_Semantics;
+
+   procedure Test_All_Table_Indices is
+      Table : constant U8x16 := From_Lanes
+        ([16#31#, 16#72#, 16#B4#, 16#05#,
+          16#E6#, 16#27#, 16#68#, 16#A9#,
+          16#4A#, 16#8B#, 16#CC#, 16#0D#,
+          16#EE#, 16#2F#, 16#70#, 16#B1#]);
+   begin
+      for Batch in Natural range 0 .. 15 loop
+         declare
+            Indices : constant U8x16 := From_Lanes
+              ([for Lane in Lane_Index_8x16 => U8 (Batch * 16 + Lane)]);
+            Expected : constant U8x16 :=
+              (if Batch = 0 then Table else Zero);
+         begin
+            Check
+              (Same (Table_Lookup (Table, Indices), Expected),
+               "table lookup index batch" & Batch'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Table_Lookup (Table, Indices),
+                  Expected),
+               "native table lookup index batch" & Batch'Image);
+         end;
+      end loop;
+   end Test_All_Table_Indices;
 
    procedure Test_All_Masks is
    begin
@@ -328,6 +381,19 @@ procedure SIMD_Tests is
                          Bitwise_Xor (A, B)), "native xor" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Not (A),
                          Bitwise_Not (A)), "native not" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Table_Lookup (A, B),
+                  Table_Lookup (A, B)),
+               "native table lookup" & Iteration'Image);
+            for Lane in Lane_Index_8x16 loop
+               Check
+                 (Extract (Table_Lookup (A, B), Lane) =
+                    (if Extract (B, Lane) < 16
+                     then Extract (A, Natural (Extract (B, Lane)))
+                     else 0),
+                  "scalar table lookup lane" & Lane'Image);
+            end loop;
             Check
               (Same
                  (Flyology_SIMD.Backends.Native.Shift_Left_Logical (A, Shift),
@@ -534,6 +600,7 @@ begin
       Put_Line ("SKIP avx2 execution: backend was not compiled in this configuration");
    end if;
    Test_Core_Semantics;
+   Test_All_Table_Indices;
    Test_All_Masks;
    Test_Memory;
    Test_Native_Differential;

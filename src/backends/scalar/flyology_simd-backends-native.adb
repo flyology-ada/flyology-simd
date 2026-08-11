@@ -81,6 +81,8 @@ package body Flyology_SIMD.Backends.Native is
    end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY FALLBACK BODIES
+   function Table_Lookup (Table, Indices : U8x16) return U8x16 is
+     (Flyology_SIMD.Table_Lookup (Table, Indices));
    function Bit_Cast (Value : U8x16) return I8x16 is
      (Flyology_SIMD.Bit_Cast (Value));
    function Bit_Cast (Value : I8x16) return U8x16 is

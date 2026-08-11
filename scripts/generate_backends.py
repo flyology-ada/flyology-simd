@@ -45,7 +45,8 @@ def contract() -> str:
     operations = "   function Zero return I8x16;" + generated.split(
         "   function Zero return I8x16;", 1
     )[1]
-    return emit_conversion_spec() + "\n" + operations
+    byte_table = "   function Table_Lookup (Table, Indices : U8x16) return U8x16;"
+    return emit_conversion_spec() + "\n" + byte_table + "\n" + operations
 
 
 def call(name: str, result: str, args: str, params: str) -> str:
@@ -56,7 +57,9 @@ def call(name: str, result: str, args: str, params: str) -> str:
 
 
 def fallback_body() -> str:
-    out: list[str] = []
+    out: list[str] = [
+        call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16")
+    ]
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
     for source_vector, _, target_vector, _, _, _ in WIDENINGS:
@@ -450,6 +453,10 @@ def neon_body() -> str:
             f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
             f"   function Convert_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
         ]
+    out += [
+        "   function Native_Table_Lookup_U8x16 is new NEON_Binary_128 (U8x16, \"tbl v0.16b, {v0.16b}, v1.16b\");",
+        "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
+    ]
     out.append("")
 
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
@@ -741,6 +748,7 @@ def x86_body() -> str:
     # The first conversion release keeps the x86-64 SSE2 backend complete by
     # composing the scalar authority.  AArch64 has direct widening/narrowing
     # leaves below; focused SSE2 lowering is the next backend optimization.
+    out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
     for source_vector, _, target_vector, _, _, _ in WIDENINGS:

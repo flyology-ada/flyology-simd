@@ -40,6 +40,8 @@ Floating lanes convert back to same-width signed or unsigned integers with
 explicit truncation and saturation semantics.
 Signed and unsigned integer vectors of each lane width convert in both
 directions with explicit saturation semantics.
+The byte family includes a 16-entry table lookup. The public zero result for
+an out-of-range index is independent of a target instruction's behavior.
 
 ## Normative semantics
 
@@ -63,6 +65,8 @@ instruction-specific result.
   truth without exposing the mask representation.
 - `First_True` and `Last_True` return the lane-count value when no lane is
   true. If the mask contains a true lane, the result is a valid lane index.
+- `Table_Lookup` uses each unsigned byte index independently. Indexes from 0
+  through 15 select table lanes. Larger indexes return zero.
 - Integer `Min`/`Max` use the lane type's signedness. Floating number min/max
   follows the NaN and signed-zero contract in `api-scope.md`.
 - Floating minimum-number and maximum-number reductions use an ascending-lane

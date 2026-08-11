@@ -612,6 +612,8 @@ package body Flyology_SIMD.Backends.Native is
    function Convert_Saturate (Value : I64x2) return U64x2 is (Native_Convert_Saturate_I64x2_To_U64x2 (Value));
    function Native_Convert_Saturate_U64x2_To_I64x2 is new NEON_Convert_128 (U64x2, I64x2, "movi v1.16b, #0xff" & ASCII.LF & ASCII.HT & "ushr v1.2d, v1.2d, #1" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bsl v2.16b, v1.16b, v0.16b" & ASCII.LF & ASCII.HT & "mov v0.16b, v2.16b");
    function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
+   function Native_Table_Lookup_U8x16 is new NEON_Binary_128 (U8x16, "tbl v0.16b, {v0.16b}, v1.16b");
+   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

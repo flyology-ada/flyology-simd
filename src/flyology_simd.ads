@@ -200,6 +200,11 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Table_Lookup (Table, Indices : U8x16) return U8x16;
+   --  Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.
+   --  @param Table The 16 selectable byte lanes.
+   --  @param Indices One unsigned table index for each result lane.
+   --  @return The operation result.
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.

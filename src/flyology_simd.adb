@@ -299,6 +299,18 @@ package body Flyology_SIMD is
       return Result;
    end Deinterleave_Odd;
 
+   function Table_Lookup (Table, Indices : U8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) :=
+           (if Indices.Lanes (Lane) <= U8 (Lane_Index_8x16'Last)
+            then Table.Lanes (Natural (Indices.Lanes (Lane)))
+            else 0);
+      end loop;
+      return Result;
+   end Table_Lookup;
+
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
      (Bits => Bits);
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is

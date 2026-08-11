@@ -20,7 +20,8 @@ project Examples is
       "inspect_delimited_bytes.adb",
       "count_digits.adb",
       "scale_measurements.adb",
-      "conversions.adb");
+      "conversions.adb",
+      "table_lookup.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata");

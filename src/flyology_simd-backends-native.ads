@@ -575,6 +575,11 @@ is
    --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
    --  @param Value The input value.
    --  @return The operation result.
+   function Table_Lookup (Table, Indices : U8x16) return U8x16;
+   --  Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.
+   --  @param Table The 16 selectable byte lanes.
+   --  @param Indices One unsigned table index for each result lane.
+   --  @return The operation result.
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.
    --  @return The operation result.

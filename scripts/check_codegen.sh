@@ -88,6 +88,8 @@ case "$architecture" in
         require_pattern 'zip2.*16b' "$temporary/native.txt" 'NEON high interleave'
         require_pattern 'uzp1.*16b' "$temporary/native.txt" 'NEON even deinterleave'
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
+        extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
+        require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/native.txt" '128-bit unaligned load'
         require_pattern 'uaddlv' "$temporary/native.txt" 'vector mask/sum reduction'
         require_pattern 'sqadd.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed saturating arithmetic'

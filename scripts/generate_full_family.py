@@ -129,6 +129,10 @@ OPERATION_DOCS = {
     "Interleave_High": "Alternate lanes from the high half of both inputs, starting with the left input.",
     "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
     "Deinterleave_Odd": "Collect odd lanes from the left input, then odd lanes from the right input.",
+    "Table_Lookup": (
+        "Select one table byte for each index lane. An index from zero through "
+        "15 selects that table lane. An index of 16 or greater returns zero."
+    ),
     "Is_Aligned_16": "Report whether the selected first element has a 16-byte-aligned address.",
     "Load": "Load one complete vector without an alignment requirement.",
     "Store": "Store one complete vector without an alignment requirement.",
@@ -208,6 +212,8 @@ PARAM_DOCS = {
     "Start": "The Ada index of the first selected element.",
     "Low": "The source for the low result half.",
     "High": "The source for the high result half.",
+    "Table": "The 16 selectable byte lanes.",
+    "Indices": "One unsigned table index for each result lane.",
 }
 
 
