@@ -1,33 +1,90 @@
 <!doctype html>
-<html lang="en"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Compose Flyology SIMD algorithms with a compile-time backend, or select one available backend once for a complete buffer operation.">
-  <title>Backend selection · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/dispatch/">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compile-time backend selection and runtime algorithm dispatch in Flyology SIMD.">
+  <title>Backend selection · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/dispatch/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css">
-  <script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
-</head><body>
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
-    <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-    <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
-    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M4 17h16"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
-  </nav></header>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../../">Overview</a></li>
+        <li><a href="../" aria-current="page">Guide</a></li>
+        <li><a href="../operations/">Operations</a></li>
+        <li><a href="../../architecture/">Architecture</a></li>
+        <li><a href="../../support/">Support</a></li>
+        <li><a href="../../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
+      </div>
+    </nav>
+  </header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../../">Overview</a></li><li><a href="../">Guide</a></li><li>Backend selection</li></ol><h1>Dispatch outside the inner loop.</h1></div><p class="doc-hero-copy">Primitive operations remain statically selected and inlineable. Runtime feature selection occurs only at complete-buffer algorithm boundaries.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#static">Select statically</a></li><li><a href="#runtime">Select at runtime</a></li><li><a href="#features">Inspect availability</a></li><li><a href="#safety">Keep the baseline safe</a></li></ul></aside>
+    <header class="doc-hero">
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Backend selection</li></ol><h1>Backend selection</h1></div>
+      <p class="doc-hero-copy">Primitive operations use the backend selected at build time. A complete byte-buffer operation can select an optional backend once at runtime.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#terms">Terms</a></li><li><a href="#static">Static call</a></li><li><a href="#runtime">Runtime call</a></li><li><a href="#force">Require a backend</a></li><li><a href="#x86">x86 safety</a></li></ul></aside>
       <article class="prose">
-        <section id="static"><h2>Select a known backend at build time</h2><p><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Flyology_SIMD.Algorithms.Generic_Bytes</code></a> is the compile-time composition contract for representative byte algorithms. The repository instantiates it as <a data-api="Flyology_SIMD.Algorithms.Scalar"><code>Algorithms.Scalar</code></a> and <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a>.</p><pre><code class="language-ada">Result :=
-  Flyology_SIMD.Algorithms.Native.Find_First (Data, Needle);</code></pre><p>The selected native backend is AArch64 NEON, x86-64 SSE2, or scalar according to the GPR scenario. The generic receives primitive operations as formal subprograms so GNAT can inline through the complete loop.</p></section>
-        <section id="runtime"><h2>Select once for a complete buffer</h2><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Flyology_SIMD.Algorithms.Runtime</code></a> accepts an optional backend for <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a>. The default is the best safe backend available to the process.</p><pre><code class="language-ada">Matches :=
+        <section id="terms">
+          <h2>Use three feature terms</h2>
+          <ul>
+            <li><strong>Compiled</strong> means that the selected build contains the backend code.</li>
+            <li><strong>Available</strong> means that the current processor and operating system can execute that compiled code.</li>
+            <li><strong>Best available</strong> is the highest-priority available backend for the current build.</li>
+          </ul>
+          <p><code>Features.Compiled</code>, <code>Features.Available</code>, and <code>Features.Best_Available</code> report these states.</p>
+        </section>
+        <section id="static">
+          <h2>Call the build-time native algorithm</h2>
+          <pre><code class="language-ada">Result :=
+  Flyology_SIMD.Algorithms.Native.Find_First (Data, Needle);</code></pre>
+          <p>This call uses the <code>Backends.Native</code> body selected by the GPR project. On a native build, Alire detects AArch64 or x86-64. A scalar scenario selects the scalar body.</p>
+          <p>The byte algorithm is a generic instantiation. GNAT can inline its primitive loads and comparisons into the loop.</p>
+        </section>
+        <section id="runtime">
+          <h2>Choose once for the complete buffer</h2>
+          <pre><code class="language-ada">Matches :=
   Flyology_SIMD.Algorithms.Runtime.Count
     (Data    => Data,
      Needle  => Flyology_SIMD.U8 (16#2C#),
-     Backend => Flyology_SIMD.Features.Best_Available);</code></pre><p>The runtime package performs one case selection for the array operation. It does not probe features or call an indirect target for every vector primitive.</p></section>
-        <section id="features"><h2>Inspect and require availability</h2><p><a data-api="Flyology_SIMD.Features"><code>Flyology_SIMD.Features</code></a> distinguishes a backend that was compiled from one that can execute safely on the current processor and operating system. <a data-api="Flyology_SIMD.Features.Available"><code>Available</code></a> performs the complete availability test. <a data-api="Flyology_SIMD.Features.Require"><code>Require</code></a> raises <a data-api="Flyology_SIMD.Features.Backend_Unavailable"><code>Backend_Unavailable</code></a> instead of entering unsupported code.</p><p><a data-api="Flyology_SIMD.Features.Best_Available"><code>Best_Available</code></a> returns NEON on AArch64, AVX2 when the complete x86 gate succeeds, SSE2 on the x86-64 baseline, or scalar elsewhere.</p></section>
-        <section id="safety"><h2>Keep optional instructions out of baseline objects</h2><p>On x86-64, AVX2 detection checks CPU feature bits and operating-system extended-state support. The AVX2 implementation is a separate object configuration. Linking it does not execute an AVX2 instruction during elaboration.</p><p>The feature detector, scalar backend, and SSE2 backend compile with AVX disabled. Focused code-generation checks reject AVX instructions outside the optional object and reject primitive calls inside the representative vector loop.</p><div class="semantic-callout"><strong>AArch64 differs</strong><p>Advanced SIMD is part of the AArch64 architecture baseline. The runtime facility therefore does not add a redundant NEON probe.</p></div><div class="next-links"><a href="../memory/"><span>Previous</span>Preserve the memory extent</a><a href="../benchmarking/"><span>Next</span>Measure complete algorithms</a></div></section>
+     Backend => Flyology_SIMD.Features.Best_Available);</code></pre>
+          <p><code>Count</code> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
+          <p>The runtime package currently provides <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</p>
+        </section>
+        <section id="force">
+          <h2>Reject an unavailable request</h2>
+          <p>Call <code>Features.Require</code> before a forced backend call. It raises <code>Backend_Unavailable</code> if the backend was not compiled or cannot execute safely.</p>
+          <pre><code class="language-ada">Flyology_SIMD.Features.Require (Flyology_SIMD.Features.AVX2);
+
+Matches := Flyology_SIMD.Algorithms.Runtime.Count
+  (Data, Needle, Backend => Flyology_SIMD.Features.AVX2);</code></pre>
+          <p>The exception occurs before the program enters optional instructions.</p>
+        </section>
+        <section id="x86">
+          <h2>Keep the x86-64 baseline separate from AVX2</h2>
+          <p>The x86-64 baseline uses SSE2 and compiles with AVX disabled. The AVX2 algorithm code is in separate objects.</p>
+          <p>The AVX2 availability test checks AVX, OSXSAVE, XMM and YMM state in XCR0, and the AVX2 CPUID bit. A test that checks only the AVX2 bit is not sufficient.</p>
+          <p>AArch64 does not need this type of NEON gate because Advanced SIMD is part of the AArch64 baseline.</p>
+          <div class="next-links"><a href="../memory/"><span>Memory</span>Process exact tails</a><a href="../benchmarking/"><span>Benchmark</span>Measure complete operations</a></div>
+        </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Runtime dispatch is coarse by design.</span><div class="footer-links"><a href="../../support/">Support</a><a href="../../architecture/">Architecture</a><a href="../../api/">API</a></div></div></footer>
-</body></html>
+  <footer class="site-footer"><div class="footer-inner"><span>Runtime selection occurs once per complete buffer operation.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="../../api/">API</a></div></div></footer>
+</body>
+</html>

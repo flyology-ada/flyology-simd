@@ -53,10 +53,11 @@ uncontrolled-host run produced these medians:
 | 4,096 | 1,349.29 ns | 3,130.04 ns | 661.40 ns | 665.77 ns | 2.04× |
 | 1,048,576 | 336,895 ns | 799,979 ns | 167,006 ns | 166,945 ns | 2.02× |
 
-Below one vector the ordinary loop wins because vector setup and tail handling
-dominate. At 16 and 17 bytes the statically selected NEON path wins in this
-run, while runtime dispatch overhead still leaves the ordinary loop slightly
-ahead. At 4 KiB and 1 MiB both NEON paths win. An earlier result showing
+Below one vector, the ordinary loop had the lower median because vector setup
+and tail handling dominated. At 16 and 17 bytes, the statically selected NEON
+path had the lower median in this run. Runtime dispatch overhead left the
+ordinary loop slightly ahead. At 4 KiB and 1 MiB, both NEON paths had the lower
+median. An earlier result showed
 NEON at roughly 1.36 GB/s versus the Ada loop near 3.2 GB/s was a build error:
 only the primitive backend body had `-O3`, while the complete imported algorithm
 loop had no optimization. Inspecting verbose compiler commands exposed it; the
@@ -76,8 +77,9 @@ medians. Each per-run median came from the 75-sample method above.
 | 4,096 | 2.58 GB/s | 0.60 GB/s | 4.05 GB/s | 16.75 GB/s |
 | 1,048,576 | 2.64 GB/s | 0.62 GB/s | 4.14 GB/s | 17.71 GB/s |
 
-The ordinary Ada loop still wins below one vector because setup and tail work
-dominate. During this measurement campaign, relocation-aware disassembly found
+The ordinary Ada loop had the higher throughput below one vector because setup
+and tail work dominated. During this measurement campaign, relocation-aware
+disassembly found
 that an earlier static SSE2 loop retained calls to the primitive backend once
 per vector. Enabling GNAT inter-unit inlining and marking the generic backend
 primitives `Inline_Always` raised the 4 KiB SSE2 median from about 1.48 GB/s to

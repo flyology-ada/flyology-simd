@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Exact operation coverage and semantics for the Flyology SIMD 128-bit vector family.">
+  <title>Operation coverage · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/operations/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../">
+        <img src="../../assets/brand/flyology-mark-transparent.svg" alt="">
+        <span>Flyology SIMD</span>
+      </a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../../">Overview</a></li>
+        <li><a href="../">Guide</a></li>
+        <li><a href="./" aria-current="page">Operations</a></li>
+        <li><a href="../../architecture/">Architecture</a></li>
+        <li><a href="../../support/">Support</a></li>
+        <li><a href="../../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle>
+          <span class="visually-hidden" data-theme-label>Change theme</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+          </svg>
+        </button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 7h16M4 12h2M4 17h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero">
+      <div>
+        <ol class="breadcrumb">
+          <li><a href="../">Guide</a></li>
+          <li>Operations</li>
+        </ol>
+        <h1>Operation coverage in 0.1.0-dev</h1>
+      </div>
+      <p class="doc-hero-copy">This page lists the public operations that exist now. It also lists important groups that are not implemented.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page">
+        <span class="toc-title">On this page</span>
+        <ul>
+          <li><a href="#types">Types</a></li>
+          <li><a href="#integers">Integer operations</a></li>
+          <li><a href="#floats">Floating operations</a></li>
+          <li><a href="#masks">Masks</a></li>
+          <li><a href="#memory">Memory</a></li>
+          <li><a href="#not-implemented">Not implemented</a></li>
+        </ul>
+      </aside>
+      <article class="prose">
+        <section id="types">
+          <h2>Public vector and mask types</h2>
+          <p>Each value vector is 128 bits. The type name gives the scalar type and lane count. For example, <code>I32x4</code> contains four signed 32-bit lanes.</p>
+          <table class="support-table">
+            <thead>
+              <tr><th>Lane type</th><th>Value types</th><th>Mask type</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>8-bit integer</td><td><code>U8x16</code>, <code>I8x16</code></td><td><code>Mask_8x16</code></td></tr>
+              <tr><td>16-bit integer</td><td><code>U16x8</code>, <code>I16x8</code></td><td><code>Mask_16x8</code></td></tr>
+              <tr><td>32-bit integer or float</td><td><code>U32x4</code>, <code>I32x4</code>, <code>F32x4</code></td><td><code>Mask_32x4</code></td></tr>
+              <tr><td>64-bit integer or float</td><td><code>U64x2</code>, <code>I64x2</code>, <code>F64x2</code></td><td><code>Mask_64x2</code></td></tr>
+            </tbody>
+          </table>
+          <p>Lane 0 is the first array element that a load reads. A compact mask uses bit 0 for lane 0. Bits above the mask lane count are ignored when you construct a mask.</p>
+        </section>
+        <section id="integers">
+          <h2>Integer operation coverage</h2>
+          <table class="support-table">
+            <thead>
+              <tr><th>Group</th><th>Operations</th><th>Types</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Construction</td><td><code>Zero</code>, <code>Splat</code>, <code>From_Lanes</code>, <code>To_Lanes</code>, <code>Extract</code>, <code>Replace</code></td><td>All integer types</td></tr>
+              <tr><td>Arithmetic</td><td><code>Add_Wrap</code>, <code>Subtract_Wrap</code>, <code>Multiply_Wrap</code>, <code>Add_Saturate</code>, <code>Subtract_Saturate</code></td><td>All integer types</td></tr>
+              <tr><td>Bits</td><td><code>Bitwise_And</code>, <code>Bitwise_Or</code>, <code>Bitwise_Xor</code>, <code>Bitwise_Not</code></td><td>All integer types</td></tr>
+              <tr><td>Shifts</td><td><code>Shift_Left_Logical</code>, <code>Shift_Right_Logical</code></td><td>All integer types</td></tr>
+              <tr><td>Signed shift</td><td><code>Shift_Right_Arithmetic</code></td><td>Signed integer types</td></tr>
+              <tr><td>Comparison</td><td><code>Equal</code>, <code>Less_Than</code>, <code>Less_Equal</code>, <code>Greater_Than</code>, <code>Greater_Equal</code></td><td>All integer types</td></tr>
+              <tr><td>Selection and limits</td><td><code>Select_Value</code>, <code>Min</code>, <code>Max</code></td><td>All integer types</td></tr>
+              <tr><td>Reductions</td><td><code>Reduce_Add_Wrap</code>, <code>Reduce_Min</code>, <code>Reduce_Max</code></td><td>All integer types</td></tr>
+              <tr><td>Lane permutations</td><td><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></td><td>All integer types</td></tr>
+            </tbody>
+          </table>
+          <p><code>Horizontal_Sum</code> remains as a byte-specific convenience. It returns the exact sum as <code>Natural</code>. <code>Reduce_Add_Wrap</code> returns the sum modulo 256.</p>
+          <p>A logical shift returns zero in each lane when its count is equal to or greater than the lane width. An arithmetic right shift returns the sign fill for those counts.</p>
+        </section>
+        <section id="floats">
+          <h2>Floating-point operation coverage</h2>
+          <table class="support-table">
+            <thead>
+              <tr><th>Group</th><th>Operations</th><th>Types</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Construction</td><td><code>Zero</code>, <code>Splat</code>, <code>From_Lanes</code>, <code>To_Lanes</code>, <code>Extract</code>, <code>Replace</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Arithmetic</td><td><code>Add</code>, <code>Subtract</code>, <code>Multiply</code>, <code>Divide</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Comparison</td><td><code>Equal</code>, ordered comparisons, <code>Unordered</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Selection and limits</td><td><code>Select_Value</code>, <code>Min_Number</code>, <code>Max_Number</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Reduction</td><td><code>Reduce_Add</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Lane permutations</td><td><code>Reverse_Lanes</code>, interleave, and deinterleave operations</td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+            </tbody>
+          </table>
+          <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
+          <p><code>Min_Number</code> and <code>Max_Number</code> return the numeric input when only one quiet NaN is present. They select negative zero for a minimum and positive zero for a maximum. The <a href="../../api/">API reference</a> and semantic document give the full NaN rules.</p>
+        </section>
+        <section id="masks">
+          <h2>Combine and inspect masks</h2>
+          <p>A mask is a Boolean value for each lane. It is not an integer vector. Use these operations instead of depending on its private representation:</p>
+          <ul>
+            <li><code>Mask_And</code>, <code>Mask_Or</code>, <code>Mask_Xor</code>, and <code>Mask_Not</code> combine lane truths.</li>
+            <li><code>Test</code> reads one lane truth.</li>
+            <li><code>Any_True</code>, <code>All_True</code>, and <code>None_True</code> reduce the mask to one Boolean.</li>
+            <li><code>Population_Count</code> counts true lanes.</li>
+            <li><code>To_Bit_Mask</code> returns a compact mask. Bit <em>n</em> represents lane <em>n</em>.</li>
+          </ul>
+          <pre><code class="language-ada">Printable : constant Mask_8x16 :=
+  Mask_And
+    (Greater_Equal (Bytes, Splat (16#20#)),
+     Less_Equal (Bytes, Splat (16#7E#)));
+
+if All_True (Printable) then
+   --  All 16 bytes are printable ASCII.
+end if;</code></pre>
+        </section>
+        <section id="memory">
+          <h2>Use typed arrays for memory operations</h2>
+          <p>Each family has <code>Load</code>, <code>Store</code>, aligned variants, unaligned variants, and safe partial variants. Full operations require one complete vector of valid elements.</p>
+          <p>A partial load reads exactly <code>Count</code> elements and fills the remaining lanes with zero. A partial store writes exactly <code>Count</code> elements. A count of zero touches no element.</p>
+          <p>See the <a href="../memory/">memory guide</a> for a complete tail loop.</p>
+        </section>
+        <section id="not-implemented">
+          <h2>Not implemented in 0.1.0-dev</h2>
+          <p>The following groups are design targets, not current API:</p>
+          <ul>
+            <li>numeric <code>Convert</code> operations;</li>
+            <li><code>Bit_Cast</code> operations;</li>
+            <li>widening and narrowing operations;</li>
+            <li>general static shuffles, byte table lookup, lane slides, and compression;</li>
+            <li>256-bit vector and mask types;</li>
+            <li>first-true and last-true mask queries;</li>
+            <li>floating-point minimum and maximum reductions.</li>
+          </ul>
+          <div class="semantic-callout">
+            <strong>Coverage statement</strong>
+            <p>“Full family” means that all ten 128-bit value types exist. It does not mean that every operation planned for the project exists.</p>
+          </div>
+          <div class="next-links">
+            <a href="../">
+              <span>Guide</span>
+              Build and run the examples
+            </a>
+            <a href="../../support/">
+              <span>Support</span>
+              Check backend execution evidence
+            </a>
+          </div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>This matrix describes version 0.1.0-dev.</span>
+      <div class="footer-links">
+        <a href="../">Guide</a>
+        <a href="../memory/">Memory</a>
+        <a href="../../api/">API</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

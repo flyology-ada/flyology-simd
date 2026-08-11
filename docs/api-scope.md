@@ -1,9 +1,9 @@
 # Full-family API scope
 
-Status: pre-stabilization design decision, 2026-08-10.
+Status: experimental API record, updated 2026-08-11.
 
-The NEON-first milestone stabilizes the complete fixed-width family rather than
-only the original byte vector.  The 128-bit family is:
+The current release implements the complete 128-bit type family rather than
+only the original byte vector. The family is:
 
 | Values | Lanes | Mask |
 |---|---:|---|
@@ -12,10 +12,9 @@ only the original byte vector.  The 128-bit family is:
 | `U32x4`, `I32x4`, `F32x4` | 4 × 32-bit | `Mask_32x4` |
 | `U64x2`, `I64x2`, `F64x2` | 2 × 64-bit | `Mask_64x2` |
 
-The 256-bit family will use the same scalar types at twice those lane counts.
-On AArch64 its planned representation is two private 128-bit halves; no
-256-bit ABI or single-instruction claim will be made for NEON. It is not yet in
-the public API and remains the next width milestone.
+The 256-bit family is not in the public API. A future AArch64 implementation
+can use two private 128-bit halves. This design would not create a 256-bit ABI
+or single-instruction promise.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -23,11 +22,17 @@ never implicitly interchangeable.
 
 ## Operation profile
 
-Every family supplies zero, splat, lane construction, extraction and
-replacement; arithmetic appropriate to the scalar type; comparison and
-selection; minimum and maximum; horizontal reductions; static reverse,
-interleave and deinterleave operations; and aligned, unaligned, full and safe
-partial memory operations.
+Every family supplies zero, splat, lane construction, extraction, replacement,
+comparison, selection, reverse, interleave, deinterleave, and typed memory
+operations. Integer families supply wrapping and saturating arithmetic,
+bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
+reductions. Floating families supply arithmetic, number minimum and maximum,
+and add reduction. Floating minimum and maximum reductions are not present.
+
+Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
+any/all/none reductions, population count, and compact bit-mask conversion.
+Compact bit 0 represents lane 0. Bits above the lane count are ignored by mask
+construction.
 
 Integer arithmetic distinguishes wrapping and saturating operations by name.
 Logical shifts accept every integer family, arithmetic right shift accepts
@@ -35,8 +40,8 @@ signed families, and a scalar count greater than or equal to the lane width
 has the documented all-zero or sign-fill result.  Counts are never reduced
 modulo the width.
 
-Planned conversions are explicit and will live in
-`Flyology_SIMD.Conversions`:
+The following conversion names are design targets. They are not public
+operations in this release:
 
 - `Convert` changes numeric value and lane type;
 - `Bit_Cast` preserves all 128 or 256 bits;
@@ -66,14 +71,13 @@ signaling NaN, they return a quiet NaN. They choose `-0.0` for a minimum of
 zeros and `+0.0` for a maximum of zeros, and return a quiet NaN when both
 operands are NaNs. NaN payload selection is not specified.
 
-`Convert_Truncate_Saturate` maps NaN to zero, truncates finite fractional
-values toward zero, and clamps values outside the destination range.  Exact or
-non-saturating conversion overloads have preconditions that make their domain
-explicit.  Integer-to-floating conversion uses the default IEEE rounding mode.
+No floating-to-integer or integer-to-floating conversion operation exists in
+this release. A future conversion contract must state NaN, rounding, and
+out-of-range behavior before the operation becomes public.
 
 ## Backend completion rule
 
-A backend is complete only when every operation in this profile either emits a
+A backend is complete for this release only when every current operation either emits a
 verified target instruction sequence or is documented as a safe scalar or
 two-half composition because the ISA lacks a corresponding operation. Source
 presence alone is not completion. Every NEON and SSE2 entry is differentially

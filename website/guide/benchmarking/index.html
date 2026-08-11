@@ -1,31 +1,98 @@
 <!doctype html>
-<html lang="en"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Reproduce Flyology SIMD complete-buffer benchmarks with flyology_bench, warmup, calibration, interleaved samples, and retained diagnostics.">
-  <title>Benchmarking · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/benchmarking/">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Build, run, and interpret Flyology SIMD benchmarks that use flyology_bench.">
+  <title>Benchmarking · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/benchmarking/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css">
-  <script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
-</head><body>
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
-    <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-    <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
-    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
-  </nav></header>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../../">Overview</a></li>
+        <li><a href="../" aria-current="page">Guide</a></li>
+        <li><a href="../operations/">Operations</a></li>
+        <li><a href="../../architecture/">Architecture</a></li>
+        <li><a href="../../support/">Support</a></li>
+        <li><a href="../../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
+      </div>
+    </nav>
+  </header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../../">Overview</a></li><li><a href="../">Guide</a></li><li>Benchmarking</li></ol><h1>Measure the complete loop.</h1></div><p class="doc-hero-copy">The standalone benchmark crate uses flyology_bench for warmup, calibration, balanced ordering, repeated samples, uncertainty, and diagnostics.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Run the benchmark</a></li><li><a href="#method">Understand the method</a></li><li><a href="#sizes">Read the cases</a></li><li><a href="#results">Local observations</a></li><li><a href="#claims">Limit the claim</a></li></ul></aside>
+    <header class="doc-hero">
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Benchmarking</li></ol><h1>Run the benchmark</h1></div>
+      <p class="doc-hero-copy">The benchmark is a separate Alire crate. It uses flyology_bench and measures complete byte-count operations.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Commands</a></li><li><a href="#cases">Cases</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
-        <section id="run"><h2>Run the benchmark crate</h2><p>The <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> library keeps zero runtime dependencies. The separate benchmark crate depends on <code>flyology_bench</code> and the local SIMD crate.</p><pre><code class="language-shell">cd benchmarks
+        <section id="run">
+          <h2>Build and run from the benchmark crate</h2>
+          <pre><code class="language-shell">cd benchmarks
 alr build --release
-FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre><p>Alire detects AArch64 or x86-64 from the host. Use the scalar GPR scenario when you need a scalar-only comparison.</p><pre><code class="language-shell">alr build --release -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre><p>Set <code>FLYOLOGY_BENCH_OUTPUT</code> to <code>csv</code> or <code>json</code> for machine-readable output. Keep generated results outside version control or under <code>benchmark-results/</code>.</p></section>
-        <section id="method"><h2>Control measurement error</h2><p>The program calls <code>Flyology_Bench.Compare_Many</code>. Each comparison uses a 250 ms warmup, equal-time calibration, 75 balanced samples, and three seconds of measurement.</p><p>The report retains raw samples and computes bootstrap confidence intervals. It also reports candidate-order effects and lag-one correlation. The benchmark does not silently discard outliers or subtract estimated timer cost.</p><p>A validation checksum prevents dead-code elimination. The report also records the compiler version, project switches, selected backend, and CPU features.</p><div class="semantic-callout"><strong>Quiescence is evidence, not decoration</strong><p>Set <code>FLYOLOGY_BENCH_QUIESCENCE=1</code> to wait for a quiet host. Set <code>FLYOLOGY_SIMD_BENCH_CPU</code> when the host supports CPU pinning. Record any control that the host could not apply.</p></div></section>
-        <section id="sizes"><h2>Compare boundary and streaming sizes</h2><p>The cases use 7, 15, 16, 17, 4,096, and 1,048,576 bytes. These sizes expose setup cost, every side of the 16-byte boundary, cache-resident work, and larger streaming work.</p><p>Each case compares an ordinary Ada loop, the scalar backend, the statically selected native backend, and coarse runtime dispatch. The test measures complete algorithms rather than isolated vector primitives.</p></section>
-        <section id="results"><h2>Read local observations with their limits</h2><p>On 2026-08-10, an Apple <code>Mac15,9</code> AArch64 host with GNAT FSF 16.1.0 produced the following medians. Library objects used <code>-O2 -ftree-vectorize</code>, and benchmark code used <code>-O3</code>.</p><table class="support-table"><thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar</th><th>Static NEON</th><th>Runtime</th></tr></thead><tbody><tr><td>16</td><td>7.07 ns</td><td>14.20 ns</td><td>5.86 ns</td><td>7.25 ns</td></tr><tr><td>4,096</td><td>1,349.29 ns</td><td>3,130.04 ns</td><td>661.40 ns</td><td>665.77 ns</td></tr><tr><td>1,048,576</td><td>336,895 ns</td><td>799,979 ns</td><td>167,006 ns</td><td>166,945 ns</td></tr></tbody></table><p>Below one vector, the ordinary loop wins because setup and tail work dominate. At 4 KiB and 1 MiB, both NEON paths win in this run.</p><p>An earlier result incorrectly showed the Ada loop winning for large buffers. The complete imported algorithm loop lacked optimization. Verbose compiler commands exposed the mismatch, and the GPR now applies <code>-O2</code> to all library units.</p></section>
-        <section id="claims"><h2>Do not generalize one result</h2><p>A small median or a narrow confidence interval does not remove systematic bias. Repeat the run, retain its diagnostics, inspect generated code, and report the complete environment before making a performance claim.</p><p>Use the <a href="https://flyology.org/guide/benchmarking/">Flyology benchmarking guide</a> for the statistical method. The repository's <code>docs/benchmarking.md</code> records the current AArch64 and x86-64 observations in full.</p><div class="next-links"><a href="../dispatch/"><span>Previous</span>Choose a backend once</a><a href="../../support/"><span>Next</span>Check verified target support</a></div></section>
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
+          <p>Alire detects an AArch64 or x86-64 host. To measure only the scalar configuration, rebuild with this scenario:</p>
+          <pre><code class="language-shell">alr build --release -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre>
+          <p>Use <code>FLYOLOGY_BENCH_OUTPUT=csv</code> or <code>json</code> for machine-readable output. Generated results are not version-controlled.</p>
+        </section>
+        <section id="cases">
+          <h2>Measure four complete implementations</h2>
+          <p>Each input size compares:</p>
+          <ul>
+            <li>a direct ordinary Ada loop;</li>
+            <li>the scalar SIMD algorithm;</li>
+            <li>the statically selected native algorithm;</li>
+            <li>the runtime-dispatched algorithm.</li>
+          </ul>
+          <p>The input sizes are 7, 15, 16, 17, 4,096, and 1,048,576 bytes. These cases cover short input, the 16-byte boundary, cache-resident input, and larger streaming input.</p>
+        </section>
+        <section id="method">
+          <h2>Use repeated and balanced measurements</h2>
+          <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It uses 250 ms of warmup, equal-time calibration, 75 samples, balanced candidate order, and three seconds of measurement for each comparison.</p>
+          <p>The report keeps raw samples and calculates bootstrap confidence intervals. It reports candidate-order effects and lag-one correlation. It does not remove outliers automatically or subtract an estimated timer cost.</p>
+          <p>A checksum makes each result observable. The report includes the compiler, build switches, selected backend, and CPU features.</p>
+          <div class="semantic-callout">
+            <strong>Optional host controls</strong>
+            <p>Set <code>FLYOLOGY_BENCH_QUIESCENCE=1</code> to wait for a quiet host. Set <code>FLYOLOGY_SIMD_BENCH_CPU</code> to request CPU pinning. The report states whether each control succeeded.</p>
+          </div>
+        </section>
+        <section id="results">
+          <h2>Recorded AArch64 observation</h2>
+          <p>On 2026-08-10, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Library objects used <code>-O2 -ftree-vectorize</code>. Benchmark code used <code>-O3</code>. The following values are medians from that run:</p>
+          <table class="support-table">
+            <thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar</th><th>Static NEON</th><th>Runtime</th></tr></thead>
+            <tbody>
+              <tr><td>16</td><td>7.07 ns</td><td>14.20 ns</td><td>5.86 ns</td><td>7.25 ns</td></tr>
+              <tr><td>4,096</td><td>1,349.29 ns</td><td>3,130.04 ns</td><td>661.40 ns</td><td>665.77 ns</td></tr>
+              <tr><td>1,048,576</td><td>336,895 ns</td><td>799,979 ns</td><td>167,006 ns</td><td>166,945 ns</td></tr>
+            </tbody>
+          </table>
+          <p>For this run, static NEON had the lowest median at 16 and 4,096 bytes. Runtime dispatch and static NEON had nearly equal medians at 1,048,576 bytes.</p>
+        </section>
+        <section id="interpret">
+          <h2>Check build equivalence before interpretation</h2>
+          <p>An earlier large-buffer result showed the ordinary Ada loop with a lower time than the SIMD loop. That result was a build error, not an Ada language effect. The imported library algorithm lacked optimization while the benchmark unit used release optimization.</p>
+          <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks also inspect the complete algorithm loop.</p>
+          <p>Do not generalize the recorded table to another host. Repeat the measurement, keep the diagnostics, and inspect the generated code. See the <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> for the statistical procedure.</p>
+          <div class="next-links"><a href="../dispatch/"><span>Dispatch</span>Understand the compared paths</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
+        </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Benchmark observations are host-specific evidence.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="https://flyology.org/guide/benchmarking/">Method</a></div></div></footer>
-</body></html>
+  <footer class="site-footer"><div class="footer-inner"><span>Benchmark values are observations for one recorded environment.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="https://flyology.org/guide/benchmarking/">Method</a></div></div></footer>
+</body>
+</html>

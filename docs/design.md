@@ -23,14 +23,14 @@ GCC-based GNAT is the initial compiler.  GNAT LLVM is a compatibility target,
 not an implemented or verified backend.  SVE, AVX-512, RISC-V V, WebAssembly
 SIMD, GPUs, and vendor-intrinsic coverage are outside v0.1.
 
-## v0.1 surface under stabilization
+## v0.1 type and operation scope
 
-The original byte-oriented surface proved the representation, mask, memory and
-backend boundaries. The v0.1 surface under stabilization is the complete
-signed, unsigned and floating 128-bit family. The exact operation and
+The original byte-oriented surface proved the representation, mask, memory,
+and backend boundaries. The current type surface contains all signed,
+unsigned, and floating 128-bit families. The exact operation matrix and
 floating-point contracts are recorded in [api-scope.md](api-scope.md).
-AArch64 NEON and the x86-64 SSE2 baseline implement that family; the portable
-256-bit value surface is a later milestone.
+AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
+The 256-bit type family and the conversion family are not implemented.
 
 ## Normative semantics
 
@@ -41,7 +41,10 @@ AArch64 NEON and the x86-64 SSE2 baseline implement that family; the portable
   fill for signed arithmetic right shift. Counts are not reduced modulo width.
 - Masks express Boolean lane truth.  No all-bits-set representation is public
   or promised.
-- `Select (M, If_True, If_False)` selects `If_True` exactly where `M` is true.
+- `Select_Value (M, If_True, If_False)` selects `If_True` exactly where `M`
+  is true.
+- `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` combine Boolean lane
+  truth without exposing the mask representation.
 - Integer `Min`/`Max` use the lane type's signedness. Floating number min/max
   follows the NaN and signed-zero contract in `api-scope.md`.
 - Partial loads read exactly `Count` elements and zero the remaining lanes.
@@ -58,9 +61,11 @@ AArch64 NEON and the x86-64 SSE2 baseline implement that family; the portable
 ## Backend boundary
 
 The public value representation is an implementation detail shared by child
-units.  `Flyology_SIMD.Backends.Scalar` is the semantic authority and is kept as
-simple lane code.  `Flyology_SIMD.Backends.Native` has the same operation
-profile and is selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
+units. The root `Flyology_SIMD` body is the full-family scalar authority and
+uses simple lane code. `Flyology_SIMD.Backends.Scalar` currently exposes the
+byte operations required by the generic byte algorithms.
+`Flyology_SIMD.Backends.Native` has the full current operation profile and is
+selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 
 - `scalar`: portable scalar implementation;
 - `aarch64`: audited `System.Machine_Code` Advanced SIMD/NEON leaves;
@@ -87,11 +92,11 @@ selection still occurs once per complete buffer operation, never per vector.
 
 ## Memory mechanism
 
-Ordinary public memory operations accept an unconstrained `Byte_Array` and a
-logical start index.  Preconditions prove a full or partial extent before a
-backend may reinterpret any representation.  Partial operations use bounded
-lane loops and are never implemented as an out-of-range full load plus masking.
-Address-based overloads are deliberately absent from v0.1.
+Ordinary public memory operations accept an unconstrained typed array and a
+logical start index. Preconditions check a full or partial extent before a
+backend can use a machine representation. Partial operations use bounded lane
+loops. They never use an out-of-range full load followed by masking.
+Address-based overloads are absent from v0.1.
 
 Optimized full-load and compact-mask paths use small target-specific Ada
 `System.Machine_Code` leaves.  They read or write exactly one statically sized
@@ -131,9 +136,9 @@ It is not used.
 
 ## Adding a backend
 
-A backend must implement the complete stabilized 128-bit operation profile,
-have no elaboration side effects, and match scalar results for every lane and
-mask pattern tested.
+A backend must implement the current 128-bit operation profile, have no
+elaboration side effects, and match scalar results for every tested lane and
+mask pattern.
 It must add a distinct GPR source selection, target-only compiler switches,
 differential tests, assembly checks for required instruction classes and
 forbidden leakage, and truthful support-matrix documentation.  Source presence,

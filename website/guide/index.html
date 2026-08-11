@@ -1,28 +1,105 @@
 <!doctype html>
-<html lang="en"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Install Flyology SIMD, use the fixed-width vector family, and run a complete byte-buffer algorithm.">
-  <title>Guide · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install Flyology SIMD and run byte, integer, floating-point, and partial-memory examples.">
+  <title>Guide · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/">
   <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../assets/styles/site.css"><link rel="stylesheet" href="../assets/styles/simd.css">
-  <script src="../assets/scripts/ada-highlight.js"></script><script src="../assets/scripts/site.js"></script>
-</head><body>
+  <link rel="stylesheet" href="../assets/styles/site.css">
+  <link rel="stylesheet" href="../assets/styles/simd.css">
+  <script src="../assets/scripts/ada-highlight.js"></script>
+  <script src="../assets/scripts/site.js"></script>
+</head>
+<body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
-    <a class="brand" href="../"><img src="../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-    <ul class="nav-links" data-nav-links><li><a href="../">Overview</a></li><li><a href="./" aria-current="page">Guide</a></li><li><a href="../architecture/">Architecture</a></li><li><a href="../support/">Support</a></li><li><a href="../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
-    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
-  </nav></header>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../">
+        <img src="../assets/brand/flyology-mark-transparent.svg" alt="">
+        <span>Flyology SIMD</span>
+      </a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../">Overview</a></li>
+        <li><a href="./" aria-current="page">Guide</a></li>
+        <li><a href="operations/">Operations</a></li>
+        <li><a href="../architecture/">Architecture</a></li>
+        <li><a href="../support/">Support</a></li>
+        <li><a href="../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle>
+          <span class="visually-hidden" data-theme-label>Change theme</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+          </svg>
+        </button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 7h16M4 12h2M4 17h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+  </header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Overview</a></li><li>Guide</li></ol><h1>Use explicit vectors in ordinary Ada.</h1></div><p class="doc-hero-copy">Install one standalone crate. Choose typed vector primitives for inner loops, or call a complete-buffer algorithm with one runtime backend decision.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#install">Install the crate</a></li><li><a href="#first-program">Run the first search</a></li><li><a href="#families">Choose a family</a></li><li><a href="#operations">Name the semantics</a></li><li><a href="#next">Continue</a></li></ul></aside>
+    <header class="doc-hero">
+      <div>
+        <ol class="breadcrumb">
+          <li><a href="../">Overview</a></li>
+          <li>Guide</li>
+        </ol>
+        <h1>Build and run the examples</h1>
+      </div>
+      <p class="doc-hero-copy">Start with a complete buffer search. Then run direct integer, floating-point, and partial-memory operations.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page">
+        <span class="toc-title">On this page</span>
+        <ul>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#examples">Build the examples</a></li>
+          <li><a href="#search">Search a byte array</a></li>
+          <li><a href="#integer">Use integer vectors</a></li>
+          <li><a href="#float">Use floating vectors</a></li>
+          <li><a href="#choose">Choose an interface</a></li>
+        </ul>
+      </aside>
       <article class="prose">
-        <section id="install"><h2>Install the crate</h2><p><code>flyology_simd</code> version <code>0.1.0-dev</code> is published through the Flyology organization index. Keep the community index enabled for compiler dependencies. Add the Flyology index ahead of it, then add the crate.</p><pre><code class="language-shell">alr index --reset-community
+        <section id="install">
+          <h2>Install from the Flyology Alire index</h2>
+          <p><code>flyology_simd</code> version <code>0.1.0-dev</code> is in the Flyology index. Keep the community index because Alire uses it to find the compiler toolchain.</p>
+          <pre><code class="language-shell">alr index --reset-community
 alr index --add=git+https://github.com/flyology-ada/alire-index.git \
   --name=flyology --before=community
 alr with flyology_simd
-alr build</code></pre><p>You only need to add the Flyology index once. Use <code>alr index --list</code> to check whether the <code>flyology</code> index is already configured.</p><p>The library has no runtime dependency on Flyology or any other Flyology crate. The GPR project detects the host architecture. Use a project scenario override only for scalar testing or cross-compilation.</p><pre><code class="language-shell">alr build -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre><div class="semantic-callout"><strong>No parent-unit conflict</strong><p>The crate defines the top-level package <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a>. It does not supply a <code>Flyology</code> parent unit.</p></div></section>
-        <section id="first-program"><h2>Run the first search</h2><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Flyology_SIMD.Algorithms.Runtime</code></a> selects a backend once for the complete array. Its <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a> operation returns the Ada array index of the first matching byte.</p><pre><code class="language-ada">with Ada.Text_IO;
+alr build</code></pre>
+          <p>You only add the Flyology index once. Run <code>alr index --list</code> to see the configured indexes.</p>
+          <p>The GPR project detects <code>aarch64</code> and <code>x86_64</code> hosts. You do not need to set <code>FLYOLOGY_SIMD_ARCH</code> for a native build. Use an override for a scalar-only test or for cross-compilation.</p>
+          <pre><code class="language-shell">alr build -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre>
+          <div class="semantic-callout">
+            <strong>Standalone crate</strong>
+            <p>The library has no runtime dependency on Flyology. It defines <code>Flyology_SIMD</code>, not a <code>Flyology</code> parent package.</p>
+          </div>
+        </section>
+        <section id="examples">
+          <h2>Build the repository examples</h2>
+          <p>Run this command from the repository root:</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr</code></pre>
+          <p>The command creates four programs in <code>bin</code>. Run them from the repository root:</p>
+          <pre><code class="language-shell">./bin/find_byte
+./bin/integer_vectors
+./bin/floating_vectors
+./bin/partial_tail</code></pre>
+          <p>The continuous build compiles these examples. This check prevents the guide from depending on stale source.</p>
+        </section>
+        <section id="search">
+          <h2>Search a complete byte array</h2>
+          <p><code>Algorithms.Runtime.Find_First</code> selects one safe backend before it scans the array. It returns an Ada array index, not a zero-based byte offset.</p>
+          <pre><code class="language-ada">with Ada.Text_IO;
 with Flyology_SIMD;
 with Flyology_SIMD.Algorithms.Runtime;
 
@@ -36,12 +113,67 @@ begin
    if Result.Found then
       Ada.Text_IO.Put_Line ("Found at" & Result.Index'Image);
    end if;
-end Find_Byte;</code></pre><p>The repository includes this program in <code>examples/find_byte.adb</code>. Build it from the examples directory with <code>alr build</code>.</p></section>
-        <section id="families"><h2>Choose the lane family</h2><p>All stabilized value types are private 128-bit vectors. The family includes <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>, <a data-api="Flyology_SIMD.I8x16"><code>I8x16</code></a>, <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a>, <a data-api="Flyology_SIMD.I16x8"><code>I16x8</code></a>, <a data-api="Flyology_SIMD.U32x4"><code>U32x4</code></a>, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a>, <a data-api="Flyology_SIMD.U64x2"><code>U64x2</code></a>, <a data-api="Flyology_SIMD.I64x2"><code>I64x2</code></a>, <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a>, and <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a>.</p><p>Lane zero is the first logical element loaded from memory. Do not infer a portable machine ABI, register layout, or representation from that rule.</p></section>
-        <section id="operations"><h2>Name the intended semantics</h2><p>Integer arithmetic names wrapping and saturating behavior explicitly. Logical and arithmetic shifts define oversized counts. Comparisons return private mask values, and callers inspect mask truth through mask operations.</p><p>The v0.1 API provides no implicit conversions. Explicit numeric conversion, bit casts, widening, narrowing, and the portable 256-bit family remain later milestones. Floating-point operations preserve strict language semantics and do not enable fast-math switches.</p><ul><li>Use <a data-api="Flyology_SIMD"><code>Add_Wrap</code></a> when the result wraps modulo the lane width.</li><li>Use <a data-api="Flyology_SIMD"><code>Add_Saturate</code></a> when the result clamps to the lane range.</li><li>Use <a data-api="Flyology_SIMD"><code>Min_Number</code></a> and <a data-api="Flyology_SIMD"><code>Max_Number</code></a> for the documented NaN and signed-zero behavior.</li><li>Use <a data-api="Flyology_SIMD"><code>Load_Partial</code></a> and <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> when fewer than one vector of elements remain.</li></ul></section>
-        <section id="next"><h2>Continue with the boundary that matters</h2><div class="next-links"><a href="memory/"><span>Next</span>Load and store without overreach</a><a href="dispatch/"><span>Then</span>Select a backend at the right boundary</a></div></section>
+end Find_Byte;</code></pre>
+          <p>The value 33 is <code>'!'</code>. It is the fifth element of this array. The program prints <code>Found at 5</code>.</p>
+        </section>
+        <section id="integer">
+          <h2>Choose the integer overflow rule</h2>
+          <p>This example adds 10 to eight unsigned 16-bit lanes:</p>
+          <pre><code class="language-ada">Input : constant U16x8 :=
+  From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
+Increment : constant U16x8 := Splat (10);
+
+Wrapped : constant U16x8 := Add_Wrap (Input, Increment);
+Saturated : constant U16x8 := Add_Saturate (Input, Increment);</code></pre>
+          <p><code>Extract (Wrapped, 0)</code> returns 4 because wrapping addition is modulo 65,536. <code>Extract (Saturated, 0)</code> returns 65,535 because saturating addition clamps to the lane maximum.</p>
+          <p>The complete <code>integer_vectors</code> example also compares every lane with 150. The result is a <code>Mask_16x8</code>. Bit 0 of its compact mask represents lane 0.</p>
+        </section>
+        <section id="float">
+          <h2>Use the floating-point family</h2>
+          <p><code>F32x4</code> contains four IEEE binary32 lanes. The following code multiplies each lane by 2 and compares each result with zero:</p>
+          <pre><code class="language-ada">Samples : constant F32x4 :=
+  From_Lanes ([-1.5, 0.0, 2.25, 10.0]);
+Scaled : constant F32x4 := Multiply (Samples, Splat (2.0));
+Negative : constant Mask_32x4 := Less_Than (Scaled, Zero);</code></pre>
+          <p>The scaled lanes are -3.0, 0.0, 4.5, and 20.0. Only lane 0 is negative, so <code>To_Bit_Mask (Negative)</code> returns 1.</p>
+          <p>The default build does not enable fast-math. Read the <a href="operations/#floats">floating operation table</a> before code depends on NaN or signed-zero behavior.</p>
+        </section>
+        <section id="choose">
+          <h2>Choose one of three interfaces</h2>
+          <table class="support-table">
+            <thead>
+              <tr><th>Need</th><th>Interface</th><th>Backend decision</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Direct vector operations</td><td><code>Flyology_SIMD</code> for scalar semantics or <code>Backends.Native</code> for the compiled target</td><td>At build time</td></tr>
+              <tr><td>A reusable generic byte loop</td><td><code>Algorithms.Generic_Bytes</code></td><td>At generic instantiation</td></tr>
+              <tr><td>A complete byte-buffer operation</td><td><code>Algorithms.Runtime</code></td><td>Once per operation</td></tr>
+            </tbody>
+          </table>
+          <p>The runtime interface does not detect features for each vector addition or comparison. It selects an implementation once, then that implementation runs the vector loop.</p>
+          <div class="next-links">
+            <a href="operations/">
+              <span>Operations</span>
+              Check the exact API coverage
+            </a>
+            <a href="memory/">
+              <span>Memory</span>
+              Process a final partial vector
+            </a>
+          </div>
+        </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Experimental API. Verify target support before deployment.</span><div class="footer-links"><a href="memory/">Memory</a><a href="benchmarking/">Benchmarks</a><a href="../api/">API</a></div></div></footer>
-</body></html>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>Experimental API. Verify target support before deployment.</span>
+      <div class="footer-links">
+        <a href="operations/">Operations</a>
+        <a href="memory/">Memory</a>
+        <a href="../api/">API</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

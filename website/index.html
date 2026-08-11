@@ -1,33 +1,161 @@
 <!doctype html>
-<html lang="en"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Flyology SIMD provides portable, strongly typed 128-bit vector operations for Ada with scalar, NEON, SSE2, and AVX2 backends.">
-  <meta name="theme-color" content="#f5f2e9"><title>Flyology SIMD · Portable vector semantics for Ada</title>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Flyology SIMD is an experimental Ada library for explicit, fixed-width 128-bit vector operations.">
+  <meta name="theme-color" content="#f5f2e9">
+  <title>Flyology SIMD · 128-bit vector operations for Ada</title>
   <link rel="canonical" href="https://simd.flyology.org/">
   <link rel="icon" href="assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/styles/site.css"><link rel="stylesheet" href="assets/styles/simd.css">
-  <script src="assets/scripts/ada-highlight.js"></script><script src="assets/scripts/site.js"></script>
-</head><body>
+  <link rel="stylesheet" href="assets/styles/site.css">
+  <link rel="stylesheet" href="assets/styles/simd.css">
+  <script src="assets/scripts/ada-highlight.js"></script>
+  <script src="assets/scripts/site.js"></script>
+</head>
+<body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
-    <a class="brand" href="./" aria-label="Flyology SIMD home"><img src="assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-    <ul class="nav-links" data-nav-links><li><a href="./" aria-current="page">Overview</a></li><li><a href="guide/">Guide</a></li><li><a href="architecture/">Architecture</a></li><li><a href="support/">Support</a></li><li><a href="api/">API</a></li><li><details class="nav-dropdown" data-nav-dropdown><summary>Ecosystem <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2.5 4.5 3 3 3.5-3"/></svg></summary><ul class="nav-dropdown-menu"><li><a href="https://flyology.org/">Runtime</a></li><li><a href="https://http.flyology.org/">HTTP</a></li><li><a href="https://postgres.flyology.org/">Postgres</a></li><li><a href="https://tui.flyology.org/">TUI</a></li></ul></details></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
-    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
-  </nav></header>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="./" aria-label="Flyology SIMD home">
+        <img src="assets/brand/flyology-mark-transparent.svg" alt="">
+        <span>Flyology SIMD</span>
+      </a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="./" aria-current="page">Overview</a></li>
+        <li><a href="guide/">Guide</a></li>
+        <li><a href="guide/operations/">Operations</a></li>
+        <li><a href="architecture/">Architecture</a></li>
+        <li><a href="support/">Support</a></li>
+        <li><a href="api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle>
+          <span class="visually-hidden" data-theme-label>Change theme</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+          </svg>
+        </button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 7h16M4 12h2M4 17h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+  </header>
   <main id="main">
     <section class="simd-hero page-shell">
-      <div class="simd-hero-copy"><span class="eyebrow">Standalone SIMD library</span><h1>Portable 128-bit SIMD for Ada.</h1><p class="hero-lede">Flyology SIMD provides explicit integer and floating-point vector operations for ordinary Ada programs. The scalar backend defines each result. NEON and x86 backends implement the same semantics behind private representations.</p><div class="actions"><a class="button button-primary" href="guide/">Read the setup guide</a><a class="button button-secondary" href="api/">Read the API</a></div><p class="experimental-note">Experimental v0.1 API. GCC-based GNAT is the verified compiler family.</p></div>
+      <div class="simd-hero-copy">
+        <span class="eyebrow">Experimental Ada library</span>
+        <h1>128-bit vector operations for Ada.</h1>
+        <p class="hero-lede">Use private vector types such as <code>U8x16</code>, <code>I32x4</code>, and <code>F64x2</code>. The public operations have the same result on the scalar, AArch64 NEON, and x86-64 SSE2 backends.</p>
+        <div class="actions">
+          <a class="button button-primary" href="guide/">Build an example</a>
+          <a class="button button-secondary" href="guide/operations/">Check operation coverage</a>
+        </div>
+        <p class="experimental-note">Version 0.1.0-dev. GCC-based GNAT is required. The API can change.</p>
+      </div>
       <figure class="lane-machine">
-        <figcaption><span>U8x16 register</span><strong>lane 0 is the first loaded element</strong></figcaption>
-        <div class="lane-index" aria-hidden="true"><span>15</span><span>14</span><span>13</span><span>12</span><span>11</span><span>10</span><span>09</span><span>08</span><span>07</span><span>06</span><span>05</span><span>04</span><span>03</span><span>02</span><span>01</span><span>00</span></div>
-        <div class="lane-row" aria-label="Sixteen byte lanes, with lane zero at the first logical element"><span>2F</span><span>2E</span><span>2D</span><span>2C</span><span>2B</span><span>2A</span><span>29</span><span>28</span><span>27</span><span>26</span><span>25</span><span>24</span><span>23</span><span>22</span><span>21</span><span class="lane-zero">20</span></div>
-        <div class="mask-rule"><span>compare “ ”</span><div><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="true"></i></div><code>0000 0000 0000 0001</code></div>
-        <div class="mechanism-tag"><span>portable meaning</span><b>→</b><span>private backend</span><b>→</b><span>machine code</span></div>
+        <figcaption>
+          <span><code>U8x16</code> loaded from bytes 0 through 15</span>
+          <strong>lane 0 = byte 0</strong>
+        </figcaption>
+        <div class="lane-index" aria-hidden="true">
+          <span>15</span><span>14</span><span>13</span><span>12</span>
+          <span>11</span><span>10</span><span>09</span><span>08</span>
+          <span>07</span><span>06</span><span>05</span><span>04</span>
+          <span>03</span><span>02</span><span>01</span><span>00</span>
+        </div>
+        <div class="lane-row" aria-label="Sixteen byte lanes. Lane zero is the first array element.">
+          <span>2F</span><span>2E</span><span>2D</span><span>2C</span>
+          <span>2B</span><span>2A</span><span>29</span><span>28</span>
+          <span>27</span><span>26</span><span>25</span><span>24</span>
+          <span>23</span><span>22</span><span>21</span><span class="lane-zero">20</span>
+        </div>
+        <div class="mask-rule">
+          <span><code>Equal (V, Splat (16#20#))</code></span>
+          <div aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="true"></i>
+          </div>
+          <code>0x0001</code>
+        </div>
+        <div class="mechanism-tag">
+          <span>one public result</span><b>→</b><span>scalar or SIMD code</span>
+        </div>
       </figure>
     </section>
-    <section class="scope-band" aria-label="Library scope"><div class="scope-band-inner page-shell"><div><strong>10 vector families</strong><span>All 128-bit signed, unsigned, and IEEE floating families.</span></div><div><strong>Zero runtime dependencies</strong><span>No Flyology runtime, heap allocation, tasking, I/O, locks, or waits.</span></div><div><strong>Coarse dispatch</strong><span>Feature selection occurs once for a complete buffer algorithm.</span></div></div></section>
-    <section class="simd-section page-shell"><div class="section-intro"><div><span class="eyebrow">Portable means three things</span><h2>Semantics first. Mechanism private.</h2></div><p>The same operation contract applies on every target. Scalar source keeps programs buildable where no SIMD backend exists. Target-specific backends provide efficient code generation where the compiler and instruction set have been verified.</p></div><ol class="portability-ledger"><li><span>01</span><strong>Identical public semantics</strong><p>Wrapping, saturation, shifts, masks, floating-point edge cases, and memory extent have defined results.</p></li><li><span>02</span><strong>Scalar source portability</strong><p>The authoritative backend runs on every supported GCC-based GNAT target.</p></li><li><span>03</span><strong>Efficient target code</strong><p>AArch64 NEON and x86-64 SSE2 implement the complete 128-bit family. AVX2 accelerates selected buffer loops.</p></li></ol></section>
-    <section class="operation-field"><div class="page-shell operation-field-inner"><div><span class="eyebrow">Fixed-width family</span><h2>Types carry the lane shape.</h2><p>Signed, unsigned, floating-point, and mask values do not convert implicitly. Operations such as <code>Add_Wrap</code>, <code>Add_Saturate</code>, <code>Min_Number</code>, and <code>Load_Partial</code> state their portable behavior.</p><a class="button button-secondary inverse-button" href="guide/#families">Inspect the type family</a></div><div class="type-ruler" aria-label="Supported 128-bit vector shapes"><div><code>U8x16</code><span>16 × 8</span></div><div><code>I8x16</code><span>16 × 8</span></div><div><code>U16x8</code><span>8 × 16</span></div><div><code>I16x8</code><span>8 × 16</span></div><div><code>U32x4</code><span>4 × 32</span></div><div><code>I32x4</code><span>4 × 32</span></div><div><code>U64x2</code><span>2 × 64</span></div><div><code>I64x2</code><span>2 × 64</span></div><div><code>F32x4</code><span>4 × 32</span></div><div><code>F64x2</code><span>2 × 64</span></div></div></div></section>
+    <section class="scope-band" aria-label="Current scope">
+      <div class="scope-band-inner page-shell">
+        <div>
+          <strong>Width</strong>
+          <span>128 bits only. The 256-bit family is not implemented.</span>
+        </div>
+        <div>
+          <strong>Backends</strong>
+          <span>Scalar, AArch64 NEON, and x86-64 SSE2. AVX2 is used by selected buffer algorithms.</span>
+        </div>
+        <div>
+          <strong>Dependencies</strong>
+          <span>No runtime crate dependency. No heap allocation or tasking in vector operations.</span>
+        </div>
+      </div>
+    </section>
+    <section class="simd-section page-shell">
+      <div class="section-intro">
+        <div>
+          <span class="eyebrow">Example: add eight 16-bit lanes</span>
+          <h2>The operation name states the overflow rule.</h2>
+        </div>
+        <p><code>Add_Wrap</code> computes modulo 2<sup>16</sup>. <code>Add_Saturate</code> clamps each result to 65,535. Both operations process the same <code>U16x8</code> inputs.</p>
+      </div>
+      <pre><code class="language-ada">Input     : constant U16x8 :=
+  From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
+Increment : constant U16x8 := Splat (10);
+
+Wrapped   : constant U16x8 := Add_Wrap (Input, Increment);
+Saturated : constant U16x8 := Add_Saturate (Input, Increment);
+
+--  lane 0 of Wrapped is 4
+--  lane 0 of Saturated is 65_535</code></pre>
+      <p>The repository contains this complete program in <code>examples/integer_vectors.adb</code>. The <a href="guide/">guide</a> gives the exact build command and explains each result.</p>
+    </section>
+    <section class="operation-field">
+      <div class="page-shell operation-field-inner">
+        <div>
+          <span class="eyebrow">Current API boundary</span>
+          <h2>Ten value types share one 128-bit width.</h2>
+          <p>The integer families have explicit wrapping and saturating arithmetic, shifts, comparisons, reductions, lane permutations, masks, and typed memory operations. The floating families have arithmetic, ordered and unordered comparisons, number minimum and maximum, add reduction, lane permutations, masks, and typed memory operations.</p>
+          <p>Numeric conversion, bit casts, widening, narrowing, general table lookup, and 256-bit values are not implemented in this release.</p>
+          <a class="button button-secondary inverse-button" href="guide/operations/">Read the exact matrix</a>
+        </div>
+        <div class="type-ruler" aria-label="Public 128-bit vector types">
+          <div><code>U8x16</code><span>16 unsigned bytes</span></div>
+          <div><code>I8x16</code><span>16 signed bytes</span></div>
+          <div><code>U16x8</code><span>8 unsigned words</span></div>
+          <div><code>I16x8</code><span>8 signed words</span></div>
+          <div><code>U32x4</code><span>4 unsigned 32-bit lanes</span></div>
+          <div><code>I32x4</code><span>4 signed 32-bit lanes</span></div>
+          <div><code>U64x2</code><span>2 unsigned 64-bit lanes</span></div>
+          <div><code>I64x2</code><span>2 signed 64-bit lanes</span></div>
+          <div><code>F32x4</code><span>4 IEEE binary32 lanes</span></div>
+          <div><code>F64x2</code><span>2 IEEE binary64 lanes</span></div>
+        </div>
+      </div>
+    </section>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Flyology SIMD is experimental and dual-licensed under MIT or Apache-2.0.</span><div class="footer-links"><a href="guide/">Guide</a><a href="support/">Support</a><a href="api/">API reference</a></div></div></footer>
-</body></html>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>Experimental API. Dual-licensed under MIT or Apache-2.0.</span>
+      <div class="footer-links">
+        <a href="guide/">Guide</a>
+        <a href="guide/operations/">Operations</a>
+        <a href="api/">API reference</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

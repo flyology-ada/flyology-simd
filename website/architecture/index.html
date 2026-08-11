@@ -1,30 +1,140 @@
 <!doctype html>
-<html lang="en"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Flyology SIMD separates portable scalar semantics, private target representations, compile-time composition, and coarse runtime dispatch.">
-  <title>Architecture · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/architecture/">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Backend boundaries, static composition, and runtime dispatch in Flyology SIMD.">
+  <title>Architecture · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/architecture/">
   <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../assets/styles/site.css"><link rel="stylesheet" href="../assets/styles/simd.css">
-  <script src="../assets/scripts/ada-highlight.js"></script><script src="../assets/scripts/site.js"></script>
-</head><body>
+  <link rel="stylesheet" href="../assets/styles/site.css">
+  <link rel="stylesheet" href="../assets/styles/simd.css">
+  <script src="../assets/scripts/ada-highlight.js"></script>
+  <script src="../assets/scripts/site.js"></script>
+</head>
+<body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
-    <a class="brand" href="../"><img src="../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-    <ul class="nav-links" data-nav-links><li><a href="../">Overview</a></li><li><a href="../guide/">Guide</a></li><li><a href="./" aria-current="page">Architecture</a></li><li><a href="../support/">Support</a></li><li><a href="../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
-    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
-  </nav></header>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../">
+        <img src="../assets/brand/flyology-mark-transparent.svg" alt="">
+        <span>Flyology SIMD</span>
+      </a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../">Overview</a></li>
+        <li><a href="../guide/">Guide</a></li>
+        <li><a href="../guide/operations/">Operations</a></li>
+        <li><a href="./" aria-current="page">Architecture</a></li>
+        <li><a href="../support/">Support</a></li>
+        <li><a href="../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle>
+          <span class="visually-hidden" data-theme-label>Change theme</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+          </svg>
+        </button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 7h16M4 12h2M4 17h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+  </header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Overview</a></li><li>Architecture</li></ol><h1>Separate meaning from machinery.</h1></div><p class="doc-hero-copy">The scalar implementation defines behavior. Backend bodies contain target mechanisms. Generic algorithms compose primitive packages without a per-operation runtime branch.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#dimensions">Three dimensions</a></li><li><a href="#boundary">Backend boundary</a></li><li><a href="#composition">Composition</a></li><li><a href="#dispatch">Runtime dispatch</a></li><li><a href="#mechanisms">Machine mechanisms</a></li><li><a href="#backend">Add a backend</a></li></ul></aside>
+    <header class="doc-hero">
+      <div>
+        <ol class="breadcrumb"><li><a href="../">Overview</a></li><li>Architecture</li></ol>
+        <h1>Backend architecture</h1>
+      </div>
+      <p class="doc-hero-copy">The root package defines scalar results. A selected native package implements the same declarations. Runtime selection occurs only for complete buffer operations.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page">
+        <span class="toc-title">On this page</span>
+        <ul>
+          <li><a href="#portable">Portability</a></li>
+          <li><a href="#packages">Packages</a></li>
+          <li><a href="#static">Static selection</a></li>
+          <li><a href="#runtime">Runtime selection</a></li>
+          <li><a href="#machine">Machine code</a></li>
+          <li><a href="#add">Add a backend</a></li>
+        </ul>
+      </aside>
       <article class="prose">
-        <section id="dimensions"><h2>Define portability in three dimensions</h2><p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> promises identical public operation semantics across its backends. The scalar source provides a fallback on supported GCC-based GNAT targets. Verified target packages improve code generation for specific instruction sets.</p><p>The project does not promise that a private vector representation or calling convention survives compiler switches, enabled instruction sets, architectures, or compilers. The public contract is portable; the representation and ABI are not.</p></section>
-        <section id="boundary"><h2>Keep one authoritative behavior</h2><p><a data-api="Flyology_SIMD.Backends.Scalar"><code>Flyology_SIMD.Backends.Scalar</code></a> implements the public semantics with auditable lane operations. Differential tests compare each executable optimized operation against this backend.</p><p><a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> has the same primitive contract. The GPR selects its body from the scalar, AArch64, or x86-64 source directory. Backend representations remain in private types and body-local machine types.</p><p>The boundary leaves room for GNAT LLVM without changing application code. GNAT LLVM is a compatibility target, not a supported backend, because this release has no equivalent verified lowering evidence.</p></section>
-        <section id="composition"><h2>Compose the inner loop statically</h2><p><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Flyology_SIMD.Algorithms.Generic_Bytes</code></a> receives splat, bitwise, comparison, compact-mask, and load operations as generic formals. The compiler can inline those primitives into each complete-buffer loop.</p><p>This contract proves that the public family supports real algorithms rather than isolated instructions. The initial algorithms find one byte, count one byte, and validate ASCII input.</p></section>
-        <section id="dispatch"><h2>Dispatch once at the algorithm boundary</h2><p><a data-api="Flyology_SIMD.Features"><code>Flyology_SIMD.Features</code></a> reports which backends were compiled and which can execute safely. <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Flyology_SIMD.Algorithms.Runtime</code></a> chooses one implementation before it enters the buffer loop.</p><p>On x86-64, the AVX2 gate requires the CPU bits for AVX and AVX2. It also requires OSXSAVE and XCR0 support for XMM and YMM state. The immutable detection result is computed once with baseline-safe code.</p><p>AArch64 Advanced SIMD is part of the architecture baseline. The AArch64 implementation therefore does not perform a redundant NEON feature probe.</p></section>
-        <section id="mechanisms"><h2>Isolate machine mechanisms narrowly</h2><p>A backend uses a verified compiler intrinsic when GNAT exposes one with the required semantics. When no suitable intrinsic exists, the project prefers a small Ada <code>System.Machine_Code</code> assembly leaf over an out-of-line C wrapper.</p><p>The leaf contains mechanism only. Ada retains validation and portable policy. Differential tests check the leaf against scalar behavior, and code-generation checks inspect its emitted instructions.</p><p>A native boundary must not allocate memory, perform I/O, acquire a lock, wait, start a task, or read ambient process configuration. Low-level primitive operations have the same restriction.</p></section>
-        <section id="backend"><h2>Add a backend without widening the API</h2><ol><li>Implement the existing native backend contract in a target-specific source directory.</li><li>Keep vector and mask representations private to the backend.</li><li>Map every operation to the scalar semantics, including edge cases.</li><li>Add deterministic differential tests for every public operation and lane.</li><li>Add guarded-tail tests where the target supports protected pages.</li><li>Inspect critical operations and complete loops in generated assembly.</li><li>Record compilation, execution, and continuous-test evidence separately.</li></ol><p>Do not add a target instruction merely because the hardware exposes it. Add a portable operation only when its meaning is useful and can remain stable across backends.</p><div class="next-links"><a href="../guide/dispatch/"><span>Guide</span>Use compile-time and runtime selection</a><a href="../support/"><span>Evidence</span>Review the support matrix</a></div></section>
+        <section id="portable">
+          <h2>Portability has three separate meanings</h2>
+          <ol>
+            <li>The public operation has the same semantics on each backend.</li>
+            <li>The scalar implementation lets the source build without a SIMD backend.</li>
+            <li>A verified target backend can use efficient target instructions.</li>
+          </ol>
+          <p>The library does not promise a portable vector representation or calling convention. A compiler switch, compiler version, architecture, or enabled instruction set can change the private representation.</p>
+        </section>
+        <section id="packages">
+          <h2>Separate scalar results from target mechanisms</h2>
+          <table class="support-table">
+            <thead><tr><th>Package</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>Flyology_SIMD</code></td><td>Public types, operations, contracts, and scalar implementation for all ten value families.</td></tr>
+              <tr><td><code>Backends.Native</code></td><td>The full primitive contract for the selected scalar, AArch64, or x86-64 body.</td></tr>
+              <tr><td><code>Backends.Scalar</code></td><td>The byte-vector formal contract used by the initial generic byte algorithms. It does not yet expose all families.</td></tr>
+              <tr><td><code>Algorithms.Generic_Bytes</code></td><td>Static composition for <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</td></tr>
+              <tr><td><code>Algorithms.Runtime</code></td><td>One backend choice for one complete byte-buffer operation.</td></tr>
+            </tbody>
+          </table>
+          <p>The root scalar body is the semantic reference for the full family. Differential tests compare the selected native body with that reference.</p>
+        </section>
+        <section id="static">
+          <h2>Select primitive code at build time</h2>
+          <p>The GPR scenario selects one body for <code>Backends.Native</code>. The choices are <code>scalar</code>, <code>aarch64</code>, and <code>x86_64</code>. Native architecture detection sets this value for normal Alire builds.</p>
+          <p><code>Algorithms.Generic_Bytes</code> receives primitive operations as generic formal subprograms. GNAT can inline those operations into the vector loop. There is no runtime feature test in each addition, comparison, or load.</p>
+        </section>
+        <section id="runtime">
+          <h2>Select optional code once per buffer</h2>
+          <p><code>Features</code> reports which backends were compiled and which can run on the current system. <code>Algorithms.Runtime</code> chooses one implementation before it starts the buffer loop.</p>
+          <p>On x86-64, the AVX2 check requires AVX and AVX2 CPU bits. It also requires OSXSAVE and XCR0 support for XMM and YMM state. The AVX2 implementation is in separate objects.</p>
+          <p>AArch64 Advanced SIMD, commonly called NEON, is part of the AArch64 architecture baseline. The AArch64 backend does not need a separate NEON feature test.</p>
+        </section>
+        <section id="machine">
+          <h2>Keep target code in small Ada leaves</h2>
+          <p>The project first uses a verified compiler intrinsic when GNAT exposes one with the required semantics. If no suitable intrinsic exists, it uses a small Ada <code>System.Machine_Code</code> subprogram.</p>
+          <p>These subprograms contain only the target mechanism. Ada code keeps extent checks, shift-count rules, and other public policy. Differential tests check the result. Code-generation scripts check the emitted instruction class.</p>
+          <p>A primitive operation does not allocate memory, start a task, perform I/O, lock, wait, or read process configuration.</p>
+        </section>
+        <section id="add">
+          <h2>Add a backend</h2>
+          <ol>
+            <li>Implement the existing <code>Backends.Native</code> declarations in a target source directory.</li>
+            <li>Keep value and mask representations private.</li>
+            <li>Match every edge case in the scalar implementation.</li>
+            <li>Run deterministic differential tests for every implemented operation.</li>
+            <li>Run exact-tail and protected-page tests.</li>
+            <li>Inspect important primitives and complete loops in generated code.</li>
+            <li>Record compile, execution, and continuous-test evidence separately.</li>
+          </ol>
+          <p>Do not add a public operation only because one processor has an instruction. Add it when its semantics are useful on every backend.</p>
+          <div class="next-links">
+            <a href="../guide/dispatch/"><span>Guide</span>Use backend selection</a>
+            <a href="../support/"><span>Evidence</span>Review executed support</a>
+          </div>
+        </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>The scalar backend is the semantic authority.</span><div class="footer-links"><a href="../guide/">Guide</a><a href="../support/">Support</a><a href="../api/">API</a></div></div></footer>
-</body></html>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>The root scalar implementation defines the full-family result.</span>
+      <div class="footer-links">
+        <a href="../guide/operations/">Operations</a>
+        <a href="../support/">Support</a>
+        <a href="../api/">API</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
