@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Distinguish numeric conversion, widening, narrowing, saturation, and bit casts in Flyology SIMD."><title>Conversions and bit casts · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/conversions/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script></head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>5. Conversions and bit casts</li></ol><h1>Name the transformation that you need</h1></div><p class="doc-hero-copy">Chapter 5 separates numeric conversion from bit reinterpretation and records the rounding or saturation rule in each operation name.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#implicit">No implicit conversion</a></li><li><a href="#bit-cast">Bit casts</a></li><li><a href="#width">Width changes</a></li><li><a href="#numeric">Numeric conversions</a></li><li><a href="#boundaries">Boundary behavior</a></li></ul></aside>
+      <article class="prose">
+        <p class="chapter-lead">A vector conversion must state whether it preserves bits, preserves numeric values, discards high bits, rounds, or clamps.</p>
+        <section id="implicit">
+          <h2>Do not rely on implicit vector conversions</h2>
+          <p>The API does not implicitly convert signed and unsigned lanes, integer and floating lanes, different lane widths, or masks and value vectors.</p>
+          <p>This rule keeps a change of numeric domain separate from a change of representation.</p>
+        </section>
+        <section id="bit-cast">
+          <h2>Use Bit_Cast to preserve lane bits</h2>
+          <p><a data-api="Flyology_SIMD.Bit_Cast" data-api-signature="Value : F32x4) return U32x4"><code>Bit_Cast</code></a> preserves each lane's bits and position. Source and result types have the same lane width and count.</p>
+          <pre><code class="language-ada">Values : constant F32x4 := From_Lanes ([1.0, -0.0, 2.0, -2.0]);
+Encodings : constant U32x4 := Bit_Cast (Values);</code></pre>
+          <p>The result contains four IEEE binary32 encodings. It does not contain the integers 1, 0, 2, and -2.</p>
+        </section>
+        <section id="width">
+          <h2>Use widening and narrowing for lane-width changes</h2>
+          <table class="support-table"><thead><tr><th>Operation</th><th>Rule</th></tr></thead><tbody>
+            <tr><td><a data-api="Flyology_SIMD.Widen_Low"><code>Widen_Low</code></a> and <a data-api="Flyology_SIMD.Widen_High"><code>Widen_High</code></a></td><td>Select one source half and preserve its numeric values in wider lanes.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Narrow_Truncate"><code>Narrow_Truncate</code></a></td><td>Keep the low destination-width bits of integer lanes.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Narrow_Saturate"><code>Narrow_Saturate</code></a></td><td>Clamp integer lanes to the destination range.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Round two <code>F64x2</code> inputs into one <code>F32x4</code> result.</td></tr>
+          </tbody></table>
+          <p>Each narrowing operation takes two source vectors. The <code>Low</code> input supplies the low result half, and <code>High</code> supplies the high result half.</p>
+        </section>
+        <section id="numeric">
+          <h2>Use Convert names for numeric-domain changes</h2>
+          <table class="support-table"><thead><tr><th>Operation</th><th>Rule</th></tr></thead><tbody>
+            <tr><td><a data-api="Flyology_SIMD.Convert_Round"><code>Convert_Round</code></a></td><td>Convert integer lanes to floating lanes with the documented rounding mode.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Convert_Truncate_Saturate"><code>Convert_Truncate_Saturate</code></a></td><td>Convert floating lanes to integer lanes, truncate toward zero, and clamp.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Convert_Saturate"><code>Convert_Saturate</code></a></td><td>Change integer signedness at the same width and clamp out-of-range values.</td></tr>
+          </tbody></table>
+          <p>For signed-to-unsigned <code>Convert_Saturate</code>, a negative input becomes zero. For unsigned-to-signed conversion, a value above the signed maximum becomes that maximum.</p>
+        </section>
+        <section id="boundaries">
+          <h2>Check the floating environment and exceptional inputs</h2>
+          <p><code>Narrow_Round</code> and <code>Convert_Round</code> require the platform's default round-to-nearest, ties-to-even mode for their documented rounding result. The library does not modify the floating-point control register.</p>
+          <p><code>Convert_Truncate_Saturate</code> does not depend on the rounding mode. Positive infinity becomes the destination maximum. Negative infinity becomes the signed minimum or unsigned zero. A NaN becomes zero.</p>
+          <p>The <a href="../operations/">operation reference</a> gives the supported source and destination shapes. The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a> gives exact overflow, underflow, NaN, and signed-zero results.</p>
+          <p>Run <code>examples/conversions.adb</code> for maintained boundary examples. Conversion tests compare scalar and native results with independent lane oracles.</p>
+          <div class="next-links"><a href="../memory/"><span>Chapter 4</span>Review memory operations</a><a href="../dispatch/"><span>Chapter 6</span>Compose and select backends</a></div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>Conversion names state whether bits, values, or ranges change.</span><div class="footer-links"><a href="../">Guide</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+</body></html>

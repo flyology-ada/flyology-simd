@@ -1,118 +1,71 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Build, run, and interpret Flyology SIMD benchmarks that use flyology_bench.">
-  <title>Benchmarking · Flyology SIMD</title>
-  <link rel="canonical" href="https://simd.flyology.org/guide/benchmarking/">
-  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../../assets/styles/site.css">
-  <link rel="stylesheet" href="../../assets/styles/simd.css">
-  <script src="../../assets/scripts/ada-highlight.js"></script>
-  <script src="../../assets/scripts/site.js"></script>
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Verify backend equivalence, inspect generated code, and reproduce Flyology SIMD benchmarks."><title>Verification and measurement · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/benchmarking/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script></head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <nav class="site-nav" aria-label="Primary navigation">
-      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-      <ul class="nav-links" data-nav-links>
-        <li><a href="../../">Overview</a></li>
-        <li><a href="../" aria-current="page">Guide</a></li>
-        <li><a href="../operations/">Operations</a></li>
-        <li><a href="../../architecture/">Architecture</a></li>
-        <li><a href="../../support/">Support</a></li>
-        <li><a href="../../api/">API</a></li>
-        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
-      </ul>
-      <div class="nav-tools">
-        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
-        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
-      </div>
-    </nav>
-  </header>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>5. Measurement and code generation</li></ol><h1>Measure and inspect the complete byte count</h1></div>
-      <p class="doc-hero-copy">Chapter 5 measures equivalent whole-buffer counts, then checks that optimized algorithm objects contain the required SIMD instruction classes.</p>
-    </header>
-    <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Commands</a></li><li><a href="#cases">Cases</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#codegen">Generated code</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>7. Verification and measurement</li></ol><h1>Verify semantics before performance</h1></div><p class="doc-hero-copy">Chapter 7 connects differential tests, generated-code checks, and repeated whole-algorithm measurements.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#correctness">Differential tests</a></li><li><a href="#dot-code">Dot-product code</a></li><li><a href="#run">Benchmark commands</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#codegen">Instruction checks</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">Chapter 4 selected complete byte-count implementations. Correct primitive assembly is necessary, but it does not predict whole-buffer cost. Measure the complete algorithm, then inspect the code that the compiler emitted.</p>
+        <p class="chapter-lead">Chapter 6 selected static primitive backends and a runtime byte-algorithm boundary. First compare results with the scalar authority. Then inspect emitted code and measure complete work.</p>
+        <section id="correctness">
+          <h2>Compare available backends with the scalar reference</h2>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P tests/tests.gpr
+./bin/simd_tests
+./bin/family_tests
+./bin/conversion_tests
+./bin/guard_page_tests</code></pre>
+          <p>The deterministic suites compare native operations with the scalar backend. They cover fixed edge cases, randomized inputs, every lane position, tail counts, and representative byte algorithms.</p>
+          <p>Equal results from one example are not sufficient evidence. The scalar backend defines semantics, and executable differential tests check optimized implementations against it.</p>
+        </section>
+        <section id="dot-code">
+          <h2>Inspect both the dot-product caller and primitive bodies</h2>
+          <p>Build the maintained example with optimization before you inspect its object:</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -f -p -P examples/examples.gpr -cargs:Ada -O3
+objdump -dr obj/examples/aarch64/disabled/dot_product.o</code></pre>
+          <p>Change the object path for another selected architecture. On the recorded AArch64 build, the dot-product object calls native load, multiply, add, and reduction leaves.</p>
+          <p>Static composition removes runtime backend selection. It does not guarantee that GNAT inlines each leaf. Inspect the target backend object or run the code-generation script to verify the instructions inside those leaves.</p>
+          <div class="semantic-callout"><strong>The maintained statistical benchmark does not yet measure the dot product.</strong><p>The recorded performance evidence below applies to byte counting. Do not use it as a floating-point performance claim.</p></div>
+        </section>
         <section id="run">
-          <h2>Build and run from the benchmark crate</h2>
+          <h2>Build and run the byte-count benchmark crate</h2>
           <pre><code class="language-shell">cd benchmarks
 alr build --release
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
-          <p>Alire detects an AArch64 or x86-64 host. To measure only the scalar configuration, rebuild with this scenario:</p>
-          <pre><code class="language-shell">alr build --release -- -XFLYOLOGY_SIMD_ARCH=scalar</code></pre>
-          <p>Use <code>FLYOLOGY_BENCH_OUTPUT=csv</code> or <code>json</code> for machine-readable output. Generated results are not version-controlled.</p>
-        </section>
-        <section id="cases">
-          <h2>Measure four complete implementations</h2>
-          <p>Each input size compares:</p>
-          <ul>
-            <li>a direct ordinary Ada source loop, which GNAT can auto-vectorize;</li>
-            <li>the SIMD algorithm composed with the scalar reference backend;</li>
-            <li>the statically selected native algorithm;</li>
-            <li>the runtime-dispatched algorithm.</li>
-          </ul>
-          <p>The benchmark does not include the tutorial-only <code>Explicit_Count_Commas</code> function. That function relies on a nonzero searched byte for its zero-filled tail. All four benchmark candidates implement the same general byte-count contract. The library candidates call the maintained <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Scalar.Count</code></a>, <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Native.Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> paths.</p>
-          <p>The input sizes are 7, 15, 16, 17, 4,096, and 1,048,576 bytes. These cases cover short input, the 16-byte boundary, cache-resident input, and larger streaming input.</p>
+          <p>Alire detects an AArch64 or x86-64 host. For a scalar-only measurement, rebuild with <code>-XFLYOLOGY_SIMD_ARCH=scalar</code>.</p>
+          <p>The benchmark compares an ordinary Ada loop, the scalar reference composition, static native composition, and runtime dispatch. Sizes range from 7 through 1,048,576 bytes.</p>
         </section>
         <section id="method">
           <h2>Use repeated and balanced measurements</h2>
-          <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It uses 250 ms of warmup, equal-time calibration, 75 samples, balanced candidate order, and three seconds of measurement for each comparison.</p>
-          <p>The report keeps raw samples and calculates bootstrap confidence intervals. It reports candidate-order effects and lag-one correlation. It does not remove outliers automatically or subtract an estimated timer cost.</p>
+          <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It uses 250 ms of warmup, equal-time calibration, 75 samples, balanced candidate order, and three seconds of measurement per comparison.</p>
+          <p>The report keeps raw samples and calculates bootstrap confidence intervals. It reports candidate-order effects and lag-one correlation. It does not remove outliers automatically or subtract estimated timer cost.</p>
           <p>A checksum makes each result observable. The report includes the compiler, build switches, selected architecture, and selected backend.</p>
-          <div class="semantic-callout">
-            <strong>Optional host controls</strong>
-            <p>Set <code>FLYOLOGY_BENCH_QUIESCENCE=1</code> to wait for a quiet host. Set <code>FLYOLOGY_SIMD_BENCH_CPU</code> to request CPU pinning. The report states whether each control succeeded.</p>
-          </div>
         </section>
         <section id="results">
-          <h2>Recorded AArch64 observation</h2>
-          <p>On 2026-08-10, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Library objects used <code>-O2 -ftree-vectorize</code>. Benchmark code used <code>-O3</code>. The following values are medians from that run:</p>
-          <table class="support-table">
-            <thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar reference</th><th>Static NEON</th><th>Runtime</th></tr></thead>
-            <tbody>
-              <tr><td>16</td><td>7.07 ns</td><td>14.20 ns</td><td>5.86 ns</td><td>7.25 ns</td></tr>
-              <tr><td>4,096</td><td>1,349.29 ns</td><td>3,130.04 ns</td><td>661.40 ns</td><td>665.77 ns</td></tr>
-              <tr><td>1,048,576</td><td>336,895 ns</td><td>799,979 ns</td><td>167,006 ns</td><td>166,945 ns</td></tr>
-            </tbody>
-          </table>
-          <p>For this run, static NEON had the lowest median at 16 and 4,096 bytes. Runtime dispatch and static NEON had nearly equal medians at 1,048,576 bytes.</p>
+          <h2>Keep a recorded observation within its environment</h2>
+          <p>On 2026-08-10, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Library objects used <code>-O2 -ftree-vectorize</code>. Benchmark code used <code>-O3</code>.</p>
+          <table class="support-table"><thead><tr><th>Bytes</th><th>Ordinary Ada</th><th>Scalar reference</th><th>Static NEON</th><th>Runtime</th></tr></thead><tbody><tr><td>16</td><td>7.07 ns</td><td>14.20 ns</td><td>5.86 ns</td><td>7.25 ns</td></tr><tr><td>4,096</td><td>1,349.29 ns</td><td>3,130.04 ns</td><td>661.40 ns</td><td>665.77 ns</td></tr><tr><td>1,048,576</td><td>336,895 ns</td><td>799,979 ns</td><td>167,006 ns</td><td>166,945 ns</td></tr></tbody></table>
+          <p>The values are medians from that run. Static NEON had the lowest median at 16 and 4,096 bytes. Runtime and static NEON had nearly equal medians at 1,048,576 bytes.</p>
         </section>
         <section id="codegen">
-          <h2>Inspect the optimized algorithm object</h2>
-          <p>Run the code-generation check for the current host architecture from the repository root:</p>
+          <h2>Check required instruction classes</h2>
           <pre><code class="language-shell"># AArch64 host
 ./scripts/check_codegen.sh aarch64
 
 # x86-64 baseline host
 ./scripts/check_codegen.sh x86_64 disabled</code></pre>
-          <p>If the host cannot build and disassemble a target, do not run that target's architecture check. For an enabled AVX2 build on a suitable x86-64 host, pass <code>enabled</code> as the second argument.</p>
-          <p>The script inspects primitive and whole-algorithm objects. In the native algorithm object, it requires these instruction classes:</p>
-          <ul>
-            <li>a vector load;</li>
-            <li>a vector byte comparison;</li>
-            <li>a vector mask-extraction or reduction instruction.</li>
-          </ul>
-          <p>The script also rejects unresolved calls to selected backend primitives from that object. These checks do not isolate the <code>Count</code> symbol from the other byte algorithms.</p>
-          <p>The checks match required instruction classes, not complete disassembly text. Register allocation and harmless scheduling changes can therefore vary.</p>
+          <p>The script checks primitive and whole-byte-algorithm objects. It requires vector load, byte comparison, and mask extraction or reduction instruction classes in the applicable objects.</p>
+          <p>The script also verifies baseline isolation and rejects selected unresolved primitive calls from the native byte-algorithm object. It matches instruction classes instead of complete disassembly text.</p>
         </section>
         <section id="interpret">
           <h2>Check build equivalence before interpretation</h2>
-          <p>An earlier large-buffer result showed the ordinary Ada loop with a lower time than the SIMD loop. That result was a build error, not an Ada language effect. The imported library algorithm lacked optimization while the benchmark unit used release optimization.</p>
-          <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks inspect the complete native algorithm object.</p>
-          <p>Do not generalize the recorded table to another host. Repeat the measurement, keep the diagnostics, and inspect the generated code. See the <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> for the statistical procedure.</p>
-          <div class="next-links"><a href="../operations/"><span>Reference</span>Review primitive semantics</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
+          <p>An earlier large-buffer result favored the ordinary loop because imported library code lacked optimization. The benchmark unit used release optimization. Verbose compiler commands exposed the mismatch.</p>
+          <p>Do not generalize the recorded table to another host or to the dot product. Repeat the measurement, keep diagnostics, and inspect generated code. The <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> explains the statistical procedure.</p>
+          <div class="next-links"><a href="../dispatch/"><span>Chapter 6</span>Review backend selection</a><a href="../operations/"><span>Reference</span>Review primitive semantics</a></div>
         </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Benchmark values are observations for one recorded environment.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="https://flyology.org/guide/benchmarking/">Method</a></div></div></footer>
-</body>
-</html>
+  <footer class="site-footer"><div class="footer-inner"><span>Correctness, emitted code, and performance require separate evidence.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="https://flyology.org/guide/benchmarking/">Method</a></div></div></footer>
+</body></html>

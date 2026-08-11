@@ -72,6 +72,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/inspect_delimited_bytes
 ./bin/count_digits
 ./bin/scale_measurements
+./bin/dot_product
 ./bin/conversions
 ./bin/table_lookup
 ```

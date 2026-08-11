@@ -20,6 +20,7 @@ project Examples is
       "inspect_delimited_bytes.adb",
       "count_digits.adb",
       "scale_measurements.adb",
+      "dot_product.adb",
       "conversions.adb",
       "table_lookup.adb");
 

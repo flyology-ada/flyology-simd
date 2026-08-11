@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="An introduction to SIMD concepts and their direct mapping to the Flyology SIMD Ada API.">
-  <title>Introduction to SIMD · Flyology SIMD</title>
+  <meta name="description" content="Understand fixed-width vectors, logical lanes, and private representation in Flyology SIMD.">
+  <title>Vectors and lanes · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/introduction/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../../assets/styles/site.css">
@@ -14,91 +14,58 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <nav class="site-nav" aria-label="Primary navigation">
-      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
-      <ul class="nav-links" data-nav-links>
-        <li><a href="../../">Overview</a></li>
-        <li><a href="../" aria-current="page">Guide</a></li>
-        <li><a href="../operations/">Operations</a></li>
-        <li><a href="../../architecture/">Architecture</a></li>
-        <li><a href="../../support/">Support</a></li>
-        <li><a href="../../api/">API</a></li>
-        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
-      </ul>
-      <div class="nav-tools">
-        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
-        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
-      </div>
-    </nav>
-  </header>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation">
+    <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+    <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
+    <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
+  </nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>1. One vector block</li></ol><h1>Count matches in one 16-byte block</h1></div>
-      <p class="doc-hero-copy">Chapter 1 opens one iteration of the byte-count program. It loads 16 bytes, compares 16 lanes, and counts the true mask lanes.</p>
-    </header>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>1. Vectors and lanes</li></ol><h1>Model values as fixed-width lanes</h1></div><p class="doc-hero-copy">Chapter 1 maps the first four dot-product terms to one private 128-bit vector value.</p></header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#source">Ordinary source loop</a></li><li><a href="#block">One vector block</a></li><li><a href="#lanes">Lane order</a></li><li><a href="#masks">Comparison mask</a></li><li><a href="#layers">Source and machine code</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#source">Ordinary source</a></li><li><a href="#family">Type family</a></li><li><a href="#block">One vector block</a></li><li><a href="#lanes">Lane order</a></li><li><a href="#private">Private representation</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">The maintained example counts comma bytes. Start with its ordinary Ada source loop, then express one block with explicit vector operations.</p>
+        <p class="chapter-lead">A dot product multiplies corresponding elements and adds the products. Start with ordinary Ada, then express four products as one explicit vector block.</p>
         <section id="source">
-          <h2>Start with the ordinary Ada source loop</h2>
-          <pre><code class="language-ada">for Value of Source loop
-   if Value = Needle then
-      Result := Result + 1;
-   end if;
+          <h2>Start with one pair per source iteration</h2>
+          <pre><code class="language-ada">Result : F32 := 0.0;
+
+for Index in Left'Range loop
+   Result := Result + Left (Index) * Right (Index);
 end loop;</code></pre>
-          <p>Each source iteration compares one byte. The loop is the simple correctness baseline. GNAT can auto-vectorize it, so the source form does not determine the emitted instruction sequence.</p>
+          <p>Each source iteration reads, multiplies, and adds one pair. GNAT can auto-vectorize this loop, so source structure does not determine the emitted instructions.</p>
+        </section>
+        <section id="family">
+          <h2>Read the lane shape from the type name</h2>
+          <p>A <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> value contains four <a data-api="Flyology_SIMD.F32"><code>F32</code></a> lanes. Each lane is an IEEE binary32 value. Four 32-bit lanes make one 128-bit vector.</p>
+          <p>The integer families use the same naming rule. For example, <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> has 16 unsigned byte lanes, and <a data-api="Flyology_SIMD.I64x2"><code>I64x2</code></a> has two signed 64-bit lanes.</p>
+          <p>All ten v0.1 value types are 128 bits wide. The <a href="../operations/">operation reference</a> lists their corresponding private mask types.</p>
         </section>
         <section id="block">
-          <h2>Express one complete block with four operations</h2>
-          <p><a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> supplies the vector operations selected at build time. A <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> value contains 16 unsigned byte lanes.</p>
-          <p>In this block, <code>Data</code> is the <code>Source</code> array and <code>Comma</code> is the <code>Needle</code> value from the ordinary loop.</p>
-          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
-
-Wanted : constant U8x16 := Native.Splat (Comma);
-Values : constant U8x16 := Native.Load_Unaligned (Data, Data'First);
-Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
-Block_Count : constant Lane_Count_8x16 :=
-  Native.Population_Count (Matches);</code></pre>
-          <ol>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> puts the comma value in every lane.</li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Load_Unaligned" data-api-signature="Byte_Array"><code>Load_Unaligned</code></a> reads 16 valid bytes.</li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Equal</code></a> compares corresponding lanes.</li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Population_Count</code></a> returns the number of true lanes as <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>.</li>
-          </ol>
-          <p>The first 16 input bytes are <code>"red,green,blue,a"</code>. They contain three commas, so <code>Block_Count</code> is 3.</p>
+          <h2>Compute the first four products</h2>
+          <p><a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> supplies operations for the backend selected by the build. The arrays contain at least four valid elements for these full loads.</p>
+          <pre><code class="language-ada">Left_Block  : constant F32x4 :=
+  Native.Load_Unaligned (Left, Left'First);
+Right_Block : constant F32x4 :=
+  Native.Load_Unaligned (Right, Right'First);
+Products : constant F32x4 :=
+  Native.Multiply (Left_Block, Right_Block);</code></pre>
+          <p><a data-api="Flyology_SIMD.Backends.Native.Load_Unaligned" data-api-signature="F32_Array"><code>Load_Unaligned</code></a> reads four binary32 elements. <a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Multiply</code></a> multiplies corresponding lanes.</p>
+          <p>For the maintained input, the blocks are <code>[1.0, 2.0, 3.0, 4.0]</code> and <code>[0.5, 1.0, 1.5, 2.0]</code>. The product lanes are <code>[0.5, 2.0, 4.5, 8.0]</code>.</p>
         </section>
         <section id="lanes">
-          <h2>Map lane 0 to the first loaded byte</h2>
-          <p>Lane 0 contains <code>Data (Data'First)</code>. Lane 1 contains the next byte. This logical order is identical on every backend.</p>
-          <p>The private vector representation and calling convention can change with the target and compiler switches. Do not infer an ABI or register layout from lane order.</p>
+          <h2>Map lane 0 to the first loaded element</h2>
+          <p>Lane 0 contains <code>Left (Left'First)</code>. Lane 1 contains the next element. This logical order is identical on every backend and does not depend on machine endianness.</p>
+          <p>Lane-wise operations preserve positions unless their name documents a permutation. A multiplication never combines one lane with another lane.</p>
         </section>
-        <section id="masks">
-          <h2>Keep one Boolean result for each lane</h2>
-          <p><code>Equal</code> returns a private <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>, not one Boolean. The first block produces true results in lanes 3, 9, and 14.</p>
-          <pre><code class="language-text">lane:     0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
-value:    r e d , g r e e n ,  b  l  u  e  ,  a
-matches:  F F F T F F F F F T  F  F  F  F  T  F</code></pre>
-          <p>Mask truth is the portable property. Callers do not depend on an all-bits-set representation. <code>Population_Count</code> counts the three true lanes directly.</p>
-        </section>
-        <section id="layers">
-          <h2>Keep source structure separate from emitted code</h2>
-          <table class="support-table">
-            <thead><tr><th>Layer</th><th>Meaning in this guide</th></tr></thead>
-            <tbody>
-              <tr><td>Ordinary Ada source loop</td><td>One byte comparison per source iteration</td></tr>
-              <tr><td>Scalar reference backend</td><td>Portable lane-by-lane implementation of vector semantics</td></tr>
-              <tr><td>Explicit vector loop</td><td>Source that calls fixed-width vector operations</td></tr>
-              <tr><td>Generated machine code</td><td>Instructions emitted after optimization and inlining</td></tr>
-            </tbody>
-          </table>
-          <p>These layers do not imply each other. Inspect generated code before you claim that a source form uses a particular instruction sequence.</p>
-          <div class="next-links"><a href="../"><span>Guide start</span>Compare all five counts</a><a href="../practical/"><span>Chapter 2</span>Build the complete explicit loop</a></div>
+        <section id="private">
+          <h2>Use operations instead of representation</h2>
+          <p>Value and mask types are private. Applications can construct, load, store, extract, replace, compare, and combine them through public operations.</p>
+          <p>The library does not promise a portable record layout, register layout, or calling convention. Compiler switches and target instruction sets can change those mechanisms.</p>
+          <div class="next-links"><a href="../"><span>Guide start</span>Review the complete learning path</a><a href="../practical/"><span>Chapter 2</span>Apply arithmetic and reductions</a></div>
         </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>One complete block compares 16 byte lanes.</span><div class="footer-links"><a href="../practical/">Complete loop</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+  <footer class="site-footer"><div class="footer-inner"><span>Lane order is portable; representation and ABI are not.</span><div class="footer-links"><a href="../">Guide</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
 </body>
 </html>

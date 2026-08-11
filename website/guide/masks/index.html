@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Use comparison masks, Select_Value, compact masks, and mask reductions in Flyology SIMD."><title>Masks and selection · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/masks/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>3. Masks and selection</li></ol><h1>Keep one Boolean result for each lane</h1></div><p class="doc-hero-copy">Chapter 3 uses floating comparison masks for selection and byte masks for compact position bits.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#compare">Compare lanes</a></li><li><a href="#select">Select values</a></li><li><a href="#combine">Combine masks</a></li><li><a href="#bytes">Extract byte-mask bits</a></li><li><a href="#positions">Find positions</a></li></ul></aside>
+      <article class="prose">
+        <p class="chapter-lead">A vector comparison returns a mask, not one Boolean. Each mask lane records the result for the corresponding value lane.</p>
+        <section id="compare">
+          <h2>Compare corresponding lanes</h2>
+          <p><a data-api="Flyology_SIMD.Less_Than" data-api-signature="F32x4"><code>Less_Than</code></a> returns a private <a data-api="Flyology_SIMD.Mask_32x4"><code>Mask_32x4</code></a>. This example marks negative products:</p>
+          <pre><code class="language-ada">Products : constant F32x4 :=
+  From_Lanes ([-1.0, 2.0, -3.0, 4.0]);
+Negative : constant Mask_32x4 :=
+  Less_Than (Products, Zero);</code></pre>
+          <p>The mask lane truths are <code>[true, false, true, false]</code>. Callers do not depend on an all-bits-set representation.</p>
+        </section>
+        <section id="select">
+          <h2>Select one value in each lane</h2>
+          <p><a data-api="Flyology_SIMD.Select_Value" data-api-signature="F32x4"><code>Select_Value</code></a> chooses its true argument in true mask lanes. It chooses its false argument in all other lanes.</p>
+          <pre><code class="language-ada">Magnitudes : constant F32x4 :=
+  Select_Value (Negative, Subtract (Zero, Products), Products);
+
+--  Magnitudes = [1.0, 2.0, 3.0, 4.0]</code></pre>
+          <p>Mask values and value vectors are different private types. The API does not convert between them implicitly.</p>
+        </section>
+        <section id="combine">
+          <h2>Combine and reduce lane truths</h2>
+          <p><a data-api="Flyology_SIMD.Mask_And" data-api-signature="Mask_32x4"><code>Mask_And</code></a>, <a data-api="Flyology_SIMD.Mask_Or" data-api-signature="Mask_32x4"><code>Mask_Or</code></a>, <a data-api="Flyology_SIMD.Mask_Xor" data-api-signature="Mask_32x4"><code>Mask_Xor</code></a>, and <a data-api="Flyology_SIMD.Mask_Not" data-api-signature="Mask_32x4"><code>Mask_Not</code></a> apply Boolean operations lane by lane.</p>
+          <p><a data-api="Flyology_SIMD.Any_True" data-api-signature="Mask_32x4"><code>Any_True</code></a>, <a data-api="Flyology_SIMD.All_True" data-api-signature="Mask_32x4"><code>All_True</code></a>, and <a data-api="Flyology_SIMD.None_True" data-api-signature="Mask_32x4"><code>None_True</code></a> return one Boolean. <a data-api="Flyology_SIMD.Population_Count" data-api-signature="Mask_32x4"><code>Population_Count</code></a> returns the number of true lanes.</p>
+        </section>
+        <section id="bytes">
+          <h2>Use compact masks for byte positions</h2>
+          <p>Byte scanning gives compact masks a direct meaning. <a data-api="Flyology_SIMD.Equal" data-api-signature="U8x16"><code>Equal</code></a> can compare 16 bytes with one splatted comma value.</p>
+          <pre><code class="language-ada">Matches : constant Mask_8x16 := Equal (Bytes, Splat (44));
+Bits : constant Interfaces.Unsigned_16 := To_Bit_Mask (Matches);
+Count : constant Lane_Count_8x16 := Population_Count (Matches);</code></pre>
+          <p><a data-api="Flyology_SIMD.To_Bit_Mask" data-api-signature="Mask_8x16"><code>To_Bit_Mask</code></a> puts lane 0 in bit 0. For <code>"red,green,blue,a"</code>, comma lanes 3, 9, and 14 produce <code>16#4208#</code>. The population count is 3.</p>
+          <p><a data-api="Flyology_SIMD.Mask_From_Bit_Mask" data-api-signature="Mask_8x16"><code>Mask_From_Bit_Mask</code></a> performs the inverse mapping. It ignores bits above the lane count.</p>
+        </section>
+        <section id="positions">
+          <h2>Check the no-match sentinel before conversion</h2>
+          <p><a data-api="Flyology_SIMD.First_True" data-api-signature="Mask_8x16"><code>First_True</code></a> and <a data-api="Flyology_SIMD.Last_True" data-api-signature="Mask_8x16"><code>Last_True</code></a> return a lane-count value. They return 16 when no byte lane is true.</p>
+          <p>A result below <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a><code>'Last</code> is a valid lane index. Check the sentinel before converting it to <a data-api="Flyology_SIMD.Lane_Index_8x16"><code>Lane_Index_8x16</code></a>.</p>
+          <div class="next-links"><a href="../practical/"><span>Chapter 2</span>Review arithmetic</a><a href="../memory/"><span>Chapter 4</span>Use memory operations</a></div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>A mask carries one portable Boolean property per lane.</span><div class="footer-links"><a href="../">Guide</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+</body></html>

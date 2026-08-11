@@ -52,18 +52,17 @@
           <li><a href="../">Overview</a></li>
           <li>Guide</li>
         </ol>
-        <h1>Count occurrences of one byte from source loop to machine code</h1>
+        <h1>Build a model for explicit SIMD in Ada</h1>
       </div>
-      <p class="doc-hero-copy">Follow one byte-count operation from ordinary Ada source through explicit vectors, safe tails, backend selection, measurement, and generated-code checks.</p>
+      <p class="doc-hero-copy">Learn the vector model, arithmetic rules, masks, memory operations, conversions, backend selection, and verification through maintained numeric and byte examples.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
           <li><a href="#terms">Define scalar</a></li>
-          <li><a href="#run">Run the first program</a></li>
-          <li><a href="#measure">Review the recorded measurement</a></li>
-          <li><a href="#result">Compare five implementations</a></li>
+          <li><a href="#run">Run the numeric example</a></li>
+          <li><a href="#model">Separate the concepts</a></li>
           <li><a href="#install">Add the dependency</a></li>
           <li><a href="#path">Follow the guide</a></li>
           <li><a href="#shortcuts">Choose a shortcut</a></li>
@@ -72,47 +71,30 @@
       </aside>
       <article class="prose">
         <section id="terms">
-          <h2>Distinguish scalar operations from the scalar reference backend</h2>
-          <p>A scalar operation acts on one value. The ordinary Ada source loop compares one <a data-api="Flyology_SIMD.U8"><code>U8</code></a> element in each source iteration.</p>
+          <h2>Distinguish scalar source, operations, and backends</h2>
+          <p>A scalar operation acts on one value. An ordinary Ada dot-product loop multiplies and adds one pair of <a data-api="Flyology_SIMD.F32"><code>F32</code></a> elements in each source iteration.</p>
           <p>The <strong>scalar reference backend</strong> implements each vector result with portable lane-by-lane Ada. It is the semantic authority for optimized backends, but it is not the ordinary source loop. The reported backend name <code>scalar</code> identifies a scalar-only build.</p>
           <p><strong>Generated machine code</strong> is the compiler output. GNAT can auto-vectorize an ordinary Ada source loop. Therefore, scalar source does not prove that the executable contains only scalar instructions.</p>
           <p>This guide uses <strong>explicit vector loop</strong> for source that calls fixed-width vector operations. The backend can implement an explicit operation with one instruction, several instructions, or scalar composition.</p>
         </section>
         <section id="run">
-          <h2>Run the complete byte-count program</h2>
-          <p>The program counts comma bytes in <code>"red,green,blue,amber,white"</code>. Clone the repository and run the maintained source:</p>
+          <h2>Run the maintained dot product</h2>
+          <p>The program computes the dot product of two seven-element <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> values. It compares ordinary Ada with static scalar and native vector composition.</p>
           <pre><code class="language-shell">git clone https://github.com/flyology-ada/flyology-simd.git
 cd flyology-simd
 alr exec -- gprbuild -p -P examples/examples.gpr
-./bin/count_byte</code></pre>
-          <p>The five count lines include an explicit <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> loop. They have the following output:</p>
-          <pre><code class="language-text">ordinary source loop: 4
-explicit U8x16 loop: 4
-scalar reference backend: 4
-static native algorithm: 4
-runtime-dispatched algorithm: 4</code></pre>
-          <p>The final line reports <code>neon</code>, <code>sse2</code>, <code>avx2</code>, or <code>scalar</code>. The value depends on the build and host:</p>
-          <pre><code class="language-text">best available backend: neon</code></pre>
+./bin/dot_product</code></pre>
+          <p>The selected data has an exact binary32 result in both evaluation orders:</p>
+          <pre><code class="language-text">ordinary Ada dot: 7.00000E+01
+scalar backend dot: 7.00000E+01
+native backend dot: 7.00000E+01</code></pre>
+          <p>Later chapters explain the four-lane products, the three-element tail, and compile-time composition. Floating-point association can change rounding for other inputs.</p>
         </section>
-        <section id="measure">
-          <h2>Measure before adding explicit SIMD</h2>
-          <p>An explicit <code>U8x16</code> iteration compares 16 byte candidates. The ordinary source loop compares one candidate per source iteration. GNAT can still auto-vectorize the ordinary loop.</p>
-          <p>A recorded 2026-08-10 run measured 4,096-byte counts on an Apple <code>Mac15,9</code> AArch64 host with GNAT FSF 16.1.0. The ordinary Ada count had a 1,349.29 ns median. The static NEON count had a 661.40 ns median.</p>
-          <p>The run used 75 repeated samples. It did not use CPU pinning or a quiescence check. This result motivates inspection on that host; it is not a portable ratio. <a href="benchmarking/">Chapter 5</a> gives the switches, method, other sizes, and reproduction commands.</p>
-        </section>
-        <section id="result">
-          <h2>Compare five implementations of the same count</h2>
-          <p>The input is a <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a>. Each implementation counts the same comma value and returns <code>Natural</code>.</p>
-          <p><a data-api="Flyology_SIMD.Algorithms.Scalar"><code>Algorithms.Scalar</code></a> and <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a> are instances of the reusable byte-algorithm package.</p>
-          <ul>
-            <li><code>Ordinary_Count</code> is the direct Ada source loop.</li>
-            <li><code>Explicit_Count_Commas</code> calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> operations directly.</li>
-            <li><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Scalar.Count</code></a> runs the generic declaration instantiated with the scalar reference backend.</li>
-            <li><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Native.Count</code></a> runs the same generic declaration bound to the backend selected at build time.</li>
-            <li><a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> selects the best available implementation before it scans the complete buffer.</li>
-          </ul>
-          <p>GNATdoc does not emit separate subprogram anchors for the two generic instances. The instance-qualified <code>Count</code> links therefore open the originating <code>Generic_Bytes.Count</code> declaration.</p>
-          <p>Equal results confirm the required result for this input. The scalar reference backend defines vector semantics. Differential tests compare optimized algorithms with it across input lengths.</p>
+        <section id="model">
+          <h2>Keep semantics separate from machine mechanism</h2>
+          <p>A <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> value has four logical binary32 lanes. Its public type is private. Applications use operations such as load, multiply, comparison, selection, and reduction.</p>
+          <p>The public semantics are identical on all backends. The scalar fallback provides source portability. Native backends provide target-specific code generation. These are three separate portability claims.</p>
+          <p>The representation and calling convention can change with the compiler, target, and instruction switches. The library does not define a portable vector ABI.</p>
         </section>
         <section id="install">
           <h2>Add the crate to an application</h2>
@@ -134,13 +116,15 @@ alr build</code></pre>
         </section>
         <section id="path">
           <h2>Follow the guide in order</h2>
-          <p>The chapters build one model. Each chapter assumes the result of the previous chapter.</p>
+          <p>The chapters build one model. The dot product is the main numeric thread. Byte counting appears where masks and runtime byte algorithms need a concrete case.</p>
           <ol class="guide-sequence">
-            <li><div><a href="introduction/">Process one 16-byte block</a><p>Load bytes into lanes, compare them with one comma value, and count the true mask lanes.</p></div></li>
-            <li><div><a href="practical/">Build the complete explicit loop</a><p>Repeat the block operation across the input and keep the result equivalent to the ordinary loop.</p></div></li>
-            <li><div><a href="memory/">Handle the final partial block</a><p>Read the remaining bytes without reading beyond the caller-declared extent.</p></div></li>
-            <li><div><a href="dispatch/">Compose and select backends</a><p>Separate scalar reference composition, static native composition, and coarse runtime dispatch.</p></div></li>
-            <li><div><a href="benchmarking/">Measure and inspect the algorithm</a><p>Compare complete counts, inspect generated code, and keep conclusions within the measured environment.</p></div></li>
+            <li><div><a href="introduction/">Model vectors and lanes</a><p>Map array elements to lanes and process the first four dot-product terms.</p></div></li>
+            <li><div><a href="practical/">Apply arithmetic and reductions</a><p>Complete the vector dot product and define integer and floating-point edge semantics.</p></div></li>
+            <li><div><a href="masks/">Compare, select, and inspect masks</a><p>Use floating masks for selection and byte masks for compact bit extraction.</p></div></li>
+            <li><div><a href="memory/">Use full, aligned, and partial memory operations</a><p>Read the three-element dot-product tail without crossing the valid array extent.</p></div></li>
+            <li><div><a href="conversions/">Convert values and reinterpret bits</a><p>Distinguish numeric conversion, narrowing, widening, saturation, and bit casts.</p></div></li>
+            <li><div><a href="dispatch/">Compose backends and dispatch algorithms</a><p>Use static composition for the dot product and runtime dispatch for current byte algorithms.</p></div></li>
+            <li><div><a href="benchmarking/">Verify code generation and measure complete work</a><p>Use differential tests, focused disassembly checks, and repeated benchmarks.</p></div></li>
           </ol>
         </section>
         <section id="shortcuts">
@@ -151,7 +135,9 @@ alr build</code></pre>
             </thead>
             <tbody>
               <tr><td>Does the operation I need exist?</td><td><a href="operations/">Operation coverage</a></td></tr>
+              <tr><td>How do comparison results select values?</td><td><a href="masks/">Masks and selection</a></td></tr>
               <tr><td>How do I process the last elements safely?</td><td><a href="memory/">Memory operations</a></td></tr>
+              <tr><td>Which conversion preserves bits?</td><td><a href="conversions/">Conversions and bit casts</a></td></tr>
               <tr><td>Which backend runs, and when is it chosen?</td><td><a href="dispatch/">Backend selection</a></td></tr>
               <tr><td>Which targets have executed tests?</td><td><a href="../support/">Support and verification</a></td></tr>
               <tr><td>What is the exact Ada declaration?</td><td><a href="../api/">Generated API reference</a></td></tr>
@@ -160,10 +146,10 @@ alr build</code></pre>
         </section>
         <section id="boundary">
           <h2>Know what this guide does not promise</h2>
-          <p>The <a href="operations/">operation matrix</a> is a reference, not a chapter in the byte-count walkthrough. Use it to check type coverage and exact edge semantics.</p>
+          <p>The <a href="operations/">operation matrix</a> is a reference, not a chapter in the learning sequence. Use it to check exact overload coverage and edge semantics.</p>
           <p>The API is experimental. The current value family is 128 bits wide. The matrix includes the 16-entry byte-table lookup. It also lists unimplemented general lane-index shuffles, lane slides, compression, and 256-bit types.</p>
           <p>The scalar backend defines the result on every supported GNAT target. Target-specific code exists for AArch64 NEON and x86-64 SSE2, with an AVX2 path for selected whole-buffer byte algorithms. The <a href="../support/">support page</a> distinguishes implemented, executed, and continuously tested configurations.</p>
-          <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Process one 16-byte block</a><a href="operations/"><span>Reference</span>Check operation coverage</a></div>
+          <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Model vectors and lanes</a><a href="operations/"><span>Reference</span>Check operation coverage</a></div>
         </section>
       </article>
     </div>

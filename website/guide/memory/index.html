@@ -1,154 +1,55 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Handle the final byte-count block without reading beyond the valid Ada array extent.">
-  <title>Safe byte-count tails · Flyology SIMD</title>
-  <link rel="canonical" href="https://simd.flyology.org/guide/memory/">
-  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../../assets/styles/site.css">
-  <link rel="stylesheet" href="../../assets/styles/simd.css">
-  <script src="../../assets/scripts/ada-highlight.js"></script>
-  <script src="../../assets/scripts/site.js"></script>
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Use full, aligned, unaligned, and safe partial memory operations in Flyology SIMD."><title>Memory operations · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/memory/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script></head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <nav class="site-nav" aria-label="Primary navigation">
-      <a class="brand" href="../../">
-        <img src="../../assets/brand/flyology-mark-transparent.svg" alt="">
-        <span>Flyology SIMD</span>
-      </a>
-      <ul class="nav-links" data-nav-links>
-        <li><a href="../../">Overview</a></li>
-        <li><a href="../" aria-current="page">Guide</a></li>
-        <li><a href="../operations/">Operations</a></li>
-        <li><a href="../../architecture/">Architecture</a></li>
-        <li><a href="../../support/">Support</a></li>
-        <li><a href="../../api/">API</a></li>
-        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
-      </ul>
-      <div class="nav-tools">
-        <button class="icon-button" type="button" data-theme-toggle>
-          <span class="visually-hidden" data-theme-label>Change theme</span>
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <circle cx="12" cy="12" r="4"/>
-            <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
-          </svg>
-        </button>
-        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M4 7h16M4 12h2M4 17h16"/>
-          </svg>
-        </button>
-      </div>
-    </nav>
-  </header>
+  <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero">
-      <div>
-        <ol class="breadcrumb">
-          <li><a href="../">Guide</a></li>
-        <li>3. Safe tail</li>
-        </ol>
-        <h1>Read the final bytes without overreading</h1>
-      </div>
-      <p class="doc-hero-copy">Chapter 3 follows the byte-count loop to its array boundary. It defines the valid extent of full, unaligned, aligned, and partial operations.</p>
-    </header>
-    <div class="docs-layout">
-      <aside class="toc" aria-label="On this page">
-        <span class="toc-title">On this page</span>
-        <ul>
-          <li><a href="#partial">Partial operations</a></li>
-          <li><a href="#tail">Complete tail loop</a></li>
-          <li><a href="#tests">Boundary tests</a></li>
-          <li><a href="#lane-order">Lane order</a></li>
-          <li><a href="#full">Full operations</a></li>
-          <li><a href="#aligned">Alignment</a></li>
-        </ul>
-      </aside>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>4. Memory operations</li></ol><h1>Match each memory operation to its extent and alignment</h1></div><p class="doc-hero-copy">Chapter 4 processes the dot product's three-element tail and states the contracts for all typed memory forms.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#typed">Typed arrays</a></li><li><a href="#full">Full operations</a></li><li><a href="#aligned">Aligned operations</a></li><li><a href="#partial">Partial operations</a></li><li><a href="#tail">Dot-product tail</a></li><li><a href="#tests">Boundary tests</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">The comma-counting input has 26 bytes. The first iteration processes 16 bytes. The final iteration must read the remaining ten bytes and no others.</p>
-        <section id="partial">
-          <h2>Partial operations use an exact count</h2>
-          <p><a data-api="Flyology_SIMD"><code>Load_Partial</code></a> reads <code>Count</code> elements. It sets all remaining lanes to zero. <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> writes <code>Count</code> elements.</p>
-          <p>A count of zero reads no element and writes no element. A partial operation does not perform a full vector access and then mask the result.</p>
-        </section>
-        <section id="tail">
-          <h2>Process the final partial count block</h2>
-          <p>The tutorial loop calculates the valid count before each load. After each nonfinal load, it advances by that count.</p>
-          <p>The loop calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> and processes <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> values. Its <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> operation constructs the comma vector:</p>
-          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
-
-Start : Natural := Data'First;
-Total : Natural := 0;
-Wanted : constant U8x16 := Native.Splat (Comma);
-
-while Start &lt;= Data'Last loop
-   declare
-      Remaining : constant Natural := Data'Last - Start + 1;
-      Count : constant Lane_Count_8x16 :=
-        Lane_Count_8x16'Min (16, Remaining);
-      Values : constant U8x16 :=
-        Native.Load_Partial (Data, Start, Count);
-      Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
-   begin
-      Total := Total + Native.Population_Count (Matches);
-      exit when Count = Remaining;
-      Start := Start + Count;
-   end;
-end loop;</code></pre>
-          <p>The first load reads array indexes 1 through 16. The second load reads indexes 17 through 26. It fills lanes 10 through 15 with zero. The loop exits after the final load and does not calculate an index after <code>Data'Last</code>.</p>
-          <p><code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>. <code>Matches</code> has type <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
-          <p><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Native.Load_Partial</code></a> enforces the exact read extent. <a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Native.Equal</code></a> compares the lanes, and <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Native.Population_Count</code></a> counts matches.</p>
-          <p>The comma byte is not zero, so those filled lanes compare false. If a general byte-count function accepts zero as the searched value, it must mask unused lanes or use a scalar tail.</p>
-          <p>The repository contains the complete tutorial in <code>examples/count_byte.adb</code>.</p>
-        </section>
-        <section id="tests">
-          <h2>Test the page boundary</h2>
-          <p><code>guard_page_tests</code> allocates two pages and denies all access to the second page. For each count from 0 through 16, it puts the valid bytes directly before that protected page.</p>
-          <p>The test calls scalar and native partial loads and stores. An access beyond the valid count enters the protected page and terminates the test. The suite also runs exact-size array tests and AddressSanitizer builds.</p>
-        </section>
-        <section id="lane-order">
-          <h2>Apply lane order to every memory form</h2>
-          <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
-          <p>This rule defines the logical result. It does not define a portable record layout, register layout, or calling convention.</p>
+        <p class="chapter-lead">The dot-product arrays have seven elements. One full <code>F32x4</code> load consumes four. The final iteration must read exactly three elements from each array.</p>
+        <section id="typed">
+          <h2>Pass typed arrays and Ada indexes</h2>
+          <p>Ordinary memory operations accept a typed array such as <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a>. They also accept the Ada index of the first selected element.</p>
+          <p>Lane 0 receives <code>Data (Start)</code>. The API does not expose an access value or native address in a vector representation.</p>
         </section>
         <section id="full">
-          <h2>Full operations require one complete vector</h2>
-          <p><code>Load</code> and <a data-api="Flyology_SIMD"><code>Store</code></a> require enough valid elements for one vector. For <code>U8x16</code>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
-          <p><a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Unaligned</code></a> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
-          <pre><code class="language-ada">Block : constant U8x16 := Load_Unaligned (Data, Start);
-Store_Unaligned (Output, Start, Block);</code></pre>
+          <h2>Use a full operation only for one complete vector</h2>
+          <p><a data-api="Flyology_SIMD.Load" data-api-signature="F32_Array"><code>Load</code></a> and <a data-api="Flyology_SIMD.Store" data-api-signature="F32_Array"><code>Store</code></a> require four valid binary32 elements. They do not require 16-byte alignment.</p>
+          <p><a data-api="Flyology_SIMD.Load_Unaligned" data-api-signature="F32_Array"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD.Store_Unaligned" data-api-signature="F32_Array"><code>Store_Unaligned</code></a> have the same extent and no alignment requirement. Their names make that fact explicit at the call site.</p>
         </section>
         <section id="aligned">
-          <h2>Aligned operations require a 16-byte-aligned address</h2>
-          <p><a data-api="Flyology_SIMD"><code>Is_Aligned_16</code></a> checks the address of <code>Data (Start)</code>. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Aligned</code></a> have a precondition that requires this check to be true.</p>
-          <p>Enabled assertion checks detect a false precondition. Your program must still meet the precondition when assertion checks are disabled.</p>
-          <div class="next-links">
-            <a href="../practical/">
-              <span>Chapter 2</span>
-              Return to the complete count loop
-            </a>
-            <a href="../dispatch/">
-              <span>Chapter 4</span>
-              Choose a backend
-            </a>
-          </div>
+          <h2>Check alignment before an aligned operation</h2>
+          <p><a data-api="Flyology_SIMD.Is_Aligned_16" data-api-signature="F32_Array"><code>Is_Aligned_16</code></a> reports whether <code>Data (Start)</code> has a 16-byte-aligned address. Check it before <a data-api="Flyology_SIMD.Load_Aligned" data-api-signature="F32_Array"><code>Load_Aligned</code></a> or <a data-api="Flyology_SIMD.Store_Aligned" data-api-signature="F32_Array"><code>Store_Aligned</code></a>.</p>
+          <p>The aligned operations have a precondition that requires both a full valid extent and 16-byte alignment. A program must meet the precondition even when assertion checks are disabled.</p>
+        </section>
+        <section id="partial">
+          <h2>Declare the exact partial extent</h2>
+          <p><a data-api="Flyology_SIMD.Load_Partial" data-api-signature="F32_Array"><code>Load_Partial</code></a> reads exactly <code>Count</code> elements and fills remaining lanes with zero. <a data-api="Flyology_SIMD.Store_Partial" data-api-signature="F32_Array"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements.</p>
+          <p>If <code>Count</code> is zero, a partial operation does not evaluate an element address or touch memory. It does not perform an out-of-bounds full-vector access and mask the result.</p>
+        </section>
+        <section id="tail">
+          <h2>Load the final three dot-product elements</h2>
+          <pre><code class="language-ada">Remaining : constant Natural := Left'Last - Start + 1;
+Count : constant Lane_Count_32x4 :=
+  Lane_Count_32x4'Min (4, Remaining);
+Left_Block : constant F32x4 :=
+  Vector_Load_Partial (Left, Start, Count);
+Right_Block : constant F32x4 :=
+  Vector_Load_Partial (Right, Start, Count);</code></pre>
+          <p>The second iteration uses <code>Count = 3</code>. Each load reads indexes 5 through 7 and places zero in lane 3. The unused product is therefore <code>0.0 * 0.0</code>.</p>
+          <p>The loop exits after it consumes the final <code>Remaining</code> elements. It does not calculate an index after <code>Left'Last</code>.</p>
+        </section>
+        <section id="tests">
+          <h2>Verify extent separately from values</h2>
+          <p><code>guard_page_tests</code> places byte tails next to an inaccessible page. It exercises scalar and native partial byte loads and stores for counts 0 through 16.</p>
+          <p>The family tests cover typed partial operations and every valid count for all lane shapes. AddressSanitizer builds provide another out-of-bounds check where the toolchain supports them.</p>
+          <p>A store consumes its vector value before it writes the destination. The API has no raw-address overload in v0.1.</p>
+          <div class="next-links"><a href="../masks/"><span>Chapter 3</span>Review masks</a><a href="../conversions/"><span>Chapter 5</span>Convert lane values</a></div>
         </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <span>A partial operation touches only the caller-declared extent.</span>
-      <div class="footer-links">
-        <a href="../">Guide</a>
-        <a href="../operations/">Operations</a>
-        <a href="../../api/">API</a>
-      </div>
-    </div>
-  </footer>
-</body>
-</html>
+  <footer class="site-footer"><div class="footer-inner"><span>A partial operation touches only the caller-declared extent.</span><div class="footer-links"><a href="../">Guide</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+</body></html>
