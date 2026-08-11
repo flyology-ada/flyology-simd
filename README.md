@@ -62,6 +62,7 @@ Build the examples with `examples/examples.gpr`:
 ```sh
 alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/find_byte
+./bin/count_byte
 ./bin/integer_vectors
 ./bin/floating_vectors
 ./bin/partial_tail

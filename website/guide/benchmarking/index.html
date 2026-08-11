@@ -34,13 +34,13 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Measurement</li></ol><h1>Measure a complete algorithm</h1></div>
-      <p class="doc-hero-copy">Chapter 6 measures the loop as an application uses it. The standalone benchmark uses flyology_bench to compare equivalent whole-buffer byte-count implementations.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>5. Measurement and code generation</li></ol><h1>Measure and inspect the complete byte count</h1></div>
+      <p class="doc-hero-copy">Chapter 5 measures equivalent whole-buffer counts, then checks that optimized algorithm objects contain the required SIMD instruction classes.</p>
     </header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Commands</a></li><li><a href="#cases">Cases</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#run">Commands</a></li><li><a href="#cases">Cases</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#codegen">Generated code</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">This chapter measures the byte-count operation from Chapter 4. Correct primitive assembly is necessary, but it does not predict whole-buffer cost. Measure after the semantic, memory, and backend boundaries are fixed.</p>
+        <p class="chapter-lead">Chapter 4 selected complete byte-count implementations. Correct primitive assembly is necessary, but it does not predict whole-buffer cost. Measure the complete algorithm, then inspect the code that the compiler emitted.</p>
         <section id="run">
           <h2>Build and run from the benchmark crate</h2>
           <pre><code class="language-shell">cd benchmarks
@@ -54,8 +54,8 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
           <h2>Measure four complete implementations</h2>
           <p>Each input size compares:</p>
           <ul>
-            <li>a direct ordinary Ada loop;</li>
-            <li>the scalar SIMD algorithm;</li>
+            <li>a direct ordinary Ada source loop, which GNAT can auto-vectorize;</li>
+            <li>the SIMD algorithm composed with the scalar reference backend;</li>
             <li>the statically selected native algorithm;</li>
             <li>the runtime-dispatched algorithm.</li>
           </ul>
@@ -84,12 +84,30 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
           </table>
           <p>For this run, static NEON had the lowest median at 16 and 4,096 bytes. Runtime dispatch and static NEON had nearly equal medians at 1,048,576 bytes.</p>
         </section>
+        <section id="codegen">
+          <h2>Inspect the optimized algorithm object</h2>
+          <p>Run the code-generation check for the current host architecture from the repository root:</p>
+          <pre><code class="language-shell"># AArch64 host
+./scripts/check_codegen.sh aarch64
+
+# x86-64 baseline host
+./scripts/check_codegen.sh x86_64 disabled</code></pre>
+          <p>Do not run an architecture check on a host that cannot build and disassemble that target. For an enabled AVX2 build on a suitable x86-64 host, pass <code>enabled</code> as the second argument.</p>
+          <p>The script inspects primitive and whole-algorithm objects. For the native byte-count loop, it requires these instruction classes:</p>
+          <ul>
+            <li>a vector load;</li>
+            <li>a vector byte comparison;</li>
+            <li>a vector mask-extraction or reduction instruction.</li>
+          </ul>
+          <p>The script also rejects an out-of-line backend primitive call in the representative loop. This check detects scalarization or failed inter-unit inlining that a primitive-only disassembly can miss.</p>
+          <p>The checks match required instruction classes, not complete disassembly text. Register allocation and harmless scheduling changes can therefore vary.</p>
+        </section>
         <section id="interpret">
           <h2>Check build equivalence before interpretation</h2>
           <p>An earlier large-buffer result showed the ordinary Ada loop with a lower time than the SIMD loop. That result was a build error, not an Ada language effect. The imported library algorithm lacked optimization while the benchmark unit used release optimization.</p>
           <p>Verbose compiler commands exposed the mismatch. The project now applies <code>-O2</code> to all library units. Code-generation checks also inspect the complete algorithm loop.</p>
           <p>Do not generalize the recorded table to another host. Repeat the measurement, keep the diagnostics, and inspect the generated code. See the <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> for the statistical procedure.</p>
-          <div class="next-links"><a href="../operations/"><span>Chapter 5</span>Review the measured primitives</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
+          <div class="next-links"><a href="../operations/"><span>Reference</span>Review primitive semantics</a><a href="../../support/"><span>Support</span>Check executed targets</a></div>
         </section>
       </article>
     </div>

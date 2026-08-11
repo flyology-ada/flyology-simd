@@ -34,78 +34,70 @@
   </header>
   <main id="main" class="page-shell">
     <header class="doc-hero">
-      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>1. First principles</li></ol><h1>SIMD from first principles</h1></div>
-      <p class="doc-hero-copy">Chapter 1 builds the model used by every later example: vectors contain lanes, comparisons produce masks, and buffer loops end with a partial vector.</p>
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>1. One vector block</li></ol><h1>Count matches in one 16-byte block</h1></div>
+      <p class="doc-hero-copy">Chapter 1 opens one iteration of the byte-count program. It loads 16 bytes, compares 16 lanes, and counts the true mask lanes.</p>
     </header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#one-operation">One operation, several lanes</a></li><li><a href="#types">Width and lane types</a></li><li><a href="#masks">Comparisons and masks</a></li><li><a href="#semantics">Choose the semantics</a></li><li><a href="#memory">Load complete and partial vectors</a></li><li><a href="#backends">Select a backend</a></li><li><a href="#loop">A complete loop</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#source">Ordinary source loop</a></li><li><a href="#block">One vector block</a></li><li><a href="#lanes">Lane order</a></li><li><a href="#masks">Comparison mask</a></li><li><a href="#layers">Source and machine code</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">The guide will build a byte-classification loop in Chapter 2. This chapter defines the pieces in that loop before the code combines them.</p>
-        <section id="one-operation">
-          <h2>One operation changes several lanes</h2>
-          <p>SIMD means <em>single instruction, multiple data</em>. A vector contains several lanes of one scalar type. An arithmetic or comparison operation processes corresponding lanes independently.</p>
-          <p>In this library, one vector operation defines several lane results. A backend can use one instruction, an instruction sequence, or scalar composition.</p>
-          <table class="support-table">
-            <thead><tr><th>Lane</th><th>Left</th><th>Right</th><th>Left + Right</th></tr></thead>
-            <tbody><tr><td>0</td><td>10</td><td>1</td><td>11</td></tr><tr><td>1</td><td>20</td><td>2</td><td>22</td></tr><tr><td>2</td><td>30</td><td>3</td><td>33</td></tr><tr><td>3</td><td>40</td><td>4</td><td>44</td></tr></tbody>
-          </table>
-          <p>The rows do not affect each other. A vector operation is therefore useful when an algorithm repeats the same work on adjacent values.</p>
+        <p class="chapter-lead">The maintained example counts comma bytes. Start with its ordinary Ada source loop, then express one block with explicit vector operations.</p>
+        <section id="source">
+          <h2>Start with the ordinary Ada source loop</h2>
+          <pre><code class="language-ada">for Value of Source loop
+   if Value = Needle then
+      Result := Result + 1;
+   end if;
+end loop;</code></pre>
+          <p>Each source iteration compares one byte. The loop is the simple correctness baseline. GNAT can auto-vectorize it, so the source form does not determine the emitted instruction sequence.</p>
         </section>
-        <section id="types">
-          <h2>The width and lane type determine the lane count</h2>
-          <p>This release provides 128-bit vectors. The name <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> means 16 unsigned 8-bit lanes. <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> means four signed 32-bit lanes. <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> means two IEEE binary64 lanes.</p>
-          <pre><code class="language-text">128 bits / 8 bits  = 16 lanes
-128 bits / 32 bits =  4 lanes
-128 bits / 64 bits =  2 lanes</code></pre>
-          <p>Lane 0 is the first logical element that a load reads. Vector representation and calling conventions are private. Do not pass a vector through a foreign-language call boundary by assuming a register layout.</p>
-        </section>
-        <section id="masks">
-          <h2>A comparison returns one Boolean per lane</h2>
-          <p>A vector comparison does not return one Boolean. It returns a private mask type. For example, an equality comparison on <code>U8x16</code> returns <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
-          <pre><code class="language-text">values:  41  42  41  43
-needle:  41  41  41  41
-equal:    T   F   T   F
-bits:     1   0   1   0  = compact mask 0b0101</code></pre>
-          <p>Use <a data-api="Flyology_SIMD"><code>Any_True</code></a> to ask whether at least one lane is true. Use <a data-api="Flyology_SIMD"><code>All_True</code></a> to require every lane. Use <a data-api="Flyology_SIMD"><code>To_Bit_Mask</code></a> when an algorithm needs a compact integer. Bit 0 represents lane 0.</p>
-          <p>Use <a data-api="Flyology_SIMD"><code>Mask_And</code></a>, <a data-api="Flyology_SIMD"><code>Mask_Or</code></a>, <a data-api="Flyology_SIMD"><code>Mask_Xor</code></a>, and <a data-api="Flyology_SIMD"><code>Mask_Not</code></a> to combine conditions. Do not depend on the private mask representation.</p>
-        </section>
-        <section id="semantics">
-          <h2>Choose wrapping or saturating integer arithmetic</h2>
-          <p>Public semantics do not depend on the instruction that implements an operation. The API uses different names for different overflow rules.</p>
-          <table class="support-table"><thead><tr><th>Operation</th><th>Example for an unsigned 8-bit lane</th></tr></thead><tbody><tr><td><a data-api="Flyology_SIMD"><code>Add_Wrap</code></a></td><td>250 + 10 becomes 4 modulo 256</td></tr><tr><td><a data-api="Flyology_SIMD"><code>Add_Saturate</code></a></td><td>250 + 10 becomes 255</td></tr></tbody></table>
-          <p>Shift counts at least as large as the lane width also have fixed results. Logical shifts return zero. An arithmetic right shift returns the sign fill.</p>
-        </section>
-        <section id="memory">
-          <h2>Load complete vectors and process the final partial vector</h2>
-          <p>A complete load requires one full vector of valid elements. <a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> does not require 16-byte alignment. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> requires a 16-byte-aligned address.</p>
-          <p>A buffer length is rarely an exact multiple of the lane count. Use <a data-api="Flyology_SIMD"><code>Load_Partial</code></a> for the final elements. It reads exactly <code>Count</code> elements and fills the remaining lanes with zero. <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements.</p>
-          <div class="semantic-callout"><strong>A partial load is not a masked out-of-range load.</strong><p>The implementation does not read a complete vector and discard invalid lanes. Protected-page tests check every byte count from 0 through 16.</p></div>
-        </section>
-        <section id="backends">
-          <h2>Keep semantics separate from the machine backend</h2>
-          <p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> is the scalar reference. It defines the portable result. <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> provides the backend selected at build time.</p>
-          <p>Use the compile-time-selected native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one whole-buffer operation must select from the backends that the processor and operating system can execute.</p>
-          <p>Runtime dispatch occurs once for the buffer. It does not occur for each vector operation or lane.</p>
-        </section>
-        <section id="loop">
-          <h2>Put the operations into a complete loop</h2>
-          <p>This outline adds 10 with saturation. It uses the compiled native backend and handles the final partial vector.</p>
+        <section id="block">
+          <h2>Express one complete block with four operations</h2>
+          <p><a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> supplies the vector operations selected at build time. A <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> value contains 16 unsigned byte lanes.</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
-Start := Data'First;
-while Start &lt;= Data'Last loop
-   Count := Lane_Count_8x16'Min (16, Data'Last - Start + 1);
-   Value := Native.Load_Partial (Data, Start, Count);
-   Value := Native.Add_Saturate (Value, Native.Splat (10));
-   Native.Store_Partial (Data, Start, Count, Value);
-   Start := Start + Count;
-end loop;</code></pre>
-          <p>The repository program <code>examples/partial_tail.adb</code> contains the complete declarations and output. The practical examples apply the same loop structure to byte classification and floating-point data.</p>
-          <div class="next-links"><a href="../"><span>Guide start</span>Run the first whole-buffer program</a><a href="../practical/"><span>Chapter 2</span>Build complete SIMD tasks</a></div>
+Wanted : constant U8x16 := Native.Splat (Comma);
+Values : constant U8x16 := Native.Load_Unaligned (Data, Data'First);
+Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
+Block_Count : constant Lane_Count_8x16 :=
+  Native.Population_Count (Matches);</code></pre>
+          <ol>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> puts the comma value in every lane.</li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Load_Unaligned" data-api-signature="Byte_Array"><code>Load_Unaligned</code></a> reads 16 valid bytes.</li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Equal</code></a> compares corresponding lanes.</li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Population_Count</code></a> returns the number of true lanes as <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>.</li>
+          </ol>
+          <p>The first 16 input bytes are <code>"red,green,blue,a"</code>. They contain three commas, so <code>Block_Count</code> is 3.</p>
+        </section>
+        <section id="lanes">
+          <h2>Map lane 0 to the first loaded byte</h2>
+          <p>Lane 0 contains <code>Data (Data'First)</code>. Lane 1 contains the next byte. This logical order is identical on every backend.</p>
+          <p>The private vector representation and calling convention can change with the target and compiler switches. Do not infer an ABI or register layout from lane order.</p>
+        </section>
+        <section id="masks">
+          <h2>Keep one Boolean result for each lane</h2>
+          <p><code>Equal</code> returns a private <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>, not one Boolean. The first block produces true results in lanes 3, 9, and 14.</p>
+          <pre><code class="language-text">lane:     0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+value:    r e d , g r e e n ,  b  l  u  e  ,  a
+matches:  F F F T F F F F F T  F  F  F  F  T  F</code></pre>
+          <p>Mask truth is the portable property. Callers do not depend on an all-bits-set representation. <code>Population_Count</code> counts the three true lanes directly.</p>
+        </section>
+        <section id="layers">
+          <h2>Keep source structure separate from emitted code</h2>
+          <table class="support-table">
+            <thead><tr><th>Layer</th><th>Meaning in this guide</th></tr></thead>
+            <tbody>
+              <tr><td>Ordinary Ada source loop</td><td>One byte comparison per source iteration</td></tr>
+              <tr><td>Scalar reference backend</td><td>Portable lane-by-lane implementation of vector semantics</td></tr>
+              <tr><td>Explicit vector loop</td><td>Source that calls fixed-width vector operations</td></tr>
+              <tr><td>Generated machine code</td><td>Instructions emitted after optimization and inlining</td></tr>
+            </tbody>
+          </table>
+          <p>These layers do not imply each other. Inspect generated code before you claim that a source form uses a particular instruction sequence.</p>
+          <div class="next-links"><a href="../"><span>Guide start</span>Compare all five counts</a><a href="../practical/"><span>Chapter 2</span>Build the complete explicit loop</a></div>
         </section>
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Start with lanes, masks, and exact memory extents.</span><div class="footer-links"><a href="../practical/">Practical examples</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+  <footer class="site-footer"><div class="footer-inner"><span>One complete block compares 16 byte lanes.</span><div class="footer-links"><a href="../practical/">Complete loop</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
 </body>
 </html>

@@ -35,12 +35,12 @@
   <main id="main" class="page-shell">
     <header class="doc-hero">
       <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>4. Backend selection</li></ol><h1>Choose a backend</h1></div>
-      <p class="doc-hero-copy">Chapter 4 separates two decisions: the build selects primitive implementations, and a whole-buffer call can select once among compiled, available backends.</p>
+      <p class="doc-hero-copy">Chapter 4 composes the byte-count algorithm with the scalar reference or native backend, then selects a complete algorithm once at runtime.</p>
     </header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#terms">Terms</a></li><li><a href="#static">Static call</a></li><li><a href="#runtime">Runtime call</a></li><li><a href="#force">Require a backend</a></li><li><a href="#x86">x86 safety</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#terms">Backend states</a></li><li><a href="#composition">Static composition</a></li><li><a href="#runtime">Runtime dispatch</a></li><li><a href="#force">Require a backend</a></li><li><a href="#x86">x86 safety</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">The guide start used <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a>. The direct loops in Chapter 2 used <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a>. The loop and memory contract stay the same, but the two interfaces choose a backend at different boundaries.</p>
+        <p class="chapter-lead">The maintained count program now has equivalent source and explicit-vector results. This chapter shows where <a data-api="Flyology_SIMD.Algorithms.Scalar"><code>Algorithms.Scalar</code></a>, <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> make different choices.</p>
         <section id="terms">
           <h2>Use three feature terms</h2>
           <ul>
@@ -50,36 +50,32 @@
           </ul>
           <p><a data-api="Flyology_SIMD.Features.Compiled"><code>Features.Compiled</code></a>, <a data-api="Flyology_SIMD.Features.Available"><code>Features.Available</code></a>, and <a data-api="Flyology_SIMD.Features.Best_Available"><code>Features.Best_Available</code></a> report these states.</p>
         </section>
-        <section id="static">
-          <h2>Run the complete backend-selection example</h2>
-          <p>The repository builds <code>examples/backend_selection.adb</code>. The program compares compile-time native selection, default runtime selection, and an explicit request for the best available backend. <a data-api="Flyology_SIMD.Features.Backend_Kind"><code>Features.Backend_Kind</code></a> identifies a backend.</p>
-          <pre><code class="language-ada">Data : constant Flyology_SIMD.Byte_Array :=
-  [1, 44, 2, 44, 3, 4, 44, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-   14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
-Needle : constant Flyology_SIMD.U8 := 44;
-Best : constant Flyology_SIMD.Features.Backend_Kind :=
-  Flyology_SIMD.Features.Best_Available;
-
-Static_Count : constant Natural :=
-  Flyology_SIMD.Algorithms.Native.Count (Data, Needle);
-Runtime_Count : constant Natural :=
-  Flyology_SIMD.Algorithms.Runtime.Count (Data, Needle);
-Forced_Count : constant Natural :=
-  Flyology_SIMD.Algorithms.Runtime.Count
-    (Data, Needle, Backend =&gt; Best);</code></pre>
-          <pre><code class="language-shell">./bin/backend_selection</code></pre>
-          <p>All three counts are 3. The first output line reports the selected backend.</p>
-          <p><code>Static_Count</code> uses the <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a> body selected by the GPR project. On a native build, Alire detects AArch64 or x86-64. The setting <code>FLYOLOGY_SIMD_ARCH=scalar</code> selects the scalar body.</p>
-          <p>The byte algorithm is a generic instantiation. GNAT can inline its primitive loads and comparisons into the loop.</p>
+        <section id="composition">
+          <h2>Compose the algorithm with a backend at compile time</h2>
+          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Algorithms.Generic_Bytes</code></a> expresses the whole-buffer byte loop once. Its formal operations include splat, load, equality comparison, and mask extraction.</p>
+          <p>The library instantiates that generic package twice:</p>
+          <ul>
+            <li><code>Algorithms.Scalar</code> binds the operations to the portable scalar reference backend.</li>
+            <li><code>Algorithms.Native</code> binds them to the primitive backend selected by the build.</li>
+          </ul>
+          <pre><code class="language-ada">Scalar : constant Natural :=
+  Flyology_SIMD.Algorithms.Scalar.Count (Data, Comma);
+Static : constant Natural :=
+  Flyology_SIMD.Algorithms.Native.Count (Data, Comma);</code></pre>
+          <p>The calls contain no per-vector runtime dispatch. GNAT can inline the selected primitive operations into the generic algorithm loop.</p>
+          <p>Alire selects AArch64 or x86-64 for a native host build. The setting <code>FLYOLOGY_SIMD_ARCH=scalar</code> selects the scalar native body for a forced scalar build.</p>
         </section>
         <section id="runtime">
           <h2>Choose once per whole-buffer operation</h2>
-          <p><code>Runtime_Count</code> uses the default backend parameter. <code>Forced_Count</code> supplies that parameter explicitly. <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
+          <pre><code class="language-ada">Runtime : constant Natural :=
+  Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>
+          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> uses <code>Features.Best_Available</code> as its default backend. It performs one case selection. The selected implementation then scans the complete array.</p>
+          <p>No feature test or indirect call runs for each vector operation. Runtime dispatch occurs once at the whole-buffer boundary.</p>
           <p>The runtime package currently provides <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <code>Count</code>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a>.</p>
         </section>
         <section id="force">
           <h2>Reject an unavailable request</h2>
-          <p>A forced runtime call raises <a data-api="Flyology_SIMD.Features.Backend_Unavailable"><code>Backend_Unavailable</code></a> if the backend was not compiled or cannot execute safely.</p>
+          <p><a data-api="Flyology_SIMD.Features.Backend_Kind"><code>Features.Backend_Kind</code></a> identifies a selectable whole-buffer implementation. A forced runtime call raises <a data-api="Flyology_SIMD.Features.Backend_Unavailable"><code>Backend_Unavailable</code></a> if the backend was not compiled or cannot execute safely.</p>
           <pre><code class="language-ada">Matches := Flyology_SIMD.Algorithms.Runtime.Count
   (Data, Needle, Backend => Flyology_SIMD.Features.AVX2);</code></pre>
           <p><a data-api="Flyology_SIMD.Features.Require"><code>Features.Require</code></a> provides an optional preflight check when an application wants to reject the request before it calls an algorithm.</p>
@@ -90,7 +86,7 @@ Forced_Count : constant Natural :=
           <p>The x86-64 baseline uses SSE2 and compiles with AVX disabled. The AVX2 algorithm code is in separate objects.</p>
           <p>The AVX2 availability test checks the AVX and AVX2 processor bits. It also checks OSXSAVE, which reports operating-system support for extended processor state. The XCR0 register must enable the operating system to save the XMM and YMM register state. A test that checks only the AVX2 bit is not sufficient.</p>
           <p>AArch64 does not need this type of NEON gate because Advanced SIMD is part of the AArch64 baseline.</p>
-          <div class="next-links"><a href="../memory/"><span>Chapter 3</span>Review the memory contract</a><a href="../operations/"><span>Chapter 5</span>Check every available primitive</a></div>
+          <div class="next-links"><a href="../memory/"><span>Chapter 3</span>Review the memory contract</a><a href="../benchmarking/"><span>Chapter 5</span>Measure and inspect the count</a></div>
         </section>
       </article>
     </div>

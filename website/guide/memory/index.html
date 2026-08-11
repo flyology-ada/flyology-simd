@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Use full, aligned, unaligned, and partial Flyology SIMD memory operations.">
-  <title>Memory operations · Flyology SIMD</title>
+  <meta name="description" content="Handle the final byte-count block without reading beyond the valid Ada array extent.">
+  <title>Safe byte-count tails · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/memory/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../../assets/styles/site.css">
@@ -50,11 +50,11 @@
       <div>
         <ol class="breadcrumb">
           <li><a href="../">Guide</a></li>
-          <li>3. Memory and tails</li>
+        <li>3. Safe tail</li>
         </ol>
-        <h1>Memory operations</h1>
+        <h1>Read the final bytes without overreading</h1>
       </div>
-      <p class="doc-hero-copy">Chapter 3 follows the loop to its array boundary. It connects lane order, valid extent, alignment, and the final partial vector.</p>
+      <p class="doc-hero-copy">Chapter 3 follows the byte-count loop to its array boundary. It defines the valid extent of full, unaligned, aligned, and partial operations.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -69,7 +69,7 @@
         </ul>
       </aside>
       <article class="prose">
-        <p class="chapter-lead">The digit-counting loop in Chapter 2 processes 21 input bytes. It reads 16 bytes, then a five-byte tail. This chapter states exactly which elements each memory operation can read or modify.</p>
+        <p class="chapter-lead">The comma-counting input has 26 bytes. The first iteration processes 16 bytes. The final iteration must read the remaining ten bytes and no others.</p>
         <section id="lane-order">
           <h2>Lane 0 maps to the first selected element</h2>
           <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
@@ -93,27 +93,33 @@ Store_Unaligned (Output, Start, Block);</code></pre>
           <p>A count of zero reads no element and writes no element. A partial operation does not perform a full vector access and then mask the result.</p>
         </section>
         <section id="tail">
-          <h2>Process the final partial vector</h2>
-          <p>This complete loop adds 10 with unsigned saturation. It works for an empty array and for every array length:</p>
+          <h2>Process the final partial count block</h2>
+          <p>The tutorial loop calculates the valid count before it loads. It advances by that same count:</p>
+          <p>The loop calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a>. Its <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> operation constructs the comma vector.</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
 Start : Natural := Data'First;
+Total : Natural := 0;
+Wanted : constant U8x16 := Native.Splat (Comma);
 
 while Start &lt;= Data'Last loop
    declare
       Remaining : constant Natural := Data'Last - Start + 1;
       Count : constant Lane_Count_8x16 :=
         Lane_Count_8x16'Min (16, Remaining);
-      Value : constant U8x16 :=
+      Values : constant U8x16 :=
         Native.Load_Partial (Data, Start, Count);
-      Result : constant U8x16 :=
-        Native.Add_Saturate (Value, Native.Splat (10));
+      Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
    begin
-      Native.Store_Partial (Data, Start, Count, Result);
+      Total := Total + Native.Population_Count (Matches);
       Start := Start + Count;
    end;
 end loop;</code></pre>
-          <p>The repository contains this code in <code>examples/partial_tail.adb</code>. The result changes only the elements in <code>Data</code>.</p>
+          <p>The first load reads array indexes 1 through 16. The second load reads indexes 17 through 26. It fills lanes 10 through 15 with zero.</p>
+          <p><code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>. <code>Matches</code> has type <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
+          <p><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Native.Load_Partial</code></a> enforces the exact read extent. <a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Native.Equal</code></a> compares the lanes, and <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Native.Population_Count</code></a> counts matches.</p>
+          <p>The comma byte is not zero, so those filled lanes compare false. A general byte-count function must mask unused lanes or use a scalar tail when it can count zero.</p>
+          <p>The repository contains the complete tutorial in <code>examples/count_byte.adb</code>.</p>
         </section>
         <section id="tests">
           <h2>Test the page boundary</h2>
@@ -122,7 +128,7 @@ end loop;</code></pre>
           <div class="next-links">
             <a href="../practical/">
               <span>Chapter 2</span>
-              Return to the complete loops
+              Return to the complete count loop
             </a>
             <a href="../dispatch/">
               <span>Chapter 4</span>
@@ -135,7 +141,7 @@ end loop;</code></pre>
   </main>
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>Partial operations use the caller's exact count.</span>
+      <span>A partial operation touches only the caller-declared extent.</span>
       <div class="footer-links">
         <a href="../">Guide</a>
         <a href="../operations/">Operations</a>
