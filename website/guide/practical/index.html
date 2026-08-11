@@ -97,12 +97,13 @@ begin
          Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
       begin
          Result := Result + Native.Population_Count (Matches);
+         exit when Count = Remaining;
          Start := Start + Count;
       end;
    end loop;
    return Result;
 end Explicit_Count_Commas;</code></pre>
-          <p>A <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a> value is in the range 0 through 16. <code>Count</code> is 16 in the first iteration and 10 in the second.</p>
+          <p>A <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a> value is in the range 0 through 16. <code>Count</code> is 16 in the first iteration and 10 in the second. The loop exits after it processes the final <code>Remaining</code> bytes. It does not calculate an index after <code>Source'Last</code>.</p>
           <p>The native <a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Load_Partial</code></a> reads exactly <code>Count</code> bytes. <a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Equal</code></a> produces one truth value per lane. <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Population_Count</code></a> returns the number of true lanes. The loop adds that number to <code>Result</code>.</p>
         </section>
         <section id="tail">
@@ -110,7 +111,7 @@ end Explicit_Count_Commas;</code></pre>
           <p><code>Load_Partial</code> fills unused lanes with zero. This tutorial function counts commas, and the comma byte is not zero. The unused lanes therefore compare false.</p>
           <div class="semantic-callout">
             <strong>Use this zero-filled-tail method only when the searched byte is not zero.</strong>
-            <p>If the searched byte is zero, mask out unused lanes or use a scalar tail. The maintained general-purpose <code>Algorithms.*.Count</code> implementations use full vector blocks followed by a scalar tail.</p>
+            <p>If the searched byte is zero, mask out unused lanes or use a scalar tail. The maintained general-purpose <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Scalar.Count</code></a>, <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Native.Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> paths use full vector blocks followed by a scalar tail.</p>
           </div>
           <p>Chapter 3 gives the exact memory extent for a partial load and shows the boundary tests.</p>
         </section>

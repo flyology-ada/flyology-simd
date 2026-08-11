@@ -59,7 +59,7 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
             <li>the statically selected native algorithm;</li>
             <li>the runtime-dispatched algorithm.</li>
           </ul>
-          <p>The benchmark does not include the tutorial-only <code>Explicit_Count_Commas</code> function. That function relies on a nonzero searched byte for its zero-filled tail. All four benchmark candidates implement the same general byte-count contract. The three library candidates call their maintained <code>Count</code> implementations.</p>
+          <p>The benchmark does not include the tutorial-only <code>Explicit_Count_Commas</code> function. That function relies on a nonzero searched byte for its zero-filled tail. All four benchmark candidates implement the same general byte-count contract. The library candidates call the maintained <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Scalar.Count</code></a>, <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Native.Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> paths.</p>
           <p>The input sizes are 7, 15, 16, 17, 4,096, and 1,048,576 bytes. These cases cover short input, the 16-byte boundary, cache-resident input, and larger streaming input.</p>
         </section>
         <section id="method">

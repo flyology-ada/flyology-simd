@@ -45,6 +45,7 @@ procedure Count_Byte is
             Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
          begin
             Result := Result + Native.Population_Count (Matches);
+            exit when Count = Remaining;
             Start := Start + Count;
          end;
       end loop;

@@ -60,8 +60,8 @@
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
-          <li><a href="#run">Run the first program</a></li>
           <li><a href="#terms">Define scalar</a></li>
+          <li><a href="#run">Run the first program</a></li>
           <li><a href="#measure">Review the recorded measurement</a></li>
           <li><a href="#result">Compare five implementations</a></li>
           <li><a href="#install">Add the dependency</a></li>
@@ -71,6 +71,13 @@
         </ul>
       </aside>
       <article class="prose">
+        <section id="terms">
+          <h2>Distinguish scalar operations from the scalar reference backend</h2>
+          <p>A scalar operation acts on one value. The ordinary Ada source loop compares one <a data-api="Flyology_SIMD.U8"><code>U8</code></a> element in each source iteration.</p>
+          <p>The <strong>scalar reference backend</strong> implements each vector result with portable lane-by-lane Ada. It is the semantic authority for optimized backends, but it is not the ordinary source loop. The reported backend name <code>scalar</code> identifies a scalar-only build.</p>
+          <p><strong>Generated machine code</strong> is the compiler output. GNAT can auto-vectorize an ordinary Ada source loop. Therefore, scalar source does not prove that the executable contains only scalar instructions.</p>
+          <p>This guide uses <strong>explicit vector loop</strong> for source that calls fixed-width vector operations. The backend can implement an explicit operation with one instruction, several instructions, or scalar composition.</p>
+        </section>
         <section id="run">
           <h2>Run the complete byte-count program</h2>
           <p>The program counts comma bytes in <code>"red,green,blue,amber,white"</code>. Clone the repository and run the maintained source:</p>
@@ -87,13 +94,6 @@ runtime-dispatched algorithm: 4</code></pre>
           <p>The final line reports <code>neon</code>, <code>sse2</code>, <code>avx2</code>, or <code>scalar</code>. The value depends on the build and host:</p>
           <pre><code class="language-text">best available backend: neon</code></pre>
         </section>
-        <section id="terms">
-          <h2>Use scalar for one value at a time</h2>
-          <p>A scalar operation acts on one value. The ordinary Ada source loop compares one <a data-api="Flyology_SIMD.U8"><code>U8</code></a> element in each source iteration.</p>
-          <p>The <strong>scalar reference backend</strong> implements each vector result with portable lane-by-lane Ada. It is the semantic authority for optimized backends, but it is not the ordinary source loop.</p>
-          <p><strong>Generated machine code</strong> is the compiler output. GNAT can auto-vectorize an ordinary Ada source loop. Therefore, scalar source does not prove that the executable contains only scalar instructions.</p>
-          <p>This guide uses <strong>explicit vector loop</strong> for source that calls fixed-width vector operations. The backend can implement an explicit operation with one instruction, several instructions, or scalar composition.</p>
-        </section>
         <section id="measure">
           <h2>Measure before adding explicit SIMD</h2>
           <p>An explicit <code>U8x16</code> iteration compares 16 byte candidates. The ordinary source loop compares one candidate per source iteration. GNAT can still auto-vectorize the ordinary loop.</p>
@@ -109,7 +109,7 @@ runtime-dispatched algorithm: 4</code></pre>
             <li><code>Explicit_Count_Commas</code> calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> operations directly.</li>
             <li><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Scalar.Count</code></a> runs the generic declaration instantiated with the scalar reference backend.</li>
             <li><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Native.Count</code></a> runs the same generic declaration bound to the backend selected at build time.</li>
-            <li><a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> selects one safe implementation before it scans the complete buffer.</li>
+            <li><a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> selects the best available implementation before it scans the complete buffer.</li>
           </ul>
           <p>GNATdoc does not emit separate subprogram anchors for the two generic instances. The instance-qualified <code>Count</code> links therefore open the originating <code>Generic_Bytes.Count</code> declaration.</p>
           <p>Equal results confirm the required result for this input. The scalar reference backend defines vector semantics. Differential tests compare optimized algorithms with it across input lengths.</p>

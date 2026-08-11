@@ -77,7 +77,7 @@
         </section>
         <section id="tail">
           <h2>Process the final partial count block</h2>
-          <p>The tutorial loop calculates the valid count before each load and advances by that count.</p>
+          <p>The tutorial loop calculates the valid count before each load. After each nonfinal load, it advances by that count.</p>
           <p>The loop calls <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> and processes <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> values. Its <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a> operation constructs the comma vector:</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
@@ -95,10 +95,11 @@ while Start &lt;= Data'Last loop
       Matches : constant Mask_8x16 := Native.Equal (Values, Wanted);
    begin
       Total := Total + Native.Population_Count (Matches);
+      exit when Count = Remaining;
       Start := Start + Count;
    end;
 end loop;</code></pre>
-          <p>The first load reads array indexes 1 through 16. The second load reads indexes 17 through 26. It fills lanes 10 through 15 with zero.</p>
+          <p>The first load reads array indexes 1 through 16. The second load reads indexes 17 through 26. It fills lanes 10 through 15 with zero. The loop exits after the final load and does not calculate an index after <code>Data'Last</code>.</p>
           <p><code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a>. <code>Matches</code> has type <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
           <p><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Native.Load_Partial</code></a> enforces the exact read extent. <a data-api="Flyology_SIMD.Backends.Native.Equal" data-api-signature="U8x16"><code>Native.Equal</code></a> compares the lanes, and <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Native.Population_Count</code></a> counts matches.</p>
           <p>The comma byte is not zero, so those filled lanes compare false. If a general byte-count function accepts zero as the searched value, it must mask unused lanes or use a scalar tail.</p>

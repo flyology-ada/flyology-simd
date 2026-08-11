@@ -46,9 +46,9 @@
           <ul>
             <li><strong>Compiled</strong> means that the selected build contains the backend code.</li>
             <li><strong>Available</strong> means that the current processor and operating system can execute that compiled code.</li>
-            <li><strong>Best available</strong> is NEON in an AArch64 build. In an x86-64 build, <code>Best_Available</code> returns AVX2 when AVX2 is compiled and available. Otherwise, it returns SSE2. It returns scalar in a scalar build.</li>
+            <li><strong>Best available</strong> is NEON in an AArch64 build. In an x86-64 build, <a data-api="Flyology_SIMD.Features.Best_Available"><code>Features.Best_Available</code></a> returns AVX2 when AVX2 is compiled and available. Otherwise, it returns SSE2. It returns scalar in a scalar build.</li>
           </ul>
-          <p><a data-api="Flyology_SIMD.Features.Compiled"><code>Features.Compiled</code></a>, <a data-api="Flyology_SIMD.Features.Available"><code>Features.Available</code></a>, and <a data-api="Flyology_SIMD.Features.Best_Available"><code>Features.Best_Available</code></a> report these states.</p>
+          <p><a data-api="Flyology_SIMD.Features.Compiled"><code>Features.Compiled</code></a>, <a data-api="Flyology_SIMD.Features.Available"><code>Features.Available</code></a>, and <code>Features.Best_Available</code> report these states.</p>
         </section>
         <section id="composition">
           <h2>Compose the algorithm with a backend at compile time</h2>
@@ -58,6 +58,7 @@
             <li><code>Algorithms.Scalar</code> binds the operations to the portable scalar reference backend.</li>
             <li><code>Algorithms.Native</code> binds them to the primitive backend selected by the build.</li>
           </ul>
+          <p>The two instance-qualified calls below originate from <a data-api="Flyology_SIMD.Algorithms.Generic_Bytes.Count"><code>Algorithms.Generic_Bytes.Count</code></a>. GNATdoc does not emit separate subprogram anchors for generic instances.</p>
           <pre><code class="language-ada">Scalar : constant Natural :=
   Flyology_SIMD.Algorithms.Scalar.Count (Data, Comma);
 Static : constant Natural :=
