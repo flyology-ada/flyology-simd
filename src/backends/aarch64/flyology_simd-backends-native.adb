@@ -315,6 +315,10 @@ package body Flyology_SIMD.Backends.Native is
       end loop;
       return Result;
    end Population_Count;
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+     (Flyology_SIMD.Last_True (Mask));
 
    function Load (Data : Byte_Array; Start : Natural) return U8x16 is
      (Load_Unaligned (Data, Start));
@@ -395,6 +399,21 @@ package body Flyology_SIMD.Backends.Native is
            Clobber => "v0,memory", Volatile => True);
       return Result;
    end NEON_Unary_128;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Instruction : String;
+      Store_Instruction : String;
+   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;
+   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is
+      Result : Scalar_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "v0,v1,v2,memory", Volatile => True);
+      return Result;
+   end NEON_Float_Reduce_128;
 
    generic
       type Source_Type is private;
@@ -1207,6 +1226,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
    function Reduce_Add (Value : F32x4) return F32 is
      (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Min_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1", "str s0, [%0]");
+   function Reduce_Min_Number (Value : F32x4) return F32 is (Native_Reduce_Min_Number_F32x4 (Value));
+   function Native_Reduce_Max_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1", "str s0, [%0]");
+   function Reduce_Max_Number (Value : F32x4) return F32 is (Native_Reduce_Max_Number_F32x4 (Value));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
@@ -1273,6 +1296,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
    function Reduce_Add (Value : F64x2) return F64 is
      (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Min_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fminnm d0, d0, d1", "str d0, [%0]");
+   function Reduce_Min_Number (Value : F64x2) return F64 is (Native_Reduce_Min_Number_F64x2 (Value));
+   function Native_Reduce_Max_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fmaxnm d0, d0, d1", "str d0, [%0]");
+   function Reduce_Max_Number (Value : F64x2) return F64 is (Native_Reduce_Max_Number_F64x2 (Value));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
@@ -1314,6 +1341,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+     (Flyology_SIMD.Last_True (Mask));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
@@ -1336,6 +1367,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+     (Flyology_SIMD.Last_True (Mask));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
@@ -1358,5 +1393,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+     (Flyology_SIMD.Last_True (Mask));
    --  END GENERATED FULL-FAMILY NEON BODIES
 end Flyology_SIMD.Backends.Native;

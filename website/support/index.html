@@ -64,12 +64,13 @@
               <tr><td>Integer widening and narrowing</td><td>Advanced SIMD leaves</td><td>Scalar composition</td></tr>
               <tr><td><a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> to <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> widening</td><td>Advanced SIMD leaf</td><td>Scalar composition</td></tr>
               <tr><td>Lane-preserving <a data-api="Flyology_SIMD"><code>Bit_Cast</code></a></td><td>Shared Ada implementation</td><td>Shared Ada implementation</td></tr>
+              <tr><td>Floating minimum-number and maximum-number reductions</td><td>Scalar Advanced SIMD leaves in ascending lane order</td><td>Scalar composition</td></tr>
               <tr><td>Full unaligned memory</td><td>128-bit vector load or store</td><td>Unaligned 128-bit load or store</td></tr>
               <tr><td>Partial memory</td><td>Exact Ada lane loop</td><td>Exact Ada lane loop</td></tr>
               <tr><td>Operations without a suitable target instruction</td><td>Scalar composition with the same public result</td><td>Scalar or SSE2 composition with the same public result</td></tr>
             </tbody>
           </table>
-          <p>On AArch64, 64-bit integer multiplication and the 64-bit integer <a data-api="Flyology_SIMD"><code>Reduce_Add_Wrap</code></a>, <a data-api="Flyology_SIMD"><code>Reduce_Min</code></a>, and <a data-api="Flyology_SIMD"><code>Reduce_Max</code></a> operations use scalar composition. On SSE2, 32- and 64-bit saturating arithmetic and all integer reduction operations use scalar composition. Floating <a data-api="Flyology_SIMD"><code>Min_Number</code></a>, <a data-api="Flyology_SIMD"><code>Max_Number</code></a>, and <a data-api="Flyology_SIMD"><code>Reduce_Add</code></a> also use scalar composition.</p>
+          <p>On AArch64, 64-bit integer multiplication and the 64-bit integer <a data-api="Flyology_SIMD"><code>Reduce_Add_Wrap</code></a>, <a data-api="Flyology_SIMD"><code>Reduce_Min</code></a>, and <a data-api="Flyology_SIMD"><code>Reduce_Max</code></a> operations use scalar composition. On SSE2, 32- and 64-bit saturating arithmetic and all integer reduction operations use scalar composition. The SSE2 backend also uses scalar composition for floating <a data-api="Flyology_SIMD"><code>Min_Number</code></a>, <a data-api="Flyology_SIMD"><code>Max_Number</code></a>, <a data-api="Flyology_SIMD"><code>Reduce_Add</code></a>, <a data-api="Flyology_SIMD"><code>Reduce_Min_Number</code></a>, and <a data-api="Flyology_SIMD"><code>Reduce_Max_Number</code></a>.</p>
           <p>The x86-64 backend uses scalar composition for <a data-api="Flyology_SIMD"><code>Widen_Low</code></a>, <a data-api="Flyology_SIMD"><code>Widen_High</code></a>, <a data-api="Flyology_SIMD"><code>Narrow_Truncate</code></a>, and <a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a>. <code>Bit_Cast</code> uses the same Ada implementation in both target backends. This fact does not make the private vector representation portable. The code-generation script lists the instruction classes that have positive checks.</p>
         </section>
         <section id="compiler">
@@ -82,7 +83,7 @@
           <p>The workflow runs checked and release builds. Semantic checks include deterministic differential tests, independent lane oracles, full-width pseudorandom integer data, and floating-point edge cases.</p>
           <p>The conversion tests cover integer truncation and saturation boundaries. They also cover <a data-api="Flyology_SIMD.F32"><code>F32</code></a> widening for signed zeros, subnormal and normal boundaries, infinities, and NaNs.</p>
           <p>Memory checks include every tail length, protected pages, and AddressSanitizer. Code-generation checks inspect primitive operations and representative buffer loops.</p>
-          <p>Mask patterns are exhaustive for each mask width. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
+          <p>Mask patterns and first/last true-lane results are exhaustive for each mask width. Floating reduction cases include NaNs, infinities, and signed zero. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
           <p>The workflow does not use <code>continue-on-error</code>.</p>
         </section>
         <section id="limits">

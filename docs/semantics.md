@@ -20,6 +20,11 @@ right shift sign-fills.  Integer comparison/min/max uses the type's signedness.
 `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` apply the corresponding
 Boolean operation to each lane truth.
 
+`First_True` returns the lowest true lane. `Last_True` returns the highest true
+lane. Both return the applicable `Lane_Count_*` subtype's last value when the
+mask has no true lane. This sentinel is one greater than the highest valid lane
+index.
+
 Floating ordered comparisons are false for NaN; `Unordered` is true when either
 lane is NaN. If exactly one operand is a quiet NaN, `Min_Number` and
 `Max_Number` return the numeric operand. A signaling NaN produces a quiet NaN.
@@ -28,6 +33,11 @@ returns positive zero. Both operations return a quiet NaN for two NaNs. NaN
 payload selection is unspecified. No build enables fast-math. GNAT `-gnatV`
 validity checks are not enabled because GNAT treats IEEE NaN encodings as
 invalid data; range, assertion, precondition, and stack checks remain enabled.
+
+`Reduce_Min_Number` and `Reduce_Max_Number` are ascending-lane left folds of
+`Min_Number` and `Max_Number`. The fold starts with lane 0. The fold order is
+identical on all backends. Each fold step applies the documented NaN and
+signed-zero rules.
 
 No implicit signed/unsigned, integer/floating, width-changing, or mask/value
 conversion exists. `Bit_Cast` preserves each lane's bits and position between

@@ -64,6 +64,34 @@ procedure SIMD_Tests is
       return Count;
    end Reference_Popcount;
 
+   function Reference_First_True
+     (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16
+   is
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if (Bits and Interfaces.Shift_Left
+               (Interfaces.Unsigned_16'(1), Lane)) /= 0
+         then
+            return Lane;
+         end if;
+      end loop;
+      return Lane_Count_8x16'Last;
+   end Reference_First_True;
+
+   function Reference_Last_True
+     (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16
+   is
+   begin
+      for Lane in reverse Lane_Index_8x16 loop
+         if (Bits and Interfaces.Shift_Left
+               (Interfaces.Unsigned_16'(1), Lane)) /= 0
+         then
+            return Lane;
+         end if;
+      end loop;
+      return Lane_Count_8x16'Last;
+   end Reference_Last_True;
+
    procedure Test_Core_Semantics is
       A : constant U8x16 := From_Lanes
         ([0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
@@ -152,6 +180,16 @@ procedure SIMD_Tests is
               (Flyology_SIMD.Backends.Native.Population_Count (Mask) =
                  Reference_Popcount (Bits),
                "native mask popcount" & Raw'Image);
+            Check
+              (First_True (Mask) = Reference_First_True (Bits)
+               and then Last_True (Mask) = Reference_Last_True (Bits),
+               "mask positions" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.First_True (Mask) =
+                 Reference_First_True (Bits)
+               and then Flyology_SIMD.Backends.Native.Last_True (Mask) =
+                 Reference_Last_True (Bits),
+               "native mask positions" & Raw'Image);
             Check
               (Flyology_SIMD.Backends.Native.To_Bit_Mask
                  (Flyology_SIMD.Backends.Native.Mask_Not (Mask)) = not Bits,

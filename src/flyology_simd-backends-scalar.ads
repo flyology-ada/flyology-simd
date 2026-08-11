@@ -264,6 +264,16 @@ is
    --  Return the number of true mask lanes.
    --  @param Mask The input mask.
    --  @return The operation result.
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16
+     renames Flyology_SIMD.First_True;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16
+     renames Flyology_SIMD.Last_True;
+   --  Return the last true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Load (Data : Byte_Array; Start : Natural) return U8x16
      renames Flyology_SIMD.Load;
    --  Load one complete vector without an alignment requirement.

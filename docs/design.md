@@ -48,8 +48,12 @@ widening and narrowing, and exact finite `F32x4` to `F64x2` widening.
   is true.
 - `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` combine Boolean lane
   truth without exposing the mask representation.
+- `First_True` and `Last_True` return the lane-count value when no lane is
+  true. If the mask contains a true lane, the result is a valid lane index.
 - Integer `Min`/`Max` use the lane type's signedness. Floating number min/max
   follows the NaN and signed-zero contract in `api-scope.md`.
+- Floating minimum-number and maximum-number reductions use an ascending-lane
+  left fold. The fold order is part of the portable contract.
 - Partial loads read exactly `Count` elements and zero the remaining lanes.
   Partial stores write exactly `Count` elements.  A count of zero touches no
   element, including at an otherwise invalid start index permitted by the

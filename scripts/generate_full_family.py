@@ -97,6 +97,8 @@ OPERATION_DOCS = {
     "Reduce_Min": "Return the smallest integer lane.",
     "Reduce_Max": "Return the largest integer lane.",
     "Reduce_Add": "Add all floating lanes in ascending lane order.",
+    "Reduce_Min_Number": "Apply Min_Number to all floating lanes in ascending lane order.",
+    "Reduce_Max_Number": "Apply Max_Number to all floating lanes in ascending lane order.",
     "Reverse_Lanes": "Reverse logical lane order.",
     "Interleave_Low": "Alternate lanes from the low half of both inputs, starting with the left input.",
     "Interleave_High": "Alternate lanes from the high half of both inputs, starting with the left input.",
@@ -122,6 +124,8 @@ OPERATION_DOCS = {
     "All_True": "Return true when every mask lane is true.",
     "None_True": "Return true when every mask lane is false.",
     "Population_Count": "Return the number of true mask lanes.",
+    "First_True": "Return the first true lane, or the lane-count value when no lane is true.",
+    "Last_True": "Return the last true lane, or the lane-count value when no lane is true.",
     "Add": "Add corresponding floating-point lanes.",
     "Subtract": "Subtract corresponding floating-point lanes.",
     "Multiply": "Multiply corresponding floating-point lanes.",
@@ -443,6 +447,8 @@ def emit_spec() -> str:
             f"   function Min_Number (Left, Right : {vector}) return {vector};",
             f"   function Max_Number (Left, Right : {vector}) return {vector};",
             f"   function Reduce_Add (Value : {vector}) return {scalar};",
+            f"   function Reduce_Min_Number (Value : {vector}) return {scalar};",
+            f"   function Reduce_Max_Number (Value : {vector}) return {scalar};",
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
@@ -476,6 +482,8 @@ def emit_spec() -> str:
             f"   function All_True (Mask : {mask}) return Boolean;",
             f"   function None_True (Mask : {mask}) return Boolean;",
             f"   function Population_Count (Mask : {mask}) return {count};",
+            f"   function First_True (Mask : {mask}) return {count};",
+            f"   function Last_True (Mask : {mask}) return {count};",
             "",
         ]
     return document_spec("\n".join(out))
@@ -704,7 +712,20 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
     for name, choose in (("Min_Number", "<"), ("Max_Number", ">")):
         zero_choice = (f"(if (Bits_Of_{scalar} (Left.Lanes (Lane)) and {sign}) /= 0 then Left.Lanes (Lane) else Right.Lanes (Lane))" if name == "Min_Number" else f"(if (Bits_Of_{scalar} (Left.Lanes (Lane)) and {sign}) = 0 then Left.Lanes (Lane) else Right.Lanes (Lane))")
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop", "         if Is_Signaling_NaN (Left.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Left.Lanes (Lane));", "         elsif Is_Signaling_NaN (Right.Lanes (Lane)) then Result.Lanes (Lane) := Quiet_NaN (Right.Lanes (Lane));", "         elsif Left.Lanes (Lane) /= Left.Lanes (Lane) then Result.Lanes (Lane) := Right.Lanes (Lane);", "         elsif Right.Lanes (Lane) /= Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", f"         elsif Left.Lanes (Lane) = 0.0 and then Right.Lanes (Lane) = 0.0 then Result.Lanes (Lane) := {zero_choice};", f"         elsif Left.Lanes (Lane) {choose} Right.Lanes (Lane) then Result.Lanes (Lane) := Left.Lanes (Lane);", "         else Result.Lanes (Lane) := Right.Lanes (Lane); end if;", "      end loop;", "      return Result;", f"   end {name};"]
-    out += [f"   function Reduce_Add (Value : {vector}) return {scalar} is", f"      Result : {scalar} := 0.0;", "   begin", f"      for Lane in {idx} loop Result := Result + Value.Lanes (Lane); end loop;", "      return Result;", "   end Reduce_Add;", f"   function Reverse_Lanes (Value : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Value.Lanes ({lanes - 1} - Lane); end loop;", "      return Result;", "   end Reverse_Lanes;"]
+    out += [f"   function Reduce_Add (Value : {vector}) return {scalar} is", f"      Result : {scalar} := 0.0;", "   begin", f"      for Lane in {idx} loop Result := Result + Value.Lanes (Lane); end loop;", "      return Result;", "   end Reduce_Add;"]
+    for name in ("Min_Number", "Max_Number"):
+        reduce_name = f"Reduce_{name}"
+        out += [
+            f"   function {reduce_name} (Value : {vector}) return {scalar} is",
+            f"      Result : {vector} := Splat (Value.Lanes (0));",
+            "   begin",
+            f"      for Lane in {idx} range 1 .. {lanes - 1} loop",
+            f"         Result := {name} (Result, Splat (Value.Lanes (Lane)));",
+            "      end loop;",
+            "      return Result.Lanes (0);",
+            f"   end {reduce_name};",
+        ]
+    out += [f"   function Reverse_Lanes (Value : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Value.Lanes ({lanes - 1} - Lane); end loop;", "      return Result;", "   end Reverse_Lanes;"]
     for name, offset in (("Interleave_Low", 0), ("Interleave_High", lanes // 2)):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + {offset}); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + {offset}); end loop;", "      return Result;", f"   end {name};"]
     for name, parity in (("Deinterleave_Even", 0), ("Deinterleave_Odd", 1)):
@@ -845,7 +866,7 @@ def emit_body() -> str:
         count = lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
         full = str((1 << lanes) - 1)
-        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits);", f"   function Mask_And (Left, Right : {mask}) return {mask} is (Bits => Left.Bits and Right.Bits);", f"   function Mask_Or (Left, Right : {mask}) return {mask} is (Bits => Left.Bits or Right.Bits);", f"   function Mask_Xor (Left, Right : {mask}) return {mask} is (Bits => Left.Bits xor Right.Bits);", f"   function Mask_Not (Value : {mask}) return {mask} is (Bits => (not Value.Bits) and {full});", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", f"      Bits : {st} := Mask.Bits;", f"      Result : {count} := 0;", "   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;", ""]
+        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits);", f"   function Mask_And (Left, Right : {mask}) return {mask} is (Bits => Left.Bits and Right.Bits);", f"   function Mask_Or (Left, Right : {mask}) return {mask} is (Bits => Left.Bits or Right.Bits);", f"   function Mask_Xor (Left, Right : {mask}) return {mask} is (Bits => Left.Bits xor Right.Bits);", f"   function Mask_Not (Value : {mask}) return {mask} is (Bits => (not Value.Bits) and {full});", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", f"      Bits : {st} := Mask.Bits;", f"      Result : {count} := 0;", "   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;", f"   function First_True (Mask : {mask}) return {count} is", f"   begin for Lane in {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end First_True;", f"   function Last_True (Mask : {mask}) return {count} is", f"   begin for Lane in reverse {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end Last_True;", ""]
     return "\n".join(out)
 
 

@@ -27,7 +27,7 @@ comparison, selection, reverse, interleave, deinterleave, and typed memory
 operations. Integer families supply wrapping and saturating arithmetic,
 bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
 reductions. Floating families supply arithmetic, number minimum and maximum,
-and add reduction. Floating minimum and maximum reductions are not present.
+and add/minimum/maximum reductions.
 
 Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths
@@ -36,9 +36,11 @@ provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
 widening to `F64x2`.
 
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
-any/all/none reductions, population count, and compact bit-mask conversion.
-Compact bit 0 represents lane 0. Bits above the lane count are ignored by mask
-construction.
+any/all/none reductions, population count, first/last true-lane queries, and
+compact bit-mask conversion. Compact bit 0 represents lane 0. Bits above the
+lane count are ignored by mask construction. `First_True` and `Last_True`
+return the corresponding `Lane_Count_*` subtype. They return that subtype's
+last value when no lane is true. A found lane is always less than that value.
 
 Integer arithmetic distinguishes wrapping and saturating operations by name.
 Logical shifts accept every integer family. Arithmetic right shift accepts
@@ -90,6 +92,11 @@ the numeric operand when exactly one operand is NaN. If either operand is a
 signaling NaN, they return a quiet NaN. They choose `-0.0` for a minimum of
 zeros and `+0.0` for a maximum of zeros, and return a quiet NaN when both
 operands are NaNs. NaN payload selection is not specified.
+
+`Reduce_Min_Number` and `Reduce_Max_Number` apply `Min_Number` or
+`Max_Number` as an ascending-lane left fold that starts at lane 0. This fold
+order is part of the contract. At each fold step, `Min_Number` or `Max_Number`
+applies its documented NaN and signed-zero rules.
 
 No floating-to-integer or integer-to-floating conversion operation exists in
 this release. A future conversion contract must state NaN, rounding, and

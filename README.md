@@ -11,8 +11,8 @@ The current v0.1 surface contains all ten private 128-bit value types. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) for their lane
 counts and masks. Integer operations name wrapping and saturation explicitly.
 Floating operations follow documented NaN and signed-zero rules without
-fast-math. Mask values support Boolean
-combination and reduction. `Find_First`, `Count`, and `Is_ASCII` demonstrate
+fast-math. Mask values support Boolean combination, reduction, and first/last
+true-lane queries. `Find_First`, `Count`, and `Is_ASCII` demonstrate
 whole-buffer composition.
 
 “Full family” refers to the ten 128-bit value types. The API includes
@@ -118,7 +118,8 @@ floating defaults are not globally disabled; `-ffast-math` is not used.
 
 Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `All_True`, and `None_True`. Use `Mask_And`, `Mask_Or`, `Mask_Xor`, and
-`Mask_Not` to combine mask values.
+`Mask_Not` to combine mask values. `First_True` and `Last_True` return the
+lane-count value when the mask has no true lane.
 
 Full normative details and the remaining conversion and 256-bit work are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).

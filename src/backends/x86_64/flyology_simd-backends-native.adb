@@ -356,6 +356,8 @@ package body Flyology_SIMD.Backends.Native is
    function All_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.All_True (Mask));
    function None_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.Last_True (Mask));
    function Load (Data : Byte_Array; Start : Natural) return U8x16 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
 
@@ -1184,6 +1186,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Max_Number (Left, Right));
    function Reduce_Add (Value : F32x4) return F32 is
      (Flyology_SIMD.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F32x4) return F32 is
+     (Flyology_SIMD.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F32x4) return F32 is
+     (Flyology_SIMD.Reduce_Max_Number (Value));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
@@ -1248,6 +1254,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Max_Number (Left, Right));
    function Reduce_Add (Value : F64x2) return F64 is
      (Flyology_SIMD.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F64x2) return F64 is
+     (Flyology_SIMD.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F64x2) return F64 is
+     (Flyology_SIMD.Reduce_Max_Number (Value));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
@@ -1287,6 +1297,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+     (Flyology_SIMD.Last_True (Mask));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
@@ -1309,6 +1323,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+     (Flyology_SIMD.Last_True (Mask));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
@@ -1331,5 +1349,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is
      (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+     (Flyology_SIMD.Last_True (Mask));
    --  END GENERATED FULL-FAMILY X86 BODIES
 end Flyology_SIMD.Backends.Native;

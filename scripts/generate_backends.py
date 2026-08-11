@@ -130,6 +130,8 @@ def fallback_body() -> str:
             out.append(call(name, vector, "Left, Right", f"Left, Right : {vector}"))
         out += [
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Min_Number", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Max_Number", scalar, "Value", f"Value : {vector}"),
             call("Reverse_Lanes", vector, "Value", f"Value : {vector}"),
             call("Interleave_Low", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Interleave_High", vector, "Left, Right", f"Left, Right : {vector}"),
@@ -160,6 +162,8 @@ def fallback_body() -> str:
             call("All_True", "Boolean", "Mask", f"Mask : {mask}"),
             call("None_True", "Boolean", "Mask", f"Mask : {mask}"),
             call("Population_Count", count, "Mask", f"Mask : {mask}"),
+            call("First_True", count, "Mask", f"Mask : {mask}"),
+            call("Last_True", count, "Mask", f"Mask : {mask}"),
         ]
     return "\n".join(out)
 
@@ -192,6 +196,21 @@ def neon_helpers() -> list[str]:
         "           Clobber => \"v0,memory\", Volatile => True);",
         "      return Result;",
         "   end NEON_Unary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Instruction : String;",
+        "      Store_Instruction : String;",
+        "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
+        "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
+        "      Result : Scalar_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
+        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Float_Reduce_128;",
         "",
         "   generic",
         "      type Source_Type is private;",
@@ -477,12 +496,36 @@ def neon_body() -> str:
             call("Select_Value", vector, "Mask, If_True, If_False", f"Mask : {mask}; If_True, If_False : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
         ]
+        for name, opcode in (("Reduce_Min_Number", "fminnm"), ("Reduce_Max_Number", "fmaxnm")):
+            if bits == 32:
+                instruction = (
+                    '"mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & '
+                    '"dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & '
+                    f'"{opcode} s0, s0, s1" & ASCII.LF & ASCII.HT & '
+                    '"dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & '
+                    f'"{opcode} s0, s0, s1" & ASCII.LF & ASCII.HT & '
+                    '"dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & '
+                    f'"{opcode} s0, s0, s1"'
+                )
+                store = "str s0, [%0]"
+            else:
+                instruction = (
+                    '"mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & '
+                    '"dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & '
+                    f'"{opcode} d0, d0, d1"'
+                )
+                store = "str d0, [%0]"
+            native = f"Native_{name}_{vector}"
+            out += [
+                f"   function {native} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {instruction}, \"{store}\");",
+                f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value));",
+            ]
         out += memory_body(vector, arr, count)
 
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
+        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}"), call("First_True", count, "Mask", f"Mask : {mask}"), call("Last_True", count, "Mask", f"Mask : {mask}")]
     return "\n".join(out)
 
 
@@ -856,13 +899,15 @@ def x86_body() -> str:
             call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Min_Number", scalar, "Value", f"Value : {vector}"),
+            call("Reduce_Max_Number", scalar, "Value", f"Value : {vector}"),
         ]
         out += x86_memory_body(vector, arr, count)
 
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
+        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}"), call("First_True", count, "Mask", f"Mask : {mask}"), call("Last_True", count, "Mask", f"Mask : {mask}")]
     return "\n".join(out)
 
 
@@ -895,6 +940,20 @@ def test_program() -> str:
         "      while Bits /= 0 loop Count := Count + Bits mod 2; Bits := Bits / 2; end loop;",
         "      return Count;",
         "   end Reference_Popcount;", "",
+        "   function Reference_First_True (Value, Lanes : Natural) return Natural is",
+        "   begin",
+        "      for Lane in Natural range 0 .. Lanes - 1 loop",
+        "         if (Value / 2 ** Lane) mod 2 = 1 then return Lane; end if;",
+        "      end loop;",
+        "      return Lanes;",
+        "   end Reference_First_True;", "",
+        "   function Reference_Last_True (Value, Lanes : Natural) return Natural is",
+        "   begin",
+        "      for Lane in reverse Natural range 0 .. Lanes - 1 loop",
+        "         if (Value / 2 ** Lane) mod 2 = 1 then return Lane; end if;",
+        "      end loop;",
+        "      return Lanes;",
+        "   end Reference_Last_True;", "",
     ]
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         vals, arr, count = lane_values(vector), array_name(scalar), lane_count(bits, lanes)
@@ -1053,9 +1112,11 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = {mask_storage} (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
             f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
             f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (First_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Last_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} scalar mask positions\" & Pattern'Image);",
             f"         Check (To_Bit_Mask (Mask_Not ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} scalar mask not\" & Pattern'Image);",
             f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         Check (Backends.Native.First_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Backends.Native.Last_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} native mask positions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
@@ -1158,6 +1219,18 @@ def test_program() -> str:
             f"      for Lane in {lane_index(bits, lanes)} loop Result := Result + Extract (Value, Lane); end loop;",
             "      return Result;",
             f"   end Reference_Reduce_Add_{vector};",
+            f"   function Reference_Reduce_Min_{vector} (Value : {vector}) return {scalar} is",
+            f"      Result : {scalar} := Extract (Value, 0);",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} range 1 .. {lanes - 1} loop if Extract (Value, Lane) < Result then Result := Extract (Value, Lane); end if; end loop;",
+            "      return Result;",
+            f"   end Reference_Reduce_Min_{vector};",
+            f"   function Reference_Reduce_Max_{vector} (Value : {vector}) return {scalar} is",
+            f"      Result : {scalar} := Extract (Value, 0);",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} range 1 .. {lanes - 1} loop if Extract (Value, Lane) > Result then Result := Extract (Value, Lane); end if; end loop;",
+            "      return Result;",
+            f"   end Reference_Reduce_Max_{vector};",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);", f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
@@ -1192,9 +1265,11 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
             f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
             f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (First_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Last_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} scalar mask positions\" & Pattern'Image);",
             f"         Check (To_Bit_Mask (Mask_Not ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} scalar mask not\" & Pattern'Image);",
             f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         Check (Backends.Native.First_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Backends.Native.Last_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} native mask positions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
@@ -1202,6 +1277,7 @@ def test_program() -> str:
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
             f"      Check (Bits_{vector} (Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)) and then Bits_{vector} (Backends.Native.Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)), \"{vector} independent reduce\");",
+            f"      Check (Bits_{vector} (Reduce_Min_Number (B)) = Bits_{vector} (Reference_Reduce_Min_{vector} (B)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (B)) = Bits_{vector} (Reference_Reduce_Min_{vector} (B)) and then Bits_{vector} (Reduce_Max_Number (B)) = Bits_{vector} (Reference_Reduce_Max_{vector} (B)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (B)) = Bits_{vector} (Reference_Reduce_Max_{vector} (B)), \"{vector} independent min/max reductions\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Data (1 + Lane)) = Bits_{vector} (Extract (A, Lane)), \"{vector} independent full store\" & Lane'Image); end loop;",
@@ -1236,7 +1312,7 @@ def test_program() -> str:
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), \"{vector} randomized native comparisons\");",
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
-            f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)), \"{vector} randomized native reduction\");",
+            f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (R_A)) = Bits_{vector} (Reference_Reduce_Min_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (R_A)) = Bits_{vector} (Reference_Reduce_Max_{vector} (R_A)), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
@@ -1286,6 +1362,13 @@ def test_program() -> str:
         "      Quiet32 : constant F32x4 := From_Lanes ([NaN32, NaN32, NaN32, NaN32]);",
         "      Signal32 : constant F32x4 := From_Lanes ([SNaN32, SNaN32, SNaN32, SNaN32]);",
         "      Number32 : constant F32x4 := From_Lanes ([1.0, 1.0, 1.0, 1.0]);",
+        "      Fold_Order32 : constant F32x4 := From_Lanes ([2.0, 1.0, SNaN32, 3.0]);",
+        "      Positive_Zero_First32 : constant F32x4 := From_Lanes ([0.0, Neg_Zero32, 0.0, Neg_Zero32]);",
+        "      Negative_Zero_First32 : constant F32x4 := From_Lanes ([Neg_Zero32, 0.0, Neg_Zero32, 0.0]);",
+        "      Quiet_Left32 : constant F32x4 := From_Lanes ([NaN32, 5.0, NaN32, NaN32]);",
+        "      Quiet_Right32 : constant F32x4 := From_Lanes ([5.0, NaN32, NaN32, NaN32]);",
+        "      Signal_Left32 : constant F32x4 := From_Lanes ([SNaN32, 5.0, NaN32, NaN32]);",
+        "      Signal_Right32 : constant F32x4 := From_Lanes ([5.0, SNaN32, NaN32, NaN32]);",
         "      Zero64 : constant F64x2 := From_Lanes ([0.0, 0.0]);",
         "      Numerator64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
         "      Infinity64 : constant F64x2 := From_Lanes ([Inf64, 0.0]);",
@@ -1293,6 +1376,12 @@ def test_program() -> str:
         "      Quiet64 : constant F64x2 := From_Lanes ([NaN64, NaN64]);",
         "      Signal64 : constant F64x2 := From_Lanes ([SNaN64, SNaN64]);",
         "      Number64 : constant F64x2 := From_Lanes ([1.0, 1.0]);",
+        "      Positive_Zero_First64 : constant F64x2 := From_Lanes ([0.0, Neg_Zero64]);",
+        "      Negative_Zero_First64 : constant F64x2 := From_Lanes ([Neg_Zero64, 0.0]);",
+        "      Quiet_Left64 : constant F64x2 := From_Lanes ([NaN64, 5.0]);",
+        "      Quiet_Right64 : constant F64x2 := From_Lanes ([5.0, NaN64]);",
+        "      Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);",
+        "      Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);",
         "   begin",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), \"F32 NaN unordered\");",
         "      Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, \"F32 quiet NaN returns number\");",
@@ -1309,6 +1398,12 @@ def test_program() -> str:
         "      Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, \"F32 infinity multiplication\");",
         "      Check (F32_Bits (Extract (Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then Is_NaN (Extract (Divide (Numerator32, Zero32), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator32, Zero32), 1)), \"F32 division edge cases\");",
         "      Check (Is_NaN (Reduce_Add (A32)) and then Is_NaN (Backends.Native.Reduce_Add (A32)), \"F32 NaN reduction\");",
+        "      Check (F32_Bits (Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (A32)) = 16#7F80_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (A32)) = 16#7F80_0000#, \"F32 min/max reduction NaN and signed zero\");",
+        "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal32)), \"F32 signaling NaN reductions\");",
+        "      Check (Reduce_Min_Number (Fold_Order32) = 3.0 and then Reduce_Max_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Min_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Max_Number (Fold_Order32) = 3.0, \"F32 ascending fold order\");",
+        "      Check (F32_Bits (Reduce_Min_Number (Positive_Zero_First32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (Positive_Zero_First32)) = 0 and then F32_Bits (Reduce_Min_Number (Negative_Zero_First32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (Negative_Zero_First32)) = 0 and then F32_Bits (Backends.Native.Reduce_Min_Number (Positive_Zero_First32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (Positive_Zero_First32)) = 0 and then F32_Bits (Backends.Native.Reduce_Min_Number (Negative_Zero_First32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (Negative_Zero_First32)) = 0, \"F32 reduction signed-zero orders\");",
+        "      Check (Reduce_Min_Number (Quiet_Left32) = 5.0 and then Reduce_Max_Number (Quiet_Left32) = 5.0 and then Reduce_Min_Number (Quiet_Right32) = 5.0 and then Reduce_Max_Number (Quiet_Right32) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Left32) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Left32) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Right32) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Right32) = 5.0, \"F32 reduction quiet-NaN orders\");",
+        "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal_Left32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Left32)) and then Is_Quiet_NaN (Reduce_Min_Number (Signal_Right32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Right32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Left32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Left32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Right32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Right32)), \"F32 reduction signaling-NaN orders\");",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A64, B64)) = Flyology_SIMD.To_Bit_Mask (Unordered (A64, B64)), \"F64 NaN unordered\");",
         "      Check (Extract (Backends.Native.Min_Number (A64, B64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A64, B64), 0) = 1.0, \"F64 quiet NaN returns number\");",
         "      Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, \"F64 signaling NaN is quieted\");",
@@ -1324,6 +1419,11 @@ def test_program() -> str:
         "      Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, \"F64 infinity multiplication\");",
         "      Check (F64_Bits (Extract (Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then Is_NaN (Extract (Divide (Numerator64, Zero64), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator64, Zero64), 1)), \"F64 division edge cases\");",
         "      Check (Is_NaN (Reduce_Add (A64)) and then Is_NaN (Backends.Native.Reduce_Add (A64)), \"F64 NaN reduction\");",
+        "      Check (F64_Bits (Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000#, \"F64 min/max reduction NaN and signed zero\");",
+        "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal64)), \"F64 signaling NaN reductions\");",
+        "      Check (F64_Bits (Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Negative_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Negative_Zero_First64)) = 0, \"F64 reduction signed-zero orders\");",
+        "      Check (Reduce_Min_Number (Quiet_Left64) = 5.0 and then Reduce_Max_Number (Quiet_Left64) = 5.0 and then Reduce_Min_Number (Quiet_Right64) = 5.0 and then Reduce_Max_Number (Quiet_Right64) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Left64) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Left64) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Right64) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Right64) = 5.0, \"F64 reduction quiet-NaN orders\");",
+        "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal_Left64)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Left64)) and then Is_Quiet_NaN (Reduce_Min_Number (Signal_Right64)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Right64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Left64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Left64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Right64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Right64)), \"F64 reduction signaling-NaN orders\");",
         "   end Test_Floating_Specials;", "",
         "begin", "   Put_Line (\"full-family differential tests seed=0x5EED0123D15CA11A\");",
     ]

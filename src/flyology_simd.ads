@@ -249,6 +249,14 @@ is
    --  Return the number of true mask lanes.
    --  @param Mask The input mask.
    --  @return The operation result.
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16;
+   --  Return the last true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
 
    function Has_Extent
      (Data : Byte_Array; Start : Natural; Count : Natural) return Boolean;
@@ -2186,6 +2194,14 @@ is
    --  Add all floating lanes in ascending lane order.
    --  @param Value The input value.
    --  @return The operation result.
+   function Reduce_Min_Number (Value : F32x4) return F32;
+   --  Apply Min_Number to all floating lanes in ascending lane order.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reduce_Max_Number (Value : F32x4) return F32;
+   --  Apply Max_Number to all floating lanes in ascending lane order.
+   --  @param Value The input value.
+   --  @return The operation result.
    function Reverse_Lanes (Value : F32x4) return F32x4;
    --  Reverse logical lane order.
    --  @param Value The input value.
@@ -2354,6 +2370,14 @@ is
    --  Add all floating lanes in ascending lane order.
    --  @param Value The input value.
    --  @return The operation result.
+   function Reduce_Min_Number (Value : F64x2) return F64;
+   --  Apply Min_Number to all floating lanes in ascending lane order.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reduce_Max_Number (Value : F64x2) return F64;
+   --  Apply Max_Number to all floating lanes in ascending lane order.
+   --  @param Value The input value.
+   --  @return The operation result.
    function Reverse_Lanes (Value : F64x2) return F64x2;
    --  Reverse logical lane order.
    --  @param Value The input value.
@@ -2474,6 +2498,14 @@ is
    --  Return the number of true mask lanes.
    --  @param Mask The input mask.
    --  @return The operation result.
+   function First_True (Mask : Mask_16x8) return Lane_Count_16x8;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8;
+   --  Return the last true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
@@ -2523,6 +2555,14 @@ is
    --  Return the number of true mask lanes.
    --  @param Mask The input mask.
    --  @return The operation result.
+   function First_True (Mask : Mask_32x4) return Lane_Count_32x4;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4;
+   --  Return the last true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
@@ -2570,6 +2610,14 @@ is
    --  @return The operation result.
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2;
    --  Return the number of true mask lanes.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function First_True (Mask : Mask_64x2) return Lane_Count_64x2;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2;
+   --  Return the last true lane, or the lane-count value when no lane is true.
    --  @param Mask The input mask.
    --  @return The operation result.
    --  END GENERATED 128-BIT FAMILIES

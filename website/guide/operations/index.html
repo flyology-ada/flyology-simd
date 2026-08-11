@@ -162,12 +162,17 @@ Saturated : constant U8x16 :=
               <tr><td>Arithmetic</td><td><a data-api="Flyology_SIMD"><code>Add</code>, <code>Subtract</code>, <code>Multiply</code>, <code>Divide</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Comparison</td><td><code>Equal</code>, <code>Less_Than</code>, <code>Less_Equal</code>, <code>Greater_Than</code>, <code>Greater_Equal</code>, <a data-api="Flyology_SIMD"><code>Unordered</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Selection and limits</td><td><code>Select_Value</code>, <a data-api="Flyology_SIMD"><code>Min_Number</code>, <code>Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
-              <tr><td>Reduction</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Reductions</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add</code>, <code>Reduce_Min_Number</code>, <code>Reduce_Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Lane permutations</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
             </tbody>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
           <p><code>Min_Number</code> and <code>Max_Number</code> return the numeric input when only one quiet NaN is present. They select negative zero for a minimum and positive zero for a maximum. The <a href="../../api/">API reference</a> and semantic document give the full NaN rules.</p>
+          <p><code>Reduce_Min_Number</code> and <code>Reduce_Max_Number</code> use lane 0 as the initial result. They combine each remaining lane with that result in ascending order. Each step applies the documented NaN and signed-zero rules on every backend.</p>
+          <pre><code class="language-ada">Samples : constant F32x4 := From_Lanes ([4.5, -2.0, 7.25, 1.0]);
+Smallest : constant F32 := Reduce_Min_Number (Samples);  --  -2.0
+Largest  : constant F32 := Reduce_Max_Number (Samples);  --   7.25</code></pre>
+          <p>The ordinary values above make the result easy to check. See the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a> for NaN and signed-zero results.</p>
         </section>
         <section id="masks">
           <h2>Combine and inspect masks</h2>
@@ -177,17 +182,24 @@ Saturated : constant U8x16 :=
             <li><a data-api="Flyology_SIMD"><code>Test</code></a> reads one lane truth.</li>
             <li><a data-api="Flyology_SIMD"><code>Any_True</code>, <code>All_True</code>, and <code>None_True</code></a> reduce the mask to one Boolean.</li>
             <li><a data-api="Flyology_SIMD"><code>Population_Count</code></a> counts true lanes.</li>
+            <li><a data-api="Flyology_SIMD"><code>First_True</code> and <code>Last_True</code></a> return the lowest or highest true lane.</li>
             <li><a data-api="Flyology_SIMD"><code>Mask_From_Bit_Mask</code></a> constructs a mask from the low lane-count bits of a compact integer.</li>
             <li><a data-api="Flyology_SIMD"><code>To_Bit_Mask</code></a> returns a compact mask. Bit <em>n</em> represents lane <em>n</em>.</li>
           </ul>
-          <pre><code class="language-ada">Printable : constant Mask_8x16 :=
-  Mask_And
-    (Greater_Equal (Bytes, Splat (16#20#)),
-     Less_Equal (Bytes, Splat (16#7E#)));
+          <p>A mask-position result is a valid lane index when it is less than <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a><code>'Last</code>. The last value, 16 for this mask, means that no lane is true. The same rule applies to the other mask widths.</p>
+          <pre><code class="language-ada">Input : constant Byte_Array (1 .. 16) :=
+  [97, 98, 99, 44, 100, 101, 102, 44,
+   103, 104, 105, 106, 107, 108, 109, 110];
+Bytes : constant U8x16 := Load_Unaligned (Input, Input'First);
+Commas : constant Mask_8x16 := Equal (Bytes, Splat (44));
+First_Comma : constant Lane_Count_8x16 := First_True (Commas);
+Last_Comma  : constant Lane_Count_8x16 := Last_True (Commas);
 
-if All_True (Printable) then
-   --  All 16 bytes are printable ASCII.
+if First_Comma /= Lane_Count_8x16'Last then
+   --  First_Comma is 3 and Last_Comma is 7.
+   --  Both values can now be converted to Lane_Index_8x16.
 end if;</code></pre>
+          <p>The <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a> input is <code>abc,def,ghijklmn</code>. <a data-api="Flyology_SIMD.Load_Unaligned" data-api-signature="Byte_Array"><code>Load_Unaligned</code></a> reads its 16 bytes. Lane indexes start at zero, so the comma positions are 3 and 7. The sentinel check comes before any conversion to <a data-api="Flyology_SIMD.Lane_Index_8x16"><code>Lane_Index_8x16</code></a>.</p>
         </section>
         <section id="memory">
           <h2>Use typed arrays for memory operations</h2>
@@ -205,8 +217,6 @@ end if;</code></pre>
             <li>floating-point narrowing;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>
-            <li>first-true and last-true mask queries;</li>
-            <li>floating-point minimum and maximum reductions.</li>
           </ul>
           <div class="semantic-callout">
             <strong>Coverage statement</strong>

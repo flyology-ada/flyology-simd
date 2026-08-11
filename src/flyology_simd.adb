@@ -330,6 +330,26 @@ package body Flyology_SIMD is
       return Result;
    end Population_Count;
 
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if Test (Mask, Lane) then
+            return Lane;
+         end if;
+      end loop;
+      return Lane_Count_8x16'Last;
+   end First_True;
+
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+   begin
+      for Lane in reverse Lane_Index_8x16 loop
+         if Test (Mask, Lane) then
+            return Lane;
+         end if;
+      end loop;
+      return Lane_Count_8x16'Last;
+   end Last_True;
+
    function Has_Extent
      (Data : Byte_Array; Start : Natural; Count : Natural) return Boolean
    is
@@ -2771,6 +2791,22 @@ package body Flyology_SIMD is
       for Lane in Lane_Index_32x4 loop Result := Result + Value.Lanes (Lane); end loop;
       return Result;
    end Reduce_Add;
+   function Reduce_Min_Number (Value : F32x4) return F32 is
+      Result : F32x4 := Splat (Value.Lanes (0));
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop
+         Result := Min_Number (Result, Splat (Value.Lanes (Lane)));
+      end loop;
+      return Result.Lanes (0);
+   end Reduce_Min_Number;
+   function Reduce_Max_Number (Value : F32x4) return F32 is
+      Result : F32x4 := Splat (Value.Lanes (0));
+   begin
+      for Lane in Lane_Index_32x4 range 1 .. 3 loop
+         Result := Max_Number (Result, Splat (Value.Lanes (Lane)));
+      end loop;
+      return Result.Lanes (0);
+   end Reduce_Max_Number;
    function Reverse_Lanes (Value : F32x4) return F32x4 is
       Result : F32x4;
    begin
@@ -2924,6 +2960,22 @@ package body Flyology_SIMD is
       for Lane in Lane_Index_64x2 loop Result := Result + Value.Lanes (Lane); end loop;
       return Result;
    end Reduce_Add;
+   function Reduce_Min_Number (Value : F64x2) return F64 is
+      Result : F64x2 := Splat (Value.Lanes (0));
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop
+         Result := Min_Number (Result, Splat (Value.Lanes (Lane)));
+      end loop;
+      return Result.Lanes (0);
+   end Reduce_Min_Number;
+   function Reduce_Max_Number (Value : F64x2) return F64 is
+      Result : F64x2 := Splat (Value.Lanes (0));
+   begin
+      for Lane in Lane_Index_64x2 range 1 .. 1 loop
+         Result := Max_Number (Result, Splat (Value.Lanes (Lane)));
+      end loop;
+      return Result.Lanes (0);
+   end Reduce_Max_Number;
    function Reverse_Lanes (Value : F64x2) return F64x2 is
       Result : F64x2;
    begin
@@ -2985,6 +3037,10 @@ package body Flyology_SIMD is
       Bits : Interfaces.Unsigned_8 := Mask.Bits;
       Result : Lane_Count_16x8 := 0;
    begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+   function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+   begin for Lane in Lane_Index_16x8 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_16x8'Last; end First_True;
+   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is
+   begin for Lane in reverse Lane_Index_16x8 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_16x8'Last; end Last_True;
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is (Bits => Bits and 15);
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is (Mask.Bits);
@@ -3000,6 +3056,10 @@ package body Flyology_SIMD is
       Bits : Interfaces.Unsigned_8 := Mask.Bits;
       Result : Lane_Count_32x4 := 0;
    begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+   function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+   begin for Lane in Lane_Index_32x4 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_32x4'Last; end First_True;
+   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is
+   begin for Lane in reverse Lane_Index_32x4 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_32x4'Last; end Last_True;
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is (Bits => Bits and 3);
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is (Mask.Bits);
@@ -3015,5 +3075,9 @@ package body Flyology_SIMD is
       Bits : Interfaces.Unsigned_8 := Mask.Bits;
       Result : Lane_Count_64x2 := 0;
    begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;
+   function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+   begin for Lane in Lane_Index_64x2 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_64x2'Last; end First_True;
+   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is
+   begin for Lane in reverse Lane_Index_64x2 loop if Test (Mask, Lane) then return Lane; end if; end loop; return Lane_Count_64x2'Last; end Last_True;
    --  END GENERATED 128-BIT SCALAR BODIES
 end Flyology_SIMD;
