@@ -30,7 +30,7 @@ Encodings : constant U32x4 := Bit_Cast (Values);</code></pre>
             <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Round two <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> inputs into one <code>F32x4</code> result.</td></tr>
           </tbody></table>
           <p>Each narrowing operation takes two source vectors. The <code>Low</code> input supplies the low result half, and <code>High</code> supplies the high result half.</p>
-          <p>The following <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> input shows the difference between discarding high bits and clamping values. The applicable <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs it, and <a data-api="Flyology_SIMD.Zero" data-api-signature="return U16x8"><code>Zero</code></a> supplies the high half. Both narrowing results have type <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>.</p>
+          <p>The following <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> input shows the difference between discarding high bits and clamping values. The applicable <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs it, and <a data-api="Flyology_SIMD.Zero" data-api-signature="return U16x8"><code>Zero</code></a> supplies the high half. The applicable <a data-api="Flyology_SIMD.Narrow_Truncate" data-api-signature="Low, High : U16x8) return U8x16"><code>Narrow_Truncate</code></a> and <a data-api="Flyology_SIMD.Narrow_Saturate" data-api-signature="Low, High : U16x8) return U8x16"><code>Narrow_Saturate</code></a> overloads both return <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>.</p>
           <pre><code class="language-ada">Wide : constant U16x8 :=
   From_Lanes ([254, 255, 256, 300, 0, 1, 2, 3]);
 Empty : constant U16x8 := Zero;
@@ -48,7 +48,7 @@ Saturated : constant U8x16 := Narrow_Saturate (Wide, Empty);
             <tr><td><a data-api="Flyology_SIMD"><code>Convert_Saturate</code></a></td><td>Change integer signedness at the same width and clamp out-of-range values.</td></tr>
           </tbody></table>
           <p>For signed-to-unsigned <code>Convert_Saturate</code>, a negative input becomes zero. For unsigned-to-signed conversion, a value above the signed maximum becomes that maximum.</p>
-          <p>The <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_I32x4"><code>From_Lanes</code></a> overload constructs this <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> input:</p>
+          <p>The <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_I32x4"><code>From_Lanes</code></a> overload constructs this <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> input. The applicable <a data-api="Flyology_SIMD.Convert_Saturate" data-api-signature="Value : I32x4) return U32x4"><code>Convert_Saturate</code></a> overload returns unsigned 32-bit lanes:</p>
           <pre><code class="language-ada">Signed_Input : constant I32x4 :=
   From_Lanes ([-1, 0, 1, I32'Last]);
 Unsigned_Result : constant U32x4 := Convert_Saturate (Signed_Input);
