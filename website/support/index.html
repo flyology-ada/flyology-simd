@@ -58,14 +58,15 @@
           <table class="support-table">
             <thead><tr><th>Operation kind</th><th>AArch64</th><th>x86-64 baseline</th></tr></thead>
             <tbody>
-              <tr><td>Common integer arithmetic, bits, comparison, and interleave</td><td>Advanced SIMD leaves</td><td>SSE2 leaves</td></tr>
+              <tr><td><code>Add_Wrap</code>, <code>Subtract_Wrap</code>, bitwise operations, comparisons, and interleave operations</td><td>Advanced SIMD leaves</td><td>SSE2 leaves</td></tr>
+              <tr><td><code>Multiply_Wrap</code></td><td>Advanced SIMD for 8-, 16-, and 32-bit lanes; scalar composition for 64-bit lanes</td><td>SSE2 instruction composition for every integer lane width</td></tr>
               <tr><td>Floating arithmetic and comparison</td><td>Advanced SIMD leaves</td><td>SSE2 leaves</td></tr>
               <tr><td>Full unaligned memory</td><td>128-bit vector load or store</td><td>Unaligned 128-bit load or store</td></tr>
               <tr><td>Partial memory</td><td>Exact Ada lane loop</td><td>Exact Ada lane loop</td></tr>
               <tr><td>Operations without a suitable target instruction</td><td>Scalar composition with the same public result</td><td>Scalar or SSE2 composition with the same public result</td></tr>
             </tbody>
           </table>
-          <p>Examples of composed operations include 64-bit integer multiplication on AArch64, some reductions, and wide saturating operations on SSE2. See the code-generation script for the instruction classes that have positive checks.</p>
+          <p>On AArch64, 64-bit integer multiplication and 64-bit integer reductions use scalar composition. On SSE2, 32- and 64-bit saturating arithmetic, ordered reductions, and floating number minimum and maximum use scalar composition. The code-generation script lists the instruction classes that have positive checks.</p>
         </section>
         <section id="compiler">
           <h2>Compiler scope</h2>
@@ -74,7 +75,8 @@
         </section>
         <section id="checks">
           <h2>Continuous checks</h2>
-          <p>The workflow runs checked and release builds, deterministic differential tests, full-width pseudorandom integer tests, floating-point edge cases, exact-tail tests, protected-page tests, AddressSanitizer builds, and code-generation checks.</p>
+          <p>The workflow runs checked and release builds. Semantic checks include deterministic differential tests, independent lane oracles, full-width pseudorandom integer data, and floating-point edge cases.</p>
+          <p>Memory checks include every tail length, protected pages, and AddressSanitizer. Code-generation checks inspect primitive operations and representative buffer loops.</p>
           <p>Mask patterns are exhaustive for each mask width. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
           <p>The workflow does not use <code>continue-on-error</code>.</p>
         </section>
@@ -84,7 +86,7 @@
             <li>The public API is experimental.</li>
             <li>The verified compiler matrix contains one GNAT FSF version.</li>
             <li>The 256-bit family is not implemented.</li>
-            <li>Conversions, widening, narrowing, and general shuffles are not implemented.</li>
+            <li>Conversions, widening, narrowing, arbitrary lane-index shuffles, and byte-table lookup are not implemented.</li>
             <li>AVX2 accelerates three complete byte algorithms, not the primitive vector family.</li>
           </ul>
           <div class="next-links"><a href="../guide/operations/"><span>Operations</span>Read the exact API matrix</a><a href="../architecture/"><span>Architecture</span>Understand target composition</a></div>

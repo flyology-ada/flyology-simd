@@ -23,8 +23,9 @@ and unordered floating comparison currently use documented scalar composition
 where Advanced SIMD lacks the direct operation or the leaf is not yet stable.
 x86-64 SSE2 is the baseline.  SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full
-memory operations across every 128-bit integer and floating family.  Wide
-saturation, ordered reductions, and floating number min/max use documented
+memory operations across every 128-bit integer and floating family. Saturating
+arithmetic on 32- and 64-bit lanes, ordered reductions, and floating number
+min/max use documented
 scalar composition where SSE2 lacks a direct semantics-preserving operation.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
@@ -34,5 +35,6 @@ AVX and AVX2 instructions are absent outside the AVX2-only object. The public
 AVX2 package is a baseline-safe wrapper that rejects an unavailable backend
 before entering that private object.
 
-The workflow contains no `continue-on-error`.  Hosted CI should only be called
-green after an actual workflow run; this repository has not yet had one.
+The workflow contains no `continue-on-error`. Public hosted CI has executed
+earlier commits successfully. The support page links to the current workflow
+result; new commits do not have hosted evidence until their runs finish.

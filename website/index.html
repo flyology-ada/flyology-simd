@@ -53,7 +53,7 @@
         <h1>128-bit vector operations for Ada.</h1>
         <p class="hero-lede">Use private vector types such as <code>U8x16</code>, <code>I32x4</code>, and <code>F64x2</code>. The public operations have the same result on the scalar, AArch64 NEON, and x86-64 SSE2 backends.</p>
         <div class="actions">
-          <a class="button button-primary" href="guide/">Build an example</a>
+          <a class="button button-primary" href="guide/introduction/">Learn the SIMD model</a>
           <a class="button button-secondary" href="guide/operations/">Check operation coverage</a>
         </div>
         <p class="experimental-note">Version 0.1.0-dev. GCC-based GNAT is required. The API can change.</p>
@@ -64,22 +64,22 @@
           <strong>lane 0 = byte 0</strong>
         </figcaption>
         <div class="lane-index" aria-hidden="true">
-          <span>15</span><span>14</span><span>13</span><span>12</span>
-          <span>11</span><span>10</span><span>09</span><span>08</span>
-          <span>07</span><span>06</span><span>05</span><span>04</span>
-          <span>03</span><span>02</span><span>01</span><span>00</span>
+          <span>00</span><span>01</span><span>02</span><span>03</span>
+          <span>04</span><span>05</span><span>06</span><span>07</span>
+          <span>08</span><span>09</span><span>10</span><span>11</span>
+          <span>12</span><span>13</span><span>14</span><span>15</span>
         </div>
         <div class="lane-row" aria-label="Sixteen byte lanes. Lane zero is the first array element.">
-          <span>2F</span><span>2E</span><span>2D</span><span>2C</span>
-          <span>2B</span><span>2A</span><span>29</span><span>28</span>
-          <span>27</span><span>26</span><span>25</span><span>24</span>
-          <span>23</span><span>22</span><span>21</span><span class="lane-zero">20</span>
+          <span class="lane-zero">20</span><span>21</span><span>22</span><span>23</span>
+          <span>24</span><span>25</span><span>26</span><span>27</span>
+          <span>28</span><span>29</span><span>2A</span><span>2B</span>
+          <span>2C</span><span>2D</span><span>2E</span><span>2F</span>
         </div>
         <div class="mask-rule">
           <span><code>Equal (V, Splat (16#20#))</code></span>
           <div aria-hidden="true">
+            <i class="true"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
             <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="true"></i>
           </div>
           <code>0x0001</code>
         </div>
@@ -135,8 +135,8 @@ Saturated : constant U16x8 := Add_Saturate (Input, Increment);
         <div class="type-ruler" aria-label="Public 128-bit vector types">
           <div><code>U8x16</code><span>16 unsigned bytes</span></div>
           <div><code>I8x16</code><span>16 signed bytes</span></div>
-          <div><code>U16x8</code><span>8 unsigned words</span></div>
-          <div><code>I16x8</code><span>8 signed words</span></div>
+          <div><code>U16x8</code><span>8 unsigned 16-bit lanes</span></div>
+          <div><code>I16x8</code><span>8 signed 16-bit lanes</span></div>
           <div><code>U32x4</code><span>4 unsigned 32-bit lanes</span></div>
           <div><code>I32x4</code><span>4 signed 32-bit lanes</span></div>
           <div><code>U64x2</code><span>2 unsigned 64-bit lanes</span></div>

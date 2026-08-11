@@ -35,10 +35,10 @@ Compact bit 0 represents lane 0. Bits above the lane count are ignored by mask
 construction.
 
 Integer arithmetic distinguishes wrapping and saturating operations by name.
-Logical shifts accept every integer family, arithmetic right shift accepts
-signed families, and a scalar count greater than or equal to the lane width
-has the documented all-zero or sign-fill result.  Counts are never reduced
-modulo the width.
+Logical shifts accept every integer family. Arithmetic right shift accepts
+signed families. If the count is at least the lane width, a logical shift
+returns zero. An arithmetic right shift returns the sign fill. Shift operations
+do not reduce counts modulo the width.
 
 The following conversion names are design targets. They are not public
 operations in this release:
@@ -77,13 +77,14 @@ out-of-range behavior before the operation becomes public.
 
 ## Backend completion rule
 
-A backend is complete for this release only when every current operation either emits a
-verified target instruction sequence or is documented as a safe scalar or
-two-half composition because the ISA lacks a corresponding operation. Source
-presence alone is not completion. Every NEON and SSE2 entry is differentially
-tested against the scalar authority. Targeted floating tests add
-quiet/signaling NaNs, infinities, and signed zeros, and critical instruction
-classes are checked in generated code.
+A backend is semantically complete when every current operation matches the
+scalar reference. The documentation identifies operations that use scalar
+composition. A target-instruction claim also requires a code-generation check.
+Source presence alone is not completion. Every NEON and SSE2 entry is
+differentially tested against the scalar authority. Independent lane oracles
+test arithmetic, saturation, bitwise operations, comparisons, reductions, and
+partial stores. Targeted floating tests add quiet and signaling NaNs,
+infinities, signed zeros, and zero division.
 
 GNAT/GCC vector-type arithmetic was tested first, as required by the mechanism
 policy.  GNAT FSF 16.1.0 on Darwin AArch64 crashes compiling arithmetic on a

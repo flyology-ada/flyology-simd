@@ -71,7 +71,7 @@
           <ol>
             <li>The public operation has the same semantics on each backend.</li>
             <li>The scalar implementation lets the source build without a SIMD backend.</li>
-            <li>A verified target backend can use efficient target instructions.</li>
+            <li>A verified target backend can use the instruction sequences listed by code-generation checks.</li>
           </ol>
           <p>The library does not promise a portable vector representation or calling convention. A compiler switch, compiler version, architecture, or enabled instruction set can change the private representation.</p>
         </section>
@@ -103,7 +103,7 @@
         <section id="machine">
           <h2>Keep target code in small Ada leaves</h2>
           <p>The project first uses a verified compiler intrinsic when GNAT exposes one with the required semantics. If no suitable intrinsic exists, it uses a small Ada <code>System.Machine_Code</code> subprogram.</p>
-          <p>These subprograms contain only the target mechanism. Ada code keeps extent checks, shift-count rules, and other public policy. Differential tests check the result. Code-generation scripts check the emitted instruction class.</p>
+          <p>These subprograms contain only the target mechanism. Ada code implements extent checks, oversized-shift behavior, and the other public semantics. Differential tests check the result. Code-generation scripts check the emitted instruction class.</p>
           <p>A primitive operation does not allocate memory, start a task, perform I/O, lock, wait, or read process configuration.</p>
         </section>
         <section id="add">
@@ -114,7 +114,7 @@
             <li>Match every edge case in the scalar implementation.</li>
             <li>Run deterministic differential tests for every implemented operation.</li>
             <li>Run exact-tail and protected-page tests.</li>
-            <li>Inspect important primitives and complete loops in generated code.</li>
+            <li>Inspect the listed primitive operations and complete loops in generated code.</li>
             <li>Record compile, execution, and continuous-test evidence separately.</li>
           </ol>
           <p>Do not add a public operation only because one processor has an instruction. Add it when its semantics are useful on every backend.</p>

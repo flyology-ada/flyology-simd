@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An introduction to SIMD concepts and their direct mapping to the Flyology SIMD Ada API.">
+  <title>Introduction to SIMD · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/introduction/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../../">Overview</a></li>
+        <li><a href="../" aria-current="page">Guide</a></li>
+        <li><a href="../operations/">Operations</a></li>
+        <li><a href="../../architecture/">Architecture</a></li>
+        <li><a href="../../support/">Support</a></li>
+        <li><a href="../../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
+      </div>
+    </nav>
+  </header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero">
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Introduction</li></ol><h1>SIMD from first principles</h1></div>
+      <p class="doc-hero-copy">SIMD applies one operation to several independent values. This chapter maps that model to Ada types, masks, and memory operations.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#one-operation">One operation, several lanes</a></li><li><a href="#types">Width and lane types</a></li><li><a href="#masks">Comparisons and masks</a></li><li><a href="#semantics">Choose the semantics</a></li><li><a href="#memory">Load complete and partial vectors</a></li><li><a href="#backends">Select a backend</a></li><li><a href="#loop">A complete loop</a></li></ul></aside>
+      <article class="prose">
+        <section id="one-operation">
+          <h2>One operation changes several lanes</h2>
+          <p>SIMD means <em>single instruction, multiple data</em>. A vector contains several lanes of one scalar type. An arithmetic or comparison operation processes corresponding lanes independently.</p>
+          <table class="support-table">
+            <thead><tr><th>Lane</th><th>Left</th><th>Right</th><th>Left + Right</th></tr></thead>
+            <tbody><tr><td>0</td><td>10</td><td>1</td><td>11</td></tr><tr><td>1</td><td>20</td><td>2</td><td>22</td></tr><tr><td>2</td><td>30</td><td>3</td><td>33</td></tr><tr><td>3</td><td>40</td><td>4</td><td>44</td></tr></tbody>
+          </table>
+          <p>The rows do not affect each other. A vector operation is therefore useful when an algorithm repeats the same work on adjacent values.</p>
+        </section>
+        <section id="types">
+          <h2>The width and lane type determine the lane count</h2>
+          <p>This release provides 128-bit vectors. The name <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> means 16 unsigned 8-bit lanes. <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> means four signed 32-bit lanes. <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> means two IEEE binary64 lanes.</p>
+          <pre><code class="language-text">128 bits / 8 bits  = 16 lanes
+128 bits / 32 bits =  4 lanes
+128 bits / 64 bits =  2 lanes</code></pre>
+          <p>Lane 0 is the first logical element that a load reads. Vector representation and calling conventions are private. Do not pass a vector through a foreign ABI by assuming a register layout.</p>
+        </section>
+        <section id="masks">
+          <h2>A comparison returns one Boolean per lane</h2>
+          <p>A vector comparison does not return one Boolean. It returns a private mask type. For example, an equality comparison on <code>U8x16</code> returns <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a>.</p>
+          <pre><code class="language-text">values:  41  42  41  43
+needle:  41  41  41  41
+equal:    T   F   T   F
+bits:     1   0   1   0  = compact mask 0b0101</code></pre>
+          <p>Use <a data-api="Flyology_SIMD"><code>Any_True</code></a> to ask whether at least one lane is true. Use <a data-api="Flyology_SIMD"><code>All_True</code></a> to require every lane. Use <a data-api="Flyology_SIMD"><code>To_Bit_Mask</code></a> when an algorithm needs a compact integer. Bit 0 represents lane 0.</p>
+          <p>Use <a data-api="Flyology_SIMD"><code>Mask_And</code></a>, <code>Mask_Or</code>, <code>Mask_Xor</code>, and <code>Mask_Not</code> to combine conditions. Do not depend on the private mask representation.</p>
+        </section>
+        <section id="semantics">
+          <h2>Choose wrapping or saturating integer arithmetic</h2>
+          <p>A machine instruction must not choose the public semantics by accident. The API uses different names for different overflow rules.</p>
+          <table class="support-table"><thead><tr><th>Operation</th><th>Example for an unsigned 8-bit lane</th></tr></thead><tbody><tr><td><a data-api="Flyology_SIMD"><code>Add_Wrap</code></a></td><td>250 + 10 becomes 4 modulo 256</td></tr><tr><td><a data-api="Flyology_SIMD"><code>Add_Saturate</code></a></td><td>250 + 10 becomes 255</td></tr></tbody></table>
+          <p>Shift counts at least as large as the lane width also have fixed results. Logical shifts return zero. An arithmetic right shift returns the sign fill.</p>
+        </section>
+        <section id="memory">
+          <h2>Load complete vectors and process the final partial vector</h2>
+          <p>A complete load requires one full vector of valid elements. <a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> does not require 16-byte alignment. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> requires a 16-byte-aligned address.</p>
+          <p>A buffer length is rarely an exact multiple of the lane count. Use <a data-api="Flyology_SIMD"><code>Load_Partial</code></a> for the final elements. It reads exactly <code>Count</code> elements and fills the remaining lanes with zero. <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements.</p>
+          <div class="semantic-callout"><strong>A partial load is not a masked out-of-range load.</strong><p>The implementation does not read a complete vector and discard invalid lanes. Protected-page tests check every byte count from 0 through 16.</p></div>
+        </section>
+        <section id="backends">
+          <h2>Keep semantics separate from the machine backend</h2>
+          <p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> is the scalar reference. It defines the portable result. <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> provides the backend selected at build time.</p>
+          <p>Use a static native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one complete buffer operation must select from the backends that the processor and operating system can execute.</p>
+          <p>Runtime dispatch occurs once for the buffer. It does not occur for each vector operation or lane.</p>
+        </section>
+        <section id="loop">
+          <h2>Put the operations into a complete loop</h2>
+          <p>This outline adds 10 with saturation. It uses the compiled native backend and handles the final partial vector.</p>
+          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
+
+Start := Data'First;
+while Start &lt;= Data'Last loop
+   Count := Lane_Count_8x16'Min (16, Data'Last - Start + 1);
+   Value := Native.Load_Partial (Data, Start, Count);
+   Value := Native.Add_Saturate (Value, Native.Splat (10));
+   Native.Store_Partial (Data, Start, Count, Value);
+   Start := Start + Count;
+end loop;</code></pre>
+          <p>The repository program <code>examples/partial_tail.adb</code> contains the complete declarations and output. The next chapter builds all examples.</p>
+          <div class="next-links"><a href="../"><span>Examples</span>Build and run complete programs</a><a href="../operations/"><span>Operations</span>Check exact coverage</a></div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>Start with lanes, masks, and exact memory extents.</span><div class="footer-links"><a href="../">Examples</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+</body>
+</html>

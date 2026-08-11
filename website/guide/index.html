@@ -60,6 +60,7 @@
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
+          <li><a href="#introduction">Introduction</a></li>
           <li><a href="#install">Install</a></li>
           <li><a href="#examples">Build the examples</a></li>
           <li><a href="#search">Search a byte array</a></li>
@@ -69,6 +70,10 @@
         </ul>
       </aside>
       <article class="prose">
+        <section id="introduction">
+          <h2>New to SIMD?</h2>
+          <p>Read <a href="introduction/">SIMD from first principles</a> first. It explains lanes, masks, vector width, overflow rules, partial memory operations, and backend selection. Each concept links to this library's Ada API.</p>
+        </section>
         <section id="install">
           <h2>Install from the Flyology Alire index</h2>
           <p><code>flyology_simd</code> version <code>0.1.0-dev</code> is in the Flyology index. Keep the community index because Alire uses it to find the compiler toolchain.</p>
@@ -89,16 +94,17 @@ alr build</code></pre>
           <h2>Build the repository examples</h2>
           <p>Run this command from the repository root:</p>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr</code></pre>
-          <p>The command creates four programs in <code>bin</code>. Run them from the repository root:</p>
+          <p>The command creates five programs in <code>bin</code>. Run them from the repository root:</p>
           <pre><code class="language-shell">./bin/find_byte
 ./bin/integer_vectors
 ./bin/floating_vectors
-./bin/partial_tail</code></pre>
+./bin/partial_tail
+./bin/backend_selection</code></pre>
           <p>The continuous build compiles these examples. This check prevents the guide from depending on stale source.</p>
         </section>
         <section id="search">
           <h2>Search a complete byte array</h2>
-          <p><code>Algorithms.Runtime.Find_First</code> selects one safe backend before it scans the array. It returns an Ada array index, not a zero-based byte offset.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Algorithms.Runtime.Find_First</code></a> selects one available backend before it scans the array. The processor and operating system can execute an available backend. The function returns an Ada array index, not a zero-based byte offset.</p>
           <pre><code class="language-ada">with Ada.Text_IO;
 with Flyology_SIMD;
 with Flyology_SIMD.Algorithms.Runtime;
@@ -118,23 +124,28 @@ end Find_Byte;</code></pre>
         </section>
         <section id="integer">
           <h2>Choose the integer overflow rule</h2>
-          <p>This example adds 10 to eight unsigned 16-bit lanes:</p>
-          <pre><code class="language-ada">Input : constant U16x8 :=
-  From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
-Increment : constant U16x8 := Splat (10);
+          <p>The direct-vector examples use <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a>. This package is the compiled target backend. The scalar root package defines the reference semantics.</p>
+          <p>This example uses <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> to add 10 to eight unsigned 16-bit lanes. It calls the native <a data-api="Flyology_SIMD"><code>Add_Wrap</code></a> and <code>Add_Saturate</code> overloads:</p>
+          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
-Wrapped : constant U16x8 := Add_Wrap (Input, Increment);
-Saturated : constant U16x8 := Add_Saturate (Input, Increment);</code></pre>
-          <p><code>Extract (Wrapped, 0)</code> returns 4 because wrapping addition is modulo 65,536. <code>Extract (Saturated, 0)</code> returns 65,535 because saturating addition clamps to the lane maximum.</p>
-          <p>The complete <code>integer_vectors</code> example also compares every lane with 150. The result is a <code>Mask_16x8</code>. Bit 0 of its compact mask represents lane 0.</p>
+Input : constant U16x8 :=
+  Native.From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
+Increment : constant U16x8 := Native.Splat (10);
+
+Wrapped : constant U16x8 := Native.Add_Wrap (Input, Increment);
+Saturated : constant U16x8 := Native.Add_Saturate (Input, Increment);</code></pre>
+          <p><a data-api="Flyology_SIMD"><code>Extract (Wrapped, 0)</code></a> returns 4 because wrapping addition is modulo 65,536. <code>Extract (Saturated, 0)</code> returns 65,535 because saturating addition clamps to the lane maximum.</p>
+          <p>The complete <code>integer_vectors</code> example also compares every lane with 150. The result is a <a data-api="Flyology_SIMD.Mask_16x8"><code>Mask_16x8</code></a>. Bit 0 of its compact mask represents lane 0.</p>
         </section>
         <section id="float">
           <h2>Use the floating-point family</h2>
-          <p><code>F32x4</code> contains four IEEE binary32 lanes. The following code multiplies each lane by 2 and compares each result with zero:</p>
+          <p><a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> contains four IEEE binary32 lanes. The following code multiplies each lane by 2 and compares each result with zero:</p>
           <pre><code class="language-ada">Samples : constant F32x4 :=
-  From_Lanes ([-1.5, 0.0, 2.25, 10.0]);
-Scaled : constant F32x4 := Multiply (Samples, Splat (2.0));
-Negative : constant Mask_32x4 := Less_Than (Scaled, Zero);</code></pre>
+  Native.From_Lanes ([-1.5, 0.0, 2.25, 10.0]);
+Scaled : constant F32x4 :=
+  Native.Multiply (Samples, Native.Splat (2.0));
+Negative : constant Mask_32x4 :=
+  Native.Less_Than (Scaled, Native.Zero);</code></pre>
           <p>The scaled lanes are -3.0, 0.0, 4.5, and 20.0. Only lane 0 is negative, so <code>To_Bit_Mask (Negative)</code> returns 1.</p>
           <p>The default build does not enable fast-math. Read the <a href="operations/#floats">floating operation table</a> before code depends on NaN or signed-zero behavior.</p>
         </section>

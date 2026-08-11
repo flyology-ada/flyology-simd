@@ -12,7 +12,8 @@ Portable has three independent meanings here:
 
 1. Public operations have identical semantics on every target.
 2. The same source remains usable through the scalar fallback.
-3. Selected targets lower important operations to efficient machine SIMD.
+3. Verified target backends lower the operations identified by code-generation
+   checks to SIMD instruction sequences.
 
 The representation and ABI of vectors are not portable between compilers,
 compiler switches, architectures, or enabled instruction sets.  Public vector
@@ -25,8 +26,8 @@ SIMD, GPUs, and vendor-intrinsic coverage are outside v0.1.
 
 ## v0.1 type and operation scope
 
-The original byte-oriented surface proved the representation, mask, memory,
-and backend boundaries. The current type surface contains all signed,
+The original byte-oriented API established the initial representation, mask,
+memory, and backend boundaries. The current type surface contains all signed,
 unsigned, and floating 128-bit families. The exact operation matrix and
 floating-point contracts are recorded in [api-scope.md](api-scope.md).
 AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
@@ -51,8 +52,9 @@ The 256-bit type family and the conversion family are not implemented.
   Partial stores write exactly `Count` elements.  A count of zero touches no
   element, including at an otherwise invalid start index permitted by the
   zero-count contract.
-- Unaligned operations make no alignment assertion.  Aligned operations have a
-  checked Ada precondition requiring a 16-byte address and a full extent.
+- Full and unaligned operations do not require 16-byte alignment. Aligned
+  operations have a checked Ada precondition that requires a 16-byte-aligned
+  address and a full extent.
 - No operation allocates, performs I/O, locks, waits, starts a task, reads
   environment variables, or consults mutable process configuration.
 - No build mode enables `-ffast-math` or globally suppresses Ada checks. GNAT
@@ -86,9 +88,8 @@ instantiations are supplied.  Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation.
 
 Feature information is immutable and computed once during package elaboration,
-without a racy writable cache.  The x86 detector executes baseline CPUID and a
-CPUID-gated XGETBV leaf; it executes no AVX or AVX2 instruction.  Runtime
-selection still occurs once per complete buffer operation, never per vector.
+without a racy writable cache. Runtime selection occurs once per complete
+buffer operation, never per vector.
 
 ## Memory mechanism
 

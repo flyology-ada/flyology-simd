@@ -156,6 +156,19 @@ procedure SIMD_Tests is
               (Flyology_SIMD.Backends.Native.To_Bit_Mask
                  (Flyology_SIMD.Backends.Native.Mask_Not (Mask)) = not Bits,
                "native mask not" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Mask_And
+                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) = 0
+               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Mask_Or
+                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) =
+                   Interfaces.Unsigned_16'Last
+               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Mask_Xor
+                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) =
+                   Interfaces.Unsigned_16'Last,
+               "native mask algebra" & Raw'Image);
             Check (Any_True (Mask) = (Raw /= 0), "mask any" & Raw'Image);
             Check (None_True (Mask) = (Raw = 0), "mask none" & Raw'Image);
             Check (All_True (Mask) = (Raw = 65_535), "mask all" & Raw'Image);

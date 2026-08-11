@@ -37,12 +37,13 @@ claimed as implemented.
 
 All ordinary memory operations use a typed lane array plus an Ada array index.
 Full operations require one complete 128-bit vector of valid elements.
-Unaligned operations make no alignment claim. Aligned operations require and
-check a 16-byte address.
+Full and unaligned operations do not require 16-byte alignment. Aligned
+operations require and check a 16-byte-aligned address.
 
-For a partial load of `Count`, only elements `Start .. Start + Count - 1` are
-read; remaining result lanes are zero.  A partial store modifies only that same
-range.  Count zero neither evaluates an element address nor touches memory.
+If `Count` is positive, a partial load reads only
+`Start .. Start + Count - 1`. Remaining result lanes are zero. A partial store
+modifies only that same range. If `Count` is zero, the operation does not
+evaluate an element address or touch memory.
 Partial operations never perform a full vector access followed by masking.
 Protected-page tests put each valid byte tail directly before an inaccessible
 page. They exercise scalar and native partial operations for counts 0 through

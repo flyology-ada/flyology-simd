@@ -7,21 +7,21 @@ does not define a `Flyology` parent unit.  The public root is `Flyology_SIMD`.
 The guide, backend support matrix, and generated API reference are published at
 [simd.flyology.org](https://simd.flyology.org/).
 
-The current v0.1 surface contains the full private 128-bit type family:
-`U8x16`/`I8x16`, `U16x8`/`I16x8`, `U32x4`/`I32x4`,
-`U64x2`/`I64x2`, `F32x4`, and `F64x2`, with compact typed masks.  Integer
+The current v0.1 surface contains all ten private 128-bit value types. See the
+[operation matrix](https://simd.flyology.org/guide/operations/) for their lane
+counts and masks. Integer
 operations name wrapping and saturation explicitly. Floating operations retain
 IEEE NaNs and signed zero without fast-math. Mask values support Boolean
 combination and reduction. `Find_First`, `Count`, and `Is_ASCII` demonstrate
 complete-buffer composition.
 
 “Full family” refers to the ten 128-bit value types. Numeric conversions, bit
-casts, widening, narrowing, general shuffles, and 256-bit types are not
+casts, widening, narrowing, arbitrary lane-index shuffles, and 256-bit types are not
 implemented. See the [operation matrix](https://simd.flyology.org/guide/operations/)
 before you select the crate for an algorithm.
 
-The project is experimental until its API, compiler matrix, and backend checks
-have accumulated hosted CI evidence.
+The API is experimental and can change before 1.0. The support matrix lists
+the compiler and target combinations that CI has executed.
 
 ## Build and run
 
@@ -59,6 +59,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/integer_vectors
 ./bin/floating_vectors
 ./bin/partial_tail
+./bin/backend_selection
 ```
 
 See
@@ -96,14 +97,15 @@ The complete artifact is written to the ignored `build/site/` directory.
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.
 - `Algorithms.Runtime` performs **runtime algorithm dispatch** once per buffer.
-  It never detects features or indirects once per `Add`, `Equal`, or lane.
+  It does not run feature detection or make an indirect call for each primitive
+  operation.
 
 ## Safety and semantics
 
 Lane zero is the first logical element loaded.  Partial loads read only the
 declared count and zero-fill the rest; partial stores modify only that count.
-Aligned operations have a checked 16-byte precondition, while unaligned
-operations never assert alignment.  No primitive allocates, performs I/O,
+Aligned operations require a 16-byte-aligned address. Full and unaligned
+operations do not require 16-byte alignment. No primitive allocates, performs I/O,
 locks, waits, starts a task, or reads ambient configuration.  Checks and IEEE
 floating defaults are not globally disabled; `-ffast-math` is not used.
 

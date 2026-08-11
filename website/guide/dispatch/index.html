@@ -35,7 +35,7 @@
   <main id="main" class="page-shell">
     <header class="doc-hero">
       <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Backend selection</li></ol><h1>Backend selection</h1></div>
-      <p class="doc-hero-copy">Primitive operations use the backend selected at build time. A complete byte-buffer operation can select an optional backend once at runtime.</p>
+      <p class="doc-hero-copy">Primitive operations use the backend selected at build time. A complete byte-buffer operation can accept an explicit backend parameter and make one runtime selection.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#terms">Terms</a></li><li><a href="#static">Static call</a></li><li><a href="#runtime">Runtime call</a></li><li><a href="#force">Require a backend</a></li><li><a href="#x86">x86 safety</a></li></ul></aside>
@@ -45,34 +45,43 @@
           <ul>
             <li><strong>Compiled</strong> means that the selected build contains the backend code.</li>
             <li><strong>Available</strong> means that the current processor and operating system can execute that compiled code.</li>
-            <li><strong>Best available</strong> is the highest-priority available backend for the current build.</li>
+            <li><strong>Best available</strong> is NEON in an AArch64 build. It is AVX2, then SSE2, in an x86-64 build. It is scalar in a scalar build.</li>
           </ul>
           <p><code>Features.Compiled</code>, <code>Features.Available</code>, and <code>Features.Best_Available</code> report these states.</p>
         </section>
         <section id="static">
-          <h2>Call the build-time native algorithm</h2>
-          <pre><code class="language-ada">Result :=
-  Flyology_SIMD.Algorithms.Native.Find_First (Data, Needle);</code></pre>
+          <h2>Run the complete backend-selection example</h2>
+          <p>The repository builds <code>examples/backend_selection.adb</code>. The program compares static native selection, default runtime selection, and an explicit request for the best available backend.</p>
+          <pre><code class="language-ada">Data : constant Flyology_SIMD.Byte_Array :=
+  [1, 44, 2, 44, 3, 4, 44, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+   14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
+Needle : constant Flyology_SIMD.U8 := 44;
+Best : constant Flyology_SIMD.Features.Backend_Kind :=
+  Flyology_SIMD.Features.Best_Available;
+
+Static_Count : constant Natural :=
+  Flyology_SIMD.Algorithms.Native.Count (Data, Needle);
+Runtime_Count : constant Natural :=
+  Flyology_SIMD.Algorithms.Runtime.Count (Data, Needle);
+Forced_Count : constant Natural :=
+  Flyology_SIMD.Algorithms.Runtime.Count
+    (Data, Needle, Backend =&gt; Best);</code></pre>
+          <pre><code class="language-shell">./bin/backend_selection</code></pre>
+          <p>All three counts are 3. The first output line reports the selected backend.</p>
           <p>This call uses the <code>Backends.Native</code> body selected by the GPR project. On a native build, Alire detects AArch64 or x86-64. A scalar scenario selects the scalar body.</p>
           <p>The byte algorithm is a generic instantiation. GNAT can inline its primitive loads and comparisons into the loop.</p>
         </section>
         <section id="runtime">
           <h2>Choose once for the complete buffer</h2>
-          <pre><code class="language-ada">Matches :=
-  Flyology_SIMD.Algorithms.Runtime.Count
-    (Data    => Data,
-     Needle  => Flyology_SIMD.U8 (16#2C#),
-     Backend => Flyology_SIMD.Features.Best_Available);</code></pre>
-          <p><code>Count</code> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
+          <p><code>Runtime_Count</code> uses the default backend parameter. <code>Forced_Count</code> supplies that parameter explicitly. <code>Count</code> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
           <p>The runtime package currently provides <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</p>
         </section>
         <section id="force">
           <h2>Reject an unavailable request</h2>
-          <p>Call <code>Features.Require</code> before a forced backend call. It raises <code>Backend_Unavailable</code> if the backend was not compiled or cannot execute safely.</p>
-          <pre><code class="language-ada">Flyology_SIMD.Features.Require (Flyology_SIMD.Features.AVX2);
-
-Matches := Flyology_SIMD.Algorithms.Runtime.Count
+          <p>A forced runtime call raises <code>Backend_Unavailable</code> if the backend was not compiled or cannot execute safely.</p>
+          <pre><code class="language-ada">Matches := Flyology_SIMD.Algorithms.Runtime.Count
   (Data, Needle, Backend => Flyology_SIMD.Features.AVX2);</code></pre>
+          <p><code>Features.Require</code> provides an optional preflight check when an application wants to reject the request before it calls an algorithm.</p>
           <p>The exception occurs before the program enters optional instructions.</p>
         </section>
         <section id="x86">

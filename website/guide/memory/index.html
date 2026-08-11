@@ -71,18 +71,18 @@
       <article class="prose">
         <section id="lane-order">
           <h2>Lane 0 maps to the first selected element</h2>
-          <p><code>Load (Data, Start)</code> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
+          <p><a data-api="Flyology_SIMD"><code>Load (Data, Start)</code></a> puts <code>Data (Start)</code> in lane 0. It puts <code>Data (Start + 1)</code> in lane 1.</p>
           <p>This rule defines the logical result. It does not define a portable record layout, register layout, or calling convention.</p>
         </section>
         <section id="full">
-          <h2>Full operations need one complete vector</h2>
-          <p><code>Load</code> and <code>Store</code> need enough valid elements for one vector. For <code>U8x16</code>, they need 16 elements. They do not require a 16-byte-aligned address.</p>
+          <h2>Full operations require one complete vector</h2>
+          <p><code>Load</code> and <code>Store</code> require enough valid elements for one vector. For <code>U8x16</code>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
           <p><code>Load_Unaligned</code> and <code>Store_Unaligned</code> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
           <pre><code class="language-ada">Block : constant U8x16 := Load_Unaligned (Data, Start);
 Store_Unaligned (Output, Start, Block);</code></pre>
         </section>
         <section id="aligned">
-          <h2>Aligned operations need a 16-byte address</h2>
+          <h2>Aligned operations require a 16-byte-aligned address</h2>
           <p><code>Is_Aligned_16</code> checks the address of <code>Data (Start)</code>. <code>Load_Aligned</code> and <code>Store_Aligned</code> have a precondition that requires this check to be true.</p>
           <p>Enabled assertion checks detect a false precondition. Your program must still meet the precondition when assertion checks are disabled.</p>
         </section>
@@ -94,18 +94,21 @@ Store_Unaligned (Output, Start, Block);</code></pre>
         <section id="tail">
           <h2>Process the final partial vector</h2>
           <p>This complete loop adds 10 with unsigned saturation. It works for an empty array and for every array length:</p>
-          <pre><code class="language-ada">Start : Natural := Data'First;
+          <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
+
+Start : Natural := Data'First;
 
 while Start &lt;= Data'Last loop
    declare
       Remaining : constant Natural := Data'Last - Start + 1;
       Count : constant Lane_Count_8x16 :=
         Lane_Count_8x16'Min (16, Remaining);
-      Value : constant U8x16 := Load_Partial (Data, Start, Count);
+      Value : constant U8x16 :=
+        Native.Load_Partial (Data, Start, Count);
       Result : constant U8x16 :=
-        Add_Saturate (Value, Splat (10));
+        Native.Add_Saturate (Value, Native.Splat (10));
    begin
-      Store_Partial (Data, Start, Count, Result);
+      Native.Store_Partial (Data, Start, Count, Result);
       Start := Start + Count;
    end;
 end loop;</code></pre>

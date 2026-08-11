@@ -786,14 +786,76 @@ def test_program() -> str:
             add_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) + {vector}_To_Bits (Extract (R_B, Lane)))"
             sub_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) - {vector}_To_Bits (Extract (R_B, Lane)))"
             mul_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) * {vector}_To_Bits (Extract (R_B, Lane)))"
+            and_oracle = f"(Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) and {vector}_To_Bits (Extract (R_B, Lane))))"
+            or_oracle = f"(Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) or {vector}_To_Bits (Extract (R_B, Lane))))"
+            xor_oracle = f"(Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) xor {vector}_To_Bits (Extract (R_B, Lane))))"
+            not_oracle = f"(Bits_To_{vector} (not {vector}_To_Bits (Extract (R_A, Lane))))"
+            add_sat_body = [
+                f"      if Right > 0 and then Left > {scalar}'Last - Right then return {scalar}'Last;",
+                f"      elsif Right < 0 and then Left < {scalar}'First - Right then return {scalar}'First;",
+                "      else return Left + Right; end if;",
+            ]
+            sub_sat_body = [
+                f"      if Right < 0 and then Left > {scalar}'Last + Right then return {scalar}'Last;",
+                f"      elsif Right > 0 and then Left < {scalar}'First + Right then return {scalar}'First;",
+                "      else return Left - Right; end if;",
+            ]
+            reduce_return = f"Bits_To_{vector} (Accumulator)"
+            reduce_term = f"{vector}_To_Bits (Extract (Value, Lane))"
+            shl_oracle = f"Bits_To_{vector} (Interfaces.Shift_Left ({vector}_To_Bits (Extract (A, Lane)), 1))"
+            shr_oracle = f"Bits_To_{vector} (Interfaces.Shift_Right ({vector}_To_Bits (Extract (A, Lane)), 1))"
+            sar_oracle = "(if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2))"
         else:
             random_lane = random_bits
             helpers = []
             add_oracle = "Extract (R_A, Lane) + Extract (R_B, Lane)"
             sub_oracle = "Extract (R_A, Lane) - Extract (R_B, Lane)"
             mul_oracle = "Extract (R_A, Lane) * Extract (R_B, Lane)"
+            and_oracle = "(Extract (R_A, Lane) and Extract (R_B, Lane))"
+            or_oracle = "(Extract (R_A, Lane) or Extract (R_B, Lane))"
+            xor_oracle = "(Extract (R_A, Lane) xor Extract (R_B, Lane))"
+            not_oracle = "(not Extract (R_A, Lane))"
+            add_sat_body = [
+                f"      if Left > {scalar}'Last - Right then return {scalar}'Last;",
+                "      else return Left + Right; end if;",
+            ]
+            sub_sat_body = [
+                "      if Left < Right then return 0;",
+                "      else return Left - Right; end if;",
+            ]
+            reduce_return = f"{scalar} (Accumulator)"
+            reduce_term = f"{unsigned} (Extract (Value, Lane))"
+            shl_oracle = f"{scalar} (Interfaces.Shift_Left ({unsigned} (Extract (A, Lane)), 1))"
+            shr_oracle = f"{scalar} (Interfaces.Shift_Right ({unsigned} (Extract (A, Lane)), 1))"
+            sar_oracle = None
         lines += [
             *helpers,
+            f"   function Reference_Add_Saturate_{vector} (Left, Right : {scalar}) return {scalar} is",
+            "   begin",
+            *add_sat_body,
+            f"   end Reference_Add_Saturate_{vector};",
+            f"   function Reference_Subtract_Saturate_{vector} (Left, Right : {scalar}) return {scalar} is",
+            "   begin",
+            *sub_sat_body,
+            f"   end Reference_Subtract_Saturate_{vector};",
+            f"   function Reference_Reduce_Add_{vector} (Value : {vector}) return {scalar} is",
+            f"      Accumulator : {unsigned} := 0;",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop Accumulator := Accumulator + {reduce_term}; end loop;",
+            f"      return {reduce_return};",
+            f"   end Reference_Reduce_Add_{vector};",
+            f"   function Reference_Reduce_Min_{vector} (Value : {vector}) return {scalar} is",
+            f"      Result : {scalar} := Extract (Value, {lane_index(bits, lanes)}'First);",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop if Extract (Value, Lane) < Result then Result := Extract (Value, Lane); end if; end loop;",
+            "      return Result;",
+            f"   end Reference_Reduce_Min_{vector};",
+            f"   function Reference_Reduce_Max_{vector} (Value : {vector}) return {scalar} is",
+            f"      Result : {scalar} := Extract (Value, {lane_index(bits, lanes)}'First);",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop if Extract (Value, Lane) > Result then Result := Extract (Value, Lane); end if; end loop;",
+            "      return Result;",
+            f"   end Reference_Reduce_Max_{vector};",
             f"   function Random_{vector}_Lanes return {vals} is",
             f"      Result : {vals};",
             "   begin",
@@ -827,7 +889,25 @@ def test_program() -> str:
         ]
         if signed:
             lines.append(f"         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), \"{vector} sar\" & Shift'Image);")
-        lines += ["      end loop;"]
+        lines += [
+            "      end loop;",
+            f"      Check (Same (Shift_Left_Logical (A, {bits}), Zero) and then Same (Shift_Right_Logical (A, {bits}), Zero), \"{vector} independent oversized logical shifts\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (Shift_Left_Logical (A, 1), Lane) = {shl_oracle} and then Extract (Shift_Right_Logical (A, 1), Lane) = {shr_oracle}, \"{vector} independent logical shift\" & Lane'Image);",
+        ]
+        if signed:
+            lines.append(f"         Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = {sar_oracle}, \"{vector} independent arithmetic shift\" & Lane'Image);")
+            lines.append(f"         Check (Extract (Shift_Right_Arithmetic (A, {bits}), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), \"{vector} independent oversized arithmetic shift\" & Lane'Image);")
+        lines += [
+            "      end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, {lane_index(bits, lanes)} ({lanes - 1} - Lane)), \"{vector} independent reverse\" & Lane'Image);",
+            f"         Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, {lane_index(bits, lanes)} (Lane / 2)) else Extract (B, {lane_index(bits, lanes)} (Lane / 2))), \"{vector} independent interleave low\" & Lane'Image);",
+            f"         Check (Extract (Interleave_High (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, {lane_index(bits, lanes)} ({lanes // 2} + Lane / 2)) else Extract (B, {lane_index(bits, lanes)} ({lanes // 2} + Lane / 2))), \"{vector} independent interleave high\" & Lane'Image);",
+            f"         Check (Extract (Deinterleave_Even (A, B), Lane) = (if Lane < {lanes // 2} then Extract (A, {lane_index(bits, lanes)} (2 * Lane)) else Extract (B, {lane_index(bits, lanes)} (2 * (Lane - {lanes // 2})))), \"{vector} independent deinterleave even\" & Lane'Image);",
+            f"         Check (Extract (Deinterleave_Odd (A, B), Lane) = (if Lane < {lanes // 2} then Extract (A, {lane_index(bits, lanes)} (2 * Lane + 1)) else Extract (B, {lane_index(bits, lanes)} (2 * (Lane - {lanes // 2}) + 1))), \"{vector} independent deinterleave odd\" & Lane'Image);",
+            "      end loop;",
+        ]
         for name in ("Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal"):
             lines.append(f"      Check (Backends.Native.To_Bit_Mask (Backends.Native.{name} (A, B)) = Flyology_SIMD.To_Bit_Mask ({name} (A, B)), \"{vector} {name}\");")
         lines += [
@@ -840,14 +920,17 @@ def test_program() -> str:
             f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
+            f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
-            f"      Check (Backends.Native.Reduce_Add_Wrap (A) = Reduce_Add_Wrap (A), \"{vector} reduce add\");",
-            f"      Check (Backends.Native.Reduce_Min (A) = Reduce_Min (A), \"{vector} reduce min\");",
-            f"      Check (Backends.Native.Reduce_Max (A) = Reduce_Max (A), \"{vector} reduce max\");",
+            f"      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A), \"{vector} independent reduce add\");",
+            f"      Check (Reduce_Min (A) = Reference_Reduce_Min_{vector} (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_{vector} (A), \"{vector} independent reduce min\");",
+            f"      Check (Reduce_Max (A) = Reference_Reduce_Max_{vector} (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_{vector} (A), \"{vector} independent reduce max\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Data (1 + Lane) = Extract (A, Lane), \"{vector} independent full store\" & Lane'Image); end loop;",
             f"      Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
             f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
@@ -856,6 +939,7 @@ def test_program() -> str:
             f"      for N in {count} loop",
             "         Data := [others => 0]; Reference := [others => 0];",
             f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
+            f"         for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, {lane_index(bits, lanes)} (Index - 2)) else 0), \"{vector} independent partial store\" & N'Image & Index'Image); end loop;",
             f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
             "         declare",
             f"            Exact : {arr} (1 .. N) := [others => 0];",
@@ -875,7 +959,10 @@ def test_program() -> str:
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
             f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent multiply oracle\" & Lane'Image);",
-            f"               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), \"{vector} independent compare oracle\" & Lane'Image);",
+            f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent saturation oracle\" & Lane'Image);",
+            f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Extract (Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} independent bitwise oracle\" & Lane'Image);",
+            f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",
+            f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} independent comparison oracle\" & Lane'Image);",
             "            end loop;",
             "         end;",
             "      end loop;",
@@ -910,6 +997,12 @@ def test_program() -> str:
             "      end loop;",
             "      return True;",
             "   end Same;",
+            f"   function Reference_Reduce_Add_{vector} (Value : {vector}) return {scalar} is",
+            f"      Result : {scalar} := 0.0;",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop Result := Result + Extract (Value, Lane); end loop;",
+            "      return Result;",
+            f"   end Reference_Reduce_Add_{vector};",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);", f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
@@ -925,6 +1018,17 @@ def test_program() -> str:
         for name in ("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
         lines += [f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");"]
+        lines += [
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Bits_{vector} (Extract (Add (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) + Extract (B, Lane)) and then Bits_{vector} (Extract (Subtract (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) - Extract (B, Lane)) and then Bits_{vector} (Extract (Multiply (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) * Extract (B, Lane)), \"{vector} independent arithmetic\" & Lane'Image);",
+            f"         Check (Bits_{vector} (Extract (Divide (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) / Extract (B, Lane)), \"{vector} independent division\" & Lane'Image);",
+            f"         Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, {lane_index(bits, lanes)} ({lanes - 1} - Lane)), \"{vector} independent reverse\" & Lane'Image);",
+            f"         Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, {lane_index(bits, lanes)} (Lane / 2)) else Extract (B, {lane_index(bits, lanes)} (Lane / 2))), \"{vector} independent interleave low\" & Lane'Image);",
+            f"         Check (Extract (Interleave_High (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, {lane_index(bits, lanes)} ({lanes // 2} + Lane / 2)) else Extract (B, {lane_index(bits, lanes)} ({lanes // 2} + Lane / 2))), \"{vector} independent interleave high\" & Lane'Image);",
+            f"         Check (Extract (Deinterleave_Even (A, B), Lane) = (if Lane < {lanes // 2} then Extract (A, {lane_index(bits, lanes)} (2 * Lane)) else Extract (B, {lane_index(bits, lanes)} (2 * (Lane - {lanes // 2})))), \"{vector} independent deinterleave even\" & Lane'Image);",
+            f"         Check (Extract (Deinterleave_Odd (A, B), Lane) = (if Lane < {lanes // 2} then Extract (A, {lane_index(bits, lanes)} (2 * Lane + 1)) else Extract (B, {lane_index(bits, lanes)} (2 * (Lane - {lanes // 2}) + 1))), \"{vector} independent deinterleave odd\" & Lane'Image);",
+            "      end loop;",
+        ]
         for name in ("Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal", "Unordered"):
             lines.append(f"      Check (Backends.Native.To_Bit_Mask (Backends.Native.{name} (A, B)) = Flyology_SIMD.To_Bit_Mask ({name} (A, B)), \"{vector} {name}\");")
         lines += [
@@ -937,12 +1041,15 @@ def test_program() -> str:
             f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
+            f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
-            f"      Check (Backends.Native.Reduce_Add (A) = Reduce_Add (A), \"{vector} reduce\");",
+            f"      Check (Bits_{vector} (Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)) and then Bits_{vector} (Backends.Native.Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)), \"{vector} independent reduce\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Data (1 + Lane)) = Bits_{vector} (Extract (A, Lane)), \"{vector} independent full store\" & Lane'Image); end loop;",
             f"      Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
             f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
@@ -951,6 +1058,7 @@ def test_program() -> str:
             f"      for N in {count} loop",
             "         Data := [others => 0.0]; Reference := [others => 0.0];",
             f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
+            f"         for Index in Data'Range loop Check (Bits_{vector} (Data (Index)) = Bits_{vector} ((if Index in 2 .. 2 + N - 1 then Extract (B, {lane_index(bits, lanes)} (Index - 2)) else 0.0)), \"{vector} independent partial store\" & N'Image & Index'Image); end loop;",
             f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
             "         declare",
             f"            Exact : {arr} (1 .. N) := [others => 0.0];",
@@ -966,6 +1074,11 @@ def test_program() -> str:
             "         begin",
             f"            Check (Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), \"{vector} randomized arithmetic\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)), \"{vector} randomized compare\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop",
+            f"               Check (Bits_{vector} (Extract (Add (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_{vector} (Extract (Subtract (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_{vector} (Extract (Multiply (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) * Extract (R_B, Lane)), \"{vector} randomized independent arithmetic\" & Lane'Image);",
+            f"               if Extract (R_B, Lane) /= 0.0 then Check (Bits_{vector} (Extract (Divide (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) / Extract (R_B, Lane)), \"{vector} randomized independent division\" & Lane'Image); end if;",
+            f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} randomized independent comparison\" & Lane'Image);",
+            "            end loop;",
             "         end;",
             "      end loop;",
             f"   end Test_{vector};", "",
@@ -975,6 +1088,12 @@ def test_program() -> str:
         "   function F32_Bits is new Ada.Unchecked_Conversion (F32, Interfaces.Unsigned_32);",
         "   function To_F64 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_64, F64);",
         "   function F64_Bits is new Ada.Unchecked_Conversion (F64, Interfaces.Unsigned_64);",
+        "   function Is_NaN (Value : F32) return Boolean is",
+        "     ((F32_Bits (Value) and 16#7F80_0000#) = 16#7F80_0000#",
+        "      and then (F32_Bits (Value) and 16#007F_FFFF#) /= 0);",
+        "   function Is_NaN (Value : F64) return Boolean is",
+        "     ((F64_Bits (Value) and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#",
+        "      and then (F64_Bits (Value) and 16#000F_FFFF_FFFF_FFFF#) /= 0);",
         "   procedure Test_Floating_Specials is",
         "      pragma Suppress (Validity_Check);",
         "      NaN32 : constant F32 := To_F32 (16#7FC0_0001#);",
@@ -985,18 +1104,35 @@ def test_program() -> str:
         "      B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);",
         "      NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);",
         "      SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);",
+        "      Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);",
         "      Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);",
         "      A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);",
         "      B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
+        "      Zero32 : constant F32x4 := From_Lanes ([0.0, 0.0, 0.0, 0.0]);",
+        "      Numerator32 : constant F32x4 := From_Lanes ([1.0, 0.0, -1.0, 0.0]);",
+        "      Zero64 : constant F64x2 := From_Lanes ([0.0, 0.0]);",
+        "      Numerator64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
+        "      Infinity64 : constant F64x2 := From_Lanes ([Inf64, 0.0]);",
+        "      Twice64 : constant F64x2 := From_Lanes ([2.0, 0.0]);",
         "   begin",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), \"F32 NaN unordered\");",
         "      Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, \"F32 quiet NaN returns number\");",
         "      Check ((F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), B32), 0)) and 16#7FC0_0000#) = 16#7FC0_0000#, \"F32 signaling NaN is quieted\");",
         "      Check (F32_Bits (Extract (Backends.Native.Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (A32, B32), 2)) = 0, \"F32 signed zero min/max\");",
+        "      Check (Is_NaN (Extract (Add (A32, B32), 0)) and then Is_NaN (Extract (Backends.Native.Add (A32, B32), 0)), \"F32 NaN addition\");",
+        "      Check (Is_NaN (Extract (Subtract (A32, B32), 1)) and then Is_NaN (Extract (Backends.Native.Subtract (A32, B32), 1)), \"F32 infinity subtraction\");",
+        "      Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, \"F32 infinity multiplication\");",
+        "      Check (F32_Bits (Extract (Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then Is_NaN (Extract (Divide (Numerator32, Zero32), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator32, Zero32), 1)), \"F32 division edge cases\");",
+        "      Check (Is_NaN (Reduce_Add (A32)) and then Is_NaN (Backends.Native.Reduce_Add (A32)), \"F32 NaN reduction\");",
         "      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A64, B64)) = Flyology_SIMD.To_Bit_Mask (Unordered (A64, B64)), \"F64 NaN unordered\");",
         "      Check (Extract (Backends.Native.Min_Number (A64, B64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A64, B64), 0) = 1.0, \"F64 quiet NaN returns number\");",
         "      Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, \"F64 signaling NaN is quieted\");",
         "      Check (F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0, \"F64 signed zero min/max\");",
+        "      Check (Is_NaN (Extract (Add (A64, B64), 0)) and then Is_NaN (Extract (Backends.Native.Add (A64, B64), 0)), \"F64 NaN addition\");",
+        "      Check (Is_NaN (Extract (Subtract (Infinity64, Infinity64), 0)) and then Is_NaN (Extract (Backends.Native.Subtract (Infinity64, Infinity64), 0)), \"F64 infinity subtraction\");",
+        "      Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, \"F64 infinity multiplication\");",
+        "      Check (F64_Bits (Extract (Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then Is_NaN (Extract (Divide (Numerator64, Zero64), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator64, Zero64), 1)), \"F64 division edge cases\");",
+        "      Check (Is_NaN (Reduce_Add (A64)) and then Is_NaN (Backends.Native.Reduce_Add (A64)), \"F64 NaN reduction\");",
         "   end Test_Floating_Specials;", "",
         "begin", "   Put_Line (\"full-family differential tests seed=0x5EED0123D15CA11A\");",
     ]

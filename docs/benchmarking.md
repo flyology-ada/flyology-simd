@@ -23,23 +23,27 @@ The `flyology_bench` test-only dependency is pinned to an exact repository
 commit and monorepo subdirectory, so a clean benchmark checkout does not rely
 on an ignored lockfile or local Flyology tree.
 
-The program uses `Flyology_Bench.Compare_Many`: 250 ms warmup, equal-time
-calibration, 75 samples, balanced candidate order, three seconds of measurement
-per comparison, a fixed seed, raw sample retention, bootstrap confidence
-intervals, order-effect and lag-one-correlation diagnostics, and a validation
-checksum. It does not silently discard outliers or subtract timer cost. The
+The program uses `Flyology_Bench.Compare_Many` with this method:
+
+- 250 ms of warmup;
+- equal-time calibration and three seconds of measurement;
+- 75 samples in balanced candidate order;
+- a fixed seed and a validation checksum;
+- retained raw samples and bootstrap confidence intervals;
+- order-effect and lag-one-correlation diagnostics.
+
+It does not silently discard outliers or subtract timer cost. The
 sizes 7, 15, 16, 17, 4,096, and 1,048,576 cover sub-vector, boundary, cache, and
 streaming behavior. Candidates are ordinary Ada, scalar backend, statically
 selected native backend, and coarse runtime dispatch.
 Each run prints the compiler version and the project-declared library and
 benchmark switches alongside the backend and CPU-feature selection.
 
-This method follows the controls described by the
-[Flyology benchmarking guide](https://flyology.org/guide/benchmarking/), the
-[Google Benchmark user guide](https://google.github.io/benchmark/user_guide.html),
-and [LLVM's benchmarking guidance](https://llvm.org/docs/Benchmarking.html):
-warm up, calibrate, repeat/interleave, retain distribution diagnostics, control
-host noise, and distinguish low variance from freedom from bias.
+The method follows the controls in the
+[Flyology benchmarking guide](https://flyology.org/guide/benchmarking/).
+The [Google Benchmark user guide](https://google.github.io/benchmark/user_guide.html)
+and [LLVM benchmarking guidance](https://llvm.org/docs/Benchmarking.html)
+provide additional background.
 
 ## Local observation, not a general performance claim
 
@@ -57,10 +61,10 @@ Below one vector, the ordinary loop had the lower median because vector setup
 and tail handling dominated. At 16 and 17 bytes, the statically selected NEON
 path had the lower median in this run. Runtime dispatch overhead left the
 ordinary loop slightly ahead. At 4 KiB and 1 MiB, both NEON paths had the lower
-median. An earlier result showed
-NEON at roughly 1.36 GB/s versus the Ada loop near 3.2 GB/s was a build error:
-only the primitive backend body had `-O3`, while the complete imported algorithm
-loop had no optimization. Inspecting verbose compiler commands exposed it; the
+median. An earlier result put NEON at approximately 1.36 GB/s and the Ada loop
+at approximately 3.2 GB/s. That result was invalid because only the primitive
+backend body had `-O3`. The library algorithm had no optimization. Inspecting
+verbose compiler commands exposed the error. The
 GPR now applies `-O2` to all library units, and the corrected statistical run is
 the result above. Do not treat a single host run as a universal claim.
 
@@ -79,12 +83,13 @@ medians. Each per-run median came from the 75-sample method above.
 
 The ordinary Ada loop had the higher throughput below one vector because setup
 and tail work dominated. During this measurement campaign, relocation-aware
-disassembly found
-that an earlier static SSE2 loop retained calls to the primitive backend once
-per vector. Enabling GNAT inter-unit inlining and marking the generic backend
+disassembly found that an earlier static SSE2 loop retained calls to the
+primitive backend once per vector. Enabling GNAT inter-unit inlining and
+marking the generic backend
 primitives `Inline_Always` raised the 4 KiB SSE2 median from about 1.48 GB/s to
 4.05 GB/s. A code-generation check now rejects any such primitive relocation.
 Likewise, immutable one-time CPU detection removed repeated CPUID/XGETBV cost
-from the runtime path. AVX2's tiny-buffer path remains slower because buffers
-under 32 bytes use its scalar tail; coarse dispatch is intended for complete
-buffer algorithms where the application considers that crossover.
+from the runtime path. On this host, runtime AVX2 had lower throughput than the
+ordinary Ada loop for buffers below 32 bytes because AVX2 uses a scalar tail.
+Coarse dispatch is intended for complete buffer algorithms where the
+application considers that crossover.
