@@ -16,7 +16,7 @@
         </section>
         <section id="bit-cast">
           <h2>Use Bit_Cast to preserve lane bits</h2>
-          <p><a data-api="Flyology_SIMD.Bit_Cast" data-api-signature="Value : F32x4) return U32x4"><code>Bit_Cast</code></a> preserves each lane's bits and position. Source and result types have the same lane width and count.</p>
+          <p><a data-api="Flyology_SIMD.Bit_Cast" data-api-signature="Value : F32x4) return U32x4"><code>Bit_Cast</code></a> preserves each lane's bits and position. <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_F32x4"><code>From_Lanes</code></a> constructs the <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> input below, and the result type is <a data-api="Flyology_SIMD.U32x4"><code>U32x4</code></a>.</p>
           <pre><code class="language-ada">Values : constant F32x4 := From_Lanes ([1.0, -0.0, 2.0, -2.0]);
 Encodings : constant U32x4 := Bit_Cast (Values);</code></pre>
           <p>The result contains four IEEE binary32 encodings. It does not contain the integers 1, 0, 2, and -2.</p>
@@ -24,21 +24,36 @@ Encodings : constant U32x4 := Bit_Cast (Values);</code></pre>
         <section id="width">
           <h2>Use widening and narrowing for lane-width changes</h2>
           <table class="support-table"><thead><tr><th>Operation</th><th>Rule</th></tr></thead><tbody>
-            <tr><td><a data-api="Flyology_SIMD.Widen_Low"><code>Widen_Low</code></a> and <a data-api="Flyology_SIMD.Widen_High"><code>Widen_High</code></a></td><td>Select one source half and preserve its numeric values in wider lanes.</td></tr>
-            <tr><td><a data-api="Flyology_SIMD.Narrow_Truncate"><code>Narrow_Truncate</code></a></td><td>Keep the low destination-width bits of integer lanes.</td></tr>
-            <tr><td><a data-api="Flyology_SIMD.Narrow_Saturate"><code>Narrow_Saturate</code></a></td><td>Clamp integer lanes to the destination range.</td></tr>
-            <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Round two <code>F64x2</code> inputs into one <code>F32x4</code> result.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Widen_Low</code></a> and <a data-api="Flyology_SIMD"><code>Widen_High</code></a></td><td>Select one source half and preserve its numeric values in wider lanes.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Truncate</code></a></td><td>Keep the low destination-width bits of integer lanes.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a></td><td>Clamp integer lanes to the destination range.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Round two <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> inputs into one <code>F32x4</code> result.</td></tr>
           </tbody></table>
           <p>Each narrowing operation takes two source vectors. The <code>Low</code> input supplies the low result half, and <code>High</code> supplies the high result half.</p>
+          <p>The following <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> input shows the difference between discarding high bits and clamping values. The applicable <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs it, and <a data-api="Flyology_SIMD.Zero" data-api-signature="return U16x8"><code>Zero</code></a> supplies the high half. Both narrowing results have type <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>.</p>
+          <pre><code class="language-ada">Wide : constant U16x8 :=
+  From_Lanes ([254, 255, 256, 300, 0, 1, 2, 3]);
+Empty : constant U16x8 := Zero;
+Truncated : constant U8x16 := Narrow_Truncate (Wide, Empty);
+Saturated : constant U8x16 := Narrow_Saturate (Wide, Empty);
+
+--  Truncated lanes 0 .. 3: 254, 255, 0, 44
+--  Saturated lanes 0 .. 3: 254, 255, 255, 255</code></pre>
         </section>
         <section id="numeric">
           <h2>Use Convert names for numeric-domain changes</h2>
           <table class="support-table"><thead><tr><th>Operation</th><th>Rule</th></tr></thead><tbody>
-            <tr><td><a data-api="Flyology_SIMD.Convert_Round"><code>Convert_Round</code></a></td><td>Convert integer lanes to floating lanes with the documented rounding mode.</td></tr>
-            <tr><td><a data-api="Flyology_SIMD.Convert_Truncate_Saturate"><code>Convert_Truncate_Saturate</code></a></td><td>Convert floating lanes to integer lanes, truncate toward zero, and clamp.</td></tr>
-            <tr><td><a data-api="Flyology_SIMD.Convert_Saturate"><code>Convert_Saturate</code></a></td><td>Change integer signedness at the same width and clamp out-of-range values.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Convert_Round</code></a></td><td>Convert integer lanes to floating lanes with the documented rounding mode.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Convert_Truncate_Saturate</code></a></td><td>Convert floating lanes to integer lanes, truncate toward zero, and clamp.</td></tr>
+            <tr><td><a data-api="Flyology_SIMD"><code>Convert_Saturate</code></a></td><td>Change integer signedness at the same width and clamp out-of-range values.</td></tr>
           </tbody></table>
           <p>For signed-to-unsigned <code>Convert_Saturate</code>, a negative input becomes zero. For unsigned-to-signed conversion, a value above the signed maximum becomes that maximum.</p>
+          <p>The <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_I32x4"><code>From_Lanes</code></a> overload constructs this <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> input:</p>
+          <pre><code class="language-ada">Signed_Input : constant I32x4 :=
+  From_Lanes ([-1, 0, 1, I32'Last]);
+Unsigned_Result : constant U32x4 := Convert_Saturate (Signed_Input);
+
+--  Unsigned_Result: 0, 0, 1, 2_147_483_647</code></pre>
         </section>
         <section id="boundaries">
           <h2>Check the floating environment and exceptional inputs</h2>

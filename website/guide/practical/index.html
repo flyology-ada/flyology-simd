@@ -34,13 +34,14 @@ return Vector_Reduce_Add (Accumulator);</code></pre>
         </section>
         <section id="reduce">
           <h2>Reduce lanes in a defined order</h2>
-          <p><a data-api="Flyology_SIMD.Reduce_Add" data-api-signature="F32x4"><code>Reduce_Add</code></a> adds lanes in ascending order. The fold is <code>((lane 0 + lane 1) + lane 2) + lane 3</code> on every backend.</p>
-          <p>The dot-product loop first accumulates element indexes 1 and 5 in lane 0, indexes 2 and 6 in lane 1, and so on. It then reduces those four lane totals.</p>
-          <div class="semantic-callout"><strong>Do not require bitwise equality with the ordinary loop for arbitrary floating inputs.</strong><p>Floating-point addition is not associative. The ordinary loop and vector loop can round at different points. The maintained example uses exactly representable products and sums, so both return 70.0.</p></div>
+          <p><a data-api="Flyology_SIMD.Reduce_Add" data-api-signature="F32x4"><code>Reduce_Add</code></a> starts with positive zero and adds lanes in ascending order. The fold is <code>((((0.0 + lane 0) + lane 1) + lane 2) + lane 3)</code> on every backend.</p>
+          <p>The dot-product loop accumulates element indexes 1 and 5 in lane 0, indexes 2 and 6 in lane 1, and so on. For the maintained input, the accumulator is <code>[13.0, 20.0, 29.0, 8.0]</code>. The defined fold returns 70.0.</p>
+          <div class="semantic-callout"><strong>Do not require bitwise equality with the ordinary loop for arbitrary floating inputs.</strong><p>Floating-point addition is not associative. The ordinary loop and vector loop may round at different points. The maintained example uses exactly representable products and sums, so both return 70.0.</p></div>
         </section>
         <section id="integers">
           <h2>Choose wrapping or saturating integer arithmetic</h2>
           <p>Integer vector arithmetic does not use one implicit overflow policy. <a data-api="Flyology_SIMD.Add_Wrap" data-api-signature="U16x8"><code>Add_Wrap</code></a> computes modulo the lane width. <a data-api="Flyology_SIMD.Add_Saturate" data-api-signature="U16x8"><code>Add_Saturate</code></a> clamps to the lane range.</p>
+          <p>A <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> has eight unsigned 16-bit lanes. <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs the input, and <a data-api="Flyology_SIMD.Splat" data-api-signature="Value : U16) return U16x8"><code>Splat</code></a> repeats the increment.</p>
           <pre><code class="language-ada">Input : constant U16x8 :=
   From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
 Increment : constant U16x8 := Splat (10);
@@ -56,7 +57,7 @@ Saturated : constant U16x8 := Add_Saturate (Input, Increment);
           <h2>Keep IEEE edge rules next to floating operations</h2>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either input lane is NaN. The <a data-api="Flyology_SIMD.Unordered" data-api-signature="F32x4"><code>Unordered</code></a> result is true for that case.</p>
           <p><a data-api="Flyology_SIMD.Min_Number" data-api-signature="F32x4"><code>Min_Number</code></a> and <a data-api="Flyology_SIMD.Max_Number" data-api-signature="F32x4"><code>Max_Number</code></a> return the numeric input when only one quiet NaN is present. For two zeros, minimum selects negative zero and maximum selects positive zero.</p>
-          <p>Read the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a> before an algorithm depends on NaN payloads, signaling state, signed zero, or conversion boundaries.</p>
+          <p>Before an algorithm depends on NaN payloads, signaling state, signed zero, or conversion boundaries, read the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a>.</p>
         </section>
         <section id="result">
           <h2>Run the complete numeric example</h2>

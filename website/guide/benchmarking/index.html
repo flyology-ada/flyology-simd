@@ -8,7 +8,7 @@
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>7. Verification and measurement</li></ol><h1>Verify semantics before performance</h1></div><p class="doc-hero-copy">Chapter 7 connects differential tests, generated-code checks, and repeated whole-algorithm measurements.</p></header>
     <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#correctness">Differential tests</a></li><li><a href="#dot-code">Dot-product code</a></li><li><a href="#run">Benchmark commands</a></li><li><a href="#method">Method</a></li><li><a href="#results">Recorded result</a></li><li><a href="#codegen">Instruction checks</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">Chapter 6 selected static primitive backends and a runtime byte-algorithm boundary. First compare results with the scalar authority. Then inspect emitted code and measure complete work.</p>
+        <p class="chapter-lead">Chapter 6 selected static primitive backends and a runtime byte-algorithm boundary. First compare results with the scalar reference backend. Then inspect emitted code and measure complete work.</p>
         <section id="correctness">
           <h2>Compare available backends with the scalar reference</h2>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P tests/tests.gpr
@@ -21,11 +21,11 @@
         </section>
         <section id="dot-code">
           <h2>Inspect both the dot-product caller and primitive bodies</h2>
-          <p>Build the maintained example with optimization before you inspect its object:</p>
+          <p>Before you inspect the maintained example's object, build the example with optimization. The path below is for the recorded AArch64 build with AVX2 disabled. For another selected architecture, substitute its object-directory path.</p>
           <pre><code class="language-shell">alr exec -- gprbuild -f -p -P examples/examples.gpr -cargs:Ada -O3
 objdump -dr obj/examples/aarch64/disabled/dot_product.o</code></pre>
-          <p>Change the object path for another selected architecture. On the recorded AArch64 build, the dot-product object calls native load, multiply, add, and reduction leaves.</p>
-          <p>Static composition removes runtime backend selection. It does not guarantee that GNAT inlines each leaf. Inspect the target backend object or run the code-generation script to verify the instructions inside those leaves.</p>
+          <p>On 2026-08-11, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Its optimized dot-product object called native load, multiply, add, and reduction primitive bodies.</p>
+          <p>Static composition removes runtime backend selection. It does not guarantee that GNAT inlines each primitive body. Inspect the target backend object or run the code-generation script to verify the instructions inside those primitive bodies.</p>
           <div class="semantic-callout"><strong>The maintained statistical benchmark does not yet measure the dot product.</strong><p>The recorded performance evidence below applies to byte counting. Do not use it as a floating-point performance claim.</p></div>
         </section>
         <section id="run">
@@ -38,8 +38,9 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
         </section>
         <section id="method">
           <h2>Use repeated and balanced measurements</h2>
-          <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It uses 250 ms of warmup, equal-time calibration, 75 samples, balanced candidate order, and three seconds of measurement per comparison.</p>
-          <p>The report keeps raw samples and calculates bootstrap confidence intervals. It reports candidate-order effects and lag-one correlation. It does not remove outliers automatically or subtract estimated timer cost.</p>
+          <p>The program calls <code>Flyology_Bench.Compare_Many</code>. It warms each candidate for 250 ms. It then calibrates iteration counts so each candidate receives equal measurement time.</p>
+          <p>The run collects 75 samples during three seconds of measurement per comparison. It rotates candidates equally through each execution position.</p>
+          <p>The report keeps raw samples and calculates bootstrap confidence intervals. It shows timing effects associated with candidate position and correlation between adjacent samples. It does not remove outliers automatically or subtract estimated timer cost.</p>
           <p>A checksum makes each result observable. The report includes the compiler, build switches, selected architecture, and selected backend.</p>
         </section>
         <section id="results">

@@ -8,7 +8,7 @@
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>4. Memory operations</li></ol><h1>Match each memory operation to its extent and alignment</h1></div><p class="doc-hero-copy">Chapter 4 processes the dot product's three-element tail and states the contracts for all typed memory forms.</p></header>
     <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#typed">Typed arrays</a></li><li><a href="#full">Full operations</a></li><li><a href="#aligned">Aligned operations</a></li><li><a href="#partial">Partial operations</a></li><li><a href="#tail">Dot-product tail</a></li><li><a href="#tests">Boundary tests</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">The dot-product arrays have seven elements. One full <code>F32x4</code> load consumes four. The final iteration must read exactly three elements from each array.</p>
+        <p class="chapter-lead">The dot-product arrays have seven elements. One full <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> load consumes four. The final iteration must read exactly three elements from each array.</p>
         <section id="typed">
           <h2>Pass typed arrays and Ada indexes</h2>
           <p>Ordinary memory operations accept a typed array such as <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a>. They also accept the Ada index of the first selected element.</p>
@@ -21,7 +21,7 @@
         </section>
         <section id="aligned">
           <h2>Check alignment before an aligned operation</h2>
-          <p><a data-api="Flyology_SIMD.Is_Aligned_16" data-api-signature="F32_Array"><code>Is_Aligned_16</code></a> reports whether <code>Data (Start)</code> has a 16-byte-aligned address. Check it before <a data-api="Flyology_SIMD.Load_Aligned" data-api-signature="F32_Array"><code>Load_Aligned</code></a> or <a data-api="Flyology_SIMD.Store_Aligned" data-api-signature="F32_Array"><code>Store_Aligned</code></a>.</p>
+          <p><a data-api="Flyology_SIMD.Is_Aligned_16" data-api-signature="F32_Array"><code>Is_Aligned_16</code></a> reports whether <code>Data (Start)</code> has a 16-byte-aligned address. Before calling <a data-api="Flyology_SIMD.Load_Aligned" data-api-signature="F32_Array"><code>Load_Aligned</code></a> or <a data-api="Flyology_SIMD.Store_Aligned" data-api-signature="F32_Array"><code>Store_Aligned</code></a>, confirm that <code>Is_Aligned_16 (Data, Start)</code> returns true.</p>
           <p>The aligned operations have a precondition that requires both a full valid extent and 16-byte alignment. A program must meet the precondition even when assertion checks are disabled.</p>
         </section>
         <section id="partial">
@@ -31,6 +31,7 @@
         </section>
         <section id="tail">
           <h2>Load the final three dot-product elements</h2>
+          <p>A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> value is in the range 0 through 4. The loop selects the smaller of four lanes and the remaining array extent.</p>
           <pre><code class="language-ada">Remaining : constant Natural := Left'Last - Start + 1;
 Count : constant Lane_Count_32x4 :=
   Lane_Count_32x4'Min (4, Remaining);

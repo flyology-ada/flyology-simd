@@ -60,9 +60,9 @@
       <aside class="toc" aria-label="On this page">
         <span class="toc-title">On this page</span>
         <ul>
-          <li><a href="#terms">Define scalar</a></li>
+          <li><a href="#terms">Distinguish scalar source, operations, and backends</a></li>
           <li><a href="#run">Run the numeric example</a></li>
-          <li><a href="#model">Separate the concepts</a></li>
+          <li><a href="#model">Separate semantics from machine mechanism</a></li>
           <li><a href="#install">Add the dependency</a></li>
           <li><a href="#path">Follow the guide</a></li>
           <li><a href="#shortcuts">Choose a shortcut</a></li>
@@ -88,13 +88,13 @@ alr exec -- gprbuild -p -P examples/examples.gpr
           <pre><code class="language-text">ordinary Ada dot: 7.00000E+01
 scalar backend dot: 7.00000E+01
 native backend dot: 7.00000E+01</code></pre>
-          <p>Later chapters explain the four-lane products, the three-element tail, and compile-time composition. Floating-point association can change rounding for other inputs.</p>
+          <p>Later chapters explain the four-lane products, the three-element tail, and compile-time composition. Floating-point association may change rounding for other inputs.</p>
         </section>
         <section id="model">
           <h2>Keep semantics separate from machine mechanism</h2>
           <p>A <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> value has four logical binary32 lanes. Its public type is private. Applications use operations such as load, multiply, comparison, selection, and reduction.</p>
           <p>The public semantics are identical on all backends. The scalar fallback provides source portability. Native backends provide target-specific code generation. These are three separate portability claims.</p>
-          <p>The representation and calling convention can change with the compiler, target, and instruction switches. The library does not define a portable vector ABI.</p>
+          <p>The representation and calling convention may vary with the compiler, target, and instruction switches. The library does not define a portable vector application binary interface (ABI).</p>
         </section>
         <section id="install">
           <h2>Add the crate to an application</h2>
@@ -156,7 +156,7 @@ alr build</code></pre>
   </main>
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>Experimental API. Verify target support before deployment.</span>
+      <span>Experimental API. Before deployment, verify target support.</span>
       <div class="footer-links">
         <a href="operations/">Operations</a>
         <a href="memory/">Memory</a>
