@@ -1,0 +1,172 @@
+with Ada.Text_IO;
+with Interfaces.C;
+with System;
+with System.Storage_Elements;
+with Flyology_SIMD;
+with Flyology_SIMD.Backends.Native;
+
+procedure Guard_Page_Tests is
+   use Ada.Text_IO;
+   use Flyology_SIMD;
+   use System.Storage_Elements;
+   use type Interfaces.C.int;
+   use type Interfaces.Unsigned_8;
+   use type System.Address;
+
+   function Get_Page_Size return Interfaces.C.int
+     with Import, Convention => C, External_Name => "getpagesize";
+
+   function Posix_Memalign
+     (Result    : access System.Address;
+      Alignment : Interfaces.C.size_t;
+      Size      : Interfaces.C.size_t) return Interfaces.C.int
+     with Import, Convention => C, External_Name => "posix_memalign";
+
+   function Mprotect
+     (Address : System.Address;
+      Length  : Interfaces.C.size_t;
+      Protect : Interfaces.C.int) return Interfaces.C.int
+     with Import, Convention => C, External_Name => "mprotect";
+
+   procedure Free (Address : System.Address)
+     with Import, Convention => C, External_Name => "free";
+
+   Read_Write : constant Interfaces.C.int := 1 + 2;
+   No_Access  : constant Interfaces.C.int := 0;
+   Page_Size  : constant Natural := Natural (Get_Page_Size);
+   Allocation : aliased System.Address := System.Null_Address;
+   Failures   : Natural := 0;
+
+   procedure Check (Condition : Boolean; Message : String) is
+   begin
+      if not Condition then
+         Failures := Failures + 1;
+         Put_Line ("FAIL: " & Message);
+      end if;
+   end Check;
+
+   function Add (Address : System.Address; Bytes : Natural)
+     return System.Address is
+     (Address + Storage_Offset (Bytes));
+
+begin
+   Check (Page_Size >= 16, "host page is at least one vector");
+   if Failures /= 0 then
+      raise Program_Error with "unsupported page size";
+   end if;
+
+   Check
+     (Posix_Memalign
+        (Allocation'Access,
+         Interfaces.C.size_t (Page_Size),
+         Interfaces.C.size_t (2 * Page_Size)) = 0,
+      "allocate two page-aligned pages");
+   if Allocation = System.Null_Address then
+      raise Program_Error with "posix_memalign failed";
+   end if;
+
+   Check
+     (Mprotect
+        (Add (Allocation, Page_Size),
+         Interfaces.C.size_t (Page_Size),
+         No_Access) = 0,
+      "protect the page after the test data");
+
+   declare
+      Last_Bytes : Byte_Array (0 .. 15);
+      for Last_Bytes'Address use Add (Allocation, Page_Size - 16);
+      pragma Import (Ada, Last_Bytes);
+   begin
+      for Raw_Count in Lane_Count_8x16 loop
+         for Index in Last_Bytes'Range loop
+            Last_Bytes (Index) := U8 (16#80# + Index);
+         end loop;
+
+         declare
+            Count : constant Lane_Count_8x16 := Raw_Count;
+            Data  : Byte_Array (0 .. 15);
+            for Data'Address use Add (Allocation, Page_Size - Count);
+            pragma Import (Ada, Data);
+
+            Scalar_Load : constant U8x16 := Load_Partial (Data, 0, Count);
+            Native_Load : constant U8x16 :=
+              Backends.Native.Load_Partial (Data, 0, Count);
+            Values : constant U8x16 :=
+              From_Lanes
+                ([1, 2, 3, 4, 5, 6, 7, 8,
+                  9, 10, 11, 12, 13, 14, 15, 16]);
+         begin
+            for Lane in Lane_Index_8x16 loop
+               declare
+                  Expected : constant U8 :=
+                    (if Lane < Count
+                     then U8 (16#80# + 16 - Count + Lane)
+                     else 0);
+               begin
+                  Check
+                    (Extract (Scalar_Load, Lane) = Expected,
+                     "scalar partial load, count" & Count'Image &
+                     ", lane" & Lane'Image);
+                  Check
+                    (Extract (Native_Load, Lane) = Expected,
+                     "native partial load, count" & Count'Image &
+                     ", lane" & Lane'Image);
+               end;
+            end loop;
+
+            Store_Partial (Data, 0, Count, Values);
+            for Index in Last_Bytes'Range loop
+               Check
+                 (Last_Bytes (Index) =
+                    (if Index < 16 - Count
+                     then U8 (16#80# + Index)
+                     else U8 (Index - (16 - Count) + 1)),
+                  "scalar partial store, count" & Count'Image &
+                  ", byte" & Index'Image);
+            end loop;
+
+            for Index in Last_Bytes'Range loop
+               Last_Bytes (Index) := U8 (16#80# + Index);
+            end loop;
+            Backends.Native.Store_Partial (Data, 0, Count, Values);
+            for Index in Last_Bytes'Range loop
+               Check
+                 (Last_Bytes (Index) =
+                    (if Index < 16 - Count
+                     then U8 (16#80# + Index)
+                     else U8 (Index - (16 - Count) + 1)),
+                  "native partial store, count" & Count'Image &
+                  ", byte" & Index'Image);
+            end loop;
+         end;
+      end loop;
+   end;
+
+   Check
+     (Mprotect
+        (Add (Allocation, Page_Size),
+         Interfaces.C.size_t (Page_Size),
+         Read_Write) = 0,
+      "restore the protected page");
+   Free (Allocation);
+
+   if Failures = 0 then
+      Put_Line ("guard-page partial-memory tests: PASS");
+   else
+      raise Program_Error with Failures'Image & " guard-page failures";
+   end if;
+exception
+   when others =>
+      if Allocation /= System.Null_Address then
+         declare
+            Ignored : constant Interfaces.C.int :=
+              Mprotect
+                (Add (Allocation, Page_Size),
+                 Interfaces.C.size_t (Page_Size),
+                 Read_Write);
+         begin
+            Free (Allocation);
+         end;
+      end if;
+      raise;
+end Guard_Page_Tests;

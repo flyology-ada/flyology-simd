@@ -133,6 +133,16 @@ procedure SIMD_Tests is
          begin
             Check (To_Bit_Mask (Mask) = Bits, "mask round trip" & Raw'Image);
             Check
+              (To_Bit_Mask (Mask_Not (Mask)) = not Bits,
+               "mask not" & Raw'Image);
+            Check
+              (To_Bit_Mask (Mask_And (Mask, Mask_Not (Mask))) = 0
+               and then To_Bit_Mask (Mask_Or (Mask, Mask_Not (Mask))) =
+                 Interfaces.Unsigned_16'Last
+               and then To_Bit_Mask (Mask_Xor (Mask, Mask_Not (Mask))) =
+                 Interfaces.Unsigned_16'Last,
+               "mask algebra" & Raw'Image);
+            Check
               (Flyology_SIMD.Backends.Native.To_Bit_Mask
                  (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits)) = Bits,
                "native mask round trip" & Raw'Image);
@@ -142,6 +152,10 @@ procedure SIMD_Tests is
               (Flyology_SIMD.Backends.Native.Population_Count (Mask) =
                  Reference_Popcount (Bits),
                "native mask popcount" & Raw'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.To_Bit_Mask
+                 (Flyology_SIMD.Backends.Native.Mask_Not (Mask)) = not Bits,
+               "native mask not" & Raw'Image);
             Check (Any_True (Mask) = (Raw /= 0), "mask any" & Raw'Image);
             Check (None_True (Mask) = (Raw = 0), "mask none" & Raw'Image);
             Check (All_True (Mask) = (Raw = 65_535), "mask all" & Raw'Image);
@@ -300,6 +314,14 @@ procedure SIMD_Tests is
               (Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
                  Horizontal_Sum (A),
                "native horizontal sum" & Iteration'Image);
+            Check
+              (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) =
+                 Reduce_Add_Wrap (A)
+               and then Flyology_SIMD.Backends.Native.Reduce_Min (A) =
+                 Reduce_Min (A)
+               and then Flyology_SIMD.Backends.Native.Reduce_Max (A) =
+                 Reduce_Max (A),
+               "native byte reductions" & Iteration'Image);
             Check
               (Same (Flyology_SIMD.Backends.Native.Reverse_Bytes (A),
                      Reverse_Bytes (A)),

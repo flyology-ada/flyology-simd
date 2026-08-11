@@ -2,6 +2,7 @@
 """Generate the repetitive scalar 128-bit family from one type matrix."""
 
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "src" / "flyology_simd.ads"
@@ -21,6 +22,177 @@ FLOAT_TYPES = [
     ("F64x2", "F64", 64, 2),
 ]
 MASKS = [(16, 8, "Unsigned_8"), (32, 4, "Unsigned_8"), (64, 2, "Unsigned_8")]
+
+
+OPERATION_DOCS = {
+    "Zero": "Return a vector in which each lane is zero.",
+    "Splat": "Return a vector in which each lane has the same value.",
+    "From_Lanes": "Construct a vector from lanes in logical lane order.",
+    "To_Lanes": "Return all lanes in logical lane order.",
+    "Extract": "Return one logical lane.",
+    "Replace": "Return a copy with one logical lane replaced.",
+    "Add_Wrap": "Add corresponding lanes modulo the lane width.",
+    "Subtract_Wrap": "Subtract corresponding lanes modulo the lane width.",
+    "Multiply_Wrap": "Multiply corresponding lanes modulo the lane width.",
+    "Add_Saturate": "Add corresponding lanes and clamp to the lane range.",
+    "Subtract_Saturate": "Subtract corresponding lanes and clamp to the lane range.",
+    "Bitwise_And": "Apply bitwise AND to corresponding integer lanes.",
+    "Bitwise_Or": "Apply bitwise OR to corresponding integer lanes.",
+    "Bitwise_Xor": "Apply bitwise exclusive OR to corresponding integer lanes.",
+    "Bitwise_Not": "Complement every bit in every integer lane.",
+    "Shift_Left_Logical": "Shift each lane left. Return zero lanes when the count reaches the lane width.",
+    "Shift_Right_Logical": "Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.",
+    "Shift_Right_Arithmetic": "Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.",
+    "Equal": "Compare corresponding lanes for equality.",
+    "Less_Than": "Compare corresponding lanes with the lane type's ordering.",
+    "Less_Equal": "Compare corresponding lanes with the lane type's ordering.",
+    "Greater_Than": "Compare corresponding lanes with the lane type's ordering.",
+    "Greater_Equal": "Compare corresponding lanes with the lane type's ordering.",
+    "Unordered": "Return true in lanes where either floating input is NaN.",
+    "Select_Value": "Select the true input in true mask lanes and the false input in other lanes.",
+    "Min": "Return the smaller integer in each lane.",
+    "Max": "Return the larger integer in each lane.",
+    "Min_Number": "Return the floating number minimum with the documented NaN and signed-zero rules.",
+    "Max_Number": "Return the floating number maximum with the documented NaN and signed-zero rules.",
+    "Reduce_Add_Wrap": "Add all integer lanes modulo the lane width in ascending lane order.",
+    "Reduce_Min": "Return the smallest integer lane.",
+    "Reduce_Max": "Return the largest integer lane.",
+    "Reduce_Add": "Add all floating lanes in ascending lane order.",
+    "Reverse_Lanes": "Reverse logical lane order.",
+    "Interleave_Low": "Alternate lanes from the low half of both inputs, starting with the left input.",
+    "Interleave_High": "Alternate lanes from the high half of both inputs, starting with the left input.",
+    "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
+    "Deinterleave_Odd": "Collect odd lanes from the left input, then odd lanes from the right input.",
+    "Is_Aligned_16": "Report whether the selected first element has a 16-byte-aligned address.",
+    "Load": "Load one complete vector without an alignment requirement.",
+    "Store": "Store one complete vector without an alignment requirement.",
+    "Load_Unaligned": "Load one complete vector from an address with any alignment.",
+    "Store_Unaligned": "Store one complete vector to an address with any alignment.",
+    "Load_Aligned": "Load one complete vector from a 16-byte-aligned address.",
+    "Store_Aligned": "Store one complete vector to a 16-byte-aligned address.",
+    "Load_Partial": "Read exactly Count elements and set the remaining lanes to zero.",
+    "Store_Partial": "Write exactly Count elements and leave all other elements unchanged.",
+    "Mask_From_Bit_Mask": "Construct lane truths from compact bits. Bit zero represents lane zero.",
+    "To_Bit_Mask": "Return compact lane truths. Bit zero represents lane zero.",
+    "Mask_And": "Apply Boolean AND to corresponding mask lanes.",
+    "Mask_Or": "Apply Boolean OR to corresponding mask lanes.",
+    "Mask_Xor": "Apply Boolean exclusive OR to corresponding mask lanes.",
+    "Mask_Not": "Complement every mask lane truth.",
+    "Test": "Return the Boolean truth of one mask lane.",
+    "Any_True": "Return true when at least one mask lane is true.",
+    "All_True": "Return true when every mask lane is true.",
+    "None_True": "Return true when every mask lane is false.",
+    "Population_Count": "Return the number of true mask lanes.",
+    "Add": "Add corresponding floating-point lanes.",
+    "Subtract": "Subtract corresponding floating-point lanes.",
+    "Multiply": "Multiply corresponding floating-point lanes.",
+    "Divide": "Divide corresponding floating-point lanes.",
+}
+
+PARAM_DOCS = {
+    "Value": "The input value.",
+    "Values": "Lane values in logical lane order.",
+    "Left": "The left input.",
+    "Right": "The right input.",
+    "Lane": "The logical lane index.",
+    "With_Value": "The replacement lane value.",
+    "Count": "The shift count or valid element count, as applicable.",
+    "Mask": "The input mask.",
+    "If_True": "The value selected in true mask lanes.",
+    "If_False": "The value selected in false mask lanes.",
+    "Bits": "Compact lane bits. Bit zero represents lane zero.",
+    "Data": "The typed lane array.",
+    "Start": "The Ada index of the first selected element.",
+}
+
+
+def _parameter_names(declaration: str) -> list[str]:
+    start = declaration.find("(")
+    if start < 0:
+        return []
+    depth = 0
+    end = -1
+    for index in range(start, len(declaration)):
+        if declaration[index] == "(":
+            depth += 1
+        elif declaration[index] == ")":
+            depth -= 1
+            if depth == 0:
+                end = index
+                break
+    if end < 0:
+        return []
+    names: list[str] = []
+    for group in declaration[start + 1 : end].split(";"):
+        if ":" not in group:
+            continue
+        for name in group.split(":", 1)[0].split(","):
+            names.append(name.strip())
+    return names
+
+
+def document_spec(text: str) -> str:
+    """Attach synchronized GNATdoc comments to generated public declarations."""
+    lines = text.splitlines()
+    documented: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        match = re.match(r"   (function|procedure|type|subtype)\s+([A-Za-z0-9_]+)", line)
+        if not match:
+            documented.append(line)
+            index += 1
+            continue
+        declaration = [line]
+        depth = 0
+        complete = False
+        while not complete:
+            for character in declaration[-1]:
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    depth -= 1
+                elif character == ";" and depth == 0:
+                    complete = True
+                    break
+            if complete:
+                break
+            index += 1
+            declaration.append(lines[index])
+        documented.extend(declaration)
+        kind, name = match.groups()
+        has_trailing_doc = (
+            index + 1 < len(lines) and lines[index + 1].startswith("   --")
+        )
+        if not has_trailing_doc:
+            if kind in ("type", "subtype"):
+                documented.append(f"   --  Public lane, array, vector, or mask type {name}.")
+            else:
+                documented.append(f"   --  {OPERATION_DOCS.get(name, 'Perform the documented portable operation.')}")
+                for parameter in _parameter_names(" ".join(declaration)):
+                    documented.append(
+                        f"   --  @param {parameter} {PARAM_DOCS.get(parameter, 'The input parameter.')}"
+                    )
+                if kind == "function":
+                    documented.append("   --  @return The operation result.")
+        index += 1
+    return "\n".join(documented)
+
+
+def strip_generated_docs(text: str) -> str:
+    """Remove synchronized comments before regenerating them."""
+    summaries = set(OPERATION_DOCS.values())
+    result: list[str] = []
+    for line in text.splitlines():
+        stripped = line.removeprefix("   --  ")
+        if stripped.startswith("@param ") or stripped.startswith("@return "):
+            continue
+        if stripped.startswith("Public lane, array, vector, or mask type "):
+            continue
+        if stripped in summaries or stripped == "Perform the documented portable operation.":
+            continue
+        result.append(line)
+    return "\n".join(result) + ("\n" if text.endswith("\n") else "")
 
 
 def replace_block(text: str, label: str, generated: str) -> str:
@@ -196,6 +368,10 @@ def emit_spec() -> str:
         out += [
             f"   function Mask_From_Bit_Mask (Bits : Interfaces.{storage}) return {mask};",
             f"   function To_Bit_Mask (Mask : {mask}) return Interfaces.{storage};",
+            f"   function Mask_And (Left, Right : {mask}) return {mask};",
+            f"   function Mask_Or (Left, Right : {mask}) return {mask};",
+            f"   function Mask_Xor (Left, Right : {mask}) return {mask};",
+            f"   function Mask_Not (Value : {mask}) return {mask};",
             f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean;",
             f"   function Any_True (Mask : {mask}) return Boolean;",
             f"   function All_True (Mask : {mask}) return Boolean;",
@@ -203,7 +379,7 @@ def emit_spec() -> str:
             f"   function Population_Count (Mask : {mask}) return {count};",
             "",
         ]
-    return "\n".join(out)
+    return document_spec("\n".join(out))
 
 
 def emit_private() -> str:
@@ -450,14 +626,15 @@ def emit_body() -> str:
         count = lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
         full = str((1 << lanes) - 1)
-        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits);", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", f"      Bits : {st} := Mask.Bits;", f"      Result : {count} := 0;", "   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;", ""]
+        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits);", f"   function Mask_And (Left, Right : {mask}) return {mask} is (Bits => Left.Bits and Right.Bits);", f"   function Mask_Or (Left, Right : {mask}) return {mask} is (Bits => Left.Bits or Right.Bits);", f"   function Mask_Xor (Left, Right : {mask}) return {mask} is (Bits => Left.Bits xor Right.Bits);", f"   function Mask_Not (Value : {mask}) return {mask} is (Bits => (not Value.Bits) and {full});", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", f"      Bits : {st} := Mask.Bits;", f"      Result : {count} := 0;", "   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;", ""]
     return "\n".join(out)
 
 
 def main() -> None:
-    spec = SPEC.read_text()
+    spec = strip_generated_docs(SPEC.read_text())
     spec = replace_block(spec, "GENERATED 128-BIT FAMILIES", emit_spec())
     spec = replace_block(spec, "GENERATED 128-BIT REPRESENTATIONS", emit_private())
+    spec = document_spec(spec)
     SPEC.write_text(spec)
 
     body = BODY.read_text()

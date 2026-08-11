@@ -33,7 +33,11 @@ package body Flyology_SIMD.Backends.Native is
    function Max (Left, Right : U8x16) return U8x16 is
      (Flyology_SIMD.Max (Left, Right));
    function Horizontal_Sum (Value : U8x16) return Natural is (Flyology_SIMD.Horizontal_Sum (Value));
+   function Reduce_Add_Wrap (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Max (Value));
    function Reverse_Bytes (Value : U8x16) return U8x16 is (Flyology_SIMD.Reverse_Bytes (Value));
+   function Reverse_Lanes (Value : U8x16) return U8x16 is (Flyology_SIMD.Reverse_Lanes (Value));
    function Interleave_Low (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_Low (Left, Right));
    function Interleave_High (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_High (Left, Right));
    function Deinterleave_Even (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Deinterleave_Even (Left, Right));
@@ -41,6 +45,10 @@ package body Flyology_SIMD.Backends.Native is
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
      (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_And (Left, Right));
+   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Or (Left, Right));
+   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Xor (Left, Right));
+   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Not (Value));
    function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is (Flyology_SIMD.Test (Mask, Lane));
    function Any_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.Any_True (Mask));
    function All_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.All_True (Mask));
@@ -798,6 +806,14 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is
      (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Mask_And (Left, Right : Mask_16x8) return Mask_16x8 is
+     (Flyology_SIMD.Mask_And (Left, Right));
+   function Mask_Or (Left, Right : Mask_16x8) return Mask_16x8 is
+     (Flyology_SIMD.Mask_Or (Left, Right));
+   function Mask_Xor (Left, Right : Mask_16x8) return Mask_16x8 is
+     (Flyology_SIMD.Mask_Xor (Left, Right));
+   function Mask_Not (Value : Mask_16x8) return Mask_16x8 is
+     (Flyology_SIMD.Mask_Not (Value));
    function Test (Mask : Mask_16x8; Lane : Lane_Index_16x8) return Boolean is
      (Flyology_SIMD.Test (Mask, Lane));
    function Any_True (Mask : Mask_16x8) return Boolean is
@@ -812,6 +828,14 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
      (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Mask_And (Left, Right : Mask_32x4) return Mask_32x4 is
+     (Flyology_SIMD.Mask_And (Left, Right));
+   function Mask_Or (Left, Right : Mask_32x4) return Mask_32x4 is
+     (Flyology_SIMD.Mask_Or (Left, Right));
+   function Mask_Xor (Left, Right : Mask_32x4) return Mask_32x4 is
+     (Flyology_SIMD.Mask_Xor (Left, Right));
+   function Mask_Not (Value : Mask_32x4) return Mask_32x4 is
+     (Flyology_SIMD.Mask_Not (Value));
    function Test (Mask : Mask_32x4; Lane : Lane_Index_32x4) return Boolean is
      (Flyology_SIMD.Test (Mask, Lane));
    function Any_True (Mask : Mask_32x4) return Boolean is
@@ -826,6 +850,14 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
      (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Mask_And (Left, Right : Mask_64x2) return Mask_64x2 is
+     (Flyology_SIMD.Mask_And (Left, Right));
+   function Mask_Or (Left, Right : Mask_64x2) return Mask_64x2 is
+     (Flyology_SIMD.Mask_Or (Left, Right));
+   function Mask_Xor (Left, Right : Mask_64x2) return Mask_64x2 is
+     (Flyology_SIMD.Mask_Xor (Left, Right));
+   function Mask_Not (Value : Mask_64x2) return Mask_64x2 is
+     (Flyology_SIMD.Mask_Not (Value));
    function Test (Mask : Mask_64x2; Lane : Lane_Index_64x2) return Boolean is
      (Flyology_SIMD.Test (Mask, Lane));
    function Any_True (Mask : Mask_64x2) return Boolean is

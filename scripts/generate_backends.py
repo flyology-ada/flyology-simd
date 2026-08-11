@@ -9,15 +9,18 @@ from generate_full_family import (
     MASKS,
     ROOT,
     array_name,
+    document_spec,
     emit_spec,
     lane_count,
     lane_index,
     lane_values,
     mask_for,
     replace_block,
+    strip_generated_docs,
 )
 
 SPEC = ROOT / "src" / "flyology_simd-backends-native.ads"
+SCALAR_SPEC = ROOT / "src" / "flyology_simd-backends-scalar.ads"
 NEON = ROOT / "src" / "backends" / "aarch64" / "flyology_simd-backends-native.adb"
 X86 = ROOT / "src" / "backends" / "x86_64" / "flyology_simd-backends-native.adb"
 FALLBACKS = [
@@ -121,6 +124,10 @@ def fallback_body() -> str:
         out += [
             call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"),
             call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"),
+            call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"),
+            call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"),
+            call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"),
+            call("Mask_Not", mask, "Value", f"Value : {mask}"),
             call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"),
             call("Any_True", "Boolean", "Mask", f"Mask : {mask}"),
             call("All_True", "Boolean", "Mask", f"Mask : {mask}"),
@@ -360,7 +367,7 @@ def neon_body() -> str:
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
+        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
     return "\n".join(out)
 
 
@@ -718,7 +725,7 @@ def x86_body() -> str:
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
+        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}")]
     return "\n".join(out)
 
 
@@ -733,8 +740,17 @@ def test_program() -> str:
         "   use type Interfaces.Integer_8;", "   use type Interfaces.Integer_16;",
         "   use type Interfaces.Integer_32;", "   use type Interfaces.Integer_64;",
         "   use type Interfaces.IEEE_Float_32;", "   use type Interfaces.IEEE_Float_64;",
+        "   Seed : constant Interfaces.Unsigned_64 := 16#5EED_0123_D15C_A11A#;",
+        "   State : Interfaces.Unsigned_64 := Seed;",
         "   Failures : Natural := 0;", "   procedure Check (Condition : Boolean; Message : String) is",
         "   begin if not Condition then Failures := Failures + 1; Put_Line (\"FAIL: \" & Message); end if; end Check;", "",
+        "   function Next_U64 return Interfaces.Unsigned_64 is",
+        "   begin",
+        "      State := State xor Interfaces.Shift_Left (State, 13);",
+        "      State := State xor Interfaces.Shift_Right (State, 7);",
+        "      State := State xor Interfaces.Shift_Left (State, 17);",
+        "      return State;",
+        "   end Next_U64;", "",
         "   function Reference_Popcount (Value : Natural) return Natural is",
         "      Bits : Natural := Value;",
         "      Count : Natural := 0;",
@@ -755,7 +771,35 @@ def test_program() -> str:
             bv = ["1", f"{scalar}'Last", "2", f"2 ** ({bits - 1}) - 1", "9"]
         agg_a = ", ".join(av[n % len(av)] for n in range(lanes))
         agg_b = ", ".join(bv[n % len(bv)] for n in range(lanes))
+        unsigned = f"Interfaces.Unsigned_{bits}"
+        random_bits = (
+            "Next_U64"
+            if bits == 64
+            else f"{unsigned} (Next_U64 and 16#{((1 << bits) - 1):X}#)"
+        )
+        if signed:
+            random_lane = f"Bits_To_{vector} ({random_bits})"
+            helpers = [
+                f"   function Bits_To_{vector} is new Ada.Unchecked_Conversion ({unsigned}, {scalar});",
+                f"   function {vector}_To_Bits is new Ada.Unchecked_Conversion ({scalar}, {unsigned});",
+            ]
+            add_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) + {vector}_To_Bits (Extract (R_B, Lane)))"
+            sub_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) - {vector}_To_Bits (Extract (R_B, Lane)))"
+            mul_oracle = f"Bits_To_{vector} ({vector}_To_Bits (Extract (R_A, Lane)) * {vector}_To_Bits (Extract (R_B, Lane)))"
+        else:
+            random_lane = random_bits
+            helpers = []
+            add_oracle = "Extract (R_A, Lane) + Extract (R_B, Lane)"
+            sub_oracle = "Extract (R_A, Lane) - Extract (R_B, Lane)"
+            mul_oracle = "Extract (R_A, Lane) * Extract (R_B, Lane)"
         lines += [
+            *helpers,
+            f"   function Random_{vector}_Lanes return {vals} is",
+            f"      Result : {vals};",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop Result (Lane) := {random_lane}; end loop;",
+            "      return Result;",
+            f"   end Random_{vector}_Lanes;",
             f"   function Same (Left, Right : {vector}) return Boolean is (To_Lanes (Left) = To_Lanes (Right));",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
@@ -792,7 +836,10 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = {mask_storage} (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
             f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
             f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (To_Bit_Mask (Mask_Not ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} scalar mask not\" & Pattern'Image);",
+            f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             "      end loop;",
@@ -819,11 +866,17 @@ def test_program() -> str:
             "      end loop;",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
-            f"            R_A : constant {vector} := From_Lanes ([for Lane in {lane_index(bits, lanes)} => {scalar} ({'((Iteration * 37 + Lane * 19) mod 251) - 125' if signed else '(Iteration * 37 + Lane * 19) mod 251'})]);",
-            f"            R_B : constant {vector} := From_Lanes ([for Lane in {lane_index(bits, lanes)} => {scalar} ({'((Iteration * 23 + Lane * 29) mod 251) - 125' if signed else '(Iteration * 23 + Lane * 29) mod 251'})]);",
+            f"            R_A : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
+            f"            R_B : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
             "         begin",
             f"            Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), \"{vector} randomized arithmetic\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), \"{vector} randomized compare\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop",
+            f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
+            f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
+            f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent multiply oracle\" & Lane'Image);",
+            f"               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), \"{vector} independent compare oracle\" & Lane'Image);",
+            "            end loop;",
             "         end;",
             "      end loop;",
             f"   end Test_{vector};", "",
@@ -837,6 +890,16 @@ def test_program() -> str:
         agg_b = ", ".join(bv[n % len(bv)] for n in range(lanes))
         uint = f"Interfaces.Unsigned_{bits}"
         lines += [
+            f"   function Random_{vector}_Lanes return {vals} is",
+            f"      Result : {vals};",
+            "      Raw : Interfaces.Integer_64;",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            "         Raw := Interfaces.Integer_64 (Next_U64 mod 2_000_001) - 1_000_000;",
+            f"         Result (Lane) := {scalar} (Raw) / 128.0;",
+            "      end loop;",
+            "      return Result;",
+            f"   end Random_{vector}_Lanes;",
             f"   function Bits_{vector} is new Ada.Unchecked_Conversion ({scalar}, {uint});",
             f"   function Same (Left, Right : {vector}) return Boolean is",
             f"      L : constant {vals} := To_Lanes (Left);",
@@ -870,7 +933,10 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), \"{vector} mask roundtrip\" & Pattern'Image);",
             f"         Check (Any_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1), \"{vector} scalar mask predicates\" & Pattern'Image);",
             f"         Check (Population_Count ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} scalar mask population\" & Pattern'Image);",
+            f"         Check (To_Bit_Mask (Mask_Not ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} scalar mask not\" & Pattern'Image);",
+            f"         Check (To_Bit_Mask (Mask_And ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then To_Bit_Mask (Mask_Xor ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} scalar mask algebra\" & Pattern'Image);",
             f"         Check (Backends.Native.Any_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** {lanes} - 1) and then Backends.Native.Population_Count ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), \"{vector} native mask reductions\" & Pattern'Image);",
+            f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             "      end loop;",
@@ -895,8 +961,8 @@ def test_program() -> str:
             "      end loop;",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
-            f"            R_A : constant {vector} := From_Lanes ([for Lane in {lane_index(bits, lanes)} => {scalar} (Iteration * 37 + Lane * 19) / 7.0]);",
-            f"            R_B : constant {vector} := From_Lanes ([for Lane in {lane_index(bits, lanes)} => {scalar} (Iteration * 23 + Lane * 29 + 1) / 11.0]);",
+            f"            R_A : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
+            f"            R_B : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
             "         begin",
             f"            Check (Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), \"{vector} randomized arithmetic\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)), \"{vector} randomized compare\");",
@@ -932,7 +998,7 @@ def test_program() -> str:
         "      Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, \"F64 signaling NaN is quieted\");",
         "      Check (F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0, \"F64 signed zero min/max\");",
         "   end Test_Floating_Specials;", "",
-        "begin", "   Put_Line (\"full-family differential tests seed=0x5EED0123\");",
+        "begin", "   Put_Line (\"full-family differential tests seed=0x5EED0123D15CA11A\");",
     ]
     for vector, *_ in INTEGER_TYPES + FLOAT_TYPES:
         lines.append(f"   Test_{vector};")
@@ -946,8 +1012,9 @@ def test_program() -> str:
 
 
 def main() -> None:
-    text = SPEC.read_text()
-    SPEC.write_text(replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract()))
+    text = strip_generated_docs(SPEC.read_text())
+    SPEC.write_text(document_spec(replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract())))
+    SCALAR_SPEC.write_text(document_spec(strip_generated_docs(SCALAR_SPEC.read_text())))
     text = NEON.read_text()
     NEON.write_text(replace_block(text, "GENERATED FULL-FAMILY NEON BODIES", neon_body()))
     text = X86.read_text().replace(

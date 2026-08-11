@@ -45,10 +45,16 @@ jobs:
           alr exec -- gprbuild -p -P tests/tests.gpr
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+      - name: Build examples
+        run: >-
+          alr exec -- gprbuild -p -P examples/examples.gpr
+          -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
+          -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
       - name: Run differential tests
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/guard_page_tests
       - name: Require executable AVX2 coverage
         if: ${{ matrix.avx2 == 'enabled' }}
         run: ./bin/simd_tests --require-avx2
@@ -89,9 +95,14 @@ jobs:
         run: >-
           alr exec -- gprbuild -p -P tests/tests.gpr
           -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build examples
+        run: >-
+          alr exec -- gprbuild -p -P examples/examples.gpr
+          -XFLYOLOGY_SIMD_ARCH=aarch64
       - name: Run differential tests
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/guard_page_tests
       - name: Check generated code
         run: ./scripts/check_codegen.sh aarch64 disabled

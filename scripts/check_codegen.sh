@@ -81,6 +81,12 @@ case "$architecture" in
         require_pattern 'fminnm.*(4s|2d)' "$temporary/native.txt" 'IEEE minimum-number operation'
         require_pattern 'fmaxnm.*(4s|2d)' "$temporary/native.txt" 'IEEE maximum-number operation'
         require_pattern 'fcmeq.*(4s|2d)' "$temporary/native.txt" 'floating comparison'
+        require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/algorithm.txt" \
+          'inlined vector load in representative loop'
+        require_pattern 'cmeq.*16b' "$temporary/algorithm.txt" \
+          'inlined NEON comparison in representative loop'
+        require_pattern 'uaddlv' "$temporary/algorithm.txt" \
+          'inlined compact-mask extraction in representative loop'
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)

@@ -19,3 +19,4 @@ alr exec -- gprbuild -p -P tests/tests.gpr \
   -largs -fsanitize=address
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/simd_tests
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/family_tests
+ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/guard_page_tests

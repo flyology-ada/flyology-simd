@@ -19,9 +19,19 @@ procedure Family_Tests is
    use type Interfaces.Integer_64;
    use type Interfaces.IEEE_Float_32;
    use type Interfaces.IEEE_Float_64;
+   Seed : constant Interfaces.Unsigned_64 := 16#5EED_0123_D15C_A11A#;
+   State : Interfaces.Unsigned_64 := Seed;
    Failures : Natural := 0;
    procedure Check (Condition : Boolean; Message : String) is
    begin if not Condition then Failures := Failures + 1; Put_Line ("FAIL: " & Message); end if; end Check;
+
+   function Next_U64 return Interfaces.Unsigned_64 is
+   begin
+      State := State xor Interfaces.Shift_Left (State, 13);
+      State := State xor Interfaces.Shift_Right (State, 7);
+      State := State xor Interfaces.Shift_Left (State, 17);
+      return State;
+   end Next_U64;
 
    function Reference_Popcount (Value : Natural) return Natural is
       Bits : Natural := Value;
@@ -31,6 +41,14 @@ procedure Family_Tests is
       return Count;
    end Reference_Popcount;
 
+   function Bits_To_I8x16 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_8, I8);
+   function I8x16_To_Bits is new Ada.Unchecked_Conversion (I8, Interfaces.Unsigned_8);
+   function Random_I8x16_Lanes return Lane_Values_I8x16 is
+      Result : Lane_Values_I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result (Lane) := Bits_To_I8x16 (Interfaces.Unsigned_8 (Next_U64 and 16#FF#)); end loop;
+      return Result;
+   end Random_I8x16_Lanes;
    function Same (Left, Right : I8x16) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_I8x16 is
       A : constant I8x16 := From_Lanes ([I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First]);
@@ -77,7 +95,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Interfaces.Unsigned_16 (Pattern), "I8x16 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 0) and then All_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 2 ** 16 - 1), "I8x16 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Popcount (Pattern), "I8x16 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))))) = Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern), "I8x16 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1) and then To_Bit_Mask (Mask_Xor (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "I8x16 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 2 ** 16 - 1) and then Backends.Native.Population_Count (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Popcount (Pattern), "I8x16 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))))) = Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern), "I8x16 native mask not" & Pattern'Image);
          for Lane in Lane_Index_8x16 loop Check (Backends.Native.Test (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Lane) = Test (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Lane), "I8x16 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B)), "I8x16 exhaustive select" & Pattern'Image);
       end loop;
@@ -104,15 +125,27 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I8x16 := From_Lanes ([for Lane in Lane_Index_8x16 => I8 (((Iteration * 37 + Lane * 19) mod 251) - 125)]);
-            R_B : constant I8x16 := From_Lanes ([for Lane in Lane_Index_8x16 => I8 (((Iteration * 23 + Lane * 29) mod 251) - 125)]);
+            R_A : constant I8x16 := From_Lanes (Random_I8x16_Lanes);
+            R_B : constant I8x16 := From_Lanes (Random_I8x16_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I8x16 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "I8x16 randomized compare");
+            for Lane in Lane_Index_8x16 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) + I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) - I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) * I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "I8x16 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_I8x16;
 
+   function Random_U16x8_Lanes return Lane_Values_U16x8 is
+      Result : Lane_Values_U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result (Lane) := Interfaces.Unsigned_16 (Next_U64 and 16#FFFF#); end loop;
+      return Result;
+   end Random_U16x8_Lanes;
    function Same (Left, Right : U16x8) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_U16x8 is
       A : constant U16x8 := From_Lanes ([0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last]);
@@ -158,7 +191,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U16x8 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 8 - 1), "U16x8 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U16x8 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern), "U16x8 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1) and then To_Bit_Mask (Mask_Xor (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "U16x8 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 8 - 1) and then Backends.Native.Population_Count (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U16x8 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern), "U16x8 native mask not" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Backends.Native.Test (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U16x8 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U16x8 exhaustive select" & Pattern'Image);
       end loop;
@@ -185,15 +221,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U16x8 := From_Lanes ([for Lane in Lane_Index_16x8 => U16 ((Iteration * 37 + Lane * 19) mod 251)]);
-            R_B : constant U16x8 := From_Lanes ([for Lane in Lane_Index_16x8 => U16 ((Iteration * 23 + Lane * 29) mod 251)]);
+            R_A : constant U16x8 := From_Lanes (Random_U16x8_Lanes);
+            R_B : constant U16x8 := From_Lanes (Random_U16x8_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U16x8 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "U16x8 randomized compare");
+            for Lane in Lane_Index_16x8 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U16x8 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U16x8 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U16x8 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "U16x8 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_U16x8;
 
+   function Bits_To_I16x8 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_16, I16);
+   function I16x8_To_Bits is new Ada.Unchecked_Conversion (I16, Interfaces.Unsigned_16);
+   function Random_I16x8_Lanes return Lane_Values_I16x8 is
+      Result : Lane_Values_I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop Result (Lane) := Bits_To_I16x8 (Interfaces.Unsigned_16 (Next_U64 and 16#FFFF#)); end loop;
+      return Result;
+   end Random_I16x8_Lanes;
    function Same (Left, Right : I16x8) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_I16x8 is
       A : constant I16x8 := From_Lanes ([I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0]);
@@ -240,7 +290,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I16x8 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 8 - 1), "I16x8 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I16x8 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern), "I16x8 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1) and then To_Bit_Mask (Mask_Xor (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "I16x8 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 8 - 1) and then Backends.Native.Population_Count (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I16x8 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern), "I16x8 native mask not" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Backends.Native.Test (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I16x8 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I16x8 exhaustive select" & Pattern'Image);
       end loop;
@@ -267,15 +320,27 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I16x8 := From_Lanes ([for Lane in Lane_Index_16x8 => I16 (((Iteration * 37 + Lane * 19) mod 251) - 125)]);
-            R_B : constant I16x8 := From_Lanes ([for Lane in Lane_Index_16x8 => I16 (((Iteration * 23 + Lane * 29) mod 251) - 125)]);
+            R_A : constant I16x8 := From_Lanes (Random_I16x8_Lanes);
+            R_B : constant I16x8 := From_Lanes (Random_I16x8_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I16x8 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "I16x8 randomized compare");
+            for Lane in Lane_Index_16x8 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) + I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) - I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) * I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "I16x8 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_I16x8;
 
+   function Random_U32x4_Lanes return Lane_Values_U32x4 is
+      Result : Lane_Values_U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result (Lane) := Interfaces.Unsigned_32 (Next_U64 and 16#FFFFFFFF#); end loop;
+      return Result;
+   end Random_U32x4_Lanes;
    function Same (Left, Right : U32x4) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_U32x4 is
       A : constant U32x4 := From_Lanes ([0, 1, U32'Last, 2 ** (31)]);
@@ -321,7 +386,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U32x4 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1), "U32x4 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U32x4 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "U32x4 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then To_Bit_Mask (Mask_Xor (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "U32x4 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1) and then Backends.Native.Population_Count (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U32x4 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "U32x4 native mask not" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U32x4 exhaustive select" & Pattern'Image);
       end loop;
@@ -348,15 +416,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => U32 ((Iteration * 37 + Lane * 19) mod 251)]);
-            R_B : constant U32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => U32 ((Iteration * 23 + Lane * 29) mod 251)]);
+            R_A : constant U32x4 := From_Lanes (Random_U32x4_Lanes);
+            R_B : constant U32x4 := From_Lanes (Random_U32x4_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U32x4 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "U32x4 randomized compare");
+            for Lane in Lane_Index_32x4 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U32x4 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U32x4 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U32x4 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "U32x4 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_U32x4;
 
+   function Bits_To_I32x4 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_32, I32);
+   function I32x4_To_Bits is new Ada.Unchecked_Conversion (I32, Interfaces.Unsigned_32);
+   function Random_I32x4_Lanes return Lane_Values_I32x4 is
+      Result : Lane_Values_I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop Result (Lane) := Bits_To_I32x4 (Interfaces.Unsigned_32 (Next_U64 and 16#FFFFFFFF#)); end loop;
+      return Result;
+   end Random_I32x4_Lanes;
    function Same (Left, Right : I32x4) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_I32x4 is
       A : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
@@ -403,7 +485,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I32x4 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1), "I32x4 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I32x4 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "I32x4 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then To_Bit_Mask (Mask_Xor (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "I32x4 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1) and then Backends.Native.Population_Count (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I32x4 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "I32x4 native mask not" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I32x4 exhaustive select" & Pattern'Image);
       end loop;
@@ -430,15 +515,27 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => I32 (((Iteration * 37 + Lane * 19) mod 251) - 125)]);
-            R_B : constant I32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => I32 (((Iteration * 23 + Lane * 29) mod 251) - 125)]);
+            R_A : constant I32x4 := From_Lanes (Random_I32x4_Lanes);
+            R_B : constant I32x4 := From_Lanes (Random_I32x4_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I32x4 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "I32x4 randomized compare");
+            for Lane in Lane_Index_32x4 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) + I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) - I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) * I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "I32x4 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_I32x4;
 
+   function Random_U64x2_Lanes return Lane_Values_U64x2 is
+      Result : Lane_Values_U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result (Lane) := Next_U64; end loop;
+      return Result;
+   end Random_U64x2_Lanes;
    function Same (Left, Right : U64x2) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_U64x2 is
       A : constant U64x2 := From_Lanes ([0, 1]);
@@ -484,7 +581,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "U64x2 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1), "U64x2 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U64x2 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "U64x2 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then To_Bit_Mask (Mask_Xor (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "U64x2 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1) and then Backends.Native.Population_Count (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "U64x2 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "U64x2 native mask not" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U64x2 exhaustive select" & Pattern'Image);
       end loop;
@@ -511,15 +611,29 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant U64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => U64 ((Iteration * 37 + Lane * 19) mod 251)]);
-            R_B : constant U64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => U64 ((Iteration * 23 + Lane * 29) mod 251)]);
+            R_A : constant U64x2 := From_Lanes (Random_U64x2_Lanes);
+            R_B : constant U64x2 := From_Lanes (Random_U64x2_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U64x2 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "U64x2 randomized compare");
+            for Lane in Lane_Index_64x2 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U64x2 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U64x2 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U64x2 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "U64x2 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_U64x2;
 
+   function Bits_To_I64x2 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_64, I64);
+   function I64x2_To_Bits is new Ada.Unchecked_Conversion (I64, Interfaces.Unsigned_64);
+   function Random_I64x2_Lanes return Lane_Values_I64x2 is
+      Result : Lane_Values_I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop Result (Lane) := Bits_To_I64x2 (Next_U64); end loop;
+      return Result;
+   end Random_I64x2_Lanes;
    function Same (Left, Right : I64x2) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
    procedure Test_I64x2 is
       A : constant I64x2 := From_Lanes ([I64'First, -1]);
@@ -566,7 +680,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "I64x2 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1), "I64x2 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I64x2 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "I64x2 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then To_Bit_Mask (Mask_Xor (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "I64x2 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1) and then Backends.Native.Population_Count (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "I64x2 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "I64x2 native mask not" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I64x2 exhaustive select" & Pattern'Image);
       end loop;
@@ -593,15 +710,31 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant I64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => I64 (((Iteration * 37 + Lane * 19) mod 251) - 125)]);
-            R_B : constant I64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => I64 (((Iteration * 23 + Lane * 29) mod 251) - 125)]);
+            R_A : constant I64x2 := From_Lanes (Random_I64x2_Lanes);
+            R_B : constant I64x2 := From_Lanes (Random_I64x2_Lanes);
          begin
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I64x2 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)), "I64x2 randomized compare");
+            for Lane in Lane_Index_64x2 loop
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) + I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) - I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) * I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent multiply oracle" & Lane'Image);
+               Check (Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)), "I64x2 independent compare oracle" & Lane'Image);
+            end loop;
          end;
       end loop;
    end Test_I64x2;
 
+   function Random_F32x4_Lanes return Lane_Values_F32x4 is
+      Result : Lane_Values_F32x4;
+      Raw : Interfaces.Integer_64;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Raw := Interfaces.Integer_64 (Next_U64 mod 2_000_001) - 1_000_000;
+         Result (Lane) := F32 (Raw) / 128.0;
+      end loop;
+      return Result;
+   end Random_F32x4_Lanes;
    function Bits_F32x4 is new Ada.Unchecked_Conversion (F32, Interfaces.Unsigned_32);
    function Same (Left, Right : F32x4) return Boolean is
       L : constant Lane_Values_F32x4 := To_Lanes (Left);
@@ -647,7 +780,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "F32x4 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1), "F32x4 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "F32x4 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "F32x4 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then To_Bit_Mask (Mask_Xor (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "F32x4 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 4 - 1) and then Backends.Native.Population_Count (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "F32x4 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern), "F32x4 native mask not" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "F32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F32x4 exhaustive select" & Pattern'Image);
       end loop;
@@ -672,8 +808,8 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant F32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => F32 (Iteration * 37 + Lane * 19) / 7.0]);
-            R_B : constant F32x4 := From_Lanes ([for Lane in Lane_Index_32x4 => F32 (Iteration * 23 + Lane * 29 + 1) / 11.0]);
+            R_A : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
+            R_B : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
          begin
             Check (Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F32x4 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)), "F32x4 randomized compare");
@@ -681,6 +817,16 @@ procedure Family_Tests is
       end loop;
    end Test_F32x4;
 
+   function Random_F64x2_Lanes return Lane_Values_F64x2 is
+      Result : Lane_Values_F64x2;
+      Raw : Interfaces.Integer_64;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Raw := Interfaces.Integer_64 (Next_U64 mod 2_000_001) - 1_000_000;
+         Result (Lane) := F64 (Raw) / 128.0;
+      end loop;
+      return Result;
+   end Random_F64x2_Lanes;
    function Bits_F64x2 is new Ada.Unchecked_Conversion (F64, Interfaces.Unsigned_64);
    function Same (Left, Right : F64x2) return Boolean is
       L : constant Lane_Values_F64x2 := To_Lanes (Left);
@@ -726,7 +872,10 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Interfaces.Unsigned_8 (Pattern), "F64x2 mask roundtrip" & Pattern'Image);
          Check (Any_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then All_True (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1), "F64x2 scalar mask predicates" & Pattern'Image);
          Check (Population_Count (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "F64x2 scalar mask population" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "F64x2 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then To_Bit_Mask (Mask_Xor (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "F64x2 scalar mask algebra" & Pattern'Image);
          Check (Backends.Native.Any_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = (Pattern = 2 ** 2 - 1) and then Backends.Native.Population_Count (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Popcount (Pattern), "F64x2 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern), "F64x2 native mask not" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "F64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F64x2 exhaustive select" & Pattern'Image);
       end loop;
@@ -751,8 +900,8 @@ procedure Family_Tests is
       end loop;
       for Iteration in 1 .. 250 loop
          declare
-            R_A : constant F64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => F64 (Iteration * 37 + Lane * 19) / 7.0]);
-            R_B : constant F64x2 := From_Lanes ([for Lane in Lane_Index_64x2 => F64 (Iteration * 23 + Lane * 29 + 1) / 11.0]);
+            R_A : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
+            R_B : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
          begin
             Check (Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F64x2 randomized arithmetic");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)), "F64x2 randomized compare");
@@ -789,7 +938,7 @@ procedure Family_Tests is
    end Test_Floating_Specials;
 
 begin
-   Put_Line ("full-family differential tests seed=0x5EED0123");
+   Put_Line ("full-family differential tests seed=0x5EED0123D15CA11A");
    Test_I8x16;
    Test_U16x8;
    Test_I16x8;

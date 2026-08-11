@@ -6,4 +6,7 @@ is
       Found : Boolean := False;
       Index : Natural := 0;
    end record;
+   --  Result of a byte search.
+   --  @field Found True when the algorithm found the requested byte.
+   --  @field Index The Ada array index of the match, or zero when not found.
 end Flyology_SIMD.Algorithms;
