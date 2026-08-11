@@ -76,19 +76,19 @@
         </section>
         <section id="full">
           <h2>Full operations require one complete vector</h2>
-          <p><code>Load</code> and <code>Store</code> require enough valid elements for one vector. For <code>U8x16</code>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
-          <p><code>Load_Unaligned</code> and <code>Store_Unaligned</code> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
+          <p><code>Load</code> and <a data-api="Flyology_SIMD"><code>Store</code></a> require enough valid elements for one vector. For <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>, they require 16 elements. They do not require a 16-byte-aligned address.</p>
+          <p><a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Unaligned</code></a> have the same behavior. Their names make the lack of an alignment requirement explicit at the call site.</p>
           <pre><code class="language-ada">Block : constant U8x16 := Load_Unaligned (Data, Start);
 Store_Unaligned (Output, Start, Block);</code></pre>
         </section>
         <section id="aligned">
           <h2>Aligned operations require a 16-byte-aligned address</h2>
-          <p><code>Is_Aligned_16</code> checks the address of <code>Data (Start)</code>. <code>Load_Aligned</code> and <code>Store_Aligned</code> have a precondition that requires this check to be true.</p>
+          <p><a data-api="Flyology_SIMD"><code>Is_Aligned_16</code></a> checks the address of <code>Data (Start)</code>. <a data-api="Flyology_SIMD"><code>Load_Aligned</code></a> and <a data-api="Flyology_SIMD"><code>Store_Aligned</code></a> have a precondition that requires this check to be true.</p>
           <p>Enabled assertion checks detect a false precondition. Your program must still meet the precondition when assertion checks are disabled.</p>
         </section>
         <section id="partial">
           <h2>Partial operations use an exact count</h2>
-          <p><code>Load_Partial</code> reads <code>Count</code> elements. It sets all remaining lanes to zero. <code>Store_Partial</code> writes <code>Count</code> elements.</p>
+          <p><a data-api="Flyology_SIMD"><code>Load_Partial</code></a> reads <code>Count</code> elements. It sets all remaining lanes to zero. <a data-api="Flyology_SIMD"><code>Store_Partial</code></a> writes <code>Count</code> elements.</p>
           <p>A count of zero reads no element and writes no element. A partial operation does not perform a full vector access and then mask the result.</p>
         </section>
         <section id="tail">

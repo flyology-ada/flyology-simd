@@ -19,7 +19,7 @@ Key constraints:
 - Lane zero is the first logical element loaded from memory.
 - Partial loads and stores touch only the caller-declared valid extent.
 - Primitive operations use compile-time backend selection.
-- Runtime CPU dispatch occurs once at complete-buffer algorithm boundaries.
+- Runtime CPU dispatch occurs once at whole-buffer algorithm boundaries.
 - AArch64 NEON and x86-64 SSE2 implement the full 128-bit family.
 - AVX2 is optional and enters only after CPU and OS extended-state checks.
 - No low-level operation allocates, performs I/O, locks, waits, or starts a task.

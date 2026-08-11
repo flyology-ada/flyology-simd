@@ -83,7 +83,7 @@ AVX2 instruction executes, and no unsupported instruction is attempted.
 
 `Flyology_SIMD.Algorithms.Generic_Bytes` takes a backend operation package as a
 generic formal package.  This makes static selection visible to the compiler and
-permits inlining through complete buffer loops.  Named scalar/native
+permits inlining through whole-buffer loops.  Named scalar/native
 instantiations are supplied.  Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation.
 

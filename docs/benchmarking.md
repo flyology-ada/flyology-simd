@@ -91,5 +91,5 @@ primitives `Inline_Always` raised the 4 KiB SSE2 median from about 1.48 GB/s to
 Likewise, immutable one-time CPU detection removed repeated CPUID/XGETBV cost
 from the runtime path. On this host, runtime AVX2 had lower throughput than the
 ordinary Ada loop for buffers below 32 bytes because AVX2 uses a scalar tail.
-Coarse dispatch is intended for complete buffer algorithms where the
-application considers that crossover.
+This crossover is host-specific. Measure the expected buffer sizes before you
+select a forced runtime backend.

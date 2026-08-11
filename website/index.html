@@ -112,12 +112,14 @@
         </div>
         <p><code>Add_Wrap</code> computes modulo 2<sup>16</sup>. <code>Add_Saturate</code> clamps each result to 65,535. Both operations process the same <code>U16x8</code> inputs.</p>
       </div>
-      <pre><code class="language-ada">Input     : constant U16x8 :=
-  From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
-Increment : constant U16x8 := Splat (10);
+      <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
-Wrapped   : constant U16x8 := Add_Wrap (Input, Increment);
-Saturated : constant U16x8 := Add_Saturate (Input, Increment);
+Input     : constant U16x8 :=
+  Native.From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
+Increment : constant U16x8 := Native.Splat (10);
+
+Wrapped   : constant U16x8 := Native.Add_Wrap (Input, Increment);
+Saturated : constant U16x8 := Native.Add_Saturate (Input, Increment);
 
 --  lane 0 of Wrapped is 4
 --  lane 0 of Saturated is 65_535</code></pre>

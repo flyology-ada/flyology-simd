@@ -86,9 +86,10 @@ test arithmetic, saturation, bitwise operations, comparisons, reductions, and
 partial stores. Targeted floating tests add quiet and signaling NaNs,
 infinities, signed zeros, and zero division.
 
-GNAT/GCC vector-type arithmetic was tested first, as required by the mechanism
-policy.  GNAT FSF 16.1.0 on Darwin AArch64 crashes compiling arithmetic on a
+GNAT/GCC vector-type arithmetic was tested first. The project rule uses a
+verified intrinsic first, then an isolated Ada assembly leaf when no suitable
+intrinsic exists. GNAT FSF 16.1.0 on Darwin AArch64 crashes compiling arithmetic on a
 scalar-derived `vector_size(16)` type.  The implementation therefore uses
 generic, compile-time-instantiated `System.Machine_Code` leaves for operations
 without a verified GNAT intrinsic.  Argument validation, oversized-count
-policy, conversion bounds and memory extents remain in Ada.
+policy and memory extents remain in Ada.

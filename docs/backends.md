@@ -18,15 +18,19 @@ verified intrinsic/assembly lowering.
 
 AArch64 Advanced SIMD is architecturally available and no runtime NEON probe is
 needed. Its integer and floating operation classes are differentially executed
-and assembly-audited locally; 64-bit integer multiply, reductions, mask select,
-and unordered floating comparison currently use documented scalar composition
-where Advanced SIMD lacks the direct operation or the leaf is not yet stable.
-x86-64 SSE2 is the baseline.  SSE2 implements vector arithmetic, bitwise
+and assembly-audited locally. `Multiply_Wrap`, `Select_Value`,
+`Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
+`U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
+composition for `F32x4` and `F64x2`.
+
+x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full
 memory operations across every 128-bit integer and floating family. Saturating
-arithmetic on 32- and 64-bit lanes, ordered reductions, and floating number
-min/max use documented
-scalar composition where SSE2 lacks a direct semantics-preserving operation.
+arithmetic uses scalar composition for 32- and 64-bit lanes. `Reduce_Min` and
+`Reduce_Max` use scalar composition for all integer families. Except for the
+byte exact-sum implementation, integer `Reduce_Add_Wrap` also uses scalar
+composition. Floating `Min_Number`, `Max_Number`, and `Reduce_Add` use scalar
+composition.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

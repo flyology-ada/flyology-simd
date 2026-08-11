@@ -54,7 +54,7 @@
         </ol>
         <h1>Build and run the examples</h1>
       </div>
-      <p class="doc-hero-copy">Start with a complete buffer search. Then run direct integer, floating-point, and partial-memory operations.</p>
+      <p class="doc-hero-copy">Start with a whole-buffer search. Then run direct integer, floating-point, and partial-memory operations.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -71,7 +71,7 @@
       </aside>
       <article class="prose">
         <section id="introduction">
-          <h2>New to SIMD?</h2>
+          <h2>Learn the SIMD concepts first</h2>
           <p>Read <a href="introduction/">SIMD from first principles</a> first. It explains lanes, masks, vector width, overflow rules, partial memory operations, and backend selection. Each concept links to this library's Ada API.</p>
         </section>
         <section id="install">
@@ -100,7 +100,7 @@ alr build</code></pre>
 ./bin/floating_vectors
 ./bin/partial_tail
 ./bin/backend_selection</code></pre>
-          <p>The continuous build compiles these examples. This check prevents the guide from depending on stale source.</p>
+          <p>The CI workflow compiles these examples. This check prevents the guide from depending on stale source.</p>
         </section>
         <section id="search">
           <h2>Search a complete byte array</h2>
@@ -125,7 +125,7 @@ end Find_Byte;</code></pre>
         <section id="integer">
           <h2>Choose the integer overflow rule</h2>
           <p>The direct-vector examples use <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a>. This package is the compiled target backend. The scalar root package defines the reference semantics.</p>
-          <p>This example uses <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> to add 10 to eight unsigned 16-bit lanes. It calls the native <a data-api="Flyology_SIMD"><code>Add_Wrap</code></a> and <code>Add_Saturate</code> overloads:</p>
+          <p>This example uses <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> to add 10 to eight unsigned 16-bit lanes. It calls the native <a data-api="Flyology_SIMD.Backends.Native"><code>Add_Wrap</code></a> and <a data-api="Flyology_SIMD.Backends.Native"><code>Add_Saturate</code></a> overloads:</p>
           <pre><code class="language-ada">package Native renames Flyology_SIMD.Backends.Native;
 
 Input : constant U16x8 :=

@@ -21,9 +21,10 @@ right shift sign-fills.  Integer comparison/min/max uses the type's signedness.
 Boolean operation to each lane truth.
 
 Floating ordered comparisons are false for NaN; `Unordered` is true when either
-lane is NaN. For one quiet NaN, `Min_Number`/`Max_Number` return the numeric
-operand. A signaling NaN produces a quiet NaN. The operations choose
-negative/positive zero respectively and return a quiet NaN for two NaNs; NaN
+lane is NaN. If exactly one operand is a quiet NaN, `Min_Number` and
+`Max_Number` return the numeric operand. A signaling NaN produces a quiet NaN.
+For two zero operands, `Min_Number` returns negative zero and `Max_Number`
+returns positive zero. Both operations return a quiet NaN for two NaNs. NaN
 payload selection is unspecified. No build enables fast-math. GNAT `-gnatV`
 validity checks are not enabled because GNAT treats IEEE NaN encodings as
 invalid data; range, assertion, precondition, and stack checks remain enabled.

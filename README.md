@@ -9,11 +9,11 @@ The guide, backend support matrix, and generated API reference are published at
 
 The current v0.1 surface contains all ten private 128-bit value types. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) for their lane
-counts and masks. Integer
-operations name wrapping and saturation explicitly. Floating operations retain
-IEEE NaNs and signed zero without fast-math. Mask values support Boolean
+counts and masks. Integer operations name wrapping and saturation explicitly.
+Floating operations follow documented NaN and signed-zero rules without
+fast-math. Mask values support Boolean
 combination and reduction. `Find_First`, `Count`, and `Is_ASCII` demonstrate
-complete-buffer composition.
+whole-buffer composition.
 
 “Full family” refers to the ten 128-bit value types. Numeric conversions, bit
 casts, widening, narrowing, arbitrary lane-index shuffles, and 256-bit types are not

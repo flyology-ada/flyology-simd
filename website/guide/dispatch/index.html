@@ -45,9 +45,9 @@
           <ul>
             <li><strong>Compiled</strong> means that the selected build contains the backend code.</li>
             <li><strong>Available</strong> means that the current processor and operating system can execute that compiled code.</li>
-            <li><strong>Best available</strong> is NEON in an AArch64 build. It is AVX2, then SSE2, in an x86-64 build. It is scalar in a scalar build.</li>
+            <li><strong>Best available</strong> is NEON in an AArch64 build. In an x86-64 build, <code>Best_Available</code> returns AVX2 when AVX2 is compiled and available. Otherwise, it returns SSE2. It returns scalar in a scalar build.</li>
           </ul>
-          <p><code>Features.Compiled</code>, <code>Features.Available</code>, and <code>Features.Best_Available</code> report these states.</p>
+          <p><a data-api="Flyology_SIMD.Features.Compiled"><code>Features.Compiled</code></a>, <a data-api="Flyology_SIMD.Features.Available"><code>Features.Available</code></a>, and <a data-api="Flyology_SIMD.Features.Best_Available"><code>Features.Best_Available</code></a> report these states.</p>
         </section>
         <section id="static">
           <h2>Run the complete backend-selection example</h2>
@@ -68,21 +68,21 @@ Forced_Count : constant Natural :=
     (Data, Needle, Backend =&gt; Best);</code></pre>
           <pre><code class="language-shell">./bin/backend_selection</code></pre>
           <p>All three counts are 3. The first output line reports the selected backend.</p>
-          <p>This call uses the <code>Backends.Native</code> body selected by the GPR project. On a native build, Alire detects AArch64 or x86-64. A scalar scenario selects the scalar body.</p>
+          <p><code>Static_Count</code> uses the <a data-api="Flyology_SIMD.Algorithms.Native"><code>Algorithms.Native</code></a> body selected by the GPR project. On a native build, Alire detects AArch64 or x86-64. The setting <code>FLYOLOGY_SIMD_ARCH=scalar</code> selects the scalar body.</p>
           <p>The byte algorithm is a generic instantiation. GNAT can inline its primitive loads and comparisons into the loop.</p>
         </section>
         <section id="runtime">
-          <h2>Choose once for the complete buffer</h2>
-          <p><code>Runtime_Count</code> uses the default backend parameter. <code>Forced_Count</code> supplies that parameter explicitly. <code>Count</code> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
-          <p>The runtime package currently provides <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</p>
+          <h2>Choose once for the whole-buffer</h2>
+          <p><code>Runtime_Count</code> uses the default backend parameter. <code>Forced_Count</code> supplies that parameter explicitly. <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> performs one case selection. The selected implementation then scans the complete array. No feature test runs for each vector operation.</p>
+          <p>The runtime package currently provides <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <code>Count</code>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a>.</p>
         </section>
         <section id="force">
           <h2>Reject an unavailable request</h2>
-          <p>A forced runtime call raises <code>Backend_Unavailable</code> if the backend was not compiled or cannot execute safely.</p>
+          <p>A forced runtime call raises <a data-api="Flyology_SIMD.Features.Backend_Unavailable"><code>Backend_Unavailable</code></a> if the backend was not compiled or cannot execute safely.</p>
           <pre><code class="language-ada">Matches := Flyology_SIMD.Algorithms.Runtime.Count
   (Data, Needle, Backend => Flyology_SIMD.Features.AVX2);</code></pre>
-          <p><code>Features.Require</code> provides an optional preflight check when an application wants to reject the request before it calls an algorithm.</p>
-          <p>The exception occurs before the program enters optional instructions.</p>
+          <p><a data-api="Flyology_SIMD.Features.Require"><code>Features.Require</code></a> provides an optional preflight check when an application wants to reject the request before it calls an algorithm.</p>
+          <p>The runtime package raises the exception before it calls code that contains optional instructions.</p>
         </section>
         <section id="x86">
           <h2>Keep the x86-64 baseline separate from AVX2</h2>
@@ -94,6 +94,6 @@ Forced_Count : constant Natural :=
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Runtime selection occurs once per complete buffer operation.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="../../api/">API</a></div></div></footer>
+  <footer class="site-footer"><div class="footer-inner"><span>Runtime selection occurs once per whole-buffer operation.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="../../api/">API</a></div></div></footer>
 </body>
 </html>

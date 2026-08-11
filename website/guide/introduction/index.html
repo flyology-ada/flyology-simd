@@ -55,7 +55,7 @@
           <pre><code class="language-text">128 bits / 8 bits  = 16 lanes
 128 bits / 32 bits =  4 lanes
 128 bits / 64 bits =  2 lanes</code></pre>
-          <p>Lane 0 is the first logical element that a load reads. Vector representation and calling conventions are private. Do not pass a vector through a foreign ABI by assuming a register layout.</p>
+          <p>Lane 0 is the first logical element that a load reads. Vector representation and calling conventions are private. Do not pass a vector through a foreign-language call boundary by assuming a register layout.</p>
         </section>
         <section id="masks">
           <h2>A comparison returns one Boolean per lane</h2>
@@ -65,11 +65,11 @@ needle:  41  41  41  41
 equal:    T   F   T   F
 bits:     1   0   1   0  = compact mask 0b0101</code></pre>
           <p>Use <a data-api="Flyology_SIMD"><code>Any_True</code></a> to ask whether at least one lane is true. Use <a data-api="Flyology_SIMD"><code>All_True</code></a> to require every lane. Use <a data-api="Flyology_SIMD"><code>To_Bit_Mask</code></a> when an algorithm needs a compact integer. Bit 0 represents lane 0.</p>
-          <p>Use <a data-api="Flyology_SIMD"><code>Mask_And</code></a>, <code>Mask_Or</code>, <code>Mask_Xor</code>, and <code>Mask_Not</code> to combine conditions. Do not depend on the private mask representation.</p>
+          <p>Use <a data-api="Flyology_SIMD"><code>Mask_And</code></a>, <a data-api="Flyology_SIMD"><code>Mask_Or</code></a>, <a data-api="Flyology_SIMD"><code>Mask_Xor</code></a>, and <a data-api="Flyology_SIMD"><code>Mask_Not</code></a> to combine conditions. Do not depend on the private mask representation.</p>
         </section>
         <section id="semantics">
           <h2>Choose wrapping or saturating integer arithmetic</h2>
-          <p>A machine instruction must not choose the public semantics by accident. The API uses different names for different overflow rules.</p>
+          <p>Public semantics do not depend on the instruction that implements an operation. The API uses different names for different overflow rules.</p>
           <table class="support-table"><thead><tr><th>Operation</th><th>Example for an unsigned 8-bit lane</th></tr></thead><tbody><tr><td><a data-api="Flyology_SIMD"><code>Add_Wrap</code></a></td><td>250 + 10 becomes 4 modulo 256</td></tr><tr><td><a data-api="Flyology_SIMD"><code>Add_Saturate</code></a></td><td>250 + 10 becomes 255</td></tr></tbody></table>
           <p>Shift counts at least as large as the lane width also have fixed results. Logical shifts return zero. An arithmetic right shift returns the sign fill.</p>
         </section>
@@ -82,7 +82,7 @@ bits:     1   0   1   0  = compact mask 0b0101</code></pre>
         <section id="backends">
           <h2>Keep semantics separate from the machine backend</h2>
           <p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> is the scalar reference. It defines the portable result. <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> provides the backend selected at build time.</p>
-          <p>Use a static native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one complete buffer operation must select from the backends that the processor and operating system can execute.</p>
+          <p>Use a static native package for direct vector operations and reusable compiled algorithms. Use <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> when one whole-buffer operation must select from the backends that the processor and operating system can execute.</p>
           <p>Runtime dispatch occurs once for the buffer. It does not occur for each vector operation or lane.</p>
         </section>
         <section id="loop">
