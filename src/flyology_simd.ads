@@ -672,6 +672,38 @@ is
    --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
    --  @param Value The input value.
    --  @return The operation result.
+   function Convert_Saturate (Value : I8x16) return U8x16;
+   --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U8x16) return I8x16;
+   --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I16x8) return U16x8;
+   --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U16x8) return I16x8;
+   --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I32x4) return U32x4;
+   --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U32x4) return I32x4;
+   --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I64x2) return U64x2;
+   --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U64x2) return I64x2;
+   --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
+   --  @param Value The input value.
+   --  @return The operation result.
 
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.

@@ -19,8 +19,9 @@ whole-buffer composition.
 lane-preserving bit casts, adjacent integer widening and narrowing, and exact
 finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
 narrowing and explicit 32-bit and 64-bit numeric conversion between integer
-and floating lanes. Same-width signed/unsigned numeric conversion, arbitrary
-lane-index shuffles, and 256-bit types are not implemented. See the
+and floating lanes. Same-width signed/unsigned numeric conversion is available
+for all four supported integer lane widths: 8, 16, 32, and 64 bits. Arbitrary
+lane-index shuffles and 256-bit types are not implemented. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -123,7 +124,7 @@ Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `Mask_Not` to combine mask values. `First_True` and `Last_True` return the
 lane-count value when the mask has no true lane.
 
-Full normative details and the remaining conversion and 256-bit work are in
+Full normative details and the remaining shuffle and 256-bit work are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).
 
 ## License

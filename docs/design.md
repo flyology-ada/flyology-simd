@@ -31,14 +31,15 @@ memory, and backend boundaries. The current type surface contains all signed,
 unsigned, and floating 128-bit families. The exact operation matrix and
 floating-point contracts are recorded in [api-scope.md](api-scope.md).
 AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
-The 256-bit type family is not implemented. Same-width signed/unsigned numeric
-conversion is also not implemented.
+The 256-bit type family is not implemented.
 The 128-bit API implements lane-preserving bit casts, adjacent integer
 widening and narrowing, exact finite `F32x4` to `F64x2` widening, and rounded
 `F64x2` to `F32x4` narrowing. It also converts 32- and 64-bit signed and
 unsigned integer lanes to the corresponding floating family.
 Floating lanes convert back to same-width signed or unsigned integers with
 explicit truncation and saturation semantics.
+Signed and unsigned integer vectors of each lane width convert in both
+directions with explicit saturation semantics.
 
 ## Normative semantics
 

@@ -36,7 +36,8 @@ provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
 widening to `F64x2`. `Narrow_Round` combines two `F64x2` inputs into one
 `F32x4` result. `Convert_Round` converts same-width signed or unsigned integer
 lanes to `F32x4` or `F64x2`. `Convert_Truncate_Saturate` converts `F32x4` or
-`F64x2` lanes to same-width signed or unsigned integers.
+`F64x2` lanes to same-width signed or unsigned integers. `Convert_Saturate`
+converts between the signed and unsigned integer vectors of each lane width.
 
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
 any/all/none reductions, population count, first/last true-lane queries, and
@@ -95,9 +96,11 @@ Negative infinity becomes the destination minimum for a signed result and zero
 for an unsigned result. A NaN becomes zero. The operation does not depend on or
 modify the floating-point rounding mode.
 
-The following conversion groups remain design targets:
-
-- same-width signed-to-unsigned and unsigned-to-signed numeric conversion.
+`Convert_Saturate` preserves lane positions and converts between signed and
+unsigned lanes of the same width. For a signed-to-unsigned conversion, a
+negative input becomes zero and every other value is preserved. For an
+unsigned-to-signed conversion, a value above the signed maximum becomes that
+maximum and every other value is preserved.
 
 There are no implicit signed/unsigned, integer/floating, width-changing, or
 mask/value conversions. Applications must call the explicit operations above.

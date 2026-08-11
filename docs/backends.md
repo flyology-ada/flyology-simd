@@ -22,7 +22,9 @@ focused code-generation checks. Integer widening and narrowing use `uxtl`,
 `sxtl`, `xtn`, `uqxtn`, `sqxtn`, and `sqxtun` instruction families. Floating
 widening uses `fcvtl`, floating narrowing uses `fcvtn`, integer-to-floating
 conversion uses `scvtf` and `ucvtf`, and floating-to-integer conversion uses
-`fcvtzs` and `fcvtzu`. `Multiply_Wrap`, `Select_Value`,
+`fcvtzs` and `fcvtzu`. Same-width signed/unsigned conversion uses signed
+maximum and unsigned minimum instructions for 8-, 16-, and 32-bit lanes. The
+64-bit conversions use comparisons and bit selection. `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`. Floating minimum-number and
@@ -37,10 +39,10 @@ arithmetic uses scalar composition for 32- and 64-bit lanes. `Reduce_Min` and
 byte exact-sum implementation, integer `Reduce_Add_Wrap` also uses scalar
 composition. Floating `Min_Number`, `Max_Number`, and `Reduce_Add` use scalar
 composition. Floating minimum-number and maximum-number reductions also use
-scalar composition. The first conversion release uses scalar composition for
-bit casts, widening, and narrowing on x86-64. These operations are implemented
-and differentially tested, but they do not yet have an SSE2 code-generation
-claim.
+scalar composition. The current bit casts, widening, narrowing, and numeric
+conversion operations use scalar composition on x86-64. These operations are
+implemented and differentially tested, but they do not yet have an SSE2
+code-generation claim.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

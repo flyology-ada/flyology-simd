@@ -105,6 +105,7 @@
               <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Rounds binary64 lanes to binary32</td><td>Two <code>F64x2</code> inputs to one <code>F32x4</code> result</td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Convert_Round</code></a></td><td>Rounds integer values to floating point</td><td><code>I32x4</code> or <code>U32x4</code> to <code>F32x4</code>; <code>I64x2</code> or <code>U64x2</code> to <code>F64x2</code></td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Convert_Truncate_Saturate</code></a></td><td>Truncates toward zero, then clamps</td><td><code>F32x4</code> to <code>I32x4</code> or <code>U32x4</code>; <code>F64x2</code> to <code>I64x2</code> or <code>U64x2</code></td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Convert_Saturate</code></a></td><td>Converts signedness and clamps</td><td>Signed to unsigned and unsigned to signed for 8-, 16-, 32-, and 64-bit lanes</td></tr>
             </tbody>
           </table>
           <p>Each narrowing operation takes two source vectors. <code>Low</code> supplies the low result half, and <code>High</code> supplies the high result half.</p>
@@ -172,6 +173,20 @@ Unsigned : constant U32x4 := Convert_Truncate_Saturate (Inputs);
           <p>The maintained example prints:</p>
           <pre><code>F32 to I32:-1 1 2147483647 0
 F32 to U32: 0 1 2147483648 0</code></pre>
+          <p><code>Convert_Saturate</code> changes signedness without changing the lane width, lane count, or lane positions. A negative signed input becomes zero. An unsigned input above the signed maximum becomes the signed maximum. All other values are preserved.</p>
+          <pre><code class="language-ada">Signed_Input : constant I32x4 :=
+  From_Lanes ([-1, 0, 1, I32'Last]);
+Unsigned_Result : constant U32x4 := Convert_Saturate (Signed_Input);
+
+Unsigned_Input : constant U32x4 :=
+  From_Lanes ([0, 2_147_483_647, 2_147_483_648, U32'Last]);
+Signed_Result : constant I32x4 := Convert_Saturate (Unsigned_Input);
+
+--  Unsigned_Result: 0, 0, 1, 2_147_483_647
+--  Signed_Result:   0, 2_147_483_647, 2_147_483_647, 2_147_483_647</code></pre>
+          <p>The maintained example prints:</p>
+          <pre><code>I32 to U32: 0 0 1 2147483647
+U32 to I32: 0 2147483647 2147483647 2147483647</code></pre>
         </section>
         <section id="integers">
           <h2>Integer operation coverage</h2>
@@ -256,7 +271,6 @@ end if;</code></pre>
           <h2>Not implemented in 0.1.0-dev</h2>
           <p>The following groups are design targets, not current API:</p>
           <ul>
-            <li>same-width signed/unsigned numeric conversion;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>

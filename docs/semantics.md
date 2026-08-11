@@ -81,8 +81,12 @@ maximum. Negative infinity becomes the destination minimum for a signed result
 and zero for an unsigned result. A NaN becomes zero. The operation does not
 depend on or modify the floating-point rounding mode.
 
-Same-width signed/unsigned numeric conversion and the portable 256-bit family
-remain pre-stabilization work.
+`Convert_Saturate` converts between signed and unsigned integer vectors with
+the same lane width. Lane positions do not change. A negative signed input
+becomes zero in the unsigned result. An unsigned input above the signed maximum
+becomes that maximum. All other values are preserved.
+
+The portable 256-bit family remains pre-stabilization work.
 
 ## Memory
 

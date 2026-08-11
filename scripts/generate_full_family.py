@@ -76,6 +76,17 @@ FLOAT_TO_INTEGER_CONVERSIONS = [
     ("F64x2", "F64", "U64x2", "U64", 64, 2, False),
 ]
 
+SIGNED_UNSIGNED_CONVERSIONS = [
+    ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
+    ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
+    ("I16x8", "I16", "U16x8", "U16", 16, 8, True),
+    ("U16x8", "U16", "I16x8", "I16", 16, 8, False),
+    ("I32x4", "I32", "U32x4", "U32", 32, 4, True),
+    ("U32x4", "U32", "I32x4", "I32", 32, 4, False),
+    ("I64x2", "I64", "U64x2", "U64", 64, 2, True),
+    ("U64x2", "U64", "I64x2", "I64", 64, 2, False),
+]
+
 
 OPERATION_DOCS = {
     "Zero": "Return a vector in which each lane is zero.",
@@ -170,6 +181,17 @@ OPERATION_DOCS = {
     ),
 }
 
+CONVERT_SATURATE_SIGNED_DOC = (
+    "Convert each signed lane to the same-width unsigned lane. A negative "
+    "input becomes zero. Other values and all lane positions are preserved."
+)
+
+CONVERT_SATURATE_UNSIGNED_DOC = (
+    "Convert each unsigned lane to the same-width signed lane. An input above "
+    "the signed maximum becomes that maximum. Other values and all lane "
+    "positions are preserved."
+)
+
 PARAM_DOCS = {
     "Value": "The input value.",
     "Values": "Lane values in logical lane order.",
@@ -251,7 +273,18 @@ def document_spec(text: str) -> str:
             if kind in ("type", "subtype"):
                 documented.append(f"   --  Public lane, array, vector, or mask type {name}.")
             else:
-                documented.append(f"   --  {OPERATION_DOCS.get(name, 'Perform the documented portable operation.')}")
+                declaration_text = " ".join(declaration)
+                if name == "Convert_Saturate":
+                    summary = (
+                        CONVERT_SATURATE_SIGNED_DOC
+                        if "Value : I" in declaration_text
+                        else CONVERT_SATURATE_UNSIGNED_DOC
+                    )
+                else:
+                    summary = OPERATION_DOCS.get(
+                        name, "Perform the documented portable operation."
+                    )
+                documented.append(f"   --  {summary}")
                 for parameter in _parameter_names(" ".join(declaration)):
                     documented.append(
                         f"   --  @param {parameter} {PARAM_DOCS.get(parameter, 'The input parameter.')}"
@@ -269,6 +302,8 @@ def strip_generated_docs(text: str) -> str:
         {
             "Convert the low source half to wider lanes without loss.",
             "Convert the high source half to wider lanes without loss.",
+            CONVERT_SATURATE_SIGNED_DOC,
+            CONVERT_SATURATE_UNSIGNED_DOC,
         }
     )
     result: list[str] = []
@@ -361,6 +396,8 @@ def emit_conversion_spec() -> str:
         out.append(
             f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector};"
         )
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_UNSIGNED_CONVERSIONS:
+        out.append(f"   function Convert_Saturate (Value : {source_vector}) return {target_vector};")
     out.append("")
     return document_spec("\n".join(out))
 
@@ -900,6 +937,26 @@ def emit_conversion_body() -> str:
             "      end loop;",
             "      return Result;",
             "   end Convert_Truncate_Saturate;",
+            "",
+        ]
+
+    for source_vector, source_scalar, target_vector, target_scalar, _, source_lanes, signed in SIGNED_UNSIGNED_CONVERSIONS:
+        helper = f"Convert_Saturate_{source_scalar}_To_{target_scalar}_Lane"
+        expression = (
+            f"(if Value < 0 then 0 else {target_scalar} (Value))"
+            if signed
+            else f"(if Value > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last else {target_scalar} (Value))"
+        )
+        out += [
+            f"   function {helper} (Value : {source_scalar}) return {target_scalar} is {expression};",
+            f"   function Convert_Saturate (Value : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+            f"         Result.Lanes (Lane) := {helper} (Value.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Convert_Saturate;",
             "",
         ]
 

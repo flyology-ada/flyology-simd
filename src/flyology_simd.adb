@@ -854,6 +854,86 @@ package body Flyology_SIMD is
       return Result;
    end Convert_Truncate_Saturate;
 
+   function Convert_Saturate_I8_To_U8_Lane (Value : I8) return U8 is (if Value < 0 then 0 else U8 (Value));
+   function Convert_Saturate (Value : I8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 15 loop
+         Result.Lanes (Lane) := Convert_Saturate_I8_To_U8_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_U8_To_I8_Lane (Value : U8) return I8 is (if Value > U8 (I8'Last) then I8'Last else I8 (Value));
+   function Convert_Saturate (Value : U8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 15 loop
+         Result.Lanes (Lane) := Convert_Saturate_U8_To_I8_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_I16_To_U16_Lane (Value : I16) return U16 is (if Value < 0 then 0 else U16 (Value));
+   function Convert_Saturate (Value : I16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Convert_Saturate_I16_To_U16_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_U16_To_I16_Lane (Value : U16) return I16 is (if Value > U16 (I16'Last) then I16'Last else I16 (Value));
+   function Convert_Saturate (Value : U16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Convert_Saturate_U16_To_I16_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_I32_To_U32_Lane (Value : I32) return U32 is (if Value < 0 then 0 else U32 (Value));
+   function Convert_Saturate (Value : I32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Convert_Saturate_I32_To_U32_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_U32_To_I32_Lane (Value : U32) return I32 is (if Value > U32 (I32'Last) then I32'Last else I32 (Value));
+   function Convert_Saturate (Value : U32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Convert_Saturate_U32_To_I32_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_I64_To_U64_Lane (Value : I64) return U64 is (if Value < 0 then 0 else U64 (Value));
+   function Convert_Saturate (Value : I64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Convert_Saturate_I64_To_U64_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
+   function Convert_Saturate_U64_To_I64_Lane (Value : U64) return I64 is (if Value > U64 (I64'Last) then I64'Last else I64 (Value));
+   function Convert_Saturate (Value : U64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Convert_Saturate_U64_To_I64_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Saturate;
+
    function Narrow_Truncate_U16x8_Lane (Item : U16) return U8 is
      (U8 (Item and U16 (U8'Last)));
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is

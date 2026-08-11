@@ -210,6 +210,14 @@ procedure Conversion_Tests is
    function Oracle_Narrow_Saturate_I16x8_To_U8x16 (Item : I16) return U8 is (if Item < 0 then 0 elsif Item > I16 (U8'Last) then U8'Last else U8 (Item));
    function Oracle_Narrow_Saturate_I32x4_To_U16x8 (Item : I32) return U16 is (if Item < 0 then 0 elsif Item > I32 (U16'Last) then U16'Last else U16 (Item));
    function Oracle_Narrow_Saturate_I64x2_To_U32x4 (Item : I64) return U32 is (if Item < 0 then 0 elsif Item > I64 (U32'Last) then U32'Last else U32 (Item));
+   function Oracle_Convert_Saturate_I8x16_To_U8x16 (Item : I8) return U8 is (if Item < 0 then 0 else U8 (Item));
+   function Oracle_Convert_Saturate_U8x16_To_I8x16 (Item : U8) return I8 is (if Item > U8 (I8'Last) then I8'Last else I8 (Item));
+   function Oracle_Convert_Saturate_I16x8_To_U16x8 (Item : I16) return U16 is (if Item < 0 then 0 else U16 (Item));
+   function Oracle_Convert_Saturate_U16x8_To_I16x8 (Item : U16) return I16 is (if Item > U16 (I16'Last) then I16'Last else I16 (Item));
+   function Oracle_Convert_Saturate_I32x4_To_U32x4 (Item : I32) return U32 is (if Item < 0 then 0 else U32 (Item));
+   function Oracle_Convert_Saturate_U32x4_To_I32x4 (Item : U32) return I32 is (if Item > U32 (I32'Last) then I32'Last else I32 (Item));
+   function Oracle_Convert_Saturate_I64x2_To_U64x2 (Item : I64) return U64 is (if Item < 0 then 0 else U64 (Item));
+   function Oracle_Convert_Saturate_U64x2_To_I64x2 (Item : U64) return I64 is (if Item > U64 (I64'Last) then I64'Last else I64 (Item));
    function Oracle_Narrow_Round_F64x2_To_F32x4 (Item : F64) return F32 is
       Bits : constant U64 := U64_Of_Bits (Item);
       Sign : constant U32 :=
@@ -702,6 +710,160 @@ begin
    Test_F64_Narrow_Edges;
    Test_Integer_To_Float_Edges;
    Test_Float_To_Integer_Edges;
+      declare
+         Source : constant I8x16 := From_Lanes ([-128, -1, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127]);
+         Expected : constant Lane_Values_8x16 := [0, 0, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127];
+         Scalar_Result : constant U8x16 := Convert_Saturate (Source);
+         Native_Result : constant U8x16 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I8x16 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I8x16 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U8x16 := From_Lanes ([0, 1, 127, 128, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
+         Expected : constant Lane_Values_I8x16 := [0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127];
+         Scalar_Result : constant I8x16 := Convert_Saturate (Source);
+         Native_Result : constant I8x16 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U8x16 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U8x16 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I16x8 := From_Lanes ([-32_768, -1, 0, 1, 32_767, 32_767, 32_767, 32_767]);
+         Expected : constant Lane_Values_U16x8 := [0, 0, 0, 1, 32_767, 32_767, 32_767, 32_767];
+         Scalar_Result : constant U16x8 := Convert_Saturate (Source);
+         Native_Result : constant U16x8 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I16x8 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I16x8 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U16x8 := From_Lanes ([0, 1, 32_767, 32_768, 65_535, 65_535, 65_535, 65_535]);
+         Expected : constant Lane_Values_I16x8 := [0, 1, 32_767, 32_767, 32_767, 32_767, 32_767, 32_767];
+         Scalar_Result : constant I16x8 := Convert_Saturate (Source);
+         Native_Result : constant I16x8 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U16x8 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U16x8 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
+         Expected : constant Lane_Values_U32x4 := [0, 0, 0, 1];
+         Scalar_Result : constant U32x4 := Convert_Saturate (Source);
+         Native_Result : constant U32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I32x4 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I32x4 := From_Lanes ([I32'Last, I32'Last, I32'Last, I32'Last]);
+         Expected : constant Lane_Values_U32x4 := [2_147_483_647, 2_147_483_647, 2_147_483_647, 2_147_483_647];
+         Scalar_Result : constant U32x4 := Convert_Saturate (Source);
+         Native_Result : constant U32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I32x4 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U32x4 := From_Lanes ([0, 1, 2_147_483_647, 2_147_483_648]);
+         Expected : constant Lane_Values_I32x4 := [0, 1, 2_147_483_647, 2_147_483_647];
+         Scalar_Result : constant I32x4 := Convert_Saturate (Source);
+         Native_Result : constant I32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U32x4 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U32x4 := From_Lanes ([U32'Last, U32'Last, U32'Last, U32'Last]);
+         Expected : constant Lane_Values_I32x4 := [I32'Last, I32'Last, I32'Last, I32'Last];
+         Scalar_Result : constant I32x4 := Convert_Saturate (Source);
+         Native_Result : constant I32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U32x4 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I64x2 := From_Lanes ([I64'First, -1]);
+         Expected : constant Lane_Values_U64x2 := [0, 0];
+         Scalar_Result : constant U64x2 := Convert_Saturate (Source);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I64x2 := From_Lanes ([0, 1]);
+         Expected : constant Lane_Values_U64x2 := [0, 1];
+         Scalar_Result : constant U64x2 := Convert_Saturate (Source);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I64x2 := From_Lanes ([I64'Last, I64'Last]);
+         Expected : constant Lane_Values_U64x2 := [9_223_372_036_854_775_807, 9_223_372_036_854_775_807];
+         Scalar_Result : constant U64x2 := Convert_Saturate (Source);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate I64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate I64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U64x2 := From_Lanes ([0, 1]);
+         Expected : constant Lane_Values_I64x2 := [0, 1];
+         Scalar_Result : constant I64x2 := Convert_Saturate (Source);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U64x2 := From_Lanes ([9_223_372_036_854_775_807, 9_223_372_036_854_775_808]);
+         Expected : constant Lane_Values_I64x2 := [I64'Last, I64'Last];
+         Scalar_Result : constant I64x2 := Convert_Saturate (Source);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U64x2 := From_Lanes ([U64'Last, U64'Last]);
+         Expected : constant Lane_Values_I64x2 := [I64'Last, I64'Last];
+         Scalar_Result : constant I64x2 := Convert_Saturate (Source);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar literal Convert_Saturate U64x2 lane");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native literal Convert_Saturate U64x2 lane");
+         end loop;
+      end;
       declare
          Low : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
          High : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
@@ -1443,6 +1605,86 @@ begin
          for Lane in Lane_Index_64x2 loop
             Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_U64x2 (Extract (Source, Lane)), "scalar Convert_Truncate_Saturate F64x2 lane");
             Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_U64x2 (Extract (Source, Lane)), "native Convert_Truncate_Saturate F64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I8x16 := Random_I8x16;
+         Scalar_Result : constant U8x16 := Convert_Saturate (Source);
+         Native_Result : constant U8x16 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_I8x16_To_U8x16 (Extract (Source, Lane)), "scalar Convert_Saturate I8x16 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_I8x16_To_U8x16 (Extract (Source, Lane)), "native Convert_Saturate I8x16 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U8x16 := Random_U8x16;
+         Scalar_Result : constant I8x16 := Convert_Saturate (Source);
+         Native_Result : constant I8x16 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_U8x16_To_I8x16 (Extract (Source, Lane)), "scalar Convert_Saturate U8x16 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_U8x16_To_I8x16 (Extract (Source, Lane)), "native Convert_Saturate U8x16 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I16x8 := Random_I16x8;
+         Scalar_Result : constant U16x8 := Convert_Saturate (Source);
+         Native_Result : constant U16x8 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_I16x8_To_U16x8 (Extract (Source, Lane)), "scalar Convert_Saturate I16x8 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_I16x8_To_U16x8 (Extract (Source, Lane)), "native Convert_Saturate I16x8 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U16x8 := Random_U16x8;
+         Scalar_Result : constant I16x8 := Convert_Saturate (Source);
+         Native_Result : constant I16x8 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_U16x8_To_I16x8 (Extract (Source, Lane)), "scalar Convert_Saturate U16x8 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_U16x8_To_I16x8 (Extract (Source, Lane)), "native Convert_Saturate U16x8 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I32x4 := Random_I32x4;
+         Scalar_Result : constant U32x4 := Convert_Saturate (Source);
+         Native_Result : constant U32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_I32x4_To_U32x4 (Extract (Source, Lane)), "scalar Convert_Saturate I32x4 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_I32x4_To_U32x4 (Extract (Source, Lane)), "native Convert_Saturate I32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U32x4 := Random_U32x4;
+         Scalar_Result : constant I32x4 := Convert_Saturate (Source);
+         Native_Result : constant I32x4 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_U32x4_To_I32x4 (Extract (Source, Lane)), "scalar Convert_Saturate U32x4 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_U32x4_To_I32x4 (Extract (Source, Lane)), "native Convert_Saturate U32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I64x2 := Random_I64x2;
+         Scalar_Result : constant U64x2 := Convert_Saturate (Source);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_I64x2_To_U64x2 (Extract (Source, Lane)), "scalar Convert_Saturate I64x2 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_I64x2_To_U64x2 (Extract (Source, Lane)), "native Convert_Saturate I64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U64x2 := Random_U64x2;
+         Scalar_Result : constant I64x2 := Convert_Saturate (Source);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_U64x2_To_I64x2 (Extract (Source, Lane)), "scalar Convert_Saturate U64x2 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_U64x2_To_I64x2 (Extract (Source, Lane)), "native Convert_Saturate U64x2 lane");
          end loop;
       end;
    end loop;

@@ -8,6 +8,7 @@ procedure Conversions is
    use type F32;
    use type F64;
    use type I16;
+   use type I32;
    package Native renames Flyology_SIMD.Backends.Native;
 
    Input : constant Byte_Array :=
@@ -62,6 +63,15 @@ procedure Conversions is
      Native.Convert_Truncate_Saturate (Floating_Inputs);
    Truncated_Unsigned : constant U32x4 :=
      Native.Convert_Truncate_Saturate (Floating_Inputs);
+
+   Signedness_Input : constant I32x4 :=
+     Native.From_Lanes ([-1, 0, 1, I32'Last]);
+   Signed_To_Unsigned : constant U32x4 :=
+     Native.Convert_Saturate (Signedness_Input);
+   Unsignedness_Input : constant U32x4 :=
+     Native.From_Lanes ([0, 2_147_483_647, 2_147_483_648, U32'Last]);
+   Unsigned_To_Signed : constant I32x4 :=
+     Native.Convert_Saturate (Unsignedness_Input);
 begin
    Put_Line
      ("round trip:" &
@@ -104,6 +114,16 @@ begin
    Put ("F32 to U32:");
    for Lane in Lane_Index_32x4 loop
       Put (U32'Image (Native.Extract (Truncated_Unsigned, Lane)));
+   end loop;
+   New_Line;
+   Put ("I32 to U32:");
+   for Lane in Lane_Index_32x4 loop
+      Put (U32'Image (Native.Extract (Signed_To_Unsigned, Lane)));
+   end loop;
+   New_Line;
+   Put ("U32 to I32:");
+   for Lane in Lane_Index_32x4 loop
+      Put (I32'Image (Native.Extract (Unsigned_To_Signed, Lane)));
    end loop;
    New_Line;
 end Conversions;

@@ -608,6 +608,22 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
+   function Convert_Saturate (Value : I8x16) return U8x16 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U8x16) return I8x16 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I16x8) return U16x8 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U16x8) return I16x8 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I32x4) return U32x4 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U32x4) return I32x4 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I64x2) return U64x2 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U64x2) return I64x2 is
+     (Flyology_SIMD.Convert_Saturate (Value));
    function Native_Add_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "paddb %%xmm1, %%xmm0");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
    function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "psubb %%xmm1, %%xmm0");

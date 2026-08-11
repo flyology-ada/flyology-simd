@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate independent tests for every explicit 128-bit conversion."""
 
+import sys
 from pathlib import Path
 
 from generate_full_family import (
@@ -10,6 +11,7 @@ from generate_full_family import (
     INTEGER_TO_FLOAT_CONVERSIONS,
     NARROWINGS,
     ROOT,
+    SIGNED_UNSIGNED_CONVERSIONS,
     SIGNED_TO_UNSIGNED_NARROWINGS,
     WIDENINGS,
     bit_cast_pairs,
@@ -32,6 +34,47 @@ VECTOR_INFO = {
     "F32x4": ("F32", 32, 4, False),
     "F64x2": ("F64", 64, 2, False),
 }
+
+
+SIGNED_UNSIGNED_EDGE_CASES = [
+    ("I8x16", "U8x16", 8, 16,
+     "[-128, -1, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127]",
+     "[0, 0, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127]"),
+    ("U8x16", "I8x16", 8, 16,
+     "[0, 1, 127, 128, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]",
+     "[0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127]"),
+    ("I16x8", "U16x8", 16, 8,
+     "[-32_768, -1, 0, 1, 32_767, 32_767, 32_767, 32_767]",
+     "[0, 0, 0, 1, 32_767, 32_767, 32_767, 32_767]"),
+    ("U16x8", "I16x8", 16, 8,
+     "[0, 1, 32_767, 32_768, 65_535, 65_535, 65_535, 65_535]",
+     "[0, 1, 32_767, 32_767, 32_767, 32_767, 32_767, 32_767]"),
+    ("I32x4", "U32x4", 32, 4,
+     "[I32'First, -1, 0, 1]", "[0, 0, 0, 1]"),
+    ("I32x4", "U32x4", 32, 4,
+     "[I32'Last, I32'Last, I32'Last, I32'Last]",
+     "[2_147_483_647, 2_147_483_647, 2_147_483_647, 2_147_483_647]"),
+    ("U32x4", "I32x4", 32, 4,
+     "[0, 1, 2_147_483_647, 2_147_483_648]",
+     "[0, 1, 2_147_483_647, 2_147_483_647]"),
+    ("U32x4", "I32x4", 32, 4,
+     "[U32'Last, U32'Last, U32'Last, U32'Last]",
+     "[I32'Last, I32'Last, I32'Last, I32'Last]"),
+    ("I64x2", "U64x2", 64, 2,
+     "[I64'First, -1]", "[0, 0]"),
+    ("I64x2", "U64x2", 64, 2,
+     "[0, 1]", "[0, 1]"),
+    ("I64x2", "U64x2", 64, 2,
+     "[I64'Last, I64'Last]",
+     "[9_223_372_036_854_775_807, 9_223_372_036_854_775_807]"),
+    ("U64x2", "I64x2", 64, 2,
+     "[0, 1]", "[0, 1]"),
+    ("U64x2", "I64x2", 64, 2,
+     "[9_223_372_036_854_775_807, 9_223_372_036_854_775_808]",
+     "[I64'Last, I64'Last]"),
+    ("U64x2", "I64x2", 64, 2,
+     "[U64'Last, U64'Last]", "[I64'Last, I64'Last]"),
+]
 
 
 def vector_values(vector: str) -> str:
@@ -169,6 +212,51 @@ def emit_float_to_integer_test(source: str, target: str, bits: int, lanes: int) 
         f"         for Lane in {lane_index(bits, lanes)} loop",
         f"            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_{source}_To_{target} (Extract (Source, Lane)), \"scalar Convert_Truncate_Saturate {source} lane\");",
         f"            Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_{source}_To_{target} (Extract (Source, Lane)), \"native Convert_Truncate_Saturate {source} lane\");",
+        "         end loop;",
+        "      end;",
+    ]
+
+
+def emit_signed_unsigned_test(
+    source: str,
+    target: str,
+    bits: int,
+    lanes: int,
+    source_expression: str | None = None,
+) -> list[str]:
+    source_expression = source_expression or f"Random_{source}"
+    return [
+        "      declare",
+        f"         Source : constant {source} := {source_expression};",
+        f"         Scalar_Result : constant {target} := Convert_Saturate (Source);",
+        f"         Native_Result : constant {target} := Backends.Native.Convert_Saturate (Source);",
+        "      begin",
+        f"         for Lane in {lane_index(bits, lanes)} loop",
+        f"            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Saturate_{source}_To_{target} (Extract (Source, Lane)), \"scalar Convert_Saturate {source} lane\");",
+        f"            Check (Extract (Native_Result, Lane) = Oracle_Convert_Saturate_{source}_To_{target} (Extract (Source, Lane)), \"native Convert_Saturate {source} lane\");",
+        "         end loop;",
+        "      end;",
+    ]
+
+
+def emit_signed_unsigned_literal_test(
+    source: str,
+    target: str,
+    bits: int,
+    lanes: int,
+    source_values: str,
+    expected_values: str,
+) -> list[str]:
+    return [
+        "      declare",
+        f"         Source : constant {source} := From_Lanes ({source_values});",
+        f"         Expected : constant {vector_values(target)} := {expected_values};",
+        f"         Scalar_Result : constant {target} := Convert_Saturate (Source);",
+        f"         Native_Result : constant {target} := Backends.Native.Convert_Saturate (Source);",
+        "      begin",
+        f"         for Lane in {lane_index(bits, lanes)} loop",
+        f"            Check (Extract (Scalar_Result, Lane) = Expected (Lane), \"scalar literal Convert_Saturate {source} lane\");",
+        f"            Check (Extract (Native_Result, Lane) = Expected (Lane), \"native literal Convert_Saturate {source} lane\");",
         "         end loop;",
         "      end;",
     ]
@@ -358,6 +446,15 @@ def program() -> str:
     for source, source_scalar, target, target_scalar, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
         out.append(
             f"   function Oracle_Narrow_Saturate_{source}_To_{target} (Item : {source_scalar}) return {target_scalar} is (if Item < 0 then 0 elsif Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last else {target_scalar} (Item));"
+        )
+    for source, source_scalar, target, target_scalar, _, _, signed in SIGNED_UNSIGNED_CONVERSIONS:
+        expression = (
+            f"(if Item < 0 then 0 else {target_scalar} (Item))"
+            if signed
+            else f"(if Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last else {target_scalar} (Item))"
+        )
+        out.append(
+            f"   function Oracle_Convert_Saturate_{source}_To_{target} (Item : {source_scalar}) return {target_scalar} is {expression};"
         )
     for source, _, target, _, _ in FLOAT_NARROWINGS:
         out += [
@@ -860,6 +957,8 @@ def program() -> str:
         "   Test_Integer_To_Float_Edges;",
         "   Test_Float_To_Integer_Edges;",
     ]
+    for edge_case in SIGNED_UNSIGNED_EDGE_CASES:
+        out += emit_signed_unsigned_literal_test(*edge_case)
     for source, source_scalar, target, target_scalar, _, source_lanes, _ in NARROWINGS:
         low, high = boundary_vectors(source, source_scalar, target_scalar, source_lanes, False)
         out += emit_narrow_test(source, target, source_lanes, "Narrow_Truncate", low, high)
@@ -895,6 +994,8 @@ def program() -> str:
         out += emit_convert_round_test(source, target, bits, lanes)
     for source, _, target, _, bits, lanes, _ in FLOAT_TO_INTEGER_CONVERSIONS:
         out += emit_float_to_integer_test(source, target, bits, lanes)
+    for source, _, target, _, bits, lanes, _ in SIGNED_UNSIGNED_CONVERSIONS:
+        out += emit_signed_unsigned_test(source, target, bits, lanes)
     out += [
         "   end loop;",
         "   if Failures = 0 then",
@@ -910,4 +1011,9 @@ def program() -> str:
 
 
 if __name__ == "__main__":
-    OUTPUT.write_text(program())
+    generated = program()
+    if "--check" in sys.argv[1:]:
+        if not OUTPUT.exists() or OUTPUT.read_text() != generated:
+            raise SystemExit(f"generated file is stale: {OUTPUT}")
+    else:
+        OUTPUT.write_text(generated)

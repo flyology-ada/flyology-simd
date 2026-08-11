@@ -14,6 +14,7 @@ from generate_full_family import (
     MASKS,
     NARROWINGS,
     ROOT,
+    SIGNED_UNSIGNED_CONVERSIONS,
     SIGNED_TO_UNSIGNED_NARROWINGS,
     WIDENINGS,
     array_name,
@@ -88,6 +89,8 @@ def fallback_body() -> str:
                 f"Value : {source_vector}",
             )
         )
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_UNSIGNED_CONVERSIONS:
+        out.append(call("Convert_Saturate", target_vector, "Value", f"Value : {source_vector}"))
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
@@ -238,7 +241,7 @@ def neon_helpers() -> list[str]:
         "   begin",
         "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
         "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,memory\", Volatile => True);",
+        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
         "      return Result;",
         "   end NEON_Convert_128;",
         "",
@@ -415,6 +418,37 @@ def neon_body() -> str:
         out += [
             f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
             f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+        ]
+    for source_vector, _, target_vector, _, bits, _, signed in SIGNED_UNSIGNED_CONVERSIONS:
+        shape = f"{128 // bits}{ {8: 'b', 16: 'h', 32: 's', 64: 'd'}[bits]}"
+        if signed and bits < 64:
+            instruction = (
+                "movi v1.2d, #0" + '" & ASCII.LF & ASCII.HT & "' +
+                f"smax v0.{shape}, v0.{shape}, v1.{shape}"
+            )
+        elif signed:
+            instruction = (
+                "cmge v1.2d, v0.2d, #0" + '" & ASCII.LF & ASCII.HT & "' +
+                "and v0.16b, v0.16b, v1.16b"
+            )
+        elif bits < 64:
+            instruction = (
+                "movi v1.16b, #0xff" + '" & ASCII.LF & ASCII.HT & "' +
+                f"ushr v1.{shape}, v1.{shape}, #1" + '" & ASCII.LF & ASCII.HT & "' +
+                f"umin v0.{shape}, v0.{shape}, v1.{shape}"
+            )
+        else:
+            instruction = (
+                "movi v1.16b, #0xff" + '" & ASCII.LF & ASCII.HT & "' +
+                "ushr v1.2d, v1.2d, #1" + '" & ASCII.LF & ASCII.HT & "' +
+                "cmhi v2.2d, v0.2d, v1.2d" + '" & ASCII.LF & ASCII.HT & "' +
+                "bsl v2.16b, v1.16b, v0.16b" + '" & ASCII.LF & ASCII.HT & "' +
+                "mov v0.16b, v2.16b"
+            )
+        native = f"Native_Convert_Saturate_{source_vector}_To_{target_vector}"
+        out += [
+            f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Convert_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
         ]
     out.append("")
 
@@ -739,6 +773,8 @@ def x86_body() -> str:
                 f"Value : {source_vector}",
             )
         )
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_UNSIGNED_CONVERSIONS:
+        out.append(call("Convert_Saturate", target_vector, "Value", f"Value : {source_vector}"))
     multiplication = {
         8: (
             "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"

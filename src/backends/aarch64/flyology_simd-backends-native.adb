@@ -425,7 +425,7 @@ package body Flyology_SIMD.Backends.Native is
    begin
       Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
            Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
-           Clobber => "v0,memory", Volatile => True);
+           Clobber => "v0,v1,v2,memory", Volatile => True);
       return Result;
    end NEON_Convert_128;
 
@@ -596,6 +596,22 @@ package body Flyology_SIMD.Backends.Native is
    function Convert_Truncate_Saturate (Value : F64x2) return I64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_I64x2 (Value));
    function Native_Convert_Truncate_Saturate_F64x2_To_U64x2 is new NEON_Convert_128 (F64x2, U64x2, "fcvtzu v0.2d, v0.2d");
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_U64x2 (Value));
+   function Native_Convert_Saturate_I8x16_To_U8x16 is new NEON_Convert_128 (I8x16, U8x16, "movi v1.2d, #0" & ASCII.LF & ASCII.HT & "smax v0.16b, v0.16b, v1.16b");
+   function Convert_Saturate (Value : I8x16) return U8x16 is (Native_Convert_Saturate_I8x16_To_U8x16 (Value));
+   function Native_Convert_Saturate_U8x16_To_I8x16 is new NEON_Convert_128 (U8x16, I8x16, "movi v1.16b, #0xff" & ASCII.LF & ASCII.HT & "ushr v1.16b, v1.16b, #1" & ASCII.LF & ASCII.HT & "umin v0.16b, v0.16b, v1.16b");
+   function Convert_Saturate (Value : U8x16) return I8x16 is (Native_Convert_Saturate_U8x16_To_I8x16 (Value));
+   function Native_Convert_Saturate_I16x8_To_U16x8 is new NEON_Convert_128 (I16x8, U16x8, "movi v1.2d, #0" & ASCII.LF & ASCII.HT & "smax v0.8h, v0.8h, v1.8h");
+   function Convert_Saturate (Value : I16x8) return U16x8 is (Native_Convert_Saturate_I16x8_To_U16x8 (Value));
+   function Native_Convert_Saturate_U16x8_To_I16x8 is new NEON_Convert_128 (U16x8, I16x8, "movi v1.16b, #0xff" & ASCII.LF & ASCII.HT & "ushr v1.8h, v1.8h, #1" & ASCII.LF & ASCII.HT & "umin v0.8h, v0.8h, v1.8h");
+   function Convert_Saturate (Value : U16x8) return I16x8 is (Native_Convert_Saturate_U16x8_To_I16x8 (Value));
+   function Native_Convert_Saturate_I32x4_To_U32x4 is new NEON_Convert_128 (I32x4, U32x4, "movi v1.2d, #0" & ASCII.LF & ASCII.HT & "smax v0.4s, v0.4s, v1.4s");
+   function Convert_Saturate (Value : I32x4) return U32x4 is (Native_Convert_Saturate_I32x4_To_U32x4 (Value));
+   function Native_Convert_Saturate_U32x4_To_I32x4 is new NEON_Convert_128 (U32x4, I32x4, "movi v1.16b, #0xff" & ASCII.LF & ASCII.HT & "ushr v1.4s, v1.4s, #1" & ASCII.LF & ASCII.HT & "umin v0.4s, v0.4s, v1.4s");
+   function Convert_Saturate (Value : U32x4) return I32x4 is (Native_Convert_Saturate_U32x4_To_I32x4 (Value));
+   function Native_Convert_Saturate_I64x2_To_U64x2 is new NEON_Convert_128 (I64x2, U64x2, "cmge v1.2d, v0.2d, #0" & ASCII.LF & ASCII.HT & "and v0.16b, v0.16b, v1.16b");
+   function Convert_Saturate (Value : I64x2) return U64x2 is (Native_Convert_Saturate_I64x2_To_U64x2 (Value));
+   function Native_Convert_Saturate_U64x2_To_I64x2 is new NEON_Convert_128 (U64x2, I64x2, "movi v1.16b, #0xff" & ASCII.LF & ASCII.HT & "ushr v1.2d, v1.2d, #1" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bsl v2.16b, v1.16b, v0.16b" & ASCII.LF & ASCII.HT & "mov v0.16b, v2.16b");
+   function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

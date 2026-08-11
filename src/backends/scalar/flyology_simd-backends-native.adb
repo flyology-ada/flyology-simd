@@ -189,6 +189,22 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
+   function Convert_Saturate (Value : I8x16) return U8x16 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U8x16) return I8x16 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I16x8) return U16x8 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U16x8) return I16x8 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I32x4) return U32x4 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U32x4) return I32x4 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : I64x2) return U64x2 is
+     (Flyology_SIMD.Convert_Saturate (Value));
+   function Convert_Saturate (Value : U64x2) return I64x2 is
+     (Flyology_SIMD.Convert_Saturate (Value));
    function Zero return I8x16 is (Flyology_SIMD.Zero);
    function Splat (Value : I8) return I8x16 is
      (Flyology_SIMD.Splat (Value));
