@@ -61,6 +61,7 @@
         <span class="toc-title">On this page</span>
         <ul>
           <li><a href="#introduction">Introduction</a></li>
+          <li><a href="#practical">Practical examples</a></li>
           <li><a href="#install">Install</a></li>
           <li><a href="#examples">Build the examples</a></li>
           <li><a href="#search">Search a byte array</a></li>
@@ -73,6 +74,10 @@
         <section id="introduction">
           <h2>Learn the SIMD concepts first</h2>
           <p>Read <a href="introduction/">SIMD from first principles</a> first. It explains lanes, masks, vector width, overflow rules, partial memory operations, and backend selection. Each concept links to this library's Ada API.</p>
+        </section>
+        <section id="practical">
+          <h2>Apply SIMD to complete tasks</h2>
+          <p>The <a href="practical/">practical examples</a> inspect comma-delimited bytes, count ASCII digits, and scale floating-point measurements. Each example is a complete repository program with expected output.</p>
         </section>
         <section id="install">
           <h2>Install from the Flyology Alire index</h2>
@@ -94,12 +99,15 @@ alr build</code></pre>
           <h2>Build the repository examples</h2>
           <p>Run this command from the repository root:</p>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr</code></pre>
-          <p>The command creates five programs in <code>bin</code>. Run them from the repository root:</p>
+          <p>The command creates eight programs in <code>bin</code>. Run them from the repository root:</p>
           <pre><code class="language-shell">./bin/find_byte
 ./bin/integer_vectors
 ./bin/floating_vectors
 ./bin/partial_tail
-./bin/backend_selection</code></pre>
+./bin/backend_selection
+./bin/inspect_delimited_bytes
+./bin/count_digits
+./bin/scale_measurements</code></pre>
           <p>The CI workflow compiles these examples. This check prevents the guide from depending on stale source.</p>
         </section>
         <section id="search">
@@ -158,7 +166,7 @@ Negative : constant Mask_32x4 :=
             <tbody>
               <tr><td>Direct vector operations</td><td><code>Flyology_SIMD</code> for scalar semantics or <code>Backends.Native</code> for the compiled target</td><td>At build time</td></tr>
               <tr><td>A reusable generic byte loop</td><td><code>Algorithms.Generic_Bytes</code></td><td>At generic instantiation</td></tr>
-              <tr><td>A complete byte-buffer operation</td><td><code>Algorithms.Runtime</code></td><td>Once per operation</td></tr>
+              <tr><td>A whole-buffer operation</td><td><code>Algorithms.Runtime</code></td><td>Once per operation</td></tr>
             </tbody>
           </table>
           <p>The runtime interface does not detect features for each vector addition or comparison. It selects an implementation once, then that implementation runs the vector loop.</p>

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Complete Ada examples for buffer scanning, byte classification, and floating-point SIMD transforms.">
+  <title>Practical SIMD examples · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/guide/practical/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+      <ul class="nav-links" data-nav-links>
+        <li><a href="../../">Overview</a></li>
+        <li><a href="../" aria-current="page">Guide</a></li>
+        <li><a href="../operations/">Operations</a></li>
+        <li><a href="../../architecture/">Architecture</a></li>
+        <li><a href="../../support/">Support</a></li>
+        <li><a href="../../api/">API</a></li>
+        <li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li>
+      </ul>
+      <div class="nav-tools">
+        <button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button>
+        <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button>
+      </div>
+    </nav>
+  </header>
+  <main id="main" class="page-shell">
+    <header class="doc-hero">
+      <div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>Practical examples</li></ol><h1>Practical SIMD examples</h1></div>
+      <p class="doc-hero-copy">When a library-provided whole-buffer operation has the required contract, use that operation. Otherwise, build a vector loop with the compile-time-selected native package.</p>
+    </header>
+    <div class="docs-layout">
+      <aside class="toc" aria-label="On this page">
+        <span class="toc-title">On this page</span>
+        <ul>
+          <li><a href="#build">Build the programs</a></li>
+          <li><a href="#delimited">Inspect delimited bytes</a></li>
+          <li><a href="#digits">Count ASCII digits</a></li>
+          <li><a href="#measurements">Scale measurements</a></li>
+          <li><a href="#choose">Choose the interface</a></li>
+        </ul>
+      </aside>
+      <article class="prose">
+        <section id="build">
+          <h2>Build and run the programs</h2>
+          <p>If you do not have a source checkout, clone the repository:</p>
+          <pre><code class="language-shell">git clone https://github.com/flyology-ada/flyology-simd.git
+cd flyology-simd</code></pre>
+          <p>From the checkout root, build and run the examples:</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/inspect_delimited_bytes
+./bin/count_digits
+./bin/scale_measurements</code></pre>
+          <p>The first program uses runtime dispatch for whole-buffer operations. The other programs use the backend selected when the library is built.</p>
+        </section>
+        <section id="delimited">
+          <h2>Inspect comma-delimited bytes</h2>
+          <p>Before it parses fields, an application can count comma bytes and check whether every byte is ASCII. This example reports both results. It does not parse CSV quoting or reject the input.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a> and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Algorithms.Runtime.Is_ASCII</code></a> select one available backend for each whole-buffer operation. The example does not perform feature detection for each byte or vector.</p>
+          <p><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> defines the <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a> input and its <a data-api="Flyology_SIMD.U8"><code>U8</code></a> elements.</p>
+          <pre><code class="language-ada">with Ada.Text_IO;
+with Flyology_SIMD;
+with Flyology_SIMD.Algorithms.Runtime;
+
+procedure Inspect_Delimited_Bytes is
+   use Ada.Text_IO;
+   use Flyology_SIMD;
+
+   Input_Text : constant String := "Ada,2026,SIMD";
+   Data : Byte_Array (Input_Text'Range);
+begin
+   for Index in Input_Text'Range loop
+      Data (Index) := U8 (Character'Pos (Input_Text (Index)));
+   end loop;
+
+   Put_Line
+     ("commas:" &amp;
+      Natural'Image
+        (Algorithms.Runtime.Count
+           (Data, U8 (Character'Pos (',')))));
+   Put_Line
+     ("ASCII: " &amp; Boolean'Image (Algorithms.Runtime.Is_ASCII (Data)));
+end Inspect_Delimited_Bytes;</code></pre>
+          <p>Expected output:</p>
+          <pre><code class="language-text">commas: 2
+ASCII: TRUE</code></pre>
+          <p>The conversion loop only prepares the example input. A network or file parser can pass an existing <code>Byte_Array</code> directly.</p>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/inspect_delimited_bytes.adb">Open the maintained source.</a></p>
+        </section>
+        <section id="digits">
+          <h2>Count ASCII digits with masks</h2>
+          <p>The library does not provide a digit-counting algorithm. The application can compose one from comparisons, masks, a reduction, and a safe partial load.</p>
+          <p><a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a> is selected at build time. The loop processes a <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a> value. <code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_8x16"><code>Lane_Count_8x16</code></a> and records how many lanes contain input bytes. A <a data-api="Flyology_SIMD.Mask_8x16"><code>Mask_8x16</code></a> keeps one Boolean result for each byte lane.</p>
+          <p>The native <a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="Byte_Array"><code>Load_Partial</code></a> reads the valid bytes. <a data-api="Flyology_SIMD.Backends.Native.Greater_Equal" data-api-signature="U8x16"><code>Greater_Equal</code></a> and <a data-api="Flyology_SIMD.Backends.Native.Less_Equal" data-api-signature="U8x16"><code>Less_Equal</code></a> compare them with values from <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="U8x16"><code>Splat</code></a>. <a data-api="Flyology_SIMD.Backends.Native.Mask_And" data-api-signature="Mask_8x16"><code>Mask_And</code></a> combines the results. <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_8x16"><code>Population_Count</code></a> returns the number of true lanes.</p>
+          <pre><code class="language-ada">with Ada.Text_IO;
+with Flyology_SIMD;
+with Flyology_SIMD.Backends.Native;
+
+procedure Count_Digits is
+   use Ada.Text_IO;
+   use Flyology_SIMD;
+   package Native renames Flyology_SIMD.Backends.Native;
+
+   Input_Text : constant String := "port=8080; workers=16";
+   Data : Byte_Array (Input_Text'Range);
+   Start : Natural := Data'First;
+   Total : Natural := 0;
+begin
+   for Index in Input_Text'Range loop
+      Data (Index) := U8 (Character'Pos (Input_Text (Index)));
+   end loop;
+
+   while Start &lt;= Data'Last loop
+      declare
+         Remaining : constant Natural := Data'Last - Start + 1;
+         Count : constant Lane_Count_8x16 :=
+           Lane_Count_8x16'Min (16, Remaining);
+         Value : constant U8x16 :=
+           Native.Load_Partial (Data, Start, Count);
+         At_Least_Zero : constant Mask_8x16 :=
+           Native.Greater_Equal
+             (Value, Native.Splat (U8 (Character'Pos ('0'))));
+         At_Most_Nine : constant Mask_8x16 :=
+           Native.Less_Equal
+             (Value, Native.Splat (U8 (Character'Pos ('9'))));
+         Digit_Mask : constant Mask_8x16 :=
+           Native.Mask_And (At_Least_Zero, At_Most_Nine);
+      begin
+         Total := Total + Native.Population_Count (Digit_Mask);
+         Start := Start + Count;
+      end;
+   end loop;
+
+   Put_Line ("digits:" &amp; Total'Image);
+end Count_Digits;</code></pre>
+          <p>Expected output:</p>
+          <pre><code class="language-text">digits: 6</code></pre>
+          <p>The two comparisons define the inclusive range <code>'0' .. '9'</code>. <code>Mask_And</code> returns true for lanes that satisfy both comparisons. <code>Population_Count</code> returns the number of true lanes. The loop adds that number to <code>Total</code>.</p>
+          <p>The input has 21 bytes, so the second iteration has five valid bytes. <code>Load_Partial</code> reads those five bytes and fills the unused lanes with zero. Zero is outside the digit range, so the unused lanes do not affect the count.</p>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/count_digits.adb">Open the maintained source.</a></p>
+        </section>
+        <section id="measurements">
+          <h2>Scale and clamp floating-point measurements</h2>
+          <p>This example multiplies seven finite binary32 values by 1.5. It then clamps each result to the closed interval 0.0 through 100.0.</p>
+          <p><a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> stores <a data-api="Flyology_SIMD.F32"><code>F32</code></a> elements. <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> processes four measurements per vector. <code>Count</code> has type <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> and records how many lanes contain input measurements.</p>
+          <pre><code class="language-ada">with Ada.Text_IO;
+with Flyology_SIMD;
+with Flyology_SIMD.Backends.Native;
+
+procedure Scale_Measurements is
+   use Ada.Text_IO;
+   use Flyology_SIMD;
+   use type Flyology_SIMD.F32;
+   package Native renames Flyology_SIMD.Backends.Native;
+
+   Samples : F32_Array (1 .. 7) :=
+     [-2.0, 0.5, 10.0, 25.0, 40.0, 60.0, 80.0];
+   Start : Natural := Samples'First;
+begin
+   while Start &lt;= Samples'Last loop
+      declare
+         Remaining : constant Natural := Samples'Last - Start + 1;
+         Count : constant Lane_Count_32x4 :=
+           Lane_Count_32x4'Min (4, Remaining);
+         Value : constant F32x4 :=
+           Native.Load_Partial (Samples, Start, Count);
+         Scaled : constant F32x4 :=
+           Native.Multiply (Value, Native.Splat (1.5));
+         Nonnegative : constant F32x4 :=
+           Native.Max_Number (Scaled, Native.Splat (0.0));
+         Clamped : constant F32x4 :=
+           Native.Min_Number (Nonnegative, Native.Splat (100.0));
+      begin
+         Native.Store_Partial (Samples, Start, Count, Clamped);
+         Start := Start + Count;
+      end;
+   end loop;
+
+   for Index in Samples'Range loop
+      Put_Line
+        ("sample" &amp; Index'Image &amp; ":" &amp; F32'Image (Samples (Index)));
+   end loop;
+end Scale_Measurements;</code></pre>
+          <p>Expected output:</p>
+          <pre><code class="language-text">sample 1: 0.00000E+00
+sample 2: 7.50000E-01
+sample 3: 1.50000E+01
+sample 4: 3.75000E+01
+sample 5: 6.00000E+01
+sample 6: 9.00000E+01
+sample 7: 1.00000E+02</code></pre>
+          <p>The native <a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="F32_Array"><code>Load_Partial</code></a> reads up to four measurements. <a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Multiply</code></a> scales the lanes. <a data-api="Flyology_SIMD.Backends.Native.Splat" data-api-signature="F32x4"><code>Splat</code></a> constructs a vector in which every lane contains the lower or upper bound. <a data-api="Flyology_SIMD.Backends.Native.Max_Number" data-api-signature="F32x4"><code>Max_Number</code></a> applies the lower bound, and <a data-api="Flyology_SIMD.Backends.Native.Min_Number" data-api-signature="F32x4"><code>Min_Number</code></a> applies the upper bound. <a data-api="Flyology_SIMD.Backends.Native.Store_Partial" data-api-signature="F32_Array"><code>Store_Partial</code></a> writes only the three valid lanes in the final iteration.</p>
+          <div class="semantic-callout"><strong>This example requires finite input values.</strong><p>Before an application processes NaNs or depends on signed-zero results, read the <a href="../operations/#floats">floating-point contract</a>.</p></div>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/scale_measurements.adb">Open the maintained source.</a></p>
+        </section>
+        <section id="choose">
+          <h2>Choose an interface for the task</h2>
+          <table class="support-table">
+            <thead><tr><th>Application need</th><th>Use</th><th>Example</th></tr></thead>
+            <tbody>
+              <tr><td>A provided whole-buffer operation</td><td><code>Algorithms.Runtime</code></td><td>Inspect delimited bytes</td></tr>
+              <tr><td>A custom byte predicate or reduction</td><td><code>Backends.Native</code></td><td>Count ASCII digits</td></tr>
+              <tr><td>A custom numeric transform</td><td><code>Backends.Native</code></td><td>Scale measurements</td></tr>
+            </tbody>
+          </table>
+          <p>Use a library-provided whole-buffer operation when its contract provides the required result. Use direct vector operations when the application needs a different loop.</p>
+          <div class="next-links"><a href="../operations/"><span>Operations</span>Check the available building blocks</a><a href="../memory/"><span>Memory</span>Review full and partial access rules</a></div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>Each example is compiled in CI.</span><div class="footer-links"><a href="../">Guide</a><a href="../operations/">Operations</a><a href="../../api/">API</a></div></div></footer>
+</body>
+</html>

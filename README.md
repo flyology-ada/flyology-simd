@@ -60,6 +60,9 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/floating_vectors
 ./bin/partial_tail
 ./bin/backend_selection
+./bin/inspect_delimited_bytes
+./bin/count_digits
+./bin/scale_measurements
 ```
 
 See

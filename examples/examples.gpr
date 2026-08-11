@@ -9,7 +9,10 @@ project Examples is
       "integer_vectors.adb",
       "floating_vectors.adb",
       "partial_tail.adb",
-      "backend_selection.adb");
+      "backend_selection.adb",
+      "inspect_delimited_bytes.adb",
+      "count_digits.adb",
+      "scale_measurements.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata");
