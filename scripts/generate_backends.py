@@ -4,12 +4,19 @@
 from pathlib import Path
 
 from generate_full_family import (
+    BIT_CAST_GROUPS,
     FLOAT_TYPES,
+    FLOAT_WIDENINGS,
     INTEGER_TYPES,
     MASKS,
+    NARROWINGS,
     ROOT,
+    SIGNED_TO_UNSIGNED_NARROWINGS,
+    WIDENINGS,
     array_name,
+    bit_cast_pairs,
     document_spec,
+    emit_conversion_spec,
     emit_spec,
     lane_count,
     lane_index,
@@ -31,9 +38,10 @@ TEST = ROOT / "tests" / "family_tests.adb"
 
 def contract() -> str:
     generated = emit_spec()
-    return "   function Zero return I8x16;" + generated.split(
+    operations = "   function Zero return I8x16;" + generated.split(
         "   function Zero return I8x16;", 1
     )[1]
+    return emit_conversion_spec() + "\n" + operations
 
 
 def call(name: str, result: str, args: str, params: str) -> str:
@@ -45,6 +53,25 @@ def call(name: str, result: str, args: str, params: str) -> str:
 
 def fallback_body() -> str:
     out: list[str] = []
+    for source_vector, _, target_vector, _ in bit_cast_pairs():
+        out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
+    for source_vector, _, target_vector, _, _, _ in WIDENINGS:
+        out += [
+            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
+            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
+        out += [
+            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
+            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _, _, _ in NARROWINGS:
+        out += [
+            call("Narrow_Truncate", target_vector, "Low, High", f"Low, High : {source_vector}"),
+            call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
@@ -167,6 +194,34 @@ def neon_helpers() -> list[str]:
         "   end NEON_Unary_128;",
         "",
         "   generic",
+        "      type Source_Type is private;",
+        "      type Result_Type is private;",
+        "      Instruction : String;",
+        "   function NEON_Convert_128 (Value : Source_Type) return Result_Type;",
+        "   function NEON_Convert_128 (Value : Source_Type) return Result_Type is",
+        "      Result : Result_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
+        "           Clobber => \"v0,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Convert_128;",
+        "",
+        "   generic",
+        "      type Source_Type is private;",
+        "      type Result_Type is private;",
+        "      Instruction : String;",
+        "   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;",
+        "   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is",
+        "      Result : Result_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Low'Address), System.Address'Asm_Input (\"r\", High'Address)],",
+        "           Clobber => \"v0,v1,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Convert_Pair_128;",
+        "",
+        "   generic",
         "      type Vector_Type is private;",
         "      Instruction : String;",
         "      Compact : String;",
@@ -237,6 +292,66 @@ def neon_body() -> str:
         scalar = f"U{bits}"
         vals = lane_values(f"{scalar}x{lanes}")
         out += [f"   Weights_{bits}x{lanes} : aliased constant {vals} := [{', '.join(str(1 << n) for n in range(lanes))}];"]
+    out.append("")
+
+    for source_vector, _, target_vector, _ in bit_cast_pairs():
+        out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
+
+    widen_instruction = {
+        "U8x16": ("uxtl v0.8h, v0.8b", "uxtl2 v0.8h, v0.16b"),
+        "I8x16": ("sxtl v0.8h, v0.8b", "sxtl2 v0.8h, v0.16b"),
+        "U16x8": ("uxtl v0.4s, v0.4h", "uxtl2 v0.4s, v0.8h"),
+        "I16x8": ("sxtl v0.4s, v0.4h", "sxtl2 v0.4s, v0.8h"),
+        "U32x4": ("uxtl v0.2d, v0.2s", "uxtl2 v0.2d, v0.4s"),
+        "I32x4": ("sxtl v0.2d, v0.2s", "sxtl2 v0.2d, v0.4s"),
+        "F32x4": ("fcvtl v0.2d, v0.2s", "fcvtl2 v0.2d, v0.4s"),
+    }
+    for source_vector, _, target_vector, _, _, _ in WIDENINGS:
+        for name, instruction in zip(("Widen_Low", "Widen_High"), widen_instruction[source_vector]):
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            out += [
+                f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
+    for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
+        for name, instruction in zip(("Widen_Low", "Widen_High"), widen_instruction[source_vector]):
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            out += [
+                f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
+
+    lane_suffix = {
+        8: ("8b", "16b", "8h"),
+        16: ("4h", "8h", "4s"),
+        32: ("2s", "4s", "2d"),
+    }
+    for source_vector, _, target_vector, _, target_bits, _, signed in NARROWINGS:
+        low_shape, full_shape, source_shape = lane_suffix[target_bits]
+        narrow = "sqxtn" if signed else "uqxtn"
+        for name, opcode in (("Narrow_Truncate", "xtn"), ("Narrow_Saturate", narrow)):
+            instruction = (
+                f"{opcode} v0.{low_shape}, v0.{source_shape}" +
+                '" & ASCII.LF & ASCII.HT & "' +
+                f"{opcode}2 v0.{full_shape}, v1.{source_shape}"
+            )
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            out += [
+                f"   function {native} is new NEON_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+            ]
+    for source_vector, _, target_vector, _, target_bits, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        low_shape, full_shape, source_shape = lane_suffix[target_bits]
+        instruction = (
+            f"sqxtun v0.{low_shape}, v0.{source_shape}" +
+            '" & ASCII.LF & ASCII.HT & "' +
+            f"sqxtun2 v0.{full_shape}, v1.{source_shape}"
+        )
+        native = f"Native_Narrow_Saturate_{source_vector}_To_{target_vector}"
+        out += [
+            f"   function {native} is new NEON_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+        ]
     out.append("")
 
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
@@ -501,6 +616,28 @@ def x86_ada_instruction(instruction: str) -> str:
 
 def x86_body() -> str:
     out = x86_helpers()
+    # The first conversion release keeps the x86-64 SSE2 backend complete by
+    # composing the scalar authority.  AArch64 has direct widening/narrowing
+    # leaves below; focused SSE2 lowering is the next backend optimization.
+    for source_vector, _, target_vector, _ in bit_cast_pairs():
+        out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
+    for source_vector, _, target_vector, _, _, _ in WIDENINGS:
+        out += [
+            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
+            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
+        out += [
+            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
+            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _, _, _ in NARROWINGS:
+        out += [
+            call("Narrow_Truncate", target_vector, "Low, High", f"Low, High : {source_vector}"),
+            call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"),
+        ]
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
     multiplication = {
         8: (
             "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"

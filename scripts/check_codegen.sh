@@ -81,6 +81,13 @@ case "$architecture" in
         require_pattern 'fminnm.*(4s|2d)' "$temporary/native.txt" 'IEEE minimum-number operation'
         require_pattern 'fmaxnm.*(4s|2d)' "$temporary/native.txt" 'IEEE maximum-number operation'
         require_pattern 'fcmeq.*(4s|2d)' "$temporary/native.txt" 'floating comparison'
+        require_pattern '(uxtl|ushll)2?.*(8h|4s|2d)' "$temporary/native.txt" 'unsigned integer widening'
+        require_pattern '(sxtl|sshll)2?.*(8h|4s|2d)' "$temporary/native.txt" 'signed integer widening'
+        require_pattern 'fcvtl2?.*2d' "$temporary/native.txt" 'floating-point widening'
+        require_pattern '(^|[[:space:]])xtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'truncating integer narrowing'
+        require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'unsigned saturating narrowing'
+        require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed saturating narrowing'
+        require_pattern '(^|[[:space:]])sqxtun2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed-to-unsigned saturating narrowing'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/algorithm.txt" \
           'inlined vector load in representative loop'
         require_pattern 'cmeq.*16b' "$temporary/algorithm.txt" \

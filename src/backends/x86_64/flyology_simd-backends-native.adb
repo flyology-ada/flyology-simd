@@ -498,6 +498,96 @@ package body Flyology_SIMD.Backends.Native is
       return Result;
    end SSE2_Select_128;
 
+   function Bit_Cast (Value : U8x16) return I8x16 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I8x16) return U8x16 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U16x8) return I16x8 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I16x8) return U16x8 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U32x4) return I32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U32x4) return F32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I32x4) return U32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I32x4) return F32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F32x4) return U32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F32x4) return I32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U64x2) return I64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U64x2) return F64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I64x2) return U64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I64x2) return F64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F64x2) return U64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F64x2) return I64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Widen_Low (Value : U8x16) return U16x8 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : U8x16) return U16x8 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : I8x16) return I16x8 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : I8x16) return I16x8 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : U16x8) return U32x4 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : U16x8) return U32x4 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : I16x8) return I32x4 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : I16x8) return I32x4 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : U32x4) return U64x2 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : U32x4) return U64x2 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : I32x4) return I64x2 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : I32x4) return I64x2 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Widen_Low (Value : F32x4) return F64x2 is
+     (Flyology_SIMD.Widen_Low (Value));
+   function Widen_High (Value : F32x4) return F64x2 is
+     (Flyology_SIMD.Widen_High (Value));
+   function Narrow_Truncate (Low, High : U16x8) return U8x16 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : U16x8) return U8x16 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Truncate (Low, High : I16x8) return I8x16 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : I16x8) return I8x16 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Truncate (Low, High : U32x4) return U16x8 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : U32x4) return U16x8 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Truncate (Low, High : I32x4) return I16x8 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : I32x4) return I16x8 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Truncate (Low, High : U64x2) return U32x4 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : U64x2) return U32x4 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Truncate (Low, High : I64x2) return I32x4 is
+     (Flyology_SIMD.Narrow_Truncate (Low, High));
+   function Narrow_Saturate (Low, High : I64x2) return I32x4 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Saturate (Low, High : I16x8) return U8x16 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Saturate (Low, High : I32x4) return U16x8 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Narrow_Saturate (Low, High : I64x2) return U32x4 is
+     (Flyology_SIMD.Narrow_Saturate (Low, High));
    function Native_Add_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "paddb %%xmm1, %%xmm0");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
    function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "psubb %%xmm1, %%xmm0");

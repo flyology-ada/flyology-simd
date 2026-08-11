@@ -23,6 +23,45 @@ FLOAT_TYPES = [
 ]
 MASKS = [(16, 8, "Unsigned_8"), (32, 4, "Unsigned_8"), (64, 2, "Unsigned_8")]
 
+# Bit casts preserve one lane's bits and therefore only connect vector types
+# with the same lane width and lane count.  Width-changing operations have
+# distinct names and contracts below.
+BIT_CAST_GROUPS = [
+    (("U8x16", "U8"), ("I8x16", "I8")),
+    (("U16x8", "U16"), ("I16x8", "I16")),
+    (("U32x4", "U32"), ("I32x4", "I32"), ("F32x4", "F32")),
+    (("U64x2", "U64"), ("I64x2", "I64"), ("F64x2", "F64")),
+]
+
+# Source vector, source lane, result vector, result lane, source bits, lanes.
+WIDENINGS = [
+    ("U8x16", "U8", "U16x8", "U16", 8, 8),
+    ("I8x16", "I8", "I16x8", "I16", 8, 8),
+    ("U16x8", "U16", "U32x4", "U32", 16, 4),
+    ("I16x8", "I16", "I32x4", "I32", 16, 4),
+    ("U32x4", "U32", "U64x2", "U64", 32, 2),
+    ("I32x4", "I32", "I64x2", "I64", 32, 2),
+]
+FLOAT_WIDENINGS = [("F32x4", "F32", "F64x2", "F64", 2)]
+
+# Narrowing consumes two vectors so that every result lane is defined.  The
+# low source supplies the low result half and the high source supplies the
+# high result half.
+NARROWINGS = [
+    ("U16x8", "U16", "U8x16", "U8", 8, 8, False),
+    ("I16x8", "I16", "I8x16", "I8", 8, 8, True),
+    ("U32x4", "U32", "U16x8", "U16", 16, 4, False),
+    ("I32x4", "I32", "I16x8", "I16", 16, 4, True),
+    ("U64x2", "U64", "U32x4", "U32", 32, 2, False),
+    ("I64x2", "I64", "I32x4", "I32", 32, 2, True),
+]
+SIGNED_TO_UNSIGNED_NARROWINGS = [
+    ("I16x8", "I16", "U8x16", "U8", 8, 8, True),
+    ("I32x4", "I32", "U16x8", "U16", 16, 4, True),
+    ("I64x2", "I64", "U32x4", "U32", 32, 2, True),
+]
+FLOAT_NARROWINGS = [("F64x2", "F64", "F32x4", "F32", 2)]
+
 
 OPERATION_DOCS = {
     "Zero": "Return a vector in which each lane is zero.",
@@ -87,6 +126,12 @@ OPERATION_DOCS = {
     "Subtract": "Subtract corresponding floating-point lanes.",
     "Multiply": "Multiply corresponding floating-point lanes.",
     "Divide": "Divide corresponding floating-point lanes.",
+    "Bit_Cast": "Reinterpret every lane's bits without changing its lane position.",
+    "Widen_Low": "Convert the low source half according to the documented widening semantics.",
+    "Widen_High": "Convert the high source half according to the documented widening semantics.",
+    "Narrow_Truncate": "Keep the low bits of each source lane and combine both source vectors.",
+    "Narrow_Saturate": "Clamp each source lane to the result range and combine both source vectors.",
+    "Narrow_Round": "Round floating lanes to the narrower IEEE format and combine both source vectors.",
 }
 
 PARAM_DOCS = {
@@ -103,6 +148,8 @@ PARAM_DOCS = {
     "Bits": "Compact lane bits. Bit zero represents lane zero.",
     "Data": "The typed lane array.",
     "Start": "The Ada index of the first selected element.",
+    "Low": "The source for the low result half.",
+    "High": "The source for the high result half.",
 }
 
 
@@ -182,6 +229,12 @@ def document_spec(text: str) -> str:
 def strip_generated_docs(text: str) -> str:
     """Remove synchronized comments before regenerating them."""
     summaries = set(OPERATION_DOCS.values())
+    summaries.update(
+        {
+            "Convert the low source half to wider lanes without loss.",
+            "Convert the high source half to wider lanes without loss.",
+        }
+    )
     result: list[str] = []
     for line in text.splitlines():
         stripped = line.removeprefix("   --  ")
@@ -223,6 +276,49 @@ def array_name(scalar: str) -> str:
     return f"{scalar}_Array"
 
 
+def bit_cast_pairs():
+    """Yield every directed, lane-preserving bit-cast pair."""
+    for group in BIT_CAST_GROUPS:
+        for source in group:
+            for target in group:
+                if source != target:
+                    yield source[0], source[1], target[0], target[1]
+
+
+def emit_conversion_spec() -> str:
+    """Emit explicit 128-bit reinterpretation and width conversion operations."""
+    out: list[str] = []
+    for source_vector, _, target_vector, _ in bit_cast_pairs():
+        out.append(
+            f"   function Bit_Cast (Value : {source_vector}) return {target_vector};"
+        )
+    out.append("")
+
+    for source_vector, _, target_vector, _, _, _ in WIDENINGS:
+        out += [
+            f"   function Widen_Low (Value : {source_vector}) return {target_vector};",
+            f"   function Widen_High (Value : {source_vector}) return {target_vector};",
+        ]
+    for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
+        out += [
+            f"   function Widen_Low (Value : {source_vector}) return {target_vector};",
+            f"   function Widen_High (Value : {source_vector}) return {target_vector};",
+        ]
+    out.append("")
+
+    for source_vector, _, target_vector, _, _, _, _ in NARROWINGS:
+        out += [
+            f"   function Narrow_Truncate (Low, High : {source_vector}) return {target_vector};",
+            f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector};",
+        ]
+    for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        out.append(
+            f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector};"
+        )
+    out.append("")
+    return document_spec("\n".join(out))
+
+
 def emit_spec() -> str:
     out = []
     out += [
@@ -254,6 +350,9 @@ def emit_spec() -> str:
         ]
     for bits, lanes, _ in MASKS:
         out.append(f"   type {mask_for(bits, lanes)} is private;")
+    out.append("")
+
+    out.append(emit_conversion_spec().rstrip())
     out.append("")
 
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
@@ -614,8 +713,128 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
     return out
 
 
+def emit_conversion_body() -> str:
+    """Emit the scalar authority for explicit bit and width conversions."""
+    out: list[str] = []
+    vector_shape = {
+        vector: (bits, lanes)
+        for vector, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES
+    }
+    vector_shape["U8x16"] = (8, 16)
+
+    for source_vector, source_scalar, target_vector, target_scalar in bit_cast_pairs():
+        bits, lanes = vector_shape[source_vector]
+        helper = f"Cast_{source_scalar}_To_{target_scalar}_For_{source_vector}"
+        out += [
+            f"   function {helper} is new Ada.Unchecked_Conversion ({source_scalar}, {target_scalar});",
+            f"   function Bit_Cast (Value : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Result.Lanes (Lane) := {helper} (Value.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Bit_Cast;",
+            "",
+        ]
+
+    for source_vector, source_scalar, target_vector, target_scalar, _, result_lanes in WIDENINGS:
+        source_lanes = result_lanes * 2
+        for name, offset in (("Widen_Low", 0), ("Widen_High", result_lanes)):
+            out += [
+                f"   function {name} (Value : {source_vector}) return {target_vector} is",
+                f"      Result : {target_vector};",
+                "   begin",
+                f"      for Lane in Natural range 0 .. {result_lanes - 1} loop",
+                f"         Result.Lanes (Lane) := {target_scalar} (Value.Lanes (Lane + {offset}));",
+                "      end loop;",
+                "      return Result;",
+                f"   end {name};",
+                "",
+            ]
+        assert source_lanes == vector_shape[source_vector][1]
+
+    for source_vector, source_scalar, target_vector, target_scalar, result_lanes in FLOAT_WIDENINGS:
+        for name, offset in (("Widen_Low", 0), ("Widen_High", result_lanes)):
+            out += [
+                f"   function {name} (Value : {source_vector}) return {target_vector} is",
+                f"      Result : {target_vector};",
+                "   begin",
+                f"      for Lane in Natural range 0 .. {result_lanes - 1} loop",
+                f"         Result.Lanes (Lane) := {target_scalar} (Value.Lanes (Lane + {offset}));",
+                "      end loop;",
+                "      return Result;",
+                f"   end {name};",
+                "",
+            ]
+
+    for source_vector, source_scalar, target_vector, target_scalar, target_bits, source_lanes, signed in NARROWINGS:
+        source_bits = target_bits * 2
+        unsigned_source = f"U{source_bits}"
+        unsigned_target = f"U{target_bits}"
+        if signed:
+            to_unsigned = f"Narrow_Bits_Of_{source_scalar}"
+            to_signed = f"Narrow_{target_scalar}_Of_Bits"
+            out += [
+                f"   function {to_unsigned} is new Ada.Unchecked_Conversion ({source_scalar}, {unsigned_source});",
+                f"   function {to_signed} is new Ada.Unchecked_Conversion ({unsigned_target}, {target_scalar});",
+            ]
+            truncate = (
+                f"{to_signed} ({unsigned_target} ({to_unsigned} (Item) and "
+                f"{unsigned_source} ({unsigned_target}'Last)))"
+            )
+            saturate = (
+                f"(if Item < {source_scalar} ({target_scalar}'First) then {target_scalar}'First "
+                f"elsif Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last "
+                f"else {target_scalar} (Item))"
+            )
+        else:
+            truncate = (
+                f"{target_scalar} (Item and {source_scalar} ({target_scalar}'Last))"
+            )
+            saturate = (
+                f"(if Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last "
+                f"else {target_scalar} (Item))"
+            )
+        for name, expression in (("Narrow_Truncate", truncate), ("Narrow_Saturate", saturate)):
+            helper = f"{name}_{source_vector}_Lane"
+            out += [
+                f"   function {helper} (Item : {source_scalar}) return {target_scalar} is",
+                f"     ({expression});",
+                f"   function {name} (Low, High : {source_vector}) return {target_vector} is",
+                f"      Result : {target_vector};",
+                "   begin",
+                f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+                f"         Result.Lanes (Lane) := {helper} (Low.Lanes (Lane));",
+                f"         Result.Lanes (Lane + {source_lanes}) := {helper} (High.Lanes (Lane));",
+                "      end loop;",
+                "      return Result;",
+                f"   end {name};",
+                "",
+            ]
+
+    for source_vector, source_scalar, target_vector, target_scalar, _, source_lanes, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        helper = f"Narrow_Saturate_{source_vector}_To_{target_vector}_Lane"
+        out += [
+            f"   function {helper} (Item : {source_scalar}) return {target_scalar} is",
+            f"     (if Item < 0 then 0 elsif Item > {source_scalar} ({target_scalar}'Last) then {target_scalar}'Last else {target_scalar} (Item));",
+            f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+            f"         Result.Lanes (Lane) := {helper} (Low.Lanes (Lane));",
+            f"         Result.Lanes (Lane + {source_lanes}) := {helper} (High.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Narrow_Saturate;",
+            "",
+        ]
+
+    return "\n".join(out)
+
+
 def emit_body() -> str:
-    out = []
+    out = [emit_conversion_body()]
     for item in INTEGER_TYPES:
         out += emit_integer_body(*item)
     for item in FLOAT_TYPES:

@@ -99,7 +99,7 @@ alr build</code></pre>
           <h2>Build the repository examples</h2>
           <p>Run this command from the repository root:</p>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr</code></pre>
-          <p>The command creates eight programs in <code>bin</code>. Run them from the repository root:</p>
+          <p>The command creates nine programs in <code>bin</code>. Run them from the repository root:</p>
           <pre><code class="language-shell">./bin/find_byte
 ./bin/integer_vectors
 ./bin/floating_vectors
@@ -107,7 +107,8 @@ alr build</code></pre>
 ./bin/backend_selection
 ./bin/inspect_delimited_bytes
 ./bin/count_digits
-./bin/scale_measurements</code></pre>
+./bin/scale_measurements
+./bin/conversions</code></pre>
           <p>The CI workflow compiles these examples. This check prevents the guide from depending on stale source.</p>
         </section>
         <section id="search">

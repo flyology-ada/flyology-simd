@@ -15,8 +15,10 @@ fast-math. Mask values support Boolean
 combination and reduction. `Find_First`, `Count`, and `Is_ASCII` demonstrate
 whole-buffer composition.
 
-“Full family” refers to the ten 128-bit value types. Numeric conversions, bit
-casts, widening, narrowing, arbitrary lane-index shuffles, and 256-bit types are not
+“Full family” refers to the ten 128-bit value types. The API includes
+lane-preserving bit casts, adjacent integer widening and narrowing, and exact
+finite `F32x4` to `F64x2` widening. General numeric conversions, floating-point
+narrowing, arbitrary lane-index shuffles, and 256-bit types are not
 implemented. See the [operation matrix](https://simd.flyology.org/guide/operations/)
 before you select the crate for an algorithm.
 
@@ -32,6 +34,7 @@ alr build
 alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/simd_tests
 ./bin/family_tests
+./bin/conversion_tests
 ./bin/guard_page_tests
 ```
 
@@ -63,6 +66,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/inspect_delimited_bytes
 ./bin/count_digits
 ./bin/scale_measurements
+./bin/conversions
 ```
 
 See
@@ -116,7 +120,7 @@ Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `All_True`, and `None_True`. Use `Mask_And`, `Mask_Or`, `Mask_Xor`, and
 `Mask_Not` to combine mask values.
 
-Full normative details and the deliberately deferred conversion/256-bit work are in
+Full normative details and the remaining conversion and 256-bit work are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).
 
 ## License

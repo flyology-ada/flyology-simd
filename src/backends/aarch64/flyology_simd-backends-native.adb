@@ -397,6 +397,34 @@ package body Flyology_SIMD.Backends.Native is
    end NEON_Unary_128;
 
    generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+   function NEON_Convert_128 (Value : Source_Type) return Result_Type;
+   function NEON_Convert_128 (Value : Source_Type) return Result_Type is
+      Result : Result_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end NEON_Convert_128;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;
+   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is
+      Result : Result_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "ldr q1, [%2]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Low'Address), System.Address'Asm_Input ("r", High'Address)],
+           Clobber => "v0,v1,memory", Volatile => True);
+      return Result;
+   end NEON_Convert_Pair_128;
+
+   generic
       type Vector_Type is private;
       Instruction : String;
       Compact : String;
@@ -440,6 +468,97 @@ package body Flyology_SIMD.Backends.Native is
    Weights_16x8 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];
    Weights_32x4 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
    Weights_64x2 : aliased constant Lane_Values_U64x2 := [1, 2];
+
+   function Bit_Cast (Value : U8x16) return I8x16 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I8x16) return U8x16 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U16x8) return I16x8 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I16x8) return U16x8 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U32x4) return I32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U32x4) return F32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I32x4) return U32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I32x4) return F32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F32x4) return U32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F32x4) return I32x4 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U64x2) return I64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : U64x2) return F64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I64x2) return U64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : I64x2) return F64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F64x2) return U64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Bit_Cast (Value : F64x2) return I64x2 is
+     (Flyology_SIMD.Bit_Cast (Value));
+   function Native_Widen_Low_U8x16_To_U16x8 is new NEON_Convert_128 (U8x16, U16x8, "uxtl v0.8h, v0.8b");
+   function Widen_Low (Value : U8x16) return U16x8 is (Native_Widen_Low_U8x16_To_U16x8 (Value));
+   function Native_Widen_High_U8x16_To_U16x8 is new NEON_Convert_128 (U8x16, U16x8, "uxtl2 v0.8h, v0.16b");
+   function Widen_High (Value : U8x16) return U16x8 is (Native_Widen_High_U8x16_To_U16x8 (Value));
+   function Native_Widen_Low_I8x16_To_I16x8 is new NEON_Convert_128 (I8x16, I16x8, "sxtl v0.8h, v0.8b");
+   function Widen_Low (Value : I8x16) return I16x8 is (Native_Widen_Low_I8x16_To_I16x8 (Value));
+   function Native_Widen_High_I8x16_To_I16x8 is new NEON_Convert_128 (I8x16, I16x8, "sxtl2 v0.8h, v0.16b");
+   function Widen_High (Value : I8x16) return I16x8 is (Native_Widen_High_I8x16_To_I16x8 (Value));
+   function Native_Widen_Low_U16x8_To_U32x4 is new NEON_Convert_128 (U16x8, U32x4, "uxtl v0.4s, v0.4h");
+   function Widen_Low (Value : U16x8) return U32x4 is (Native_Widen_Low_U16x8_To_U32x4 (Value));
+   function Native_Widen_High_U16x8_To_U32x4 is new NEON_Convert_128 (U16x8, U32x4, "uxtl2 v0.4s, v0.8h");
+   function Widen_High (Value : U16x8) return U32x4 is (Native_Widen_High_U16x8_To_U32x4 (Value));
+   function Native_Widen_Low_I16x8_To_I32x4 is new NEON_Convert_128 (I16x8, I32x4, "sxtl v0.4s, v0.4h");
+   function Widen_Low (Value : I16x8) return I32x4 is (Native_Widen_Low_I16x8_To_I32x4 (Value));
+   function Native_Widen_High_I16x8_To_I32x4 is new NEON_Convert_128 (I16x8, I32x4, "sxtl2 v0.4s, v0.8h");
+   function Widen_High (Value : I16x8) return I32x4 is (Native_Widen_High_I16x8_To_I32x4 (Value));
+   function Native_Widen_Low_U32x4_To_U64x2 is new NEON_Convert_128 (U32x4, U64x2, "uxtl v0.2d, v0.2s");
+   function Widen_Low (Value : U32x4) return U64x2 is (Native_Widen_Low_U32x4_To_U64x2 (Value));
+   function Native_Widen_High_U32x4_To_U64x2 is new NEON_Convert_128 (U32x4, U64x2, "uxtl2 v0.2d, v0.4s");
+   function Widen_High (Value : U32x4) return U64x2 is (Native_Widen_High_U32x4_To_U64x2 (Value));
+   function Native_Widen_Low_I32x4_To_I64x2 is new NEON_Convert_128 (I32x4, I64x2, "sxtl v0.2d, v0.2s");
+   function Widen_Low (Value : I32x4) return I64x2 is (Native_Widen_Low_I32x4_To_I64x2 (Value));
+   function Native_Widen_High_I32x4_To_I64x2 is new NEON_Convert_128 (I32x4, I64x2, "sxtl2 v0.2d, v0.4s");
+   function Widen_High (Value : I32x4) return I64x2 is (Native_Widen_High_I32x4_To_I64x2 (Value));
+   function Native_Widen_Low_F32x4_To_F64x2 is new NEON_Convert_128 (F32x4, F64x2, "fcvtl v0.2d, v0.2s");
+   function Widen_Low (Value : F32x4) return F64x2 is (Native_Widen_Low_F32x4_To_F64x2 (Value));
+   function Native_Widen_High_F32x4_To_F64x2 is new NEON_Convert_128 (F32x4, F64x2, "fcvtl2 v0.2d, v0.4s");
+   function Widen_High (Value : F32x4) return F64x2 is (Native_Widen_High_F32x4_To_F64x2 (Value));
+   function Native_Narrow_Truncate_U16x8_To_U8x16 is new NEON_Convert_Pair_128 (U16x8, U8x16, "xtn v0.8b, v0.8h" & ASCII.LF & ASCII.HT & "xtn2 v0.16b, v1.8h");
+   function Narrow_Truncate (Low, High : U16x8) return U8x16 is (Native_Narrow_Truncate_U16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Saturate_U16x8_To_U8x16 is new NEON_Convert_Pair_128 (U16x8, U8x16, "uqxtn v0.8b, v0.8h" & ASCII.LF & ASCII.HT & "uqxtn2 v0.16b, v1.8h");
+   function Narrow_Saturate (Low, High : U16x8) return U8x16 is (Native_Narrow_Saturate_U16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Truncate_I16x8_To_I8x16 is new NEON_Convert_Pair_128 (I16x8, I8x16, "xtn v0.8b, v0.8h" & ASCII.LF & ASCII.HT & "xtn2 v0.16b, v1.8h");
+   function Narrow_Truncate (Low, High : I16x8) return I8x16 is (Native_Narrow_Truncate_I16x8_To_I8x16 (Low, High));
+   function Native_Narrow_Saturate_I16x8_To_I8x16 is new NEON_Convert_Pair_128 (I16x8, I8x16, "sqxtn v0.8b, v0.8h" & ASCII.LF & ASCII.HT & "sqxtn2 v0.16b, v1.8h");
+   function Narrow_Saturate (Low, High : I16x8) return I8x16 is (Native_Narrow_Saturate_I16x8_To_I8x16 (Low, High));
+   function Native_Narrow_Truncate_U32x4_To_U16x8 is new NEON_Convert_Pair_128 (U32x4, U16x8, "xtn v0.4h, v0.4s" & ASCII.LF & ASCII.HT & "xtn2 v0.8h, v1.4s");
+   function Narrow_Truncate (Low, High : U32x4) return U16x8 is (Native_Narrow_Truncate_U32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Saturate_U32x4_To_U16x8 is new NEON_Convert_Pair_128 (U32x4, U16x8, "uqxtn v0.4h, v0.4s" & ASCII.LF & ASCII.HT & "uqxtn2 v0.8h, v1.4s");
+   function Narrow_Saturate (Low, High : U32x4) return U16x8 is (Native_Narrow_Saturate_U32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Truncate_I32x4_To_I16x8 is new NEON_Convert_Pair_128 (I32x4, I16x8, "xtn v0.4h, v0.4s" & ASCII.LF & ASCII.HT & "xtn2 v0.8h, v1.4s");
+   function Narrow_Truncate (Low, High : I32x4) return I16x8 is (Native_Narrow_Truncate_I32x4_To_I16x8 (Low, High));
+   function Native_Narrow_Saturate_I32x4_To_I16x8 is new NEON_Convert_Pair_128 (I32x4, I16x8, "sqxtn v0.4h, v0.4s" & ASCII.LF & ASCII.HT & "sqxtn2 v0.8h, v1.4s");
+   function Narrow_Saturate (Low, High : I32x4) return I16x8 is (Native_Narrow_Saturate_I32x4_To_I16x8 (Low, High));
+   function Native_Narrow_Truncate_U64x2_To_U32x4 is new NEON_Convert_Pair_128 (U64x2, U32x4, "xtn v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "xtn2 v0.4s, v1.2d");
+   function Narrow_Truncate (Low, High : U64x2) return U32x4 is (Native_Narrow_Truncate_U64x2_To_U32x4 (Low, High));
+   function Native_Narrow_Saturate_U64x2_To_U32x4 is new NEON_Convert_Pair_128 (U64x2, U32x4, "uqxtn v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "uqxtn2 v0.4s, v1.2d");
+   function Narrow_Saturate (Low, High : U64x2) return U32x4 is (Native_Narrow_Saturate_U64x2_To_U32x4 (Low, High));
+   function Native_Narrow_Truncate_I64x2_To_I32x4 is new NEON_Convert_Pair_128 (I64x2, I32x4, "xtn v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "xtn2 v0.4s, v1.2d");
+   function Narrow_Truncate (Low, High : I64x2) return I32x4 is (Native_Narrow_Truncate_I64x2_To_I32x4 (Low, High));
+   function Native_Narrow_Saturate_I64x2_To_I32x4 is new NEON_Convert_Pair_128 (I64x2, I32x4, "sqxtn v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "sqxtn2 v0.4s, v1.2d");
+   function Narrow_Saturate (Low, High : I64x2) return I32x4 is (Native_Narrow_Saturate_I64x2_To_I32x4 (Low, High));
+   function Native_Narrow_Saturate_I16x8_To_U8x16 is new NEON_Convert_Pair_128 (I16x8, U8x16, "sqxtun v0.8b, v0.8h" & ASCII.LF & ASCII.HT & "sqxtun2 v0.16b, v1.8h");
+   function Narrow_Saturate (Low, High : I16x8) return U8x16 is (Native_Narrow_Saturate_I16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Saturate_I32x4_To_U16x8 is new NEON_Convert_Pair_128 (I32x4, U16x8, "sqxtun v0.4h, v0.4s" & ASCII.LF & ASCII.HT & "sqxtun2 v0.8h, v1.4s");
+   function Narrow_Saturate (Low, High : I32x4) return U16x8 is (Native_Narrow_Saturate_I32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Saturate_I64x2_To_U32x4 is new NEON_Convert_Pair_128 (I64x2, U32x4, "sqxtun v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "sqxtun2 v0.4s, v1.2d");
+   function Narrow_Saturate (Low, High : I64x2) return U32x4 is (Native_Narrow_Saturate_I64x2_To_U32x4 (Low, High));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

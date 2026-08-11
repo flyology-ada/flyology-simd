@@ -408,6 +408,478 @@ package body Flyology_SIMD is
    end Store_Partial;
 
    --  BEGIN GENERATED 128-BIT SCALAR BODIES
+   function Cast_U8_To_I8_For_U8x16 is new Ada.Unchecked_Conversion (U8, I8);
+   function Bit_Cast (Value : U8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := Cast_U8_To_I8_For_U8x16 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I8_To_U8_For_I8x16 is new Ada.Unchecked_Conversion (I8, U8);
+   function Bit_Cast (Value : I8x16) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result.Lanes (Lane) := Cast_I8_To_U8_For_I8x16 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_U16_To_I16_For_U16x8 is new Ada.Unchecked_Conversion (U16, I16);
+   function Bit_Cast (Value : U16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Cast_U16_To_I16_For_U16x8 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I16_To_U16_For_I16x8 is new Ada.Unchecked_Conversion (I16, U16);
+   function Bit_Cast (Value : I16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Result.Lanes (Lane) := Cast_I16_To_U16_For_I16x8 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_U32_To_I32_For_U32x4 is new Ada.Unchecked_Conversion (U32, I32);
+   function Bit_Cast (Value : U32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_U32_To_I32_For_U32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_U32_To_F32_For_U32x4 is new Ada.Unchecked_Conversion (U32, F32);
+   function Bit_Cast (Value : U32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_U32_To_F32_For_U32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I32_To_U32_For_I32x4 is new Ada.Unchecked_Conversion (I32, U32);
+   function Bit_Cast (Value : I32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_I32_To_U32_For_I32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I32_To_F32_For_I32x4 is new Ada.Unchecked_Conversion (I32, F32);
+   function Bit_Cast (Value : I32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_I32_To_F32_For_I32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_F32_To_U32_For_F32x4 is new Ada.Unchecked_Conversion (F32, U32);
+   function Bit_Cast (Value : F32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_F32_To_U32_For_F32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_F32_To_I32_For_F32x4 is new Ada.Unchecked_Conversion (F32, I32);
+   function Bit_Cast (Value : F32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Result.Lanes (Lane) := Cast_F32_To_I32_For_F32x4 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_U64_To_I64_For_U64x2 is new Ada.Unchecked_Conversion (U64, I64);
+   function Bit_Cast (Value : U64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_U64_To_I64_For_U64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_U64_To_F64_For_U64x2 is new Ada.Unchecked_Conversion (U64, F64);
+   function Bit_Cast (Value : U64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_U64_To_F64_For_U64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I64_To_U64_For_I64x2 is new Ada.Unchecked_Conversion (I64, U64);
+   function Bit_Cast (Value : I64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_I64_To_U64_For_I64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_I64_To_F64_For_I64x2 is new Ada.Unchecked_Conversion (I64, F64);
+   function Bit_Cast (Value : I64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_I64_To_F64_For_I64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_F64_To_U64_For_F64x2 is new Ada.Unchecked_Conversion (F64, U64);
+   function Bit_Cast (Value : F64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_F64_To_U64_For_F64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Cast_F64_To_I64_For_F64x2 is new Ada.Unchecked_Conversion (F64, I64);
+   function Bit_Cast (Value : F64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Result.Lanes (Lane) := Cast_F64_To_I64_For_F64x2 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Bit_Cast;
+
+   function Widen_Low (Value : U8x16) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := U16 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : U8x16) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := U16 (Value.Lanes (Lane + 8));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : I8x16) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := I16 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : I8x16) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := I16 (Value.Lanes (Lane + 8));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : U16x8) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := U32 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : U16x8) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := U32 (Value.Lanes (Lane + 4));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : I16x8) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := I32 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : I16x8) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := I32 (Value.Lanes (Lane + 4));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : U32x4) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := U64 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : U32x4) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := U64 (Value.Lanes (Lane + 2));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : I32x4) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := I64 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : I32x4) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := I64 (Value.Lanes (Lane + 2));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Widen_Low (Value : F32x4) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := F64 (Value.Lanes (Lane + 0));
+      end loop;
+      return Result;
+   end Widen_Low;
+
+   function Widen_High (Value : F32x4) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := F64 (Value.Lanes (Lane + 2));
+      end loop;
+      return Result;
+   end Widen_High;
+
+   function Narrow_Truncate_U16x8_Lane (Item : U16) return U8 is
+     (U8 (Item and U16 (U8'Last)));
+   function Narrow_Truncate (Low, High : U16x8) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Narrow_Truncate_U16x8_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 8) := Narrow_Truncate_U16x8_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_U16x8_Lane (Item : U16) return U8 is
+     ((if Item > U16 (U8'Last) then U8'Last else U8 (Item)));
+   function Narrow_Saturate (Low, High : U16x8) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Narrow_Saturate_U16x8_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 8) := Narrow_Saturate_U16x8_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Bits_Of_I16 is new Ada.Unchecked_Conversion (I16, U16);
+   function Narrow_I8_Of_Bits is new Ada.Unchecked_Conversion (U8, I8);
+   function Narrow_Truncate_I16x8_Lane (Item : I16) return I8 is
+     (Narrow_I8_Of_Bits (U8 (Narrow_Bits_Of_I16 (Item) and U16 (U8'Last))));
+   function Narrow_Truncate (Low, High : I16x8) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Narrow_Truncate_I16x8_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 8) := Narrow_Truncate_I16x8_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_I16x8_Lane (Item : I16) return I8 is
+     ((if Item < I16 (I8'First) then I8'First elsif Item > I16 (I8'Last) then I8'Last else I8 (Item)));
+   function Narrow_Saturate (Low, High : I16x8) return I8x16 is
+      Result : I8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I16x8_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 8) := Narrow_Saturate_I16x8_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Truncate_U32x4_Lane (Item : U32) return U16 is
+     (U16 (Item and U32 (U16'Last)));
+   function Narrow_Truncate (Low, High : U32x4) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Narrow_Truncate_U32x4_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 4) := Narrow_Truncate_U32x4_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_U32x4_Lane (Item : U32) return U16 is
+     ((if Item > U32 (U16'Last) then U16'Last else U16 (Item)));
+   function Narrow_Saturate (Low, High : U32x4) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Narrow_Saturate_U32x4_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 4) := Narrow_Saturate_U32x4_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Bits_Of_I32 is new Ada.Unchecked_Conversion (I32, U32);
+   function Narrow_I16_Of_Bits is new Ada.Unchecked_Conversion (U16, I16);
+   function Narrow_Truncate_I32x4_Lane (Item : I32) return I16 is
+     (Narrow_I16_Of_Bits (U16 (Narrow_Bits_Of_I32 (Item) and U32 (U16'Last))));
+   function Narrow_Truncate (Low, High : I32x4) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Narrow_Truncate_I32x4_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 4) := Narrow_Truncate_I32x4_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_I32x4_Lane (Item : I32) return I16 is
+     ((if Item < I32 (I16'First) then I16'First elsif Item > I32 (I16'Last) then I16'Last else I16 (Item)));
+   function Narrow_Saturate (Low, High : I32x4) return I16x8 is
+      Result : I16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I32x4_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 4) := Narrow_Saturate_I32x4_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Truncate_U64x2_Lane (Item : U64) return U32 is
+     (U32 (Item and U64 (U32'Last)));
+   function Narrow_Truncate (Low, High : U64x2) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Narrow_Truncate_U64x2_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := Narrow_Truncate_U64x2_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_U64x2_Lane (Item : U64) return U32 is
+     ((if Item > U64 (U32'Last) then U32'Last else U32 (Item)));
+   function Narrow_Saturate (Low, High : U64x2) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Narrow_Saturate_U64x2_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := Narrow_Saturate_U64x2_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Bits_Of_I64 is new Ada.Unchecked_Conversion (I64, U64);
+   function Narrow_I32_Of_Bits is new Ada.Unchecked_Conversion (U32, I32);
+   function Narrow_Truncate_I64x2_Lane (Item : I64) return I32 is
+     (Narrow_I32_Of_Bits (U32 (Narrow_Bits_Of_I64 (Item) and U64 (U32'Last))));
+   function Narrow_Truncate (Low, High : I64x2) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Narrow_Truncate_I64x2_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := Narrow_Truncate_I64x2_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Truncate;
+
+   function Narrow_Saturate_I64x2_Lane (Item : I64) return I32 is
+     ((if Item < I64 (I32'First) then I32'First elsif Item > I64 (I32'Last) then I32'Last else I32 (Item)));
+   function Narrow_Saturate (Low, High : I64x2) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I64x2_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := Narrow_Saturate_I64x2_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Saturate_I16x8_To_U8x16_Lane (Item : I16) return U8 is
+     (if Item < 0 then 0 elsif Item > I16 (U8'Last) then U8'Last else U8 (Item));
+   function Narrow_Saturate (Low, High : I16x8) return U8x16 is
+      Result : U8x16;
+   begin
+      for Lane in Natural range 0 .. 7 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I16x8_To_U8x16_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 8) := Narrow_Saturate_I16x8_To_U8x16_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Saturate_I32x4_To_U16x8_Lane (Item : I32) return U16 is
+     (if Item < 0 then 0 elsif Item > I32 (U16'Last) then U16'Last else U16 (Item));
+   function Narrow_Saturate (Low, High : I32x4) return U16x8 is
+      Result : U16x8;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I32x4_To_U16x8_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 4) := Narrow_Saturate_I32x4_To_U16x8_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
+   function Narrow_Saturate_I64x2_To_U32x4_Lane (Item : I64) return U32 is
+     (if Item < 0 then 0 elsif Item > I64 (U32'Last) then U32'Last else U32 (Item));
+   function Narrow_Saturate (Low, High : I64x2) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Narrow_Saturate_I64x2_To_U32x4_Lane (Low.Lanes (Lane));
+         Result.Lanes (Lane + 2) := Narrow_Saturate_I64x2_To_U32x4_Lane (High.Lanes (Lane));
+      end loop;
+      return Result;
+   end Narrow_Saturate;
+
    function To_U8 is new Ada.Unchecked_Conversion (I8, U8);
    function To_I8 is new Ada.Unchecked_Conversion (U8, I8);
 

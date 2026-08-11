@@ -30,9 +30,22 @@ validity checks are not enabled because GNAT treats IEEE NaN encodings as
 invalid data; range, assertion, precondition, and stack checks remain enabled.
 
 No implicit signed/unsigned, integer/floating, width-changing, or mask/value
-conversion exists. Explicit widening, narrowing, numeric conversion, bit-cast,
-and the portable 256-bit family remain pre-stabilization work and are not yet
-claimed as implemented.
+conversion exists. `Bit_Cast` preserves each lane's bits and position between
+types with the same lane shape. It does not change lane width.
+
+`Widen_Low` and `Widen_High` select one source half and preserve each numeric
+value in a lane with twice the width. Integer widening preserves signedness.
+`F32x4` to `F64x2` widening is exact for finite inputs and preserves signed
+zero and infinity. A NaN input produces a NaN result. NaN payload and signaling
+state are unspecified.
+
+Integer narrowing combines two source vectors. `Low` supplies the low result
+half, and `High` supplies the high result half. `Narrow_Truncate` keeps the low
+destination-width bits. `Narrow_Saturate` clamps each numeric value to the
+destination range. Signed-to-unsigned saturation maps negative inputs to zero.
+
+General numeric conversion, floating-point narrowing, and the portable
+256-bit family remain pre-stabilization work.
 
 ## Memory
 

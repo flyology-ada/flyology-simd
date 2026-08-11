@@ -61,6 +61,7 @@
         <span class="toc-title">On this page</span>
         <ul>
           <li><a href="#types">Types</a></li>
+          <li><a href="#conversions">Conversions</a></li>
           <li><a href="#integers">Integer operations</a></li>
           <li><a href="#floats">Floating operations</a></li>
           <li><a href="#masks">Masks</a></li>
@@ -84,6 +85,50 @@
             </tbody>
           </table>
           <p>Lane 0 is the first array element that a load reads. A compact mask uses bit 0 for lane 0. Bits above the mask lane count are ignored when you construct a mask.</p>
+        </section>
+        <section id="conversions">
+          <h2>Convert bits and lane widths explicitly</h2>
+          <p><a data-api="Flyology_SIMD"><code>Bit_Cast</code></a> preserves each lane's bits and position. Source and result types must have the same lane width and count.</p>
+          <p>For example, the <code>F32x4</code>-to-<code>U32x4</code> overload returns four IEEE binary32 encodings. It does not perform numeric conversion.</p>
+          <p>Integer widening preserves each numeric lane value. It zero-extends unsigned lanes and sign-extends signed lanes. Floating widening converts each finite <a data-api="Flyology_SIMD.F32"><code>F32</code></a> value exactly to <a data-api="Flyology_SIMD.F64"><code>F64</code></a>. It preserves signed zero and infinity. A NaN input produces a NaN result, but payload and signaling state are unspecified.</p>
+          <table class="support-table">
+            <thead>
+              <tr><th>Operation</th><th>Result</th><th>Available conversions</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>Bit_Cast</code></td><td>Preserves lane bits</td><td>Signed, unsigned, and floating types with the same lane shape</td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Widen_Low</code></a></td><td>Widens the low source half</td><td>Adjacent integer widths with the same signedness; <code>F32x4</code> to <code>F64x2</code></td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Widen_High</code></a></td><td>Widens the high source half</td><td>Adjacent integer widths with the same signedness; <code>F32x4</code> to <code>F64x2</code></td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Truncate</code></a></td><td>Keeps the low result-width bits</td><td>Adjacent integer widths with the same signedness</td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a></td><td>Clamps to the result range</td><td>Same-signedness and signed-to-unsigned integer narrowing</td></tr>
+            </tbody>
+          </table>
+          <p>Each narrowing operation takes two source vectors. <code>Low</code> supplies the low result half, and <code>High</code> supplies the high result half.</p>
+          <p>The <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a> type supplies typed input. The <a data-api="Flyology_SIMD"><code>Load_Unaligned</code></a> overload reads its bytes in lane order. This complete declaration uses the array's actual first index:</p>
+          <pre><code class="language-ada">Input : constant Byte_Array :=
+  [0, 17, 34, 51, 68, 85, 102, 119,
+   136, 153, 170, 187, 204, 221, 238, 255];
+
+Low_Bytes  : constant U8x16 :=
+  Load_Unaligned (Input, Input'First);
+Low_Words  : constant U16x8 := Widen_Low (Low_Bytes);
+High_Words : constant U16x8 := Widen_High (Low_Bytes);
+Round_Trip : constant U8x16 :=
+  Narrow_Saturate (Low_Words, High_Words);</code></pre>
+          <p>The round trip returns the original bytes because unsigned widening is lossless. Signed-to-unsigned saturation maps negative inputs to zero.</p>
+          <p>The <a data-api="Flyology_SIMD"><code>From_Lanes</code></a> overload constructs the next wide values. <a data-api="Flyology_SIMD"><code>Zero</code></a> supplies the high source half. The results show why the narrowing names are different:</p>
+          <pre><code class="language-ada">Wide : constant U16x8 :=
+  From_Lanes ([254, 255, 256, 300, 0, 1, 2, 3]);
+Empty : constant U16x8 := Zero;
+
+Truncated : constant U8x16 :=
+  Narrow_Truncate (Wide, Empty);
+Saturated : constant U8x16 :=
+  Narrow_Saturate (Wide, Empty);
+
+--  Truncated lanes 0 .. 3: 254, 255, 0, 44
+--  Saturated lanes 0 .. 3: 254, 255, 255, 255</code></pre>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/conversions.adb"><code>conversions.adb</code> example</a> runs the round trip and the boundary cases. It also prints the bit patterns of four <code>F32</code> lanes.</p>
         </section>
         <section id="integers">
           <h2>Integer operation coverage</h2>
@@ -157,8 +202,7 @@ end if;</code></pre>
           <p>The following groups are design targets, not current API:</p>
           <ul>
             <li>numeric <code>Convert</code> operations;</li>
-            <li><code>Bit_Cast</code> operations;</li>
-            <li>widening and narrowing operations;</li>
+            <li>floating-point narrowing;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>
             <li>first-true and last-true mask queries;</li>

@@ -1,8 +1,14 @@
 with "../flyology_simd.gpr";
 
 project Examples is
+   type Architecture_Kind is ("scalar", "aarch64", "x86_64");
+   Architecture : Architecture_Kind :=
+     external ("FLYOLOGY_SIMD_ARCH", "scalar");
+   type AVX2_Kind is ("disabled", "enabled");
+   AVX2 : AVX2_Kind := external ("FLYOLOGY_SIMD_AVX2", "disabled");
+
    for Source_Dirs use (".");
-   for Object_Dir use "../obj/examples";
+   for Object_Dir use "../obj/examples/" & Architecture & "/" & AVX2;
    for Exec_Dir use "../bin";
    for Main use
      ("find_byte.adb",
@@ -12,7 +18,8 @@ project Examples is
       "backend_selection.adb",
       "inspect_delimited_bytes.adb",
       "count_digits.adb",
-      "scale_measurements.adb");
+      "scale_measurements.adb",
+      "conversions.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata");

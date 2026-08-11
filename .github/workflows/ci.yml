@@ -28,6 +28,13 @@ jobs:
       - uses: alire-project/setup-alire@v6.0.0
       - name: Select verified toolchain
         run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Verify generated sources
+        if: ${{ matrix.architecture == 'scalar' }}
+        run: |
+          python3 scripts/generate_full_family.py
+          python3 scripts/generate_backends.py
+          python3 scripts/generate_conversion_tests.py
+          git diff --exit-code
       - name: Build debug library
         if: ${{ !matrix.release }}
         run: >-
@@ -54,6 +61,7 @@ jobs:
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/conversion_tests
           ./bin/guard_page_tests
       - name: Require executable AVX2 coverage
         if: ${{ matrix.avx2 == 'enabled' }}
@@ -103,6 +111,7 @@ jobs:
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/conversion_tests
           ./bin/guard_page_tests
       - name: Check generated code
         run: ./scripts/check_codegen.sh aarch64 disabled

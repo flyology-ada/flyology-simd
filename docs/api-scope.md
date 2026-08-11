@@ -29,6 +29,12 @@ bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
 reductions. Floating families supply arithmetic, number minimum and maximum,
 and add reduction. Floating minimum and maximum reductions are not present.
 
+Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
+vectors that have the same lane width and lane count. Adjacent integer widths
+provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
+`Narrow_Saturate`. `F32x4` provides exact finite low-half and high-half
+widening to `F64x2`.
+
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
 any/all/none reductions, population count, and compact bit-mask conversion.
 Compact bit 0 represents lane 0. Bits above the lane count are ignored by mask
@@ -40,19 +46,33 @@ signed families. If the count is at least the lane width, a logical shift
 returns zero. An arithmetic right shift returns the sign fill. Shift operations
 do not reduce counts modulo the width.
 
-The following conversion names are design targets. They are not public
-operations in this release:
+`Bit_Cast` preserves each lane's bits and position. It does not change lane
+width or lane count. For example, a cast from `F32x4` to `U32x4` returns the
+four IEEE binary32 encodings as unsigned integers. This lane-based rule is
+independent of machine byte order.
 
-- `Convert` changes numeric value and lane type;
-- `Bit_Cast` preserves all 128 or 256 bits;
-- `Widen_Low` and `Widen_High` identify which source lanes are widened;
-- `Narrow_Truncate` discards high bits;
-- `Narrow_Saturate` clamps to the destination range;
-- floating-to-integer conversion names state truncation and saturation.
+`Widen_Low` converts the low source half to wider lanes. `Widen_High` converts
+the high source half. Integer widening preserves each numeric value and
+signedness. `F32x4` to `F64x2` widening is exact for every finite value and
+preserves signed zero and infinity. A NaN input produces a NaN result, but
+payload and signaling state are unspecified.
+
+Integer narrowing takes `Low` and `High` vectors. The low source supplies the
+low result half. The high source supplies the high result half.
+`Narrow_Truncate` keeps the low destination-width bits of every lane.
+`Narrow_Saturate` clamps to the destination range. Saturating overloads cover
+same-signedness narrowing and signed-to-unsigned narrowing. A negative input
+to a signed-to-unsigned overload becomes zero.
+
+The following conversion groups remain design targets:
+
+- `Convert` changes numeric value without changing lane width;
+- floating-point narrowing rounds from binary64 to binary32;
+- floating-to-integer conversion names state truncation and saturation;
+- integer-to-floating conversion names state their rounding contract.
 
 There are no implicit signed/unsigned, integer/floating, width-changing, or
-mask/value conversions. The conversion names above describe the next public
-surface milestone; they are not part of v0.1 yet.
+mask/value conversions. Applications must call the explicit operations above.
 
 ## Floating-point contract
 
