@@ -724,6 +724,42 @@ package body Flyology_SIMD is
       return Result;
    end Narrow_Round;
 
+   function Convert_Round (Value : I32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := F32 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Round;
+
+   function Convert_Round (Value : U32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := F32 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Round;
+
+   function Convert_Round (Value : I64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := F64 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Round;
+
+   function Convert_Round (Value : U64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := F64 (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Round;
+
    function Narrow_Truncate_U16x8_Lane (Item : U16) return U8 is
      (U8 (Item and U16 (U8'Last)));
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is

@@ -64,8 +64,16 @@ magnitude rounds to signed zero. A NaN remains a NaN, but its payload and
 signaling state are unspecified. The library does not modify the
 floating-point control register.
 
-General numeric conversion and the portable 256-bit family remain
-pre-stabilization work.
+`Convert_Round` converts 32-bit integer lanes to binary32 and 64-bit integer
+lanes to binary64. Signed and unsigned source types have separate overloads.
+When the floating-point environment uses the platform's default round-to-nearest,
+ties-to-even mode, the operation rounds values that are not exactly
+representable. Integer magnitudes through 2**24 are exact in binary32. Integer
+magnitudes through 2**53 are exact in binary64. The operation always produces
+a finite result and does not modify the floating-point control register.
+
+Floating-to-integer conversion, same-width signed/unsigned numeric conversion,
+and the portable 256-bit family remain pre-stabilization work.
 
 ## Memory
 

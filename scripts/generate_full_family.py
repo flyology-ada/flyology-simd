@@ -62,6 +62,13 @@ SIGNED_TO_UNSIGNED_NARROWINGS = [
 ]
 FLOAT_NARROWINGS = [("F64x2", "F64", "F32x4", "F32", 2)]
 
+INTEGER_TO_FLOAT_CONVERSIONS = [
+    ("I32x4", "I32", "F32x4", "F32", 32, 4, True),
+    ("U32x4", "U32", "F32x4", "F32", 32, 4, False),
+    ("I64x2", "I64", "F64x2", "F64", 64, 2, True),
+    ("U64x2", "U64", "F64x2", "F64", 64, 2, False),
+]
+
 
 OPERATION_DOCS = {
     "Zero": "Return a vector in which each lane is zero.",
@@ -143,6 +150,11 @@ OPERATION_DOCS = {
         "sufficiently small magnitude rounds to signed zero. A NaN remains a "
         "NaN, but its payload and signaling state are unspecified. The operation "
         "does not modify the floating-point control register."
+    ),
+    "Convert_Round": (
+        "With the default round-to-nearest, ties-to-even environment, convert "
+        "each integer lane to the corresponding floating-point lane. The "
+        "operation does not modify the floating-point control register."
     ),
 }
 
@@ -331,6 +343,8 @@ def emit_conversion_spec() -> str:
         out.append(
             f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector};"
         )
+    for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
+        out.append(f"   function Convert_Round (Value : {source_vector}) return {target_vector};")
     out.append("")
     return document_spec("\n".join(out))
 
@@ -812,6 +826,19 @@ def emit_conversion_body() -> str:
             "      end loop;",
             "      return Result;",
             "   end Narrow_Round;",
+            "",
+        ]
+
+    for source_vector, _, target_vector, target_scalar, _, source_lanes, _ in INTEGER_TO_FLOAT_CONVERSIONS:
+        out += [
+            f"   function Convert_Round (Value : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+            f"         Result.Lanes (Lane) := {target_scalar} (Value.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Convert_Round;",
             "",
         ]
 

@@ -46,6 +46,13 @@ procedure Conversions is
    Narrowed_Floats : constant F32x4 :=
      Native.Narrow_Round (Wide_Float_Low, Wide_Float_High);
    Narrowed_Encodings : constant U32x4 := Native.Bit_Cast (Narrowed_Floats);
+
+   Integer_Samples : constant I32x4 :=
+     Native.From_Lanes ([0, 16_777_216, 16_777_217, I32'Last]);
+   Rounded_Integers : constant F32x4 :=
+     Native.Convert_Round (Integer_Samples);
+   Rounded_Integer_Encodings : constant U32x4 :=
+     Native.Bit_Cast (Rounded_Integers);
 begin
    Put_Line
      ("round trip:" &
@@ -73,6 +80,11 @@ begin
    Put ("F64 narrowed bits:");
    for Lane in Lane_Index_32x4 loop
       Put (U32'Image (Native.Extract (Narrowed_Encodings, Lane)));
+   end loop;
+   New_Line;
+   Put ("I32 rounded bits:");
+   for Lane in Lane_Index_32x4 loop
+      Put (U32'Image (Native.Extract (Rounded_Integer_Encodings, Lane)));
    end loop;
    New_Line;
 end Conversions;

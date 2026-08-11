@@ -34,7 +34,8 @@ vectors that have the same lane width and lane count. Adjacent integer widths
 provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
 `Narrow_Saturate`. `F32x4` provides exact finite low-half and high-half
 widening to `F64x2`. `Narrow_Round` combines two `F64x2` inputs into one
-`F32x4` result.
+`F32x4` result. `Convert_Round` converts same-width signed or unsigned integer
+lanes to `F32x4` or `F64x2`.
 
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
 any/all/none reductions, population count, first/last true-lane queries, and
@@ -67,21 +68,28 @@ low result half. The high source supplies the high result half.
 same-signedness narrowing and signed-to-unsigned narrowing. A negative input
 to a signed-to-unsigned overload becomes zero.
 
-Floating narrowing rounds each binary64 lane value to binary32 when the
-floating-point environment uses the default round-to-nearest, ties-to-even
-mode. `Low` supplies result lanes 0 and 1. `High` supplies result lanes 2 and
-3. `Narrow_Round` preserves signed zero and infinity. A finite value that
+Floating narrowing rounds each binary64 lane value to binary32 when the floating-point
+environment uses the default round-to-nearest, ties-to-even mode. `Low`
+supplies result lanes 0 and 1. `High` supplies result lanes 2 and 3.
+`Narrow_Round` preserves signed zero and infinity. A finite value that
 overflows binary32 after rounding becomes an infinity with the same sign. A
 finite value can round to a binary32 subnormal. A sufficiently small magnitude
 rounds to signed zero. A NaN input produces a NaN result; payload and signaling
 state are unspecified. The library does not modify the floating-point control
 register.
 
+`Convert_Round` converts `I32x4` and `U32x4` to `F32x4`. It converts `I64x2`
+and `U64x2` to `F64x2`. When the floating-point environment uses the default
+round-to-nearest, ties-to-even mode, the operation rounds values that the
+floating-point lane cannot represent exactly. Integer magnitudes through
+2**24 are exact in `F32`. Integer magnitudes through 2**53 are exact in `F64`.
+Every result is finite. The library does not modify the floating-point control
+register.
+
 The following conversion groups remain design targets:
 
-- `Convert` changes numeric value without changing lane width;
 - floating-to-integer conversion names state truncation and saturation;
-- integer-to-floating conversion names state their rounding contract.
+- same-width signed-to-unsigned and unsigned-to-signed numeric conversion.
 
 There are no implicit signed/unsigned, integer/floating, width-changing, or
 mask/value conversions. Applications must call the explicit operations above.
@@ -108,9 +116,9 @@ operands are NaNs. NaN payload selection is not specified.
 order is part of the contract. At each fold step, `Min_Number` or `Max_Number`
 applies its documented NaN and signed-zero rules.
 
-No floating-to-integer or integer-to-floating conversion operation exists in
-this release. A future conversion contract must state NaN, rounding, and
-out-of-range behavior before the operation becomes public.
+No floating-to-integer conversion operation exists in this release. Its future
+contract must state NaN, rounding, and out-of-range behavior before the
+operation becomes public.
 
 ## Backend completion rule
 

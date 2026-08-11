@@ -580,6 +580,14 @@ package body Flyology_SIMD.Backends.Native is
    function Narrow_Saturate (Low, High : I64x2) return U32x4 is (Native_Narrow_Saturate_I64x2_To_U32x4 (Low, High));
    function Native_Narrow_Round_F64x2_To_F32x4 is new NEON_Convert_Pair_128 (F64x2, F32x4, "fcvtn v0.2s, v0.2d" & ASCII.LF & ASCII.HT & "fcvtn2 v0.4s, v1.2d");
    function Narrow_Round (Low, High : F64x2) return F32x4 is (Native_Narrow_Round_F64x2_To_F32x4 (Low, High));
+   function Native_Convert_Round_I32x4_To_F32x4 is new NEON_Convert_128 (I32x4, F32x4, "scvtf v0.4s, v0.4s");
+   function Convert_Round (Value : I32x4) return F32x4 is (Native_Convert_Round_I32x4_To_F32x4 (Value));
+   function Native_Convert_Round_U32x4_To_F32x4 is new NEON_Convert_128 (U32x4, F32x4, "ucvtf v0.4s, v0.4s");
+   function Convert_Round (Value : U32x4) return F32x4 is (Native_Convert_Round_U32x4_To_F32x4 (Value));
+   function Native_Convert_Round_I64x2_To_F64x2 is new NEON_Convert_128 (I64x2, F64x2, "scvtf v0.2d, v0.2d");
+   function Convert_Round (Value : I64x2) return F64x2 is (Native_Convert_Round_I64x2_To_F64x2 (Value));
+   function Native_Convert_Round_U64x2_To_F64x2 is new NEON_Convert_128 (U64x2, F64x2, "ucvtf v0.2d, v0.2d");
+   function Convert_Round (Value : U64x2) return F64x2 is (Native_Convert_Round_U64x2_To_F64x2 (Value));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

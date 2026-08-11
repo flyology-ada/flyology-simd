@@ -8,6 +8,7 @@ from generate_full_family import (
     FLOAT_TYPES,
     FLOAT_NARROWINGS,
     FLOAT_WIDENINGS,
+    INTEGER_TO_FLOAT_CONVERSIONS,
     INTEGER_TYPES,
     MASKS,
     NARROWINGS,
@@ -75,6 +76,8 @@ def fallback_body() -> str:
         out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
         out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
+    for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
+        out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
@@ -384,6 +387,15 @@ def neon_body() -> str:
         out += [
             f"   function {native} is new NEON_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
             f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+        ]
+    for source_vector, _, target_vector, _, bits, _, signed in INTEGER_TO_FLOAT_CONVERSIONS:
+        prefix = "scvtf" if signed else "ucvtf"
+        shape = "4s" if bits == 32 else "2d"
+        instruction = f"{prefix} v0.{shape}, v0.{shape}"
+        native = f"Native_Convert_Round_{source_vector}_To_{target_vector}"
+        out += [
+            f"   function {native} is new NEON_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Convert_Round (Value : {source_vector}) return {target_vector} is ({native} (Value));",
         ]
     out.append("")
 
@@ -697,6 +709,8 @@ def x86_body() -> str:
         out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
         out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
+    for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
+        out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
     multiplication = {
         8: (
             "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"

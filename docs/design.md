@@ -31,10 +31,12 @@ memory, and backend boundaries. The current type surface contains all signed,
 unsigned, and floating 128-bit families. The exact operation matrix and
 floating-point contracts are recorded in [api-scope.md](api-scope.md).
 AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
-The 256-bit type family and general numeric conversion are not implemented.
+The 256-bit type family is not implemented. Floating-to-integer and same-width
+signed/unsigned numeric conversions are also not implemented.
 The 128-bit API implements lane-preserving bit casts, adjacent integer
 widening and narrowing, exact finite `F32x4` to `F64x2` widening, and rounded
-`F64x2` to `F32x4` narrowing.
+`F64x2` to `F32x4` narrowing. It also converts 32- and 64-bit signed and
+unsigned integer lanes to the corresponding floating family.
 
 ## Normative semantics
 
@@ -83,11 +85,11 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   operations not expressible in SSE2 without changing semantics;
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
-The AArch64 backend lowers widening and narrowing through verified NEON
-assembly leaves, including binary64-to-binary32 narrowing. The x86-64 SSE2
-backend currently composes these conversion
-operations from the scalar authority. This preserves the contract but does not
-claim an SSE2 instruction sequence for those operations.
+The AArch64 backend lowers widening, narrowing, and integer-to-floating
+conversion through verified NEON assembly leaves. The x86-64 SSE2 backend
+currently composes these conversion operations from the scalar authority.
+This preserves the contract but does not claim an SSE2 instruction sequence
+for those operations.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
 The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.

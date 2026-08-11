@@ -256,6 +256,85 @@ procedure Conversion_Tests is
       end;
    end Oracle_Narrow_Round_F64x2_To_F32x4;
 
+   function Oracle_Integer_To_Float_Bits
+     (Magnitude : U64; Sign : U64; Fraction_Bits, Bias : Natural)
+      return U64
+   is
+      function Round_Right (Value : U64; Count : Positive) return U64 is
+         Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+         Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+         Remainder : constant U64 :=
+           Value and (Interfaces.Shift_Left (1, Count) - 1);
+      begin
+         if Remainder > Half
+           or else (Remainder = Half and then (Quotient and 1) /= 0)
+         then
+            return Quotient + 1;
+         else
+            return Quotient;
+         end if;
+      end Round_Right;
+
+      Highest : Natural := 0;
+      Scan : U64 := Magnitude;
+      Significant : U64;
+      Exponent : Natural;
+   begin
+      if Magnitude = 0 then
+         return Sign;
+      end if;
+      while Interfaces.Shift_Right (Scan, 1) /= 0 loop
+         Scan := Interfaces.Shift_Right (Scan, 1);
+         Highest := Highest + 1;
+      end loop;
+      Exponent := Highest;
+      if Highest <= Fraction_Bits then
+         Significant := Interfaces.Shift_Left (Magnitude, Fraction_Bits - Highest);
+      else
+         Significant := Round_Right (Magnitude, Highest - Fraction_Bits);
+         if Significant = Interfaces.Shift_Left (1, Fraction_Bits + 1) then
+            Significant := Interfaces.Shift_Right (Significant, 1);
+            Exponent := Exponent + 1;
+         end if;
+      end if;
+      return Sign
+        or Interfaces.Shift_Left (U64 (Exponent + Bias), Fraction_Bits)
+        or (Significant - Interfaces.Shift_Left (1, Fraction_Bits));
+   end Oracle_Integer_To_Float_Bits;
+
+   function Oracle_Convert_Round_I32x4_To_F32x4 (Item : I32) return F32 is
+      Bits : constant U32 := U32_Of_Bits (Item);
+      Negative : constant Boolean := (Bits and 16#8000_0000#) /= 0;
+      Magnitude : constant U64 :=
+        (if Negative then U64 ((not Bits) + 1) else U64 (Bits));
+      Sign : constant U64 := (if Negative then 16#8000_0000# else 0);
+   begin
+      return F32_Of_Bits
+        (U32 (Oracle_Integer_To_Float_Bits (Magnitude, Sign, 23, 127)));
+   end Oracle_Convert_Round_I32x4_To_F32x4;
+
+   function Oracle_Convert_Round_U32x4_To_F32x4 (Item : U32) return F32 is
+   begin
+      return F32_Of_Bits
+        (U32 (Oracle_Integer_To_Float_Bits (U64 (Item), 0, 23, 127)));
+   end Oracle_Convert_Round_U32x4_To_F32x4;
+
+   function Oracle_Convert_Round_I64x2_To_F64x2 (Item : I64) return F64 is
+      Bits : constant U64 := U64_Of_Bits (Item);
+      Negative : constant Boolean := (Bits and 16#8000_0000_0000_0000#) /= 0;
+      Magnitude : constant U64 := (if Negative then (not Bits) + 1 else Bits);
+      Sign : constant U64 := (if Negative then 16#8000_0000_0000_0000# else 0);
+   begin
+      return F64_Of_Bits
+        (Oracle_Integer_To_Float_Bits (Magnitude, Sign, 52, 1_023));
+   end Oracle_Convert_Round_I64x2_To_F64x2;
+
+   function Oracle_Convert_Round_U64x2_To_F64x2 (Item : U64) return F64 is
+   begin
+      return F64_Of_Bits
+        (Oracle_Integer_To_Float_Bits (Item, 0, 52, 1_023));
+   end Oracle_Convert_Round_U64x2_To_F64x2;
+
    procedure Test_F32_Widen_Edges is
       Zeros_And_Infinities : constant F32x4 := From_Lanes
         ([F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#),
@@ -373,11 +452,80 @@ procedure Conversion_Tests is
       end loop;
    end Test_F64_Narrow_Edges;
 
+   procedure Test_Integer_To_Float_Edges is
+      I32_A : constant I32x4 := From_Lanes ([0, 1, 16_777_216, 16_777_217]);
+      I32_B : constant I32x4 := From_Lanes ([I32'First, -16_777_217, -1, I32'Last]);
+      U32_A : constant U32x4 := From_Lanes ([0, 16_777_216, 16_777_217, U32'Last]);
+      I64_A : constant I64x2 := From_Lanes ([0, 9_007_199_254_740_993]);
+      I64_B : constant I64x2 := From_Lanes ([I64'First, I64'Last]);
+      U64_A : constant U64x2 := From_Lanes ([9_007_199_254_740_992, 9_007_199_254_740_993]);
+      U64_C : constant U64x2 := From_Lanes ([9_007_199_254_740_995, 9_007_199_254_740_996]);
+      U64_B : constant U64x2 := From_Lanes ([0, U64'Last]);
+      Expected_I32_A : constant Lane_Values_U32x4 := [16#0000_0000#, 16#3F80_0000#, 16#4B80_0000#, 16#4B80_0000#];
+      Expected_I32_B : constant Lane_Values_U32x4 := [16#CF00_0000#, 16#CB80_0000#, 16#BF80_0000#, 16#4F00_0000#];
+      Expected_U32_A : constant Lane_Values_U32x4 := [16#0000_0000#, 16#4B80_0000#, 16#4B80_0000#, 16#4F80_0000#];
+      Expected_I64_A : constant Lane_Values_U64x2 := [16#0000_0000_0000_0000#, 16#4340_0000_0000_0000#];
+      Expected_I64_B : constant Lane_Values_U64x2 := [16#C3E0_0000_0000_0000#, 16#43E0_0000_0000_0000#];
+      Expected_U64_A : constant Lane_Values_U64x2 := [16#4340_0000_0000_0000#, 16#4340_0000_0000_0000#];
+      Expected_U64_C : constant Lane_Values_U64x2 := [16#4340_0000_0000_0002#, 16#4340_0000_0000_0002#];
+      Expected_U64_B : constant Lane_Values_U64x2 := [16#0000_0000_0000_0000#, 16#43F0_0000_0000_0000#];
+
+      procedure Check_I32 (Value : I32x4; Expected : Lane_Values_U32x4) is
+         Scalar_Result : constant F32x4 := Convert_Round (Value);
+         Native_Result : constant F32x4 := Backends.Native.Convert_Round (Value);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (U32_Of_Bits (Extract (Scalar_Result, Lane)) = Expected (Lane), "scalar I32 to F32 edge");
+            Check (U32_Of_Bits (Extract (Native_Result, Lane)) = Expected (Lane), "native I32 to F32 edge");
+         end loop;
+      end Check_I32;
+
+      procedure Check_U32 (Value : U32x4; Expected : Lane_Values_U32x4) is
+         Scalar_Result : constant F32x4 := Convert_Round (Value);
+         Native_Result : constant F32x4 := Backends.Native.Convert_Round (Value);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (U32_Of_Bits (Extract (Scalar_Result, Lane)) = Expected (Lane), "scalar U32 to F32 edge");
+            Check (U32_Of_Bits (Extract (Native_Result, Lane)) = Expected (Lane), "native U32 to F32 edge");
+         end loop;
+      end Check_U32;
+
+      procedure Check_I64 (Value : I64x2; Expected : Lane_Values_U64x2) is
+         Scalar_Result : constant F64x2 := Convert_Round (Value);
+         Native_Result : constant F64x2 := Backends.Native.Convert_Round (Value);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (U64_Of_Bits (Extract (Scalar_Result, Lane)) = Expected (Lane), "scalar I64 to F64 edge");
+            Check (U64_Of_Bits (Extract (Native_Result, Lane)) = Expected (Lane), "native I64 to F64 edge");
+         end loop;
+      end Check_I64;
+
+      procedure Check_U64 (Value : U64x2; Expected : Lane_Values_U64x2) is
+         Scalar_Result : constant F64x2 := Convert_Round (Value);
+         Native_Result : constant F64x2 := Backends.Native.Convert_Round (Value);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (U64_Of_Bits (Extract (Scalar_Result, Lane)) = Expected (Lane), "scalar U64 to F64 edge");
+            Check (U64_Of_Bits (Extract (Native_Result, Lane)) = Expected (Lane), "native U64 to F64 edge");
+         end loop;
+      end Check_U64;
+   begin
+      Check_I32 (I32_A, Expected_I32_A);
+      Check_I32 (I32_B, Expected_I32_B);
+      Check_U32 (U32_A, Expected_U32_A);
+      Check_I64 (I64_A, Expected_I64_A);
+      Check_I64 (I64_B, Expected_I64_B);
+      Check_U64 (U64_A, Expected_U64_A);
+      Check_U64 (U64_C, Expected_U64_C);
+      Check_U64 (U64_B, Expected_U64_B);
+   end Test_Integer_To_Float_Edges;
+
 
 begin
    Put_Line ("conversion differential tests seed=0xC0457A5712800A11");
    Test_F32_Widen_Edges;
    Test_F64_Narrow_Edges;
+   Test_Integer_To_Float_Edges;
       declare
          Low : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
          High : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
@@ -1039,6 +1187,46 @@ begin
             Check (Same (Extract (Native_Result, Lane), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (Low, Lane))), "native Narrow_Round F64x2 low lane");
             Check (Same (Extract (Scalar_Result, Lane + 2), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (High, Lane))), "scalar Narrow_Round F64x2 high lane");
             Check (Same (Extract (Native_Result, Lane + 2), Oracle_Narrow_Round_F64x2_To_F32x4 (Extract (High, Lane))), "native Narrow_Round F64x2 high lane");
+         end loop;
+      end;
+      declare
+         Source : constant I32x4 := Random_I32x4;
+         Scalar_Result : constant F32x4 := Convert_Round (Source);
+         Native_Result : constant F32x4 := Backends.Native.Convert_Round (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Same (Extract (Scalar_Result, Lane), Oracle_Convert_Round_I32x4_To_F32x4 (Extract (Source, Lane))), "scalar Convert_Round I32x4 lane");
+            Check (Same (Extract (Native_Result, Lane), Oracle_Convert_Round_I32x4_To_F32x4 (Extract (Source, Lane))), "native Convert_Round I32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U32x4 := Random_U32x4;
+         Scalar_Result : constant F32x4 := Convert_Round (Source);
+         Native_Result : constant F32x4 := Backends.Native.Convert_Round (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Same (Extract (Scalar_Result, Lane), Oracle_Convert_Round_U32x4_To_F32x4 (Extract (Source, Lane))), "scalar Convert_Round U32x4 lane");
+            Check (Same (Extract (Native_Result, Lane), Oracle_Convert_Round_U32x4_To_F32x4 (Extract (Source, Lane))), "native Convert_Round U32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant I64x2 := Random_I64x2;
+         Scalar_Result : constant F64x2 := Convert_Round (Source);
+         Native_Result : constant F64x2 := Backends.Native.Convert_Round (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Same (Extract (Scalar_Result, Lane), Oracle_Convert_Round_I64x2_To_F64x2 (Extract (Source, Lane))), "scalar Convert_Round I64x2 lane");
+            Check (Same (Extract (Native_Result, Lane), Oracle_Convert_Round_I64x2_To_F64x2 (Extract (Source, Lane))), "native Convert_Round I64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant U64x2 := Random_U64x2;
+         Scalar_Result : constant F64x2 := Convert_Round (Source);
+         Native_Result : constant F64x2 := Backends.Native.Convert_Round (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Same (Extract (Scalar_Result, Lane), Oracle_Convert_Round_U64x2_To_F64x2 (Extract (Source, Lane))), "scalar Convert_Round U64x2 lane");
+            Check (Same (Extract (Native_Result, Lane), Oracle_Convert_Round_U64x2_To_F64x2 (Extract (Source, Lane))), "native Convert_Round U64x2 lane");
          end loop;
       end;
    end loop;

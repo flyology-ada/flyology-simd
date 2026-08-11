@@ -131,7 +131,7 @@ Saturated : constant U16x8 := Native.Add_Saturate (Input, Increment);
           <span class="eyebrow">Current API boundary</span>
           <h2>Ten value types share one 128-bit width.</h2>
           <p>The integer families have explicit wrapping and saturating arithmetic, shifts, comparisons, reductions, lane permutations, masks, and typed memory operations. The floating families have arithmetic, ordered and unordered comparisons, number minimum and maximum, add reduction, lane permutations, masks, and typed memory operations.</p>
-          <p>The API also has lane-preserving bit casts, adjacent integer widening and narrowing, exact finite <code>F32x4</code>-to-<code>F64x2</code> widening, and rounded <code>F64x2</code>-to-<code>F32x4</code> narrowing. General numeric conversion, table lookup, and 256-bit values are not implemented.</p>
+          <p>The API also has lane-preserving bit casts, adjacent integer widening and narrowing, exact finite <code>F32x4</code>-to-<code>F64x2</code> widening, rounded <code>F64x2</code>-to-<code>F32x4</code> narrowing, and explicit integer-to-floating conversion. Floating-to-integer conversion, table lookup, and 256-bit values are not implemented.</p>
           <a class="button button-secondary inverse-button" href="guide/operations/">Read the exact matrix</a>
         </div>
         <div class="type-ruler" aria-label="Public 128-bit vector types">

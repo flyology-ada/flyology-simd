@@ -511,6 +511,22 @@ is
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
+   function Convert_Round (Value : I32x4) return F32x4;
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Round (Value : U32x4) return F32x4;
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Round (Value : I64x2) return F64x2;
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Round (Value : U64x2) return F64x2;
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  @param Value The input value.
+   --  @return The operation result.
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.
    --  @return The operation result.

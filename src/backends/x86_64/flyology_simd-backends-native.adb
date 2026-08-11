@@ -592,6 +592,14 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Narrow_Saturate (Low, High));
    function Narrow_Round (Low, High : F64x2) return F32x4 is
      (Flyology_SIMD.Narrow_Round (Low, High));
+   function Convert_Round (Value : I32x4) return F32x4 is
+     (Flyology_SIMD.Convert_Round (Value));
+   function Convert_Round (Value : U32x4) return F32x4 is
+     (Flyology_SIMD.Convert_Round (Value));
+   function Convert_Round (Value : I64x2) return F64x2 is
+     (Flyology_SIMD.Convert_Round (Value));
+   function Convert_Round (Value : U64x2) return F64x2 is
+     (Flyology_SIMD.Convert_Round (Value));
    function Native_Add_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "paddb %%xmm1, %%xmm0");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
    function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "psubb %%xmm1, %%xmm0");
