@@ -760,6 +760,100 @@ package body Flyology_SIMD is
       return Result;
    end Convert_Round;
 
+   function Convert_Truncate_Saturate_F32_To_I32_Lane (Value : F32) return I32 is
+      Upper : constant F32 := 2.0 ** 31;
+      Lower : constant F32 := -Upper;
+   begin
+      if Value /= Value then
+         return 0;
+      elsif Value >= Upper then
+         return I32'Last;
+      elsif Value <= Lower then
+         return I32'First;
+      else
+         return I32 (F32'Truncation (Value));
+      end if;
+   end Convert_Truncate_Saturate_F32_To_I32_Lane;
+
+   function Convert_Truncate_Saturate (Value : F32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Convert_Truncate_Saturate_F32_To_I32_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Truncate_Saturate;
+
+   function Convert_Truncate_Saturate_F32_To_U32_Lane (Value : F32) return U32 is
+      Upper : constant F32 := 2.0 ** 32;
+   begin
+      if Value /= Value then
+         return 0;
+      elsif Value <= 0.0 then
+         return 0;
+      elsif Value >= Upper then
+         return U32'Last;
+      else
+         return U32 (F32'Truncation (Value));
+      end if;
+   end Convert_Truncate_Saturate_F32_To_U32_Lane;
+
+   function Convert_Truncate_Saturate (Value : F32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Lane in Natural range 0 .. 3 loop
+         Result.Lanes (Lane) := Convert_Truncate_Saturate_F32_To_U32_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Truncate_Saturate;
+
+   function Convert_Truncate_Saturate_F64_To_I64_Lane (Value : F64) return I64 is
+      Upper : constant F64 := 2.0 ** 63;
+      Lower : constant F64 := -Upper;
+   begin
+      if Value /= Value then
+         return 0;
+      elsif Value >= Upper then
+         return I64'Last;
+      elsif Value <= Lower then
+         return I64'First;
+      else
+         return I64 (F64'Truncation (Value));
+      end if;
+   end Convert_Truncate_Saturate_F64_To_I64_Lane;
+
+   function Convert_Truncate_Saturate (Value : F64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Convert_Truncate_Saturate_F64_To_I64_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Truncate_Saturate;
+
+   function Convert_Truncate_Saturate_F64_To_U64_Lane (Value : F64) return U64 is
+      Upper : constant F64 := 2.0 ** 64;
+   begin
+      if Value /= Value then
+         return 0;
+      elsif Value <= 0.0 then
+         return 0;
+      elsif Value >= Upper then
+         return U64'Last;
+      else
+         return U64 (F64'Truncation (Value));
+      end if;
+   end Convert_Truncate_Saturate_F64_To_U64_Lane;
+
+   function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Lane in Natural range 0 .. 1 loop
+         Result.Lanes (Lane) := Convert_Truncate_Saturate_F64_To_U64_Lane (Value.Lanes (Lane));
+      end loop;
+      return Result;
+   end Convert_Truncate_Saturate;
+
    function Narrow_Truncate_U16x8_Lane (Item : U16) return U8 is
      (U8 (Item and U16 (U8'Last)));
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is

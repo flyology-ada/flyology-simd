@@ -104,6 +104,7 @@
               <tr><td><a data-api="Flyology_SIMD"><code>Narrow_Saturate</code></a></td><td>Clamps to the result range</td><td>Same-signedness and signed-to-unsigned integer narrowing</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Narrow_Round"><code>Narrow_Round</code></a></td><td>Rounds binary64 lanes to binary32</td><td>Two <code>F64x2</code> inputs to one <code>F32x4</code> result</td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Convert_Round</code></a></td><td>Rounds integer values to floating point</td><td><code>I32x4</code> or <code>U32x4</code> to <code>F32x4</code>; <code>I64x2</code> or <code>U64x2</code> to <code>F64x2</code></td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Convert_Truncate_Saturate</code></a></td><td>Truncates toward zero, then clamps</td><td><code>F32x4</code> to <code>I32x4</code> or <code>U32x4</code>; <code>F64x2</code> to <code>I64x2</code> or <code>U64x2</code></td></tr>
             </tbody>
           </table>
           <p>Each narrowing operation takes two source vectors. <code>Low</code> supplies the low result half, and <code>High</code> supplies the high result half.</p>
@@ -155,6 +156,22 @@ Bits : constant U32x4 := Bit_Cast (Floats);
           <p>Lane 0 remains zero. Lane 1 is exact. Lane 2 contains 16,777,217, which is halfway between two binary32 values. It rounds to 16,777,216 because ties-to-even selects the result with an even low bit. Lane 3 contains the largest <a data-api="Flyology_SIMD.I32"><code>I32</code></a> value. It rounds to 2<sup>31</sup>. All integer-to-floating results are finite.</p>
           <p>The maintained example prints these encodings as decimal integers:</p>
           <pre><code>I32 rounded bits: 0 1266679808 1266679808 1325400064</code></pre>
+          <p><code>Convert_Truncate_Saturate</code> keeps the lane count and lane positions. It truncates a finite value toward zero, then clamps it to the result range. A negative value becomes zero in an unsigned result. Positive infinity becomes the destination maximum. Negative infinity becomes the destination minimum for a signed result and zero for an unsigned result. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.</p>
+          <pre><code class="language-ada">Input_Bits : constant U32x4 :=
+  From_Lanes
+    ([16#BFE0_0000#, 16#3FE0_0000#, 16#4F00_0000#, 16#7FC0_0001#]);
+Inputs : constant F32x4 := Bit_Cast (Input_Bits);
+
+Signed : constant I32x4 := Convert_Truncate_Saturate (Inputs);
+Unsigned : constant U32x4 := Convert_Truncate_Saturate (Inputs);
+
+--  Inputs:   -1.75, 1.75, 2**31, NaN
+--  Signed:   -1, 1, I32'Last, 0
+--  Unsigned:  0, 1, 2**31, 0</code></pre>
+          <p>Lane 0 shows truncation and unsigned clamping. Lane 1 shows truncation for a positive value. Lane 2 exceeds the signed range but remains in the unsigned range. Lane 3 shows the defined NaN result.</p>
+          <p>The maintained example prints:</p>
+          <pre><code>F32 to I32:-1 1 2147483647 0
+F32 to U32: 0 1 2147483648 0</code></pre>
         </section>
         <section id="integers">
           <h2>Integer operation coverage</h2>
@@ -239,7 +256,6 @@ end if;</code></pre>
           <h2>Not implemented in 0.1.0-dev</h2>
           <p>The following groups are design targets, not current API:</p>
           <ul>
-            <li>floating-to-integer conversion with explicit truncation and saturation;</li>
             <li>same-width signed/unsigned numeric conversion;</li>
             <li>arbitrary lane-index shuffles, byte-table lookup, lane slides, and compression;</li>
             <li>256-bit vector and mask types;</li>

@@ -588,6 +588,14 @@ package body Flyology_SIMD.Backends.Native is
    function Convert_Round (Value : I64x2) return F64x2 is (Native_Convert_Round_I64x2_To_F64x2 (Value));
    function Native_Convert_Round_U64x2_To_F64x2 is new NEON_Convert_128 (U64x2, F64x2, "ucvtf v0.2d, v0.2d");
    function Convert_Round (Value : U64x2) return F64x2 is (Native_Convert_Round_U64x2_To_F64x2 (Value));
+   function Native_Convert_Truncate_Saturate_F32x4_To_I32x4 is new NEON_Convert_128 (F32x4, I32x4, "fcvtzs v0.4s, v0.4s");
+   function Convert_Truncate_Saturate (Value : F32x4) return I32x4 is (Native_Convert_Truncate_Saturate_F32x4_To_I32x4 (Value));
+   function Native_Convert_Truncate_Saturate_F32x4_To_U32x4 is new NEON_Convert_128 (F32x4, U32x4, "fcvtzu v0.4s, v0.4s");
+   function Convert_Truncate_Saturate (Value : F32x4) return U32x4 is (Native_Convert_Truncate_Saturate_F32x4_To_U32x4 (Value));
+   function Native_Convert_Truncate_Saturate_F64x2_To_I64x2 is new NEON_Convert_128 (F64x2, I64x2, "fcvtzs v0.2d, v0.2d");
+   function Convert_Truncate_Saturate (Value : F64x2) return I64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_I64x2 (Value));
+   function Native_Convert_Truncate_Saturate_F64x2_To_U64x2 is new NEON_Convert_128 (F64x2, U64x2, "fcvtzu v0.2d, v0.2d");
+   function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_U64x2 (Value));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

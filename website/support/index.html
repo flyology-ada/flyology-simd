@@ -65,6 +65,7 @@
               <tr><td><a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> to <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a> widening</td><td>Advanced SIMD leaf</td><td>Scalar composition</td></tr>
               <tr><td><code>F64x2</code> to <code>F32x4</code> narrowing</td><td>Advanced SIMD leaf</td><td>Scalar composition</td></tr>
               <tr><td>32- and 64-bit integer-to-floating conversion</td><td>Advanced SIMD leaves</td><td>Scalar composition</td></tr>
+              <tr><td>32- and 64-bit floating-to-integer conversion</td><td>Advanced SIMD leaves</td><td>Scalar composition</td></tr>
               <tr><td>Lane-preserving <a data-api="Flyology_SIMD"><code>Bit_Cast</code></a></td><td>Shared Ada implementation</td><td>Shared Ada implementation</td></tr>
               <tr><td>Floating minimum-number and maximum-number reductions</td><td>Scalar Advanced SIMD leaves in ascending lane order</td><td>Scalar composition</td></tr>
               <tr><td>Full unaligned memory</td><td>128-bit vector load or store</td><td>Unaligned 128-bit load or store</td></tr>
@@ -83,7 +84,7 @@
         <section id="checks">
           <h2>Continuous checks</h2>
           <p>The workflow runs checked and release builds. Semantic checks include deterministic differential tests, independent lane oracles, full-width pseudorandom integer data, and floating-point edge cases.</p>
-          <p>The conversion tests cover integer truncation and saturation boundaries. They also cover <a data-api="Flyology_SIMD.F32"><code>F32</code></a> widening for signed zeros, subnormal and normal boundaries, infinities, and NaNs. Binary64 narrowing cases cover positive and negative halfway values, maximum finite binary32 values, overflow, gradual underflow to binary32 subnormals, underflow to signed zero, infinities, and NaNs. Integer-to-floating cases use an independent bit-level rounding oracle with deterministic, full-width pseudorandom inputs.</p>
+          <p>The conversion tests cover integer truncation and saturation boundaries. They also cover <a data-api="Flyology_SIMD.F32"><code>F32</code></a> widening for signed zeros, subnormal and normal boundaries, infinities, and NaNs. Binary64 narrowing cases cover positive and negative halfway values, maximum finite binary32 values, overflow, gradual underflow to binary32 subnormals, underflow to signed zero, infinities, and NaNs. Integer-to-floating cases use an independent bit-level rounding oracle with deterministic, full-width pseudorandom inputs. Floating-to-integer cases use a separate bit-level oracle and raw pseudorandom floating encodings.</p>
           <p>Memory checks include every tail length, protected pages, and AddressSanitizer. Code-generation checks inspect primitive operations and representative buffer loops.</p>
           <p>Mask patterns and first/last true-lane results are exhaustive for each mask width. Floating reduction cases include NaNs, infinities, and signed zero. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
           <p>The workflow does not use <code>continue-on-error</code>.</p>
@@ -94,7 +95,7 @@
             <li>The public API is experimental.</li>
             <li>The verified compiler matrix contains one GNAT FSF version.</li>
             <li>The 256-bit family is not implemented.</li>
-            <li>Floating-to-integer and same-width signed/unsigned numeric conversion are not implemented.</li>
+            <li>Same-width signed/unsigned numeric conversion is not implemented.</li>
             <li>Arbitrary lane-index shuffles and byte-table lookup are not implemented.</li>
             <li>AVX2 accelerates three whole-buffer byte algorithms, not the primitive vector family.</li>
           </ul>

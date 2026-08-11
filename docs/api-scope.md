@@ -35,7 +35,8 @@ provide `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and
 `Narrow_Saturate`. `F32x4` provides exact finite low-half and high-half
 widening to `F64x2`. `Narrow_Round` combines two `F64x2` inputs into one
 `F32x4` result. `Convert_Round` converts same-width signed or unsigned integer
-lanes to `F32x4` or `F64x2`.
+lanes to `F32x4` or `F64x2`. `Convert_Truncate_Saturate` converts `F32x4` or
+`F64x2` lanes to same-width signed or unsigned integers.
 
 Masks supply Boolean AND, OR, XOR, and complement. They also supply lane tests,
 any/all/none reductions, population count, first/last true-lane queries, and
@@ -86,9 +87,16 @@ floating-point lane cannot represent exactly. Integer magnitudes through
 Every result is finite. The library does not modify the floating-point control
 register.
 
+`Convert_Truncate_Saturate` converts `F32x4` to `I32x4` or `U32x4`. It converts
+`F64x2` to `I64x2` or `U64x2`. Each finite input truncates toward zero before
+the result clamps to the destination range. An unsigned result maps every
+negative input to zero. Positive infinity becomes the destination maximum.
+Negative infinity becomes the destination minimum for a signed result and zero
+for an unsigned result. A NaN becomes zero. The operation does not depend on or
+modify the floating-point rounding mode.
+
 The following conversion groups remain design targets:
 
-- floating-to-integer conversion names state truncation and saturation;
 - same-width signed-to-unsigned and unsigned-to-signed numeric conversion.
 
 There are no implicit signed/unsigned, integer/floating, width-changing, or
@@ -115,10 +123,6 @@ operands are NaNs. NaN payload selection is not specified.
 `Max_Number` as an ascending-lane left fold that starts at lane 0. This fold
 order is part of the contract. At each fold step, `Min_Number` or `Max_Number`
 applies its documented NaN and signed-zero rules.
-
-No floating-to-integer conversion operation exists in this release. Its future
-contract must state NaN, rounding, and out-of-range behavior before the
-operation becomes public.
 
 ## Backend completion rule
 

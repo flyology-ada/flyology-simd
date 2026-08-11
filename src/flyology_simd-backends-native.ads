@@ -527,6 +527,22 @@ is
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
    --  @param Value The input value.
    --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F32x4) return I32x4;
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F32x4) return U32x4;
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F64x2) return I64x2;
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F64x2) return U64x2;
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  @param Value The input value.
+   --  @return The operation result.
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.
    --  @return The operation result.

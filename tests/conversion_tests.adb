@@ -177,6 +177,24 @@ procedure Conversion_Tests is
       return From_Lanes (Values);
    end Random_Narrow_F64x2;
 
+   function Random_Convert_F32x4 return F32x4 is
+      Values : Lane_Values_F32x4;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Values (Lane) := F32_Of_Bits (U32 (Next_U64 and U64 (U32'Last)));
+      end loop;
+      return From_Lanes (Values);
+   end Random_Convert_F32x4;
+
+   function Random_Convert_F64x2 return F64x2 is
+      Values : Lane_Values_F64x2;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Values (Lane) := F64_Of_Bits (Next_U64);
+      end loop;
+      return From_Lanes (Values);
+   end Random_Convert_F64x2;
+
    function Oracle_Narrow_Truncate_U16x8_To_U8x16 (Item : U16) return U8 is (U8 (Item and U16 (U8'Last)));
    function Oracle_Narrow_Saturate_U16x8_To_U8x16 (Item : U16) return U8 is ((if Item > U16 (U8'Last) then U8'Last else U8 (Item)));
    function Oracle_Narrow_Truncate_I16x8_To_I8x16 (Item : I16) return I8 is (I8_Of_Bits (U8 (U16_Of_Bits (Item) and U16 (U8'Last))));
@@ -334,6 +352,66 @@ procedure Conversion_Tests is
       return F64_Of_Bits
         (Oracle_Integer_To_Float_Bits (Item, 0, 52, 1_023));
    end Oracle_Convert_Round_U64x2_To_F64x2;
+
+   function Oracle_Float_To_Integer_Bits
+     (Bits, Sign_Mask, Fraction_Mask : U64;
+      Encoded_Exponent_Max, Fraction_Bits, Bias, Destination_Bits : Natural;
+      Signed : Boolean) return U64
+   is
+      Destination_Mask : constant U64 :=
+        (if Destination_Bits = 64 then U64'Last
+         else Interfaces.Shift_Left (1, Destination_Bits) - 1);
+      Minimum_Bits : constant U64 := Interfaces.Shift_Left (1, Destination_Bits - 1);
+      Maximum_Bits : constant U64 := Minimum_Bits - 1;
+      Negative : constant Boolean := (Bits and Sign_Mask) /= 0;
+      Fraction : constant U64 := Bits and Fraction_Mask;
+      Encoded_Exponent : constant Natural := Natural
+        (Interfaces.Shift_Right (Bits, Fraction_Bits) and U64 (Encoded_Exponent_Max));
+      Exponent : Integer;
+      Significant, Magnitude : U64;
+   begin
+      if Encoded_Exponent = Encoded_Exponent_Max and then Fraction /= 0 then
+         return 0;
+      elsif not Signed and then Negative then
+         return 0;
+      elsif Encoded_Exponent = 0 then
+         return 0;
+      end if;
+      Exponent := Encoded_Exponent - Bias;
+      if Exponent < 0 then
+         return 0;
+      elsif Exponent >= (if Signed then Destination_Bits - 1 else Destination_Bits) then
+         if Signed then
+            return (if Negative then Minimum_Bits else Maximum_Bits);
+         else
+            return Destination_Mask;
+         end if;
+      end if;
+      Significant := Interfaces.Shift_Left (1, Fraction_Bits) or Fraction;
+      if Exponent >= Fraction_Bits then
+         Magnitude := Interfaces.Shift_Left (Significant, Exponent - Fraction_Bits);
+      else
+         Magnitude := Interfaces.Shift_Right (Significant, Fraction_Bits - Exponent);
+      end if;
+      if Signed and then Negative then
+         return (0 - Magnitude) and Destination_Mask;
+      else
+         return Magnitude and Destination_Mask;
+      end if;
+   end Oracle_Float_To_Integer_Bits;
+
+   function Oracle_Convert_Truncate_Saturate_F32x4_To_I32x4 (Item : F32) return I32 is
+     (I32_Of_Bits (U32 (Oracle_Float_To_Integer_Bits
+        (U64 (U32_Of_Bits (Item)), 16#8000_0000#, 16#007F_FFFF#, 255, 23, 127, 32, True))));
+   function Oracle_Convert_Truncate_Saturate_F32x4_To_U32x4 (Item : F32) return U32 is
+     (U32 (Oracle_Float_To_Integer_Bits
+        (U64 (U32_Of_Bits (Item)), 16#8000_0000#, 16#007F_FFFF#, 255, 23, 127, 32, False)));
+   function Oracle_Convert_Truncate_Saturate_F64x2_To_I64x2 (Item : F64) return I64 is
+     (I64_Of_Bits (Oracle_Float_To_Integer_Bits
+        (U64_Of_Bits (Item), 16#8000_0000_0000_0000#, 16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, True)));
+   function Oracle_Convert_Truncate_Saturate_F64x2_To_U64x2 (Item : F64) return U64 is
+     (Oracle_Float_To_Integer_Bits
+        (U64_Of_Bits (Item), 16#8000_0000_0000_0000#, 16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, False));
 
    procedure Test_F32_Widen_Edges is
       Zeros_And_Infinities : constant F32x4 := From_Lanes
@@ -520,12 +598,110 @@ procedure Conversion_Tests is
       Check_U64 (U64_B, Expected_U64_B);
    end Test_Integer_To_Float_Edges;
 
+   procedure Test_Float_To_Integer_Edges is
+      F32_I32_A : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#),
+          F32_Of_Bits (16#7FC0_0001#), F32_Of_Bits (16#7F80_0001#)]);
+      F32_I32_B : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
+          F32_Of_Bits (16#4EFF_FFFF#), F32_Of_Bits (16#4F00_0000#)]);
+      F32_I32_C : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#CF00_0000#), F32_Of_Bits (16#CF00_0001#), 1.75, -1.75]);
+      F32_I32_D : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#CEFF_FFFF#), F32_Of_Bits (16#FFC0_0001#),
+          F32_Of_Bits (16#FF80_0001#), F32_Of_Bits (16#8000_0001#)]);
+      F32_U32_A : constant F32x4 := From_Lanes
+        ([-1.75, 1.75, F32_Of_Bits (16#4F7F_FFFF#), F32_Of_Bits (16#4F80_0000#)]);
+      F32_U32_B : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
+          F32_Of_Bits (16#7FC0_0001#), F32_Of_Bits (16#0000_0001#)]);
+      F64_I64_A : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#0000_0000_0000_0000#), F64_Of_Bits (16#7FF8_0000_0000_0001#)]);
+      F64_I64_A2 : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#8000_0000_0000_0000#), F64_Of_Bits (16#7FF0_0000_0000_0001#)]);
+      F64_I64_A3 : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#FFF8_0000_0000_0001#), F64_Of_Bits (16#FFF0_0000_0000_0001#)]);
+      F64_I64_B : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#7FF0_0000_0000_0000#), F64_Of_Bits (16#FFF0_0000_0000_0000#)]);
+      F64_I64_C : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#43DF_FFFF_FFFF_FFFF#), F64_Of_Bits (16#43E0_0000_0000_0000#)]);
+      F64_I64_D : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#C3E0_0000_0000_0000#), F64_Of_Bits (16#C3E0_0000_0000_0001#)]);
+      F64_I64_E : constant F64x2 := From_Lanes ([1.75, -1.75]);
+      F64_I64_F : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#C3DF_FFFF_FFFF_FFFF#), F64_Of_Bits (16#8000_0000_0000_0001#)]);
+      F64_U64_A : constant F64x2 := From_Lanes ([-1.75, 1.75]);
+      F64_U64_B : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#43EF_FFFF_FFFF_FFFF#), F64_Of_Bits (16#43F0_0000_0000_0000#)]);
+      F64_U64_C : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#7FF0_0000_0000_0000#), F64_Of_Bits (16#FFF0_0000_0000_0000#)]);
+      F64_U64_D : constant F64x2 := From_Lanes
+        ([F64_Of_Bits (16#7FF8_0000_0000_0001#), F64_Of_Bits (16#0000_0000_0000_0001#)]);
+
+      procedure Check_F32_I32 (Value : F32x4; Expected : Lane_Values_I32x4) is
+         Scalar_Result : constant I32x4 := Convert_Truncate_Saturate (Value);
+         Native_Result : constant I32x4 := Backends.Native.Convert_Truncate_Saturate (Value);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar F32 to I32 edge");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native F32 to I32 edge");
+         end loop;
+      end Check_F32_I32;
+      procedure Check_F32_U32 (Value : F32x4; Expected : Lane_Values_U32x4) is
+         Scalar_Result : constant U32x4 := Convert_Truncate_Saturate (Value);
+         Native_Result : constant U32x4 := Backends.Native.Convert_Truncate_Saturate (Value);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar F32 to U32 edge");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native F32 to U32 edge");
+         end loop;
+      end Check_F32_U32;
+      procedure Check_F64_I64 (Value : F64x2; Expected : Lane_Values_I64x2) is
+         Scalar_Result : constant I64x2 := Convert_Truncate_Saturate (Value);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Truncate_Saturate (Value);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar F64 to I64 edge");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native F64 to I64 edge");
+         end loop;
+      end Check_F64_I64;
+      procedure Check_F64_U64 (Value : F64x2; Expected : Lane_Values_U64x2) is
+         Scalar_Result : constant U64x2 := Convert_Truncate_Saturate (Value);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Truncate_Saturate (Value);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Expected (Lane), "scalar F64 to U64 edge");
+            Check (Extract (Native_Result, Lane) = Expected (Lane), "native F64 to U64 edge");
+         end loop;
+      end Check_F64_U64;
+   begin
+      Check_F32_I32 (F32_I32_A, [0, 0, 0, 0]);
+      Check_F32_I32 (F32_I32_B, [I32'Last, I32'First, 2_147_483_520, I32'Last]);
+      Check_F32_I32 (F32_I32_C, [I32'First, I32'First, 1, -1]);
+      Check_F32_I32 (F32_I32_D, [-2_147_483_520, 0, 0, 0]);
+      Check_F32_U32 (F32_U32_A, [0, 1, 4_294_967_040, U32'Last]);
+      Check_F32_U32 (F32_U32_B, [U32'Last, 0, 0, 0]);
+      Check_F64_I64 (F64_I64_A, [0, 0]);
+      Check_F64_I64 (F64_I64_A2, [0, 0]);
+      Check_F64_I64 (F64_I64_A3, [0, 0]);
+      Check_F64_I64 (F64_I64_B, [I64'Last, I64'First]);
+      Check_F64_I64 (F64_I64_C, [9_223_372_036_854_774_784, I64'Last]);
+      Check_F64_I64 (F64_I64_D, [I64'First, I64'First]);
+      Check_F64_I64 (F64_I64_E, [1, -1]);
+      Check_F64_I64 (F64_I64_F, [-9_223_372_036_854_774_784, 0]);
+      Check_F64_U64 (F64_U64_A, [0, 1]);
+      Check_F64_U64 (F64_U64_B, [18_446_744_073_709_549_568, U64'Last]);
+      Check_F64_U64 (F64_U64_C, [U64'Last, 0]);
+      Check_F64_U64 (F64_U64_D, [0, 0]);
+   end Test_Float_To_Integer_Edges;
+
 
 begin
    Put_Line ("conversion differential tests seed=0xC0457A5712800A11");
    Test_F32_Widen_Edges;
    Test_F64_Narrow_Edges;
    Test_Integer_To_Float_Edges;
+   Test_Float_To_Integer_Edges;
       declare
          Low : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
          High : constant U16x8 := From_Lanes ([0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last, 0, U16 (U8'Last), U16 (U8'Last) + 1, U16'Last]);
@@ -1227,6 +1403,46 @@ begin
          for Lane in Lane_Index_64x2 loop
             Check (Same (Extract (Scalar_Result, Lane), Oracle_Convert_Round_U64x2_To_F64x2 (Extract (Source, Lane))), "scalar Convert_Round U64x2 lane");
             Check (Same (Extract (Native_Result, Lane), Oracle_Convert_Round_U64x2_To_F64x2 (Extract (Source, Lane))), "native Convert_Round U64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant F32x4 := Random_Convert_F32x4;
+         Scalar_Result : constant I32x4 := Convert_Truncate_Saturate (Source);
+         Native_Result : constant I32x4 := Backends.Native.Convert_Truncate_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_F32x4_To_I32x4 (Extract (Source, Lane)), "scalar Convert_Truncate_Saturate F32x4 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_F32x4_To_I32x4 (Extract (Source, Lane)), "native Convert_Truncate_Saturate F32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant F32x4 := Random_Convert_F32x4;
+         Scalar_Result : constant U32x4 := Convert_Truncate_Saturate (Source);
+         Native_Result : constant U32x4 := Backends.Native.Convert_Truncate_Saturate (Source);
+      begin
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_F32x4_To_U32x4 (Extract (Source, Lane)), "scalar Convert_Truncate_Saturate F32x4 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_F32x4_To_U32x4 (Extract (Source, Lane)), "native Convert_Truncate_Saturate F32x4 lane");
+         end loop;
+      end;
+      declare
+         Source : constant F64x2 := Random_Convert_F64x2;
+         Scalar_Result : constant I64x2 := Convert_Truncate_Saturate (Source);
+         Native_Result : constant I64x2 := Backends.Native.Convert_Truncate_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_I64x2 (Extract (Source, Lane)), "scalar Convert_Truncate_Saturate F64x2 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_I64x2 (Extract (Source, Lane)), "native Convert_Truncate_Saturate F64x2 lane");
+         end loop;
+      end;
+      declare
+         Source : constant F64x2 := Random_Convert_F64x2;
+         Scalar_Result : constant U64x2 := Convert_Truncate_Saturate (Source);
+         Native_Result : constant U64x2 := Backends.Native.Convert_Truncate_Saturate (Source);
+      begin
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Scalar_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_U64x2 (Extract (Source, Lane)), "scalar Convert_Truncate_Saturate F64x2 lane");
+            Check (Extract (Native_Result, Lane) = Oracle_Convert_Truncate_Saturate_F64x2_To_U64x2 (Extract (Source, Lane)), "native Convert_Truncate_Saturate F64x2 lane");
          end loop;
       end;
    end loop;

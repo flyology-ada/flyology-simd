@@ -31,14 +31,23 @@ memory, and backend boundaries. The current type surface contains all signed,
 unsigned, and floating 128-bit families. The exact operation matrix and
 floating-point contracts are recorded in [api-scope.md](api-scope.md).
 AArch64 NEON and the x86-64 SSE2 baseline implement the current operations.
-The 256-bit type family is not implemented. Floating-to-integer and same-width
-signed/unsigned numeric conversions are also not implemented.
+The 256-bit type family is not implemented. Same-width signed/unsigned numeric
+conversion is also not implemented.
 The 128-bit API implements lane-preserving bit casts, adjacent integer
 widening and narrowing, exact finite `F32x4` to `F64x2` widening, and rounded
 `F64x2` to `F32x4` narrowing. It also converts 32- and 64-bit signed and
 unsigned integer lanes to the corresponding floating family.
+Floating lanes convert back to same-width signed or unsigned integers with
+explicit truncation and saturation semantics.
 
 ## Normative semantics
+
+Floating-to-integer conversion is a total operation. The public name
+`Convert_Truncate_Saturate` states both steps: truncate a finite input toward
+zero, then clamp it to the integer range. NaN maps to zero. This design avoids
+a hidden range precondition. Some target instructions return a fixed integer
+for an out-of-range input. The public contract does not expose that
+instruction-specific result.
 
 - Lane zero is the first logical element loaded from memory.
 - Integer wrapping operations are modulo the lane width. Saturating operations
@@ -85,9 +94,9 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   operations not expressible in SSE2 without changing semantics;
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
-The AArch64 backend lowers widening, narrowing, and integer-to-floating
-conversion through verified NEON assembly leaves. The x86-64 SSE2 backend
-currently composes these conversion operations from the scalar authority.
+The AArch64 backend lowers widening, narrowing, and numeric conversion through
+verified NEON assembly leaves. The x86-64 SSE2 backend currently composes these
+conversion operations from the scalar authority.
 This preserves the contract but does not claim an SSE2 instruction sequence
 for those operations.
 

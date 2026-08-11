@@ -53,6 +53,15 @@ procedure Conversions is
      Native.Convert_Round (Integer_Samples);
    Rounded_Integer_Encodings : constant U32x4 :=
      Native.Bit_Cast (Rounded_Integers);
+
+   Floating_Input_Bits : constant U32x4 :=
+     Native.From_Lanes
+       ([16#BFE0_0000#, 16#3FE0_0000#, 16#4F00_0000#, 16#7FC0_0001#]);
+   Floating_Inputs : constant F32x4 := Native.Bit_Cast (Floating_Input_Bits);
+   Truncated_Signed : constant I32x4 :=
+     Native.Convert_Truncate_Saturate (Floating_Inputs);
+   Truncated_Unsigned : constant U32x4 :=
+     Native.Convert_Truncate_Saturate (Floating_Inputs);
 begin
    Put_Line
      ("round trip:" &
@@ -85,6 +94,16 @@ begin
    Put ("I32 rounded bits:");
    for Lane in Lane_Index_32x4 loop
       Put (U32'Image (Native.Extract (Rounded_Integer_Encodings, Lane)));
+   end loop;
+   New_Line;
+   Put ("F32 to I32:");
+   for Lane in Lane_Index_32x4 loop
+      Put (I32'Image (Native.Extract (Truncated_Signed, Lane)));
+   end loop;
+   New_Line;
+   Put ("F32 to U32:");
+   for Lane in Lane_Index_32x4 loop
+      Put (U32'Image (Native.Extract (Truncated_Unsigned, Lane)));
    end loop;
    New_Line;
 end Conversions;

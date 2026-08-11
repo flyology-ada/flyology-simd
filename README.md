@@ -18,9 +18,9 @@ whole-buffer composition.
 “Full family” refers to the ten 128-bit value types. The API includes
 lane-preserving bit casts, adjacent integer widening and narrowing, and exact
 finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
-narrowing and explicit 32-bit and 64-bit integer-to-floating conversion.
-Floating-to-integer conversion, arbitrary lane-index shuffles, and 256-bit
-types are not implemented. See the
+narrowing and explicit 32-bit and 64-bit numeric conversion between integer
+and floating lanes. Same-width signed/unsigned numeric conversion, arbitrary
+lane-index shuffles, and 256-bit types are not implemented. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 

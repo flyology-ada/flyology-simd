@@ -72,8 +72,17 @@ representable. Integer magnitudes through 2**24 are exact in binary32. Integer
 magnitudes through 2**53 are exact in binary64. The operation always produces
 a finite result and does not modify the floating-point control register.
 
-Floating-to-integer conversion, same-width signed/unsigned numeric conversion,
-and the portable 256-bit family remain pre-stabilization work.
+`Convert_Truncate_Saturate` converts binary32 lanes to 32-bit integer lanes and
+binary64 lanes to 64-bit integer lanes. It truncates each finite value toward
+zero. A result below the destination range becomes the minimum value. A result
+above the range becomes the maximum value. For an unsigned result, every
+negative value becomes zero. Positive infinity becomes the destination
+maximum. Negative infinity becomes the destination minimum for a signed result
+and zero for an unsigned result. A NaN becomes zero. The operation does not
+depend on or modify the floating-point rounding mode.
+
+Same-width signed/unsigned numeric conversion and the portable 256-bit family
+remain pre-stabilization work.
 
 ## Memory
 

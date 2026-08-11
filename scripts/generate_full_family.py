@@ -69,6 +69,13 @@ INTEGER_TO_FLOAT_CONVERSIONS = [
     ("U64x2", "U64", "F64x2", "F64", 64, 2, False),
 ]
 
+FLOAT_TO_INTEGER_CONVERSIONS = [
+    ("F32x4", "F32", "I32x4", "I32", 32, 4, True),
+    ("F32x4", "F32", "U32x4", "U32", 32, 4, False),
+    ("F64x2", "F64", "I64x2", "I64", 64, 2, True),
+    ("F64x2", "F64", "U64x2", "U64", 64, 2, False),
+]
+
 
 OPERATION_DOCS = {
     "Zero": "Return a vector in which each lane is zero.",
@@ -155,6 +162,11 @@ OPERATION_DOCS = {
         "With the default round-to-nearest, ties-to-even environment, convert "
         "each integer lane to the corresponding floating-point lane. The "
         "operation does not modify the floating-point control register."
+    ),
+    "Convert_Truncate_Saturate": (
+        "Truncate each floating-point lane toward zero, then clamp it to the "
+        "integer result range. A NaN becomes zero. The operation does not "
+        "depend on or modify the floating-point rounding mode."
     ),
 }
 
@@ -345,6 +357,10 @@ def emit_conversion_spec() -> str:
         )
     for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
         out.append(f"   function Convert_Round (Value : {source_vector}) return {target_vector};")
+    for source_vector, _, target_vector, _, _, _, _ in FLOAT_TO_INTEGER_CONVERSIONS:
+        out.append(
+            f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector};"
+        )
     out.append("")
     return document_spec("\n".join(out))
 
@@ -839,6 +855,51 @@ def emit_conversion_body() -> str:
             "      end loop;",
             "      return Result;",
             "   end Convert_Round;",
+            "",
+        ]
+
+    for source_vector, source_scalar, target_vector, target_scalar, bits, source_lanes, signed in FLOAT_TO_INTEGER_CONVERSIONS:
+        helper = f"Convert_Truncate_Saturate_{source_scalar}_To_{target_scalar}_Lane"
+        upper = f"2.0 ** {bits - 1 if signed else bits}"
+        out += [
+            f"   function {helper} (Value : {source_scalar}) return {target_scalar} is",
+            f"      Upper : constant {source_scalar} := {upper};",
+        ]
+        if signed:
+            out.append(f"      Lower : constant {source_scalar} := -Upper;")
+        out += [
+            "   begin",
+            "      if Value /= Value then",
+            "         return 0;",
+        ]
+        if signed:
+            out += [
+                "      elsif Value >= Upper then",
+                f"         return {target_scalar}'Last;",
+                "      elsif Value <= Lower then",
+                f"         return {target_scalar}'First;",
+            ]
+        else:
+            out += [
+                "      elsif Value <= 0.0 then",
+                "         return 0;",
+                "      elsif Value >= Upper then",
+                f"         return {target_scalar}'Last;",
+            ]
+        out += [
+            "      else",
+            f"         return {target_scalar} ({source_scalar}'Truncation (Value));",
+            "      end if;",
+            f"   end {helper};",
+            "",
+            f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector} is",
+            f"      Result : {target_vector};",
+            "   begin",
+            f"      for Lane in Natural range 0 .. {source_lanes - 1} loop",
+            f"         Result.Lanes (Lane) := {helper} (Value.Lanes (Lane));",
+            "      end loop;",
+            "      return Result;",
+            "   end Convert_Truncate_Saturate;",
             "",
         ]
 
