@@ -40,6 +40,9 @@ Floating lanes convert back to same-width signed or unsigned integers with
 explicit truncation and saturation semantics.
 Signed and unsigned integer vectors of each lane width convert in both
 directions with explicit saturation semantics.
+All ten value families provide stable mask compression and
+expansion. These operations retain fixed-width results and do not allocate a
+variable-length container.
 The byte family includes a 16-entry table lookup. The public zero result for
 an out-of-range index is independent of a target instruction's behavior.
 
@@ -65,6 +68,10 @@ instruction-specific result.
   truth without exposing the mask representation.
 - `First_True` and `Last_True` return the lane-count value when no lane is
   true. If the mask contains a true lane, the result is a valid lane index.
+- `Compress` packs true-mask lanes toward lane 0 in source order and zero-fills
+  the remaining result lanes. `Expand` consumes packed low lanes into true
+  mask positions and zero-fills false positions. Moved lane bits do not
+  change. Floating fill lanes contain positive zero.
 - `Table_Lookup` uses each unsigned byte index independently. Indexes from 0
   through 15 select table lanes. Larger indexes return zero.
 - `Make_Lane_Map` accepts only valid lane indexes. `Permute_Lanes` reads one
@@ -111,11 +118,12 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
 The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
-and numeric conversion through verified NEON assembly leaves. The x86-64 SSE2 backend
+mask compression, mask expansion, and numeric conversion through verified NEON
+assembly leaves. The x86-64 SSE2 backend
 uses immediate byte-shift leaves for lane slides and currently composes these
 conversion operations from the scalar authority.
-It also composes variable lane permutation because SSE2 has no indexed-byte
-table instruction.
+It also composes variable lane permutation, mask compression, and mask
+expansion because SSE2 has no indexed-byte table instruction.
 This preserves the contract but does not claim an SSE2 instruction sequence
 for those operations.
 

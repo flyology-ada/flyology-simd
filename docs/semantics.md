@@ -20,6 +20,16 @@ right shift sign-fills.  Integer comparison/min/max uses the type's signedness.
 `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` apply the corresponding
 Boolean operation to each lane truth.
 
+`Compress` visits source lanes in ascending order. It packs lanes whose mask
+value is true consecutively from result lane 0 without changing their order.
+It fills all remaining result lanes with zero. `Expand` visits result lanes in
+ascending order. It consumes consecutive input lanes from lane 0 into true
+mask positions and fills false positions with zero. Both operations preserve
+the complete bits of moved lanes. Floating fill lanes contain positive zero.
+Thus `Expand (Compress (Value, Mask), Mask)` restores the selected lanes to
+their original positions and replaces unselected lanes with zero. It is not an
+inverse that can recover discarded lanes.
+
 `Table_Lookup` accepts one `U8x16` table and one `U8x16` index vector. For each
 result lane, the operation reads the unsigned value from the index lane at the
 same position. A value from 0 through 15 selects the table lane whose lane
@@ -118,8 +128,7 @@ the same lane width. Lane positions do not change. A negative signed input
 becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
-Lane compression and the portable 256-bit family remain pre-stabilization
-work.
+The portable 256-bit family remains pre-stabilization work.
 
 ## Memory
 

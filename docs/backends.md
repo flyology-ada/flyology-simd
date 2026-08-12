@@ -29,6 +29,8 @@ maximum and unsigned minimum instructions for 8-, 16-, and 32-bit lanes. The
 with a zero vector and an immediate byte offset. Reusable lane maps contain
 expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
+`Compress` and `Expand` construct a byte-index map from the mask and then use
+`tbl` for every value family.
 `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
@@ -50,7 +52,8 @@ conversion operations use scalar composition on x86-64. These operations are
 implemented and differentially tested, but they do not yet have an SSE2
 code-generation claim. The x86-64 byte-table lookup and one-source or
 two-source variable lane permutations use scalar composition because SSE2 has
-no equivalent indexed byte-table instruction.
+no equivalent indexed byte-table instruction. Mask compression and expansion
+also use scalar composition on x86-64.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

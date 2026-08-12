@@ -114,6 +114,14 @@ OPERATION_DOCS = {
     "Greater_Equal": "Compare corresponding lanes with the lane type's ordering.",
     "Unordered": "Return true in lanes where either floating input is NaN.",
     "Select_Value": "Select the true input in true mask lanes and the false input in other lanes.",
+    "Compress": (
+        "Stably pack lanes whose mask lane is true toward lane zero. Preserve "
+        "their complete bit encodings and fill the remaining lanes with zero."
+    ),
+    "Expand": (
+        "Place consecutive low input lanes into result lanes whose mask lane is "
+        "true. Preserve their complete bit encodings and fill false lanes with zero."
+    ),
     "Min": "Return the smaller integer in each lane.",
     "Max": "Return the larger integer in each lane.",
     "Min_Number": "Return the floating number minimum with the documented NaN and signed-zero rules.",
@@ -619,6 +627,8 @@ def emit_spec() -> str:
             f"   function Greater_Than (Left, Right : {vector}) return {mask};",
             f"   function Greater_Equal (Left, Right : {vector}) return {mask};",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector};",
+            f"   function Compress (Value : {vector}; Mask : {mask}) return {vector};",
+            f"   function Expand (Value : {vector}; Mask : {mask}) return {vector};",
             f"   function Min (Left, Right : {vector}) return {vector};",
             f"   function Max (Left, Right : {vector}) return {vector};",
             f"   function Reduce_Add_Wrap (Value : {vector}) return {scalar};",
@@ -672,6 +682,8 @@ def emit_spec() -> str:
             f"   function Greater_Equal (Left, Right : {vector}) return {mask};",
             f"   function Unordered (Left, Right : {vector}) return {mask};",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector};",
+            f"   function Compress (Value : {vector}; Mask : {mask}) return {vector};",
+            f"   function Expand (Value : {vector}; Mask : {mask}) return {vector};",
             f"   function Min_Number (Left, Right : {vector}) return {vector};",
             f"   function Max_Number (Left, Right : {vector}) return {vector};",
             f"   function Reduce_Add (Value : {vector}) return {scalar};",
@@ -779,6 +791,12 @@ def emit_scalar_backend_renames() -> str:
         out.append(
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} renames Flyology_SIMD.Permute_Lanes;"
         )
+        out.append(
+            f"   function Compress (Value : {vector}; Mask : {mask_for(bits, lanes)}) return {vector} renames Flyology_SIMD.Compress;"
+        )
+        out.append(
+            f"   function Expand (Value : {vector}; Mask : {mask_for(bits, lanes)}) return {vector} renames Flyology_SIMD.Expand;"
+        )
     return document_spec("\n".join(out))
 def signed_unsigned(bits: int) -> str:
     return f"U{bits}"
@@ -810,6 +828,40 @@ def emit_lane_slides(vector: str, idx: str, lanes: int) -> list[str]:
         "      end loop;",
         "      return Result;",
         "   end Slide_Lanes_Toward_High;",
+        "",
+    ]
+
+
+def emit_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
+    """Emit stable scalar mask compression and expansion."""
+    idx = lane_index(bits, lanes)
+    mask = mask_for(bits, lanes)
+    return [
+        f"   function Compress (Value : {vector}; Mask : {mask}) return {vector} is",
+        f"      Result : {vector} := Zero;",
+        "      Result_Lane : Natural := 0;",
+        "   begin",
+        f"      for Source_Lane in {idx} loop",
+        "         if Test (Mask, Source_Lane) then",
+        "            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);",
+        "            Result_Lane := Result_Lane + 1;",
+        "         end if;",
+        "      end loop;",
+        "      return Result;",
+        "   end Compress;",
+        "",
+        f"   function Expand (Value : {vector}; Mask : {mask}) return {vector} is",
+        f"      Result : {vector} := Zero;",
+        "      Source_Lane : Natural := 0;",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        "         if Test (Mask, Result_Lane) then",
+        "            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);",
+        "            Source_Lane := Source_Lane + 1;",
+        "         end if;",
+        "      end loop;",
+        "      return Result;",
+        "   end Expand;",
         "",
     ]
 
@@ -953,6 +1005,7 @@ def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: b
     ]
     out += emit_two_source_lane_permute(vector, bits, lanes)
     out += emit_lane_permute(vector, bits, lanes)
+    out += emit_compress_expand(vector, bits, lanes)
     for name, op in (("Add_Wrap", "+"), ("Subtract_Wrap", "-")):
         expr = f"Left.Lanes (Lane) {op} Right.Lanes (Lane)"
         if signed:
@@ -1114,6 +1167,7 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
     ]
     out += emit_two_source_lane_permute(vector, bits, lanes)
     out += emit_lane_permute(vector, bits, lanes)
+    out += emit_compress_expand(vector, bits, lanes)
     for name, op in (("Add", "+"), ("Subtract", "-"), ("Multiply", "*"), ("Divide", "/")):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Left.Lanes (Lane) {op} Right.Lanes (Lane); end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Compare_{vector} (Left, Right : {vector}; Kind : Character) return {mask} is", f"      Bits : {storage} := 0;", "      Truth : Boolean;", "   begin", f"      for Lane in {idx} loop", "         case Kind is", "            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);", "            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);", "            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);", "            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);", "            when 'G' => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);", "            when others => Truth := Left.Lanes (Lane) /= Left.Lanes (Lane) or else Right.Lanes (Lane) /= Right.Lanes (Lane);", "         end case;", f"         if Truth then Bits := Bits or Interfaces.Shift_Left ({storage}'(1), Lane); end if;", "      end loop;", "      return (Bits => Bits);", f"   end Compare_{vector};"]

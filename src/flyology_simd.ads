@@ -177,6 +177,16 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : U8x16) return U8x16;
    --  Return the smaller integer in each lane.
    --  @param Left The left input.
@@ -970,6 +980,16 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : I8x16; Mask : Mask_8x16) return I8x16;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : I8x16; Mask : Mask_8x16) return I8x16;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : I8x16) return I8x16;
    --  Return the smaller integer in each lane.
    --  @param Left The left input.
@@ -1204,6 +1224,16 @@ is
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : U16x8; Mask : Mask_16x8) return U16x8;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U16x8; Mask : Mask_16x8) return U16x8;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
    --  @return The operation result.
    function Min (Left, Right : U16x8) return U16x8;
    --  Return the smaller integer in each lane.
@@ -1445,6 +1475,16 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : I16x8; Mask : Mask_16x8) return I16x8;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : I16x8; Mask : Mask_16x8) return I16x8;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : I16x8) return I16x8;
    --  Return the smaller integer in each lane.
    --  @param Left The left input.
@@ -1679,6 +1719,16 @@ is
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : U32x4; Mask : Mask_32x4) return U32x4;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U32x4; Mask : Mask_32x4) return U32x4;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
    --  @return The operation result.
    function Min (Left, Right : U32x4) return U32x4;
    --  Return the smaller integer in each lane.
@@ -1920,6 +1970,16 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : I32x4; Mask : Mask_32x4) return I32x4;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : I32x4; Mask : Mask_32x4) return I32x4;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : I32x4) return I32x4;
    --  Return the smaller integer in each lane.
    --  @param Left The left input.
@@ -2154,6 +2214,16 @@ is
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : U64x2; Mask : Mask_64x2) return U64x2;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U64x2; Mask : Mask_64x2) return U64x2;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
    --  @return The operation result.
    function Min (Left, Right : U64x2) return U64x2;
    --  Return the smaller integer in each lane.
@@ -2395,6 +2465,16 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : I64x2; Mask : Mask_64x2) return I64x2;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : I64x2; Mask : Mask_64x2) return I64x2;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : I64x2) return I64x2;
    --  Return the smaller integer in each lane.
    --  @param Left The left input.
@@ -2600,6 +2680,16 @@ is
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : F32x4; Mask : Mask_32x4) return F32x4;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
    --  @return The operation result.
    function Min_Number (Left, Right : F32x4) return F32x4;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.
@@ -2807,6 +2897,16 @@ is
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : F64x2; Mask : Mask_64x2) return F64x2;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
    --  @return The operation result.
    function Min_Number (Left, Right : F64x2) return F64x2;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.

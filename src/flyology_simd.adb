@@ -256,6 +256,32 @@ package body Flyology_SIMD is
       return Result;
    end Select_Value;
 
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Result      : U8x16 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Result      : U8x16 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Min (Left, Right : U8x16) return U8x16 is
       Result : U8x16;
    begin
@@ -1380,6 +1406,32 @@ package body Flyology_SIMD is
       return Result;
    end Permute_Lanes;
 
+   function Compress (Value : I8x16; Mask : Mask_8x16) return I8x16 is
+      Result : I8x16 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : I8x16; Mask : Mask_8x16) return I8x16 is
+      Result : I8x16 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Add_Wrap (Left, Right : I8x16) return I8x16 is
       Result : I8x16;
    begin
@@ -1704,6 +1756,32 @@ package body Flyology_SIMD is
       return Result;
    end Permute_Lanes;
 
+   function Compress (Value : U16x8; Mask : Mask_16x8) return U16x8 is
+      Result : U16x8 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : U16x8; Mask : Mask_16x8) return U16x8 is
+      Result : U16x8 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Add_Wrap (Left, Right : U16x8) return U16x8 is
       Result : U16x8;
    begin
@@ -2005,6 +2083,32 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Permute_Lanes;
+
+   function Compress (Value : I16x8; Mask : Mask_16x8) return I16x8 is
+      Result : I16x8 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : I16x8; Mask : Mask_16x8) return I16x8 is
+      Result : I16x8 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
 
    function Add_Wrap (Left, Right : I16x8) return I16x8 is
       Result : I16x8;
@@ -2330,6 +2434,32 @@ package body Flyology_SIMD is
       return Result;
    end Permute_Lanes;
 
+   function Compress (Value : U32x4; Mask : Mask_32x4) return U32x4 is
+      Result : U32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : U32x4; Mask : Mask_32x4) return U32x4 is
+      Result : U32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Add_Wrap (Left, Right : U32x4) return U32x4 is
       Result : U32x4;
    begin
@@ -2631,6 +2761,32 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Permute_Lanes;
+
+   function Compress (Value : I32x4; Mask : Mask_32x4) return I32x4 is
+      Result : I32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : I32x4; Mask : Mask_32x4) return I32x4 is
+      Result : I32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
 
    function Add_Wrap (Left, Right : I32x4) return I32x4 is
       Result : I32x4;
@@ -2956,6 +3112,32 @@ package body Flyology_SIMD is
       return Result;
    end Permute_Lanes;
 
+   function Compress (Value : U64x2; Mask : Mask_64x2) return U64x2 is
+      Result : U64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : U64x2; Mask : Mask_64x2) return U64x2 is
+      Result : U64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Add_Wrap (Left, Right : U64x2) return U64x2 is
       Result : U64x2;
    begin
@@ -3257,6 +3439,32 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Permute_Lanes;
+
+   function Compress (Value : I64x2; Mask : Mask_64x2) return I64x2 is
+      Result : I64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : I64x2; Mask : Mask_64x2) return I64x2 is
+      Result : I64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
 
    function Add_Wrap (Left, Right : I64x2) return I64x2 is
       Result : I64x2;
@@ -3589,6 +3797,32 @@ package body Flyology_SIMD is
       return Result;
    end Permute_Lanes;
 
+   function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4 is
+      Result : F32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : F32x4; Mask : Mask_32x4) return F32x4 is
+      Result : F32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
+
    function Add (Left, Right : F32x4) return F32x4 is
       Result : F32x4;
    begin
@@ -3817,6 +4051,32 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Permute_Lanes;
+
+   function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2 is
+      Result : F64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Compress;
+
+   function Expand (Value : F64x2; Mask : Mask_64x2) return F64x2 is
+      Result : F64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Expand;
 
    function Add (Left, Right : F64x2) return F64x2 is
       Result : F64x2;

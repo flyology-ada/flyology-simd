@@ -25,7 +25,8 @@ project Examples is
       "table_lookup.adb",
       "lane_slides.adb",
       "permute_points.adb",
-      "cross_block_differences.adb");
+      "cross_block_differences.adb",
+      "compact_measurements.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata");

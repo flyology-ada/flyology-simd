@@ -16,7 +16,8 @@ true-lane queries. `Table_Lookup` performs a 16-entry byte lookup with a
 defined zero result for an out-of-range index. Each 128-bit value family
 supports reusable, strongly typed lane maps that reorder or broadcast lanes
 from one source vector, or select lanes from two source vectors. Every family
-has zero-filled lane slides in both index directions. `Find_First`, `Count`,
+has zero-filled lane slides in both index directions. Every family also has
+stable mask compression and expansion. `Find_First`, `Count`,
 and `Is_ASCII` demonstrate whole-buffer composition.
 
 “Full family” refers to the ten 128-bit value types. The API includes
@@ -24,8 +25,9 @@ lane-preserving bit casts, adjacent integer widening and narrowing, and exact
 finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
 narrowing and explicit 32-bit and 64-bit numeric conversion between integer
 and floating lanes. Same-width signed/unsigned numeric conversion is available
-for all four supported integer lane widths: 8, 16, 32, and 64 bits. Lane
-compression and 256-bit types are not implemented. See the
+for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
+compression and expansion are available for all ten 128-bit value types. The
+256-bit types are not implemented. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -80,6 +82,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/lane_slides
 ./bin/permute_points
 ./bin/cross_block_differences
+./bin/compact_measurements
 ```
 
 See
@@ -134,7 +137,7 @@ Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `Mask_Not` to combine mask values. `First_True` and `Last_True` return the
 lane-count value when the mask has no true lane.
 
-Full normative details and the remaining compression and 256-bit work are in
+Full normative details and the remaining 256-bit work are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).
 
 ## License

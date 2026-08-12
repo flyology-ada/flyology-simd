@@ -131,6 +131,7 @@
               <tr><td>One-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Make_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td>All integer types</td></tr>
               <tr><td>Two-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Select_Left_Lane</code>, <code>Select_Right_Lane</code>, <code>Make_Two_Source_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td>All integer types</td></tr>
               <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td>All integer types</td></tr>
+              <tr><td>Mask compression and expansion</td><td><a data-api="Flyology_SIMD"><code>Compress</code>, <code>Expand</code></a></td><td>All integer types</td></tr>
               <tr><td>16-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Table_Lookup"><code>Table_Lookup</code></a></td><td><code>U8x16</code></td></tr>
             </tbody>
           </table>
@@ -168,6 +169,7 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
               <tr><td>One-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Make_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Two-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Select_Left_Lane</code>, <code>Select_Right_Lane</code>, <code>Make_Two_Source_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Mask compression and expansion</td><td><a data-api="Flyology_SIMD"><code>Compress</code>, <code>Expand</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
             </tbody>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
@@ -195,6 +197,7 @@ Largest  : constant F32 := Reduce_Max_Number (Samples);  --   7.25</code></pre>
         </section>
         <section id="masks">
           <h2>Combine and inspect masks</h2>
+          <p><a data-api="Flyology_SIMD"><code>Compress</code></a> visits source lanes in ascending order. It packs true-mask lanes consecutively from result lane 0 and zero-fills the remainder. <a data-api="Flyology_SIMD"><code>Expand</code></a> consumes consecutive input lanes from lane 0 into true result positions and zero-fills false positions. Both operations preserve the complete bits of moved lanes. Floating fill lanes contain positive zero. They are available for all ten value types. Chapter 3 <a href="../masks/#compact">uses them to compress selected measurements and restore their positions</a>.</p>
           <p>A mask is a Boolean value for each lane. It is not an integer vector. Use these operations instead of depending on its private representation:</p>
           <ul>
             <li><a data-api="Flyology_SIMD"><code>Mask_And</code>, <code>Mask_Or</code>, <code>Mask_Xor</code>, and <code>Mask_Not</code></a> combine lane truths.</li>
@@ -230,9 +233,8 @@ end if;</code></pre>
         </section>
         <section id="not-implemented">
           <h2>Not implemented in 0.1.0-dev</h2>
-          <p>The following groups are design targets, not current API:</p>
+          <p>The following group is a design target, not current API:</p>
           <ul>
-            <li>lane compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>
           <div class="semantic-callout">

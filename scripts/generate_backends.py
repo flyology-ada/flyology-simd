@@ -62,6 +62,8 @@ def contract() -> str:
             "   function Table_Lookup (Table, Indices : U8x16) return U8x16;",
             "   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16;",
             "   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16;",
+            "   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16;",
+            "   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16;",
             "   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16;",
             "   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16;",
         ]
@@ -70,6 +72,7 @@ def contract() -> str:
     return re.sub(
         r"(function (?:Slide_Lanes_Toward_(?:Low|High) "
         r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+|"
+        r"(?:Compress|Expand) \(Value : [A-Za-z0-9_]+; Mask : Mask_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+|"
         r"Permute_Lanes \(Value : [A-Za-z0-9_]+; Map : Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+|"
         r"Permute_Lanes \(Left, Right : [A-Za-z0-9_]+; Map : Two_Source_Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+));",
         r"\1 with Inline_Always;",
@@ -89,6 +92,8 @@ def fallback_body() -> str:
         call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
         call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"),
         call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"),
+        call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"),
+        call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"),
         call("Slide_Lanes_Toward_Low", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
         call("Slide_Lanes_Toward_High", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
     ]
@@ -138,6 +143,8 @@ def fallback_body() -> str:
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
             call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
+            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
+            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate",
                      "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max",
@@ -182,6 +189,8 @@ def fallback_body() -> str:
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
             call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
+            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
+            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
         for name in ("Add", "Subtract", "Multiply", "Divide"):
             out.append(call(name, vector, "Left, Right", f"Left, Right : {vector}"))
@@ -443,6 +452,67 @@ def native_lane_slides(architecture: str) -> list[str]:
     return out
 
 
+def neon_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
+    """Build a semantic byte map in Ada and perform lane movement with TBL."""
+    idx = lane_index(bits, lanes)
+    mask = mask_for(bits, lanes)
+    mapping = lane_map(bits, lanes)
+    lane_bytes = bits // 8
+    native = f"Native_Permute_{vector}"
+    storage = "Interfaces.Unsigned_16" if lanes == 16 else "Interfaces.Unsigned_8"
+    test = (
+        f"(Bits and Interfaces.Shift_Left ({storage}'(1), "
+        "{lane})) /= 0"
+    )
+    return [
+        f"   function Compress (Value : {vector}; Mask : {mask}) return {vector} is",
+        f"      Map : {mapping};",
+        f"      Bits : constant {storage} := Mask.Bits;",
+        "      Result_Lane : Natural := 0;",
+        "   begin",
+        f"      for Source_Lane in {idx} loop",
+        f"         if {test.format(lane='Source_Lane')} then",
+        f"            for Byte in Natural range 0 .. {lane_bytes - 1} loop",
+        "               Map.Byte_Indices",
+        f"                 (Result_Lane * {lane_bytes} + Byte) :=",
+        f"                   U8 (Source_Lane * {lane_bytes} + Byte);",
+        "            end loop;",
+        "            Result_Lane := Result_Lane + 1;",
+        "         end if;",
+        "      end loop;",
+        f"      while Result_Lane < {lanes} loop",
+        f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop",
+        "            Map.Byte_Indices",
+        f"              (Result_Lane * {lane_bytes} + Byte) := 16;",
+        "         end loop;",
+        "         Result_Lane := Result_Lane + 1;",
+        "      end loop;",
+        f"      return {native} (Value, Map);",
+        "   end Compress;",
+        "",
+        f"   function Expand (Value : {vector}; Mask : {mask}) return {vector} is",
+        f"      Map : {mapping};",
+        f"      Bits : constant {storage} := Mask.Bits;",
+        "      Source_Lane : Natural := 0;",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop",
+        "            Map.Byte_Indices",
+        f"              (Result_Lane * {lane_bytes} + Byte) :=",
+        f"                (if {test.format(lane='Result_Lane')} then",
+        f"                    U8 (Source_Lane * {lane_bytes} + Byte)",
+        "                 else 16);",
+        "         end loop;",
+        f"         if {test.format(lane='Result_Lane')} then",
+        "            Source_Lane := Source_Lane + 1;",
+        "         end if;",
+        "      end loop;",
+        f"      return {native} (Value, Map);",
+        "   end Expand;",
+        "",
+    ]
+
+
 def neon_body() -> str:
     out = neon_helpers()
     for bits, lanes in ((16, 8), (32, 4), (64, 2)):
@@ -579,6 +649,7 @@ def neon_body() -> str:
         "   pragma Inline_Always (Native_Permute_2_U8x16);",
         "   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));",
     ]
+    out += neon_compress_expand("U8x16", 8, 16)
     out.append("")
     out += native_lane_slides("aarch64")
 
@@ -650,6 +721,7 @@ def neon_body() -> str:
             f"   pragma Inline_Always (Native_Permute_2_{vector});",
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
         ]
+        out += neon_compress_expand(vector, bits, lanes)
         if bits == 64:
             out.append(call("Multiply_Wrap", vector, "Left, Right", f"Left, Right : {vector}"))
         dup = f"dup v1.{shape}, %{'2' if bits == 64 else 'w2'}"
@@ -717,6 +789,7 @@ def neon_body() -> str:
             call("Select_Value", vector, "Mask, If_True, If_False", f"Mask : {mask}; If_True, If_False : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
         ]
+        out += neon_compress_expand(vector, bits, lanes)
         for name, opcode in (("Reduce_Min_Number", "fminnm"), ("Reduce_Max_Number", "fmaxnm")):
             if bits == 32:
                 instruction = (
@@ -886,6 +959,8 @@ def x86_body() -> str:
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
     out.append(call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"))
     out.append(call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"))
+    out.append(call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
+    out.append(call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
@@ -1066,6 +1141,8 @@ def x86_body() -> str:
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
             call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
+            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
+            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
         if bits > 16:
             out += [
@@ -1140,6 +1217,8 @@ def x86_body() -> str:
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
             call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
+            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
+            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
@@ -1309,6 +1388,30 @@ def test_program() -> str:
             "      return Result;",
             f"   end Random_{vector}_Selectors;",
             f"   function Same (Left, Right : {vector}) return Boolean is (To_Lanes (Left) = To_Lanes (Right));",
+            f"   function Reference_Compress_{vector} (Value : {vector}; Mask : {mask}) return {vector} is",
+            f"      Result : {vector} := Zero;",
+            "      Result_Lane : Natural := 0;",
+            "   begin",
+            f"      for Source_Lane in {lane_index(bits, lanes)} loop",
+            "         if Test (Mask, Source_Lane) then",
+            f"            Result := Replace (Result, {lane_index(bits, lanes)} (Result_Lane), Extract (Value, Source_Lane));",
+            "            Result_Lane := Result_Lane + 1;",
+            "         end if;",
+            "      end loop;",
+            "      return Result;",
+            f"   end Reference_Compress_{vector};",
+            f"   function Reference_Expand_{vector} (Value : {vector}; Mask : {mask}) return {vector} is",
+            f"      Result : {vector} := Zero;",
+            "      Source_Lane : Natural := 0;",
+            "   begin",
+            f"      for Result_Lane in {lane_index(bits, lanes)} loop",
+            "         if Test (Mask, Result_Lane) then",
+            f"            Result := Replace (Result, Result_Lane, Extract (Value, {lane_index(bits, lanes)} (Source_Lane)));",
+            "            Source_Lane := Source_Lane + 1;",
+            "         end if;",
+            "      end loop;",
+            "      return Result;",
+            f"   end Reference_Expand_{vector};",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
             f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
@@ -1391,6 +1494,8 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            f"         Check (Same (Compress (A, Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))), \"{vector} exhaustive compress\" & Pattern'Image);",
+            f"         Check (Same (Expand (A, Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))), \"{vector} exhaustive expand\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
             f"      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A), \"{vector} independent reduce add\");",
@@ -1442,6 +1547,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), \"{vector} randomized native two-source lane permutation\");",
             f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
+            f"            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_{vector} (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_{vector} (R_A, Mask_From_Bit_Mask (Pattern))), \"{vector} randomized native compression\");",
             f"            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
@@ -1498,6 +1604,30 @@ def test_program() -> str:
             "      end loop;",
             "      return True;",
             "   end Same;",
+            f"   function Reference_Compress_{vector} (Value : {vector}; Mask : {mask}) return {vector} is",
+            f"      Result : {vector} := Zero;",
+            "      Result_Lane : Natural := 0;",
+            "   begin",
+            f"      for Source_Lane in {lane_index(bits, lanes)} loop",
+            "         if Test (Mask, Source_Lane) then",
+            f"            Result := Replace (Result, {lane_index(bits, lanes)} (Result_Lane), Extract (Value, Source_Lane));",
+            "            Result_Lane := Result_Lane + 1;",
+            "         end if;",
+            "      end loop;",
+            "      return Result;",
+            f"   end Reference_Compress_{vector};",
+            f"   function Reference_Expand_{vector} (Value : {vector}; Mask : {mask}) return {vector} is",
+            f"      Result : {vector} := Zero;",
+            "      Source_Lane : Natural := 0;",
+            "   begin",
+            f"      for Result_Lane in {lane_index(bits, lanes)} loop",
+            "         if Test (Mask, Result_Lane) then",
+            f"            Result := Replace (Result, Result_Lane, Extract (Value, {lane_index(bits, lanes)} (Source_Lane)));",
+            "            Source_Lane := Source_Lane + 1;",
+            "         end if;",
+            "      end loop;",
+            "      return Result;",
+            f"   end Reference_Expand_{vector};",
             f"   function Reference_Reduce_Add_{vector} (Value : {vector}) return {scalar} is",
             f"      Result : {scalar} := 0.0;",
             "   begin",
@@ -1581,6 +1711,8 @@ def test_program() -> str:
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
+            f"         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), \"{vector} exhaustive compress\" & Pattern'Image);",
+            f"         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), \"{vector} exhaustive expand\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
             f"      Check (Bits_{vector} (Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)) and then Bits_{vector} (Backends.Native.Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)), \"{vector} independent reduce\");",
@@ -1626,6 +1758,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), \"{vector} randomized native two-source lane permutation\");",
             f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
+            f"            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_{vector} (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_{vector} (R_A, Mask_From_Bit_Mask (Pattern))), \"{vector} randomized native compression\");",
             f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (R_A)) = Bits_{vector} (Reference_Reduce_Min_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (R_A)) = Bits_{vector} (Reference_Reduce_Max_{vector} (R_A)), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
@@ -1716,10 +1849,32 @@ def test_program() -> str:
         "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)), \"F32 special two-source permutation A\" & Lane'Image);",
         "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)), \"F32 special two-source permutation B\" & Lane'Image);",
         "      end loop;",
+        "      for Pattern in Natural range 0 .. 15 loop",
+        "         declare",
+        "            Mask : constant Mask_32x4 := Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern));",
+        "            Packed : constant F32x4 := Reference_Compress_F32x4 (Slide32, Mask);",
+        "            Spread : constant F32x4 := Reference_Expand_F32x4 (Slide32, Mask);",
+        "         begin",
+        "            Check (Same (Compress (Slide32, Mask), Packed) and then Same (Backends.Native.Compress (Slide32, Mask), Packed), \"F32 special compress\" & Pattern'Image);",
+        "            Check (Same (Expand (Slide32, Mask), Spread) and then Same (Backends.Native.Expand (Slide32, Mask), Spread), \"F32 special expand\" & Pattern'Image);",
+        "         end;",
+        "      end loop;",
         "      for Lane in Lane_Index_64x2 loop",
         "         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_B, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_B, Permute64_Selectors (Lane))), \"F64 special lane permutation\" & Lane'Image);",
         "         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)), \"F64 special two-source permutation A\" & Lane'Image);",
         "         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)), \"F64 special two-source permutation B\" & Lane'Image);",
+        "      end loop;",
+        "      for Pattern in Natural range 0 .. 3 loop",
+        "         declare",
+        "            Mask : constant Mask_64x2 := Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern));",
+        "            Packed_A : constant F64x2 := Reference_Compress_F64x2 (Slide64_A, Mask);",
+        "            Spread_A : constant F64x2 := Reference_Expand_F64x2 (Slide64_A, Mask);",
+        "            Packed_B : constant F64x2 := Reference_Compress_F64x2 (Slide64_B, Mask);",
+        "            Spread_B : constant F64x2 := Reference_Expand_F64x2 (Slide64_B, Mask);",
+        "         begin",
+        "            Check (Same (Compress (Slide64_A, Mask), Packed_A) and then Same (Backends.Native.Compress (Slide64_A, Mask), Packed_A) and then Same (Compress (Slide64_B, Mask), Packed_B) and then Same (Backends.Native.Compress (Slide64_B, Mask), Packed_B), \"F64 special compress\" & Pattern'Image);",
+        "            Check (Same (Expand (Slide64_A, Mask), Spread_A) and then Same (Backends.Native.Expand (Slide64_A, Mask), Spread_A) and then Same (Expand (Slide64_B, Mask), Spread_B) and then Same (Backends.Native.Expand (Slide64_B, Mask), Spread_B), \"F64 special expand\" & Pattern'Image);",
+        "         end;",
         "      end loop;",
         "      for Slide in Natural range 0 .. 6 loop",
         "         for Lane in Lane_Index_32x4 loop",

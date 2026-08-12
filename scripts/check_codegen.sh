@@ -97,6 +97,13 @@ case "$architecture" in
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
+        for lane_kind in u8 i8 u16 i16 u32 i32 f32 u64 i64 f64; do
+            for operation in compress expand; do
+                extract_symbol "permute_codegen_probe__${lane_kind}_${operation}" "$temporary/permute-probe.txt" "$temporary/${lane_kind}_${operation}.txt"
+                require_pattern 'tbl.*16b' "$temporary/${lane_kind}_${operation}.txt" "inlined NEON ${lane_kind} ${operation} caller"
+            done
+        done
+        forbid_pattern 'flyology_simd__backends__native__(compress|expand)' "$temporary/permute-probe.txt" 'compression backend call in caller probe'
         for lane_kind in u8 u16 f32 f64; do
             extract_symbol "permute_codegen_probe__${lane_kind}_permute" "$temporary/permute-probe.txt" "$temporary/permute_${lane_kind}.txt"
             require_pattern 'tbl.*16b' "$temporary/permute_${lane_kind}.txt" "NEON ${lane_kind} public lane permutation"

@@ -26,10 +26,11 @@ Every family supplies zero, splat, lane construction, extraction, replacement,
 comparison, selection, reverse, interleave, deinterleave, and typed memory
 operations. Every family also supplies reusable, strongly typed one-source
 and two-source lane maps plus zero-filled lane slides in both lane-index
-directions. Integer families supply wrapping and saturating arithmetic,
-bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
-reductions. Floating families supply arithmetic, number minimum and maximum,
-and add/minimum/maximum reductions.
+directions. Stable mask compression and expansion are also
+available for every family. Integer families supply wrapping and saturating
+arithmetic, bitwise operations, shifts, minimum, maximum, and
+add/minimum/maximum reductions. Floating families supply arithmetic, number
+minimum and maximum, and add/minimum/maximum reductions.
 
 The byte family also supplies `Table_Lookup`. For each result lane, the
 operation reads the unsigned value from the index lane at the same position. A
@@ -61,6 +62,17 @@ the lane count returns `Zero`. Counts are in lanes, not bytes. Floating slides
 use positive zero for vacated lanes. Retained floating lanes preserve every
 bit, including NaN payloads and signaling state, infinities, and signed zeros.
 Values moved past an edge are discarded.
+
+`Compress` visits source lanes in ascending lane order. It writes lanes whose
+mask value is true consecutively from result lane 0 and preserves their order.
+It fills the remaining result lanes with zero. `Expand` visits result lanes in
+ascending order. At each true mask lane, it consumes the next consecutive
+input lane, starting at input lane 0. It fills false result lanes with zero.
+Both operations preserve the complete bits of selected floating lanes,
+including NaN payloads and signaling state, infinities, and signed zeros.
+Floating fill lanes contain positive zero. `Expand (Compress (Value, Mask),
+Mask)` restores selected values to their original positions and leaves false
+positions zero. It does not recover values discarded by `Compress`.
 
 Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths

@@ -102,6 +102,30 @@ procedure Family_Tests is
       return Result;
    end Random_I8x16_Selectors;
    function Same (Left, Right : I8x16) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_I8x16 (Value : I8x16; Mask : Mask_8x16) return I8x16 is
+      Result : I8x16 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_8x16 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_I8x16;
+   function Reference_Expand_I8x16 (Value : I8x16; Mask : Mask_8x16) return I8x16 is
+      Result : I8x16 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_8x16 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_I8x16;
    procedure Test_I8x16 is
       A : constant I8x16 := From_Lanes ([I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First]);
       B : constant I8x16 := From_Lanes ([1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1]);
@@ -189,6 +213,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "I8x16 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_8x16 loop Check (Backends.Native.Test (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Lane) = Test (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Lane), "I8x16 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B)), "I8x16 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Compress_I8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Compress_I8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))), "I8x16 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Expand_I8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Expand_I8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))), "I8x16 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_8x16 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I8x16 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A), "I8x16 independent reduce add");
@@ -240,6 +266,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I8x16 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I8x16 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I8x16 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I8x16 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I8x16 (R_A, Mask_From_Bit_Mask (Pattern))), "I8x16 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I8x16 randomized native full memory");
@@ -302,6 +329,30 @@ procedure Family_Tests is
       return Result;
    end Random_U16x8_Selectors;
    function Same (Left, Right : U16x8) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_U16x8 (Value : U16x8; Mask : Mask_16x8) return U16x8 is
+      Result : U16x8 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_16x8 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_U16x8;
+   function Reference_Expand_U16x8 (Value : U16x8; Mask : Mask_16x8) return U16x8 is
+      Result : U16x8 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_16x8 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_U16x8;
    procedure Test_U16x8 is
       A : constant U16x8 := From_Lanes ([0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last]);
       B : constant U16x8 := From_Lanes ([1, U16'Last, 2, 2 ** (15) - 1, 9, 1, U16'Last, 2]);
@@ -386,6 +437,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "U16x8 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Backends.Native.Test (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U16x8 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U16x8 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U16x8 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U16x8 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U16x8 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A), "U16x8 independent reduce add");
@@ -436,6 +489,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U16x8 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U16x8 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U16x8 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U16x8 (R_A, Mask_From_Bit_Mask (Pattern))), "U16x8 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U16x8 randomized native full memory");
@@ -502,6 +556,30 @@ procedure Family_Tests is
       return Result;
    end Random_I16x8_Selectors;
    function Same (Left, Right : I16x8) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_I16x8 (Value : I16x8; Mask : Mask_16x8) return I16x8 is
+      Result : I16x8 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_16x8 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_I16x8;
+   function Reference_Expand_I16x8 (Value : I16x8; Mask : Mask_16x8) return I16x8 is
+      Result : I16x8 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_16x8 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_I16x8;
    procedure Test_I16x8 is
       A : constant I16x8 := From_Lanes ([I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0]);
       B : constant I16x8 := From_Lanes ([1, I16'Last, -1, I16'First, 0, 1, I16'Last, -1]);
@@ -589,6 +667,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 8 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "I16x8 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Backends.Native.Test (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_16x8'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I16x8 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I16x8 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I16x8 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I16x8 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I16x8 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_16x8 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I16x8 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A), "I16x8 independent reduce add");
@@ -640,6 +720,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I16x8 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I16x8 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I16x8 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I16x8 (R_A, Mask_From_Bit_Mask (Pattern))), "I16x8 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I16x8 randomized native full memory");
@@ -702,6 +783,30 @@ procedure Family_Tests is
       return Result;
    end Random_U32x4_Selectors;
    function Same (Left, Right : U32x4) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_U32x4 (Value : U32x4; Mask : Mask_32x4) return U32x4 is
+      Result : U32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_32x4 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_U32x4;
+   function Reference_Expand_U32x4 (Value : U32x4; Mask : Mask_32x4) return U32x4 is
+      Result : U32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_32x4 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_U32x4;
    procedure Test_U32x4 is
       A : constant U32x4 := From_Lanes ([0, 1, U32'Last, 2 ** (31)]);
       B : constant U32x4 := From_Lanes ([1, U32'Last, 2, 2 ** (31) - 1]);
@@ -786,6 +891,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "U32x4 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U32x4 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U32x4 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U32x4 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U32x4 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A), "U32x4 independent reduce add");
@@ -836,6 +943,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U32x4 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U32x4 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U32x4 (R_A, Mask_From_Bit_Mask (Pattern))), "U32x4 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U32x4 randomized native full memory");
@@ -902,6 +1010,30 @@ procedure Family_Tests is
       return Result;
    end Random_I32x4_Selectors;
    function Same (Left, Right : I32x4) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_I32x4 (Value : I32x4; Mask : Mask_32x4) return I32x4 is
+      Result : I32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_32x4 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_I32x4;
+   function Reference_Expand_I32x4 (Value : I32x4; Mask : Mask_32x4) return I32x4 is
+      Result : I32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_32x4 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_I32x4;
    procedure Test_I32x4 is
       A : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
       B : constant I32x4 := From_Lanes ([1, I32'Last, -1, I32'First]);
@@ -989,6 +1121,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "I32x4 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I32x4 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I32x4 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I32x4 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I32x4 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A), "I32x4 independent reduce add");
@@ -1040,6 +1174,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I32x4 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I32x4 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I32x4 (R_A, Mask_From_Bit_Mask (Pattern))), "I32x4 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I32x4 randomized native full memory");
@@ -1102,6 +1237,30 @@ procedure Family_Tests is
       return Result;
    end Random_U64x2_Selectors;
    function Same (Left, Right : U64x2) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_U64x2 (Value : U64x2; Mask : Mask_64x2) return U64x2 is
+      Result : U64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_64x2 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_U64x2;
+   function Reference_Expand_U64x2 (Value : U64x2; Mask : Mask_64x2) return U64x2 is
+      Result : U64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_64x2 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_U64x2;
    procedure Test_U64x2 is
       A : constant U64x2 := From_Lanes ([0, 1]);
       B : constant U64x2 := From_Lanes ([1, U64'Last]);
@@ -1186,6 +1345,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "U64x2 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "U64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "U64x2 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_U64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U64x2 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_U64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "U64x2 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U64x2 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A), "U64x2 independent reduce add");
@@ -1236,6 +1397,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U64x2 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U64x2 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U64x2 (R_A, Mask_From_Bit_Mask (Pattern))), "U64x2 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U64x2 randomized native full memory");
@@ -1302,6 +1464,30 @@ procedure Family_Tests is
       return Result;
    end Random_I64x2_Selectors;
    function Same (Left, Right : I64x2) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_I64x2 (Value : I64x2; Mask : Mask_64x2) return I64x2 is
+      Result : I64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_64x2 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_I64x2;
+   function Reference_Expand_I64x2 (Value : I64x2; Mask : Mask_64x2) return I64x2 is
+      Result : I64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_64x2 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_I64x2;
    procedure Test_I64x2 is
       A : constant I64x2 := From_Lanes ([I64'First, -1]);
       B : constant I64x2 := From_Lanes ([1, I64'Last]);
@@ -1389,6 +1575,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "I64x2 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "I64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "I64x2 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_I64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I64x2 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_I64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "I64x2 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I64x2 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A), "I64x2 independent reduce add");
@@ -1440,6 +1628,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I64x2 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I64x2 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I64x2 (R_A, Mask_From_Bit_Mask (Pattern))), "I64x2 randomized native compression");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I64x2 randomized native full memory");
@@ -1487,6 +1676,30 @@ procedure Family_Tests is
       end loop;
       return True;
    end Same;
+   function Reference_Compress_F32x4 (Value : F32x4; Mask : Mask_32x4) return F32x4 is
+      Result : F32x4 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_32x4 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_F32x4;
+   function Reference_Expand_F32x4 (Value : F32x4; Mask : Mask_32x4) return F32x4 is
+      Result : F32x4 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_32x4 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_F32x4;
    function Reference_Reduce_Add_F32x4 (Value : F32x4) return F32 is
       Result : F32 := 0.0;
    begin
@@ -1578,6 +1791,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 4 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "F32x4 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Backends.Native.Test (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_32x4'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "F32x4 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F32x4 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_F32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_F32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "F32x4 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_F32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_F32x4 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "F32x4 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_32x4 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "F32x4 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Bits_F32x4 (Reduce_Add (A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (A)) and then Bits_F32x4 (Backends.Native.Reduce_Add (A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (A)), "F32x4 independent reduce");
@@ -1623,6 +1838,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "F32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F32x4 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_F32x4 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_F32x4 (R_A, Mask_From_Bit_Mask (Pattern))), "F32x4 randomized native compression");
             Check (Bits_F32x4 (Backends.Native.Reduce_Add (R_A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Min_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Max_F32x4 (R_A)), "F32x4 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F32x4 randomized native full memory");
@@ -1667,6 +1883,30 @@ procedure Family_Tests is
       end loop;
       return True;
    end Same;
+   function Reference_Compress_F64x2 (Value : F64x2; Mask : Mask_64x2) return F64x2 is
+      Result : F64x2 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_64x2 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_F64x2;
+   function Reference_Expand_F64x2 (Value : F64x2; Mask : Mask_64x2) return F64x2 is
+      Result : F64x2 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_64x2 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_F64x2;
    function Reference_Reduce_Add_F64x2 (Value : F64x2) return F64 is
       Result : F64 := 0.0;
    begin
@@ -1758,6 +1998,8 @@ procedure Family_Tests is
          Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** 2 - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "F64x2 native mask algebra" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Backends.Native.Test (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test (Mask_64x2'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), "F64x2 native mask lane" & Pattern'Image & Lane'Image); end loop;
          Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), "F64x2 exhaustive select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_F64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_F64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "F64x2 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_F64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_F64x2 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), "F64x2 exhaustive expand" & Pattern'Image);
          for Lane in Lane_Index_64x2 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "F64x2 independent select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Bits_F64x2 (Reduce_Add (A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (A)) and then Bits_F64x2 (Backends.Native.Reduce_Add (A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (A)), "F64x2 independent reduce");
@@ -1803,6 +2045,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "F64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F64x2 randomized native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_F64x2 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_F64x2 (R_A, Mask_From_Bit_Mask (Pattern))), "F64x2 randomized native compression");
             Check (Bits_F64x2 (Backends.Native.Reduce_Add (R_A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Min_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Max_F64x2 (R_A)), "F64x2 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F64x2 randomized native full memory");
@@ -1892,10 +2135,32 @@ procedure Family_Tests is
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)), "F32 special two-source permutation A" & Lane'Image);
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)), "F32 special two-source permutation B" & Lane'Image);
       end loop;
+      for Pattern in Natural range 0 .. 15 loop
+         declare
+            Mask : constant Mask_32x4 := Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern));
+            Packed : constant F32x4 := Reference_Compress_F32x4 (Slide32, Mask);
+            Spread : constant F32x4 := Reference_Expand_F32x4 (Slide32, Mask);
+         begin
+            Check (Same (Compress (Slide32, Mask), Packed) and then Same (Backends.Native.Compress (Slide32, Mask), Packed), "F32 special compress" & Pattern'Image);
+            Check (Same (Expand (Slide32, Mask), Spread) and then Same (Backends.Native.Expand (Slide32, Mask), Spread), "F32 special expand" & Pattern'Image);
+         end;
+      end loop;
       for Lane in Lane_Index_64x2 loop
          Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_B, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_B, Permute64_Selectors (Lane))), "F64 special lane permutation" & Lane'Image);
          Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)), "F64 special two-source permutation A" & Lane'Image);
          Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)), "F64 special two-source permutation B" & Lane'Image);
+      end loop;
+      for Pattern in Natural range 0 .. 3 loop
+         declare
+            Mask : constant Mask_64x2 := Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern));
+            Packed_A : constant F64x2 := Reference_Compress_F64x2 (Slide64_A, Mask);
+            Spread_A : constant F64x2 := Reference_Expand_F64x2 (Slide64_A, Mask);
+            Packed_B : constant F64x2 := Reference_Compress_F64x2 (Slide64_B, Mask);
+            Spread_B : constant F64x2 := Reference_Expand_F64x2 (Slide64_B, Mask);
+         begin
+            Check (Same (Compress (Slide64_A, Mask), Packed_A) and then Same (Backends.Native.Compress (Slide64_A, Mask), Packed_A) and then Same (Compress (Slide64_B, Mask), Packed_B) and then Same (Backends.Native.Compress (Slide64_B, Mask), Packed_B), "F64 special compress" & Pattern'Image);
+            Check (Same (Expand (Slide64_A, Mask), Spread_A) and then Same (Backends.Native.Expand (Slide64_A, Mask), Spread_A) and then Same (Expand (Slide64_B, Mask), Spread_B) and then Same (Backends.Native.Expand (Slide64_B, Mask), Spread_B), "F64 special expand" & Pattern'Image);
+         end;
       end loop;
       for Slide in Natural range 0 .. 6 loop
          for Lane in Lane_Index_32x4 loop

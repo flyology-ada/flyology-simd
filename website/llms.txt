@@ -6,7 +6,7 @@ It has zero runtime dependencies and does not define a Flyology parent package.
 Canonical site: https://simd.flyology.org/
 Guide: https://simd.flyology.org/guide/
 Arithmetic and lane movement: https://simd.flyology.org/guide/practical/
-Masks and selection: https://simd.flyology.org/guide/masks/
+Masks, selection, and stable mask compression and expansion: https://simd.flyology.org/guide/masks/
 Memory operations: https://simd.flyology.org/guide/memory/
 Conversions: https://simd.flyology.org/guide/conversions/
 Backend selection: https://simd.flyology.org/guide/dispatch/

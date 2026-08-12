@@ -44,4 +44,104 @@ package body Permute_Codegen_Probe is
       Map : Flyology_SIMD.Two_Source_Lane_Map_64x2)
       return Flyology_SIMD.F64x2 is
      (Flyology_SIMD.Backends.Native.Permute_Lanes (Left, Right, Map));
+
+   function U8_Compress
+     (Value : Flyology_SIMD.U8x16;
+      Mask  : Flyology_SIMD.Mask_8x16) return Flyology_SIMD.U8x16 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function U8_Expand
+     (Value : Flyology_SIMD.U8x16;
+      Mask  : Flyology_SIMD.Mask_8x16) return Flyology_SIMD.U8x16 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function I8_Compress
+     (Value : Flyology_SIMD.I8x16;
+      Mask  : Flyology_SIMD.Mask_8x16) return Flyology_SIMD.I8x16 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function I8_Expand
+     (Value : Flyology_SIMD.I8x16;
+      Mask  : Flyology_SIMD.Mask_8x16) return Flyology_SIMD.I8x16 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function U16_Compress
+     (Value : Flyology_SIMD.U16x8;
+      Mask  : Flyology_SIMD.Mask_16x8) return Flyology_SIMD.U16x8 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function U16_Expand
+     (Value : Flyology_SIMD.U16x8;
+      Mask  : Flyology_SIMD.Mask_16x8) return Flyology_SIMD.U16x8 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function I16_Compress
+     (Value : Flyology_SIMD.I16x8;
+      Mask  : Flyology_SIMD.Mask_16x8) return Flyology_SIMD.I16x8 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function I16_Expand
+     (Value : Flyology_SIMD.I16x8;
+      Mask  : Flyology_SIMD.Mask_16x8) return Flyology_SIMD.I16x8 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function U32_Compress
+     (Value : Flyology_SIMD.U32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.U32x4 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function U32_Expand
+     (Value : Flyology_SIMD.U32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.U32x4 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function I32_Compress
+     (Value : Flyology_SIMD.I32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.I32x4 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function I32_Expand
+     (Value : Flyology_SIMD.I32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.I32x4 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function F32_Compress
+     (Value : Flyology_SIMD.F32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.F32x4 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function F32_Expand
+     (Value : Flyology_SIMD.F32x4;
+      Mask  : Flyology_SIMD.Mask_32x4) return Flyology_SIMD.F32x4 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function U64_Compress
+     (Value : Flyology_SIMD.U64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.U64x2 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function U64_Expand
+     (Value : Flyology_SIMD.U64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.U64x2 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function I64_Compress
+     (Value : Flyology_SIMD.I64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.I64x2 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function I64_Expand
+     (Value : Flyology_SIMD.I64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.I64x2 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
+
+   function F64_Compress
+     (Value : Flyology_SIMD.F64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.F64x2 is
+     (Flyology_SIMD.Backends.Native.Compress (Value, Mask));
+
+   function F64_Expand
+     (Value : Flyology_SIMD.F64x2;
+      Mask  : Flyology_SIMD.Mask_64x2) return Flyology_SIMD.F64x2 is
+     (Flyology_SIMD.Backends.Native.Expand (Value, Mask));
 end Permute_Codegen_Probe;

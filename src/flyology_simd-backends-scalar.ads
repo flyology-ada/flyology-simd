@@ -153,6 +153,18 @@ is
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
    --  @return The operation result.
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16
+     renames Flyology_SIMD.Compress;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16
+     renames Flyology_SIMD.Expand;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
    function Min (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Min;
    --  Return the smaller integer in each lane.

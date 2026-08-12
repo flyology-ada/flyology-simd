@@ -102,6 +102,40 @@ procedure SIMD_Tests is
       return Lane_Count_8x16'Last;
    end Reference_Last_True;
 
+   function Reference_Compress
+     (Value : U8x16; Mask : Mask_8x16) return U8x16
+   is
+      Result      : U8x16 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace
+              (Result, Lane_Index_8x16 (Result_Lane),
+               Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress;
+
+   function Reference_Expand
+     (Value : U8x16; Mask : Mask_8x16) return U8x16
+   is
+      Result      : U8x16 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace
+              (Result, Result_Lane,
+               Extract (Value, Lane_Index_8x16 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand;
+
    procedure Test_Core_Semantics is
       A : constant U8x16 := From_Lanes
         ([0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
@@ -296,6 +330,9 @@ procedure SIMD_Tests is
    end Test_Lane_Slides;
 
    procedure Test_All_Masks is
+      Value : constant U8x16 := From_Lanes
+        ([16#80#, 1, 16#FE#, 3, 4, 16#AA#, 6, 7,
+          8, 16#55#, 10, 11, 12, 13, 14, 16#FF#]);
    begin
       for Raw in Natural range 0 .. 65_535 loop
          declare
@@ -359,6 +396,24 @@ procedure SIMD_Tests is
                and then Flyology_SIMD.Backends.Native.All_True (Mask) =
                  (Raw = 65_535),
                "native mask reductions" & Raw'Image);
+            Check
+              (Same (Compress (Value, Mask), Reference_Compress (Value, Mask))
+               and then Same
+                 (Flyology_SIMD.Backends.Scalar.Compress (Value, Mask),
+                  Reference_Compress (Value, Mask))
+               and then Same
+                 (Flyology_SIMD.Backends.Native.Compress (Value, Mask),
+                  Reference_Compress (Value, Mask)),
+               "compression semantics" & Raw'Image);
+            Check
+              (Same (Expand (Value, Mask), Reference_Expand (Value, Mask))
+               and then Same
+                 (Flyology_SIMD.Backends.Scalar.Expand (Value, Mask),
+                  Reference_Expand (Value, Mask))
+               and then Same
+                 (Flyology_SIMD.Backends.Native.Expand (Value, Mask),
+                  Reference_Expand (Value, Mask)),
+               "expansion semantics" & Raw'Image);
          end;
       end loop;
    end Test_All_Masks;
