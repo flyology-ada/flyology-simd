@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Exact operation coverage and semantics for the Flyology SIMD 128-bit vector family.">
+  <meta name="description" content="Exact operation coverage and semantics for the Flyology SIMD 128-bit family and initial 256-bit profile.">
   <title>Operation coverage · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/operations/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
@@ -61,20 +61,21 @@
         <span class="toc-title">On this page</span>
         <ul>
           <li><a href="#types">Types</a></li>
+          <li><a href="#wide">Wide types</a></li>
           <li><a href="#conversions">Conversions</a></li>
           <li><a href="#integers">Integer operations</a></li>
           <li><a href="#floats">Floating operations</a></li>
           <li><a href="#lane-movement">Lane movement</a></li>
           <li><a href="#masks">Masks</a></li>
           <li><a href="#memory">Memory</a></li>
-          <li><a href="#not-implemented">Not implemented</a></li>
+          <li><a href="#not-implemented">Current profile limits</a></li>
         </ul>
       </aside>
       <article class="prose">
         <p class="chapter-lead">The guide explains the operation groups through numeric and byte examples. This reference lists the wider API and defines each result independently of the selected backend.</p>
         <section id="types">
           <h2>Public vector and mask types</h2>
-          <p>Each value vector is 128 bits. The type name gives the scalar type and lane count. For example, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> contains four signed 32-bit lanes.</p>
+          <p>Each root-package value vector is 128 bits. The type name gives the scalar type and lane count. For example, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a> contains four signed 32-bit lanes.</p>
           <table class="support-table">
             <thead>
               <tr><th>Lane type</th><th>Value types</th><th>Mask type</th></tr>
@@ -87,6 +88,35 @@
             </tbody>
           </table>
           <p>Lane 0 is the first array element that a load reads. A compact mask uses bit 0 for lane 0. Bits above the mask lane count are ignored when you construct a mask.</p>
+        </section>
+        <section id="wide">
+          <h2>Check the initial 256-bit profile</h2>
+          <p>The <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> child package supplies ten private 256-bit value types and four mask types:</p>
+          <table class="support-table">
+            <thead>
+              <tr><th>Lane type</th><th>Value types</th><th>Mask type</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>8-bit integer</td><td><a data-api="Flyology_SIMD.Wide.U8x32"><code>U8x32</code></a>, <a data-api="Flyology_SIMD.Wide.I8x32"><code>I8x32</code></a></td><td><a data-api="Flyology_SIMD.Wide.Mask_8x32"><code>Mask_8x32</code></a></td></tr>
+              <tr><td>16-bit integer</td><td><a data-api="Flyology_SIMD.Wide.U16x16"><code>U16x16</code></a>, <a data-api="Flyology_SIMD.Wide.I16x16"><code>I16x16</code></a></td><td><a data-api="Flyology_SIMD.Wide.Mask_16x16"><code>Mask_16x16</code></a></td></tr>
+              <tr><td>32-bit integer or float</td><td><a data-api="Flyology_SIMD.Wide.U32x8"><code>U32x8</code></a>, <a data-api="Flyology_SIMD.Wide.I32x8"><code>I32x8</code></a>, <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a></td><td><a data-api="Flyology_SIMD.Wide.Mask_32x8"><code>Mask_32x8</code></a></td></tr>
+              <tr><td>64-bit integer or float</td><td><a data-api="Flyology_SIMD.Wide.U64x4"><code>U64x4</code></a>, <a data-api="Flyology_SIMD.Wide.I64x4"><code>I64x4</code></a>, <a data-api="Flyology_SIMD.Wide.F64x4"><code>F64x4</code></a></td><td><a data-api="Flyology_SIMD.Wide.Mask_64x4"><code>Mask_64x4</code></a></td></tr>
+            </tbody>
+          </table>
+          <table class="support-table">
+            <thead>
+              <tr><th>Group</th><th>Current Wide profile</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>All value types</td><td>Construction and lane access; equality; selection; compression and expansion; reverse; interleave and deinterleave; one-source lane maps; lane slides; mask operations; typed memory operations</td></tr>
+              <tr><td>Integer types</td><td>Wrapping and saturating arithmetic; bitwise operations; shifts; ordered comparisons; minimum; maximum; add, minimum, and maximum reductions</td></tr>
+              <tr><td>Floating types</td><td>Arithmetic; ordered and unordered comparisons; number minimum and maximum; add, number-minimum, and number-maximum reductions</td></tr>
+              <tr><td>Not in the profile</td><td>Two-source lane maps; <code>Bit_Cast</code>; width-changing and numeric conversions; <code>Table_Lookup</code></td></tr>
+            </tbody>
+          </table>
+          <p>An operation with the same name as a 128-bit operation has the same lane semantics.</p>
+          <p>A full Wide load or store transfers one complete 256-bit vector. An aligned Wide load or store requires 32-byte alignment. The current implementation uses private 128-bit parts, and <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> composes selected native 128-bit operations across them. The pair is not a public representation or ABI. There is no AVX2-specific 256-bit primitive implementation or code-generation claim.</p>
+          <p>Chapter 2 <a href="../practical/#wide-dot">uses <code>F32x8</code> for an eight-lane weighted sum</a>.</p>
         </section>
         <section id="conversions">
           <h2>Convert bits and lane widths explicitly</h2>
@@ -232,14 +262,11 @@ end if;</code></pre>
           <p>See the <a href="../memory/">memory guide</a> for a complete tail loop.</p>
         </section>
         <section id="not-implemented">
-          <h2>Not implemented in 0.1.0-dev</h2>
-          <p>The following group is a design target, not current API:</p>
-          <ul>
-            <li>256-bit vector and mask types;</li>
-          </ul>
+          <h2>Current profile limits</h2>
+          <p>The complete 128-bit family and initial Wide profile do not imply that every planned operation or lowering exists. In particular, the Wide profile has the omissions listed above and has no dedicated 256-bit primitive implementation.</p>
           <div class="semantic-callout">
             <strong>Coverage statement</strong>
-            <p>“Full family” means that all ten 128-bit value types exist. It does not mean that every operation planned for the project exists.</p>
+            <p>“Complete 128-bit family” means that all ten 128-bit value types have the documented root-package profile. “Initial Wide profile” means that all ten 256-bit value types have only the groups listed in the Wide section.</p>
           </div>
           <div class="next-links">
             <a href="../dispatch/">

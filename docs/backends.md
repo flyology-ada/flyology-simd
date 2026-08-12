@@ -10,6 +10,11 @@ continuous execution.  A source file alone is not a support claim.
 | x86-64 SSE2 full 128-bit family | yes | Linux x86-64 | differential + ASan, Linux x86-64 | Linux x86-64 |
 | x86-64 AVX2 algorithms | yes | Linux x86-64 | differential, Linux x86-64 AVX2 | Linux x86-64 with runtime gate |
 
+The initial `Flyology_SIMD.Wide` profile is compiled and executed on the local
+Darwin AArch64 development host. The workflow is configured to run
+`wide_tests` on its Linux x86-64 and macOS AArch64 jobs. This statement is a
+workflow-configuration claim, not a hosted result for an unpushed commit.
+
 Executed evidence uses GNAT FSF 16.1.0 on Darwin AArch64 and Linux x86-64.
 GCC-based GNAT is required initially.  No other GNAT version is advertised as
 verified.  GNAT LLVM is an explicit compatibility target, not an implemented or
@@ -61,6 +66,15 @@ with baseline-safe code. Detection and SSE2 objects are built with AVX disabled;
 AVX and AVX2 instructions are absent outside the AVX2-only object. The public
 AVX2 package is a baseline-safe wrapper that rejects an unavailable backend
 before entering that private object.
+
+Wide values have a private pair-of-128 implementation.
+`Flyology_SIMD.Wide.Native` composes selected 128-bit backend operations on
+the two parts. It does not yet contain an AVX2-specific 256-bit leaf, and the
+code-generation checks make no 256-bit instruction claim. The current Wide
+tests cover fixed vectors and 128 deterministic pseudorandom inputs for all ten
+value families. They compare every current Native operation group with the
+scalar authority, cover all partial-memory counts, and exercise floating
+reduction order, signed zero, and special lane encodings.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

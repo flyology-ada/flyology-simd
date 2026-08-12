@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Apply arithmetic, reductions, lane slides, and one-source and two-source lane maps in Flyology SIMD.">
+  <meta name="description" content="Apply 128-bit arithmetic, reductions, lane slides, and one-source and two-source lane maps. See a 256-bit weighted-sum example.">
   <title>Arithmetic and lane movement · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/practical/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
@@ -11,9 +11,9 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and lane movement</li></ol><h1>Compute and rearrange lanes explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes the vector dot product, then moves lanes within and across vector blocks.</p></header>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and lane movement</li></ol><h1>Compute and rearrange lanes explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes a four-lane dot product, computes an eight-lane weighted sum, and then moves lanes within and across vector blocks.</p></header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#dot-result">Dot-product result</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#permutations">Point rotation</a></li><li><a href="#two-source">Cross-block differences</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#dot-result">Dot-product result</a></li><li><a href="#wide-dot">Eight-lane weighted sum</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#permutations">Point rotation</a></li><li><a href="#two-source">Cross-block differences</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">Chapter 1 formed four products. This chapter completes the dot product, then shows how slides and lane maps rearrange data for other calculations.</p>
         <section id="loop">
@@ -46,6 +46,35 @@ return Vector_Reduce_Add (Accumulator);</code></pre>
 scalar backend dot: 7.00000E+01
 native backend dot: 7.00000E+01</code></pre>
           <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/dot_product.adb">Open the maintained source.</a> Chapter 4 explains why the three-element tail is safe.</p>
+        </section>
+        <section id="wide-dot">
+          <h2>Compose an eight-lane weighted sum</h2>
+          <p>A weighted sum is a dot product whose second vector contains weights. It computes <code>sum (Samples (i) * Weights (i))</code>. The <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> package defines the private <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a> type, which contains eight binary32 lanes. <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> supplies statically selected operations for this type.</p>
+          <p>The example loads two eight-element <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> values, multiplies corresponding lanes, and reduces the eight products:</p>
+          <pre><code class="language-ada">package Wide renames Flyology_SIMD.Wide;
+package Native renames Flyology_SIMD.Wide.Native;
+
+Samples : constant F32_Array :=
+  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+Weights : constant F32_Array :=
+  [2.0, 3.0, 5.0, 7.0, 11.0, 13.0, 17.0, 19.0];
+
+Sample_Vector : constant Wide.F32x8 :=
+  Native.Load_Unaligned (Samples, Samples'First);
+Weight_Vector : constant Wide.F32x8 :=
+  Native.Load_Unaligned (Weights, Weights'First);
+Products : constant Wide.F32x8 :=
+  Native.Multiply (Sample_Vector, Weight_Vector);
+Product_Lanes : constant Wide.Lane_Values_F32x8 :=
+  Native.To_Lanes (Products);
+Result : constant F32 := Native.Reduce_Add (Products);</code></pre>
+          <p>The two <a data-api="Flyology_SIMD.Wide.Native.Load_Unaligned" data-api-signature="F32_Array"><code>Load_Unaligned</code></a> calls form the vectors. <a data-api="Flyology_SIMD.Wide.Native.Multiply" data-api-signature="F32x8"><code>Multiply</code></a> calculates eight products. <a data-api="Flyology_SIMD.Wide.Native.To_Lanes" data-api-signature="F32x8"><code>To_Lanes</code></a> returns a <a data-api="Flyology_SIMD.Wide.Lane_Values_F32x8"><code>Lane_Values_F32x8</code></a> array for inspection. <a data-api="Flyology_SIMD.Wide.Native.Reduce_Add" data-api-signature="F32x8"><code>Reduce_Add</code></a> returns one <a data-api="Flyology_SIMD.F32"><code>F32</code></a> value.</p>
+          <p>The products are <code>[2, 6, 15, 28, 55, 78, 119, 152]</code>. The reduction starts with positive zero, adds lanes in ascending order, and returns 455.</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/wide_dot_product</code></pre>
+          <pre><code class="language-text">products: 2.00000E+00 6.00000E+00 1.50000E+01 2.80000E+01 5.50000E+01 7.80000E+01 1.19000E+02 1.52000E+02
+weighted sum: 4.55000E+02</code></pre>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_dot_product.adb">Open the maintained Wide example.</a> The current implementation stores each Wide value as two private 128-bit parts. <code>Wide.Native</code> applies the selected 128-bit operation to each part. This mechanism is not a public representation, an ABI, or a claim that one AVX2 instruction performs the operation.</p>
         </section>
         <section id="neighbors">
           <h2>Slide lanes to use neighboring values</h2>

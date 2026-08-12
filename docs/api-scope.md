@@ -2,8 +2,8 @@
 
 Status: experimental API record, updated 2026-08-11.
 
-The current release implements the complete 128-bit type family rather than
-only the original byte vector. The family is:
+The current release implements the complete 128-bit type family and an initial
+256-bit profile. The 128-bit family is:
 
 | Values | Lanes | Mask |
 |---|---:|---|
@@ -12,15 +12,26 @@ only the original byte vector. The family is:
 | `U32x4`, `I32x4`, `F32x4` | 4 × 32-bit | `Mask_32x4` |
 | `U64x2`, `I64x2`, `F64x2` | 2 × 64-bit | `Mask_64x2` |
 
-The 256-bit family is not in the public API. A future AArch64 implementation
-can use two private 128-bit halves. This design would not create a 256-bit ABI
-or single-instruction promise.
+The `Flyology_SIMD.Wide` child package supplies the corresponding 256-bit
+value and mask types:
+
+| Values | Lanes | Mask |
+|---|---:|---|
+| `U8x32`, `I8x32` | 32 × 8-bit | `Mask_8x32` |
+| `U16x16`, `I16x16` | 16 × 16-bit | `Mask_16x16` |
+| `U32x8`, `I32x8`, `F32x8` | 8 × 32-bit | `Mask_32x8` |
+| `U64x4`, `I64x4`, `F64x4` | 4 × 64-bit | `Mask_64x4` |
+
+The current implementation composes each Wide value from private 128-bit
+parts. `Flyology_SIMD.Wide.Native` applies selected 128-bit native operations
+to those parts. This mechanism is not a public representation, an ABI promise,
+or a claim that one 256-bit instruction implements an operation.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
 never implicitly interchangeable.
 
-## Operation profile
+## 128-bit operation profile
 
 Every family supplies zero, splat, lane construction, extraction, replacement,
 comparison, selection, reverse, interleave, deinterleave, and typed memory
@@ -150,6 +161,22 @@ maximum and every other value is preserved.
 There are no implicit signed/unsigned, integer/floating, width-changing, or
 mask/value conversions. Applications must call the explicit operations above.
 
+## Initial 256-bit operation profile
+
+The Wide families supply zero, splat, lane construction and access, integer
+and floating arithmetic, comparisons, selection, stable compression and
+expansion, reductions, reverse, interleave and deinterleave, one-source lane
+maps, zero-filled lane slides, mask operations, and typed memory operations.
+Wide integer families also supply wrapping and saturating arithmetic, bitwise
+operations, shifts, minimum, and maximum.
+
+An operation with the same name in the 128-bit and Wide packages has the same
+lane semantics. A Wide full operation uses 256 bits of elements. A Wide
+aligned operation requires 32-byte alignment. The initial Wide profile does
+not include two-source lane maps, `Bit_Cast`, width-changing or numeric
+conversions, or `Table_Lookup`. It also has no AVX2-specific 256-bit leaf or
+code-generation claim.
+
 ## Floating-point contract
 
 Floating arithmetic uses IEEE binary32 or binary64 without `-ffast-math`.
@@ -159,6 +186,9 @@ tests compare NaN results semantically rather than requiring the same payload.
 The library does not read or modify the floating-point control register;
 verified results assume the platform's default round-to-nearest,
 ties-to-even environment.
+
+`Reduce_Add` starts with positive zero and adds lanes in ascending order. This
+fold order and initial value are part of the contract at both public widths.
 
 Ordered comparisons are false if either input is NaN.  Equality considers
 `+0.0` and `-0.0` equal. For quiet NaNs, `Min_Number` and `Max_Number` return

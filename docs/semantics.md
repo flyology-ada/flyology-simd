@@ -1,6 +1,7 @@
 # Semantic compatibility
 
-This document is normative for the v0.1 128-bit family.
+This document is normative for the complete v0.1 128-bit family and the
+initial 256-bit profile in `Flyology_SIMD.Wide`.
 
 ## Values and lanes
 
@@ -81,6 +82,10 @@ invalid data; range, assertion, precondition, and stack checks remain enabled.
 identical on all backends. Each fold step applies the documented NaN and
 signed-zero rules.
 
+`Reduce_Add` starts with positive zero and adds lanes in ascending order. The
+initial value and fold order are identical at both public widths and on every
+backend.
+
 No implicit signed/unsigned, integer/floating, width-changing, or mask/value
 conversion exists. `Bit_Cast` preserves each lane's bits and position between
 types with the same lane shape. It does not change lane width.
@@ -128,14 +133,20 @@ the same lane width. Lane positions do not change. A negative signed input
 becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
-The portable 256-bit family remains pre-stabilization work.
+The Wide package applies the same lane, arithmetic, mask, floating-point,
+reduction, compression, slide, and memory rules to its 256-bit types. Its
+initial profile does not include two-source lane maps, `Bit_Cast`,
+width-changing or numeric conversions, or `Table_Lookup`. The private
+pair-of-128 implementation is not a caller ABI or a single-instruction
+promise.
 
 ## Memory
 
 All ordinary memory operations use a typed lane array plus an Ada array index.
-Full operations require one complete 128-bit vector of valid elements.
-Full and unaligned operations do not require 16-byte alignment. Aligned
-operations require and check a 16-byte-aligned address.
+Full operations require one complete vector of valid elements. Full and
+unaligned operations have no alignment requirement. Aligned operations require
+and check 16-byte alignment for 128-bit values and 32-byte alignment for Wide
+values.
 
 If `Count` is positive, a partial load reads only
 `Start .. Start + Count - 1`. Remaining result lanes are zero. A partial store

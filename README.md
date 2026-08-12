@@ -7,7 +7,9 @@ does not define a `Flyology` parent unit.  The public root is `Flyology_SIMD`.
 The guide, backend support matrix, and generated API reference are published at
 [simd.flyology.org](https://simd.flyology.org/).
 
-The current v0.1 surface contains all ten private 128-bit value types. See the
+The current v0.1 surface contains all ten private 128-bit value types. The
+`Flyology_SIMD.Wide` child package contains the corresponding ten private
+256-bit value types. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) for their lane
 counts and masks. Integer operations name wrapping and saturation explicitly.
 Floating operations follow documented NaN and signed-zero rules without
@@ -26,8 +28,9 @@ finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
 narrowing and explicit 32-bit and 64-bit numeric conversion between integer
 and floating lanes. Same-width signed/unsigned numeric conversion is available
 for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
-compression and expansion are available for all ten 128-bit value types. The
-256-bit types are not implemented. See the
+compression and expansion are available for all ten 128-bit value types.
+The initial 256-bit profile supplies common arithmetic, comparison, mask,
+lane-movement, reduction, and typed memory operations. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -43,6 +46,7 @@ alr build
 alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/simd_tests
 ./bin/family_tests
+./bin/wide_tests
 ./bin/conversion_tests
 ./bin/guard_page_tests
 ```
@@ -83,6 +87,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/permute_points
 ./bin/cross_block_differences
 ./bin/compact_measurements
+./bin/wide_dot_product
 ```
 
 See
@@ -116,6 +121,8 @@ The complete artifact is written to the ignored `build/site/` directory.
   representation.  The complete x86-64 family uses SSE2 leaves and documented
   scalar composition where SSE2 has no semantics-preserving instruction;
   optional AVX2 whole-buffer algorithms remain in separately compiled objects.
+  `Flyology_SIMD.Wide.Native` composes the selected 128-bit operations in
+  private pairs. It does not currently claim an AVX2-specific 256-bit leaf.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.
@@ -137,7 +144,11 @@ Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `Mask_Not` to combine mask values. `First_True` and `Last_True` return the
 lane-count value when the mask has no true lane.
 
-Full normative details and the remaining 256-bit work are in
+Wide aligned operations require 32-byte alignment. The current private
+pair-of-128 representation is an implementation mechanism, not a portable ABI
+or a promise of one 256-bit instruction.
+
+Full normative details and the current Wide limits are in
 [design](docs/design.md) and [semantic compatibility](docs/semantics.md).
 
 ## License

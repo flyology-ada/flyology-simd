@@ -4,6 +4,8 @@ with System;
 with System.Storage_Elements;
 with Flyology_SIMD;
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Wide;
+with Flyology_SIMD.Wide.Native;
 
 procedure Guard_Page_Tests is
    use Ada.Text_IO;
@@ -136,6 +138,76 @@ begin
                      then U8 (16#80# + Index)
                      else U8 (Index - (16 - Count) + 1)),
                   "native partial store, count" & Count'Image &
+                  ", byte" & Index'Image);
+            end loop;
+         end;
+      end loop;
+   end;
+
+   declare
+      Last_Bytes : Byte_Array (0 .. 31);
+      for Last_Bytes'Address use Add (Allocation, Page_Size - 32);
+      pragma Import (Ada, Last_Bytes);
+      Values : constant Wide.U8x32 :=
+        Wide.From_Lanes
+          ([for Lane in Wide.Lane_Index_8x32 => U8 (Lane + 1)]);
+   begin
+      for Raw_Count in Wide.Lane_Count_8x32 loop
+         for Index in Last_Bytes'Range loop
+            Last_Bytes (Index) := U8 (16#40# + Index);
+         end loop;
+
+         declare
+            Count : constant Wide.Lane_Count_8x32 := Raw_Count;
+            Data  : Byte_Array (0 .. 31);
+            for Data'Address use Add (Allocation, Page_Size - Count);
+            pragma Import (Ada, Data);
+
+            Scalar_Load : constant Wide.U8x32 :=
+              Wide.Load_Partial (Data, 0, Count);
+            Native_Load : constant Wide.U8x32 :=
+              Wide.Native.Load_Partial (Data, 0, Count);
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               declare
+                  Expected : constant U8 :=
+                    (if Lane < Count
+                     then U8 (16#40# + 32 - Count + Lane)
+                     else 0);
+               begin
+                  Check
+                    (Wide.Extract (Scalar_Load, Lane) = Expected,
+                     "wide scalar partial load, count" & Count'Image &
+                     ", lane" & Lane'Image);
+                  Check
+                    (Wide.Native.Extract (Native_Load, Lane) = Expected,
+                     "wide native partial load, count" & Count'Image &
+                     ", lane" & Lane'Image);
+               end;
+            end loop;
+
+            Wide.Store_Partial (Data, 0, Count, Values);
+            for Index in Last_Bytes'Range loop
+               Check
+                 (Last_Bytes (Index) =
+                    (if Index < 32 - Count
+                     then U8 (16#40# + Index)
+                     else U8 (Index - (32 - Count) + 1)),
+                  "wide scalar partial store, count" & Count'Image &
+                  ", byte" & Index'Image);
+            end loop;
+
+            for Index in Last_Bytes'Range loop
+               Last_Bytes (Index) := U8 (16#40# + Index);
+            end loop;
+            Wide.Native.Store_Partial (Data, 0, Count, Values);
+            for Index in Last_Bytes'Range loop
+               Check
+                 (Last_Bytes (Index) =
+                    (if Index < 32 - Count
+                     then U8 (16#40# + Index)
+                     else U8 (Index - (32 - Count) + 1)),
+                  "wide native partial store, count" & Count'Image &
                   ", byte" & Index'Image);
             end loop;
          end;

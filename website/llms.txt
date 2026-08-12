@@ -6,6 +6,7 @@ It has zero runtime dependencies and does not define a Flyology parent package.
 Canonical site: https://simd.flyology.org/
 Guide: https://simd.flyology.org/guide/
 Arithmetic and lane movement: https://simd.flyology.org/guide/practical/
+Wide 256-bit weighted-sum example: https://simd.flyology.org/guide/practical/#wide-dot
 Masks, selection, and stable mask compression and expansion: https://simd.flyology.org/guide/masks/
 Memory operations: https://simd.flyology.org/guide/memory/
 Conversions: https://simd.flyology.org/guide/conversions/
@@ -24,6 +25,8 @@ Key constraints:
 - Primitive operations use compile-time backend selection.
 - Runtime CPU dispatch occurs once at whole-buffer algorithm boundaries.
 - AArch64 NEON and x86-64 SSE2 implement the full 128-bit family.
+- The initial 256-bit Wide profile composes selected 128-bit operations in a private pair.
+- Wide currently has no AVX2-specific 256-bit leaf or code-generation claim.
 - AVX2 is optional and enters only after CPU and OS extended-state checks.
 - No low-level operation allocates, performs I/O, locks, waits, or starts a task.
 - The project initially requires GCC-based GNAT and remains experimental.

@@ -43,12 +43,13 @@
         <section id="matrix">
           <h2>Backend matrix</h2>
           <table class="support-table">
-            <thead><tr><th>Backend</th><th>Public scope</th><th>Executed evidence</th><th>CI configuration</th></tr></thead>
+            <thead><tr><th>Backend or composition layer</th><th>Public scope</th><th>Executed evidence</th><th>CI configuration</th></tr></thead>
             <tbody>
               <tr><td>Scalar</td><td>All current 128-bit operations</td><td>Darwin AArch64 and Linux x86-64; AddressSanitizer</td><td>Linux x86-64 and macOS AArch64</td></tr>
               <tr><td>AArch64 Advanced SIMD (NEON)</td><td>All current 128-bit operations</td><td>Darwin AArch64 differential tests and code-generation checks</td><td>macOS AArch64, checked and release builds</td></tr>
               <tr><td>x86-64 SSE2</td><td>All current 128-bit operations</td><td>Linux x86-64 differential tests, AddressSanitizer, and code-generation checks</td><td>Linux x86-64 release build</td></tr>
               <tr><td>x86-64 AVX2</td><td><a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> whole-buffer algorithms</td><td>Linux x86-64 feature-gated differential and code-generation tests</td><td>Linux x86-64 release build with runtime gate</td></tr>
+              <tr><td>Portable Wide composition</td><td>Initial 256-bit profile for all ten value types</td><td>Darwin AArch64 build and <code>wide_tests</code></td><td>Linux x86-64 and macOS AArch64</td></tr>
             </tbody>
           </table>
           <p>The <a href="https://github.com/flyology-ada/flyology-simd/actions/workflows/ci.yml">public CI workflow</a> shows the current hosted result. “CI configuration” in this table describes the job that the repository defines. Check the workflow result before you treat that job as successful.</p>
@@ -76,6 +77,7 @@
               <tr><td>Floating minimum-number and maximum-number reductions</td><td>Scalar Advanced SIMD leaves in ascending lane order</td><td>Scalar composition</td></tr>
               <tr><td>Full unaligned memory</td><td>128-bit vector load or store</td><td>Unaligned 128-bit load or store</td></tr>
               <tr><td>Partial memory</td><td>Exact Ada lane loop</td><td>Exact Ada lane loop</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Wide.Native"><code>Wide.Native</code></a> operations</td><td>Composition of selected 128-bit operations on two private parts</td><td>Composition of selected 128-bit operations on two private parts</td></tr>
               <tr><td>Operations without a suitable target instruction</td><td>Scalar composition with the same public result</td><td>Scalar or SSE2 composition with the same public result</td></tr>
             </tbody>
           </table>
@@ -96,7 +98,8 @@
           <p>An independent lane oracle checks fixed maps for all ten value types. For each type, the tests run 250 deterministic cases. The cases use pseudorandom one-source selectors and two-source selectors that vary the source and lane. The tests also check each default-initialized two-source map. Floating cases include repeated selectors and compare special IEEE encodings bit for bit. AArch64 code-generation probes require one-register and two-register <code>tbl</code> forms through public byte, 16-bit integer, binary32, and binary64 overloads.</p>
           <p>Lane-slide tests cover zero, every in-range count, and oversized counts for all ten value types. They compare both native directions with independent lane results and deterministic pseudorandom vectors. Floating slide cases also preserve special IEEE encodings bit for bit.</p>
           <p>Compression and expansion tests exhaust every mask pattern for all ten value types. They compare the scalar authority and native backend with independent lane oracles. Deterministic pseudorandom vectors exercise the integer families. Floating cases preserve NaNs, infinities, and signed zeros bit for bit. AArch64 code-generation checks require <code>tbl</code> in every compression and expansion overload.</p>
-          <p>Floating reduction cases include NaNs, infinities, and signed zero. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
+          <p><code>wide_tests</code> checks all ten Wide value types. It compares scalar and Native arithmetic, comparisons, selection, masks, reductions, lane movement, slides, ordinary memory, unaligned memory, and partial memory. It also checks a Native aligned-memory round trip. The tests cover every partial-memory count and use 128 deterministic pseudorandom inputs per value type. Floating cases distinguish signaling-NaN reduction order, check the positive-zero addition start, and preserve special encodings through slides. The guarded-page suite places every byte tail from zero through 32 immediately before an inaccessible page. The code-generation checks require two selected 128-bit calls and do not claim a 256-bit instruction sequence.</p>
+          <p>Floating reduction cases include NaNs, infinities, and signed zero. The protected-page test runs all 128-bit byte-tail counts from 0 through 16 and all Wide byte-tail counts from 0 through 32. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
           <p>The workflow does not use <code>continue-on-error</code>.</p>
         </section>
         <section id="limits">
@@ -104,7 +107,8 @@
           <ul>
             <li>The public API is experimental.</li>
             <li>The verified compiler matrix contains one GNAT FSF version.</li>
-            <li>The 256-bit family is not implemented.</li>
+            <li>The initial Wide profile omits two-source lane maps, bit casts, width-changing and numeric conversions, and table lookup.</li>
+            <li>Wide.Native has no AVX2-specific 256-bit primitive implementation or code-generation claim.</li>
             <li>AVX2 accelerates three whole-buffer byte algorithms, not the primitive vector family.</li>
           </ul>
           <div class="next-links"><a href="../guide/operations/"><span>Operations</span>Read the exact API matrix</a><a href="../architecture/"><span>Architecture</span>Understand target composition</a></div>

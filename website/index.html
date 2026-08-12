@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Flyology SIMD is an experimental Ada library for explicit, fixed-width 128-bit vector operations.">
+  <meta name="description" content="Flyology SIMD is an experimental Ada library for explicit, fixed-width 128-bit and 256-bit vector operations.">
   <meta name="theme-color" content="#f5f2e9">
-  <title>Flyology SIMD · 128-bit vector operations for Ada</title>
+  <title>Flyology SIMD · Fixed-width vector operations for Ada</title>
   <link rel="canonical" href="https://simd.flyology.org/">
   <link rel="icon" href="assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/styles/site.css">
@@ -50,8 +50,8 @@
     <section class="simd-hero page-shell">
       <div class="simd-hero-copy">
         <span class="eyebrow">Experimental Ada library</span>
-        <h1>128-bit vector operations for Ada.</h1>
-        <p class="hero-lede">Use private vector types such as <code>U8x16</code>, <code>I32x4</code>, and <code>F64x2</code>. The public operations have the same result on the scalar, AArch64 NEON, and x86-64 SSE2 backends.</p>
+        <h1>Fixed-width vector operations for Ada.</h1>
+        <p class="hero-lede">Use private 128-bit vector types such as <a data-api="Flyology_SIMD.U8x16"><code>U8x16</code></a>, <a data-api="Flyology_SIMD.I32x4"><code>I32x4</code></a>, and <a data-api="Flyology_SIMD.F64x2"><code>F64x2</code></a>, or the corresponding initial 256-bit Wide profile. The public operations have the same result on the scalar, AArch64 NEON, and x86-64 SSE2 backends.</p>
         <div class="actions">
           <a class="button button-primary" href="guide/introduction/">Learn the SIMD model</a>
           <a class="button button-secondary" href="guide/operations/">Check operation coverage</a>
@@ -92,7 +92,7 @@
       <div class="scope-band-inner page-shell">
         <div>
           <strong>Width</strong>
-          <span>128 bits only. The 256-bit family is not implemented.</span>
+          <span>Complete 128-bit family and an initial 256-bit Wide profile.</span>
         </div>
         <div>
           <strong>Backends</strong>
@@ -129,9 +129,9 @@ Saturated : constant U16x8 := Native.Add_Saturate (Input, Increment);
       <div class="page-shell operation-field-inner">
         <div>
           <span class="eyebrow">Current API boundary</span>
-          <h2>Ten value types share one 128-bit width.</h2>
-          <p>The integer families have explicit wrapping and saturating arithmetic, shifts, comparisons, reductions, fixed lane arrangements, masks, and typed memory operations. The floating families have arithmetic, ordered and unordered comparisons, number minimum and maximum, add reduction, fixed lane arrangements, masks, and typed memory operations. All ten value types have reusable one-source and two-source lane maps, zero-filled lane slides, and stable mask compression and expansion.</p>
-          <p>The API also has lane-preserving bit casts, adjacent integer widening and narrowing, exact finite <code>F32x4</code>-to-<code>F64x2</code> widening, rounded <code>F64x2</code>-to-<code>F32x4</code> narrowing, explicit numeric conversion between same-width integer and floating lanes, saturating conversion between signed and unsigned integer lanes, and 16-entry byte-table lookup. The 256-bit values are not implemented.</p>
+          <h2>Ten lane families have 128-bit and 256-bit value types.</h2>
+          <p>The 128-bit integer families have explicit wrapping and saturating arithmetic, shifts, comparisons, reductions, fixed lane arrangements, masks, and typed memory operations. The 128-bit floating families have arithmetic, ordered and unordered comparisons, number minimum and maximum, add reduction, fixed lane arrangements, masks, and typed memory operations. All ten 128-bit value types have reusable one-source and two-source lane maps, zero-filled lane slides, and stable mask compression and expansion.</p>
+          <p>The complete 128-bit API also has lane-preserving bit casts, adjacent integer widening and narrowing, floating narrowing and widening, numeric conversion, signedness conversion, and 16-entry byte-table lookup. <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> supplies corresponding private 256-bit types with an initial profile. It does not yet include two-source maps, bit casts, conversions, or table lookup.</p>
           <a class="button button-secondary inverse-button" href="guide/operations/">Read the exact matrix</a>
         </div>
         <div class="type-ruler" aria-label="Public 128-bit vector types">

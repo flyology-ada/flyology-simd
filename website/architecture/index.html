@@ -51,7 +51,7 @@
         <ol class="breadcrumb"><li><a href="../">Overview</a></li><li>Architecture</li></ol>
         <h1>Backend architecture</h1>
       </div>
-      <p class="doc-hero-copy">The root package defines scalar results. A selected native package implements the same declarations. Runtime selection occurs only for whole-buffer operations.</p>
+      <p class="doc-hero-copy">The root and Wide packages define scalar results. Their native packages implement or compose matching operations. Runtime selection occurs only for whole-buffer operations.</p>
     </header>
     <div class="docs-layout">
       <aside class="toc" aria-label="On this page">
@@ -80,14 +80,17 @@
           <table class="support-table">
             <thead><tr><th>Package</th><th>Purpose</th></tr></thead>
             <tbody>
-              <tr><td><code>Flyology_SIMD</code></td><td>Public types, operations, contracts, and scalar implementation for all ten value families.</td></tr>
-              <tr><td><code>Backends.Native</code></td><td>The full primitive contract for the selected scalar, AArch64, or x86-64 body.</td></tr>
-              <tr><td><code>Backends.Scalar</code></td><td>The byte-vector formal contract used by the initial generic byte algorithms. It does not yet expose all families.</td></tr>
-              <tr><td><code>Algorithms.Generic_Bytes</code></td><td>Static composition for <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</td></tr>
-              <tr><td><code>Algorithms.Runtime</code></td><td>One backend choice for one complete byte-buffer operation.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a></td><td>Public 128-bit types, operations, contracts, and scalar implementation for all ten value families.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a></td><td>The full 128-bit primitive contract for the selected scalar, AArch64, or x86-64 body.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Backends.Scalar"><code>Backends.Scalar</code></a></td><td>The byte-vector formal contract used by the initial generic byte algorithms. It does not yet expose all families.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a></td><td>Private 256-bit types, the initial Wide operation profile, and its scalar authority.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a></td><td>Static composition of selected 128-bit native operations across private Wide parts.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Algorithms.Generic_Bytes</code></a></td><td>Static composition for <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a></td><td>One backend choice for one complete byte-buffer operation.</td></tr>
             </tbody>
           </table>
-          <p>The root scalar body is the semantic reference for the full family. Differential tests compare the selected native body with that reference.</p>
+          <p>The root scalar body is the semantic reference for the complete 128-bit family. The Wide body is the scalar authority for its initial profile. Differential tests compare every current Wide Native operation group with that authority.</p>
+          <p>Wide values currently contain two private 128-bit parts. This mechanism is not a public representation or ABI. <code>Wide.Native</code> does not yet contain an AVX2-specific 256-bit primitive implementation, and the project makes no 256-bit instruction-sequence claim.</p>
         </section>
         <section id="static">
           <h2>Select primitive code at build time</h2>
@@ -128,7 +131,7 @@
   </main>
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>The root scalar implementation defines the full-family result.</span>
+      <span>The scalar implementations define the public results.</span>
       <div class="footer-links">
         <a href="../guide/operations/">Operations</a>
         <a href="../support/">Support</a>

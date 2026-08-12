@@ -34,6 +34,8 @@ jobs:
           python3 scripts/generate_full_family.py
           python3 scripts/generate_backends.py
           python3 scripts/generate_conversion_tests.py
+          python3 scripts/generate_wide_family.py
+          python3 scripts/generate_wide_tests.py
           git diff --exit-code
       - name: Build debug library
         if: ${{ !matrix.release }}
@@ -61,6 +63,7 @@ jobs:
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/wide_tests
           ./bin/conversion_tests
           ./bin/guard_page_tests
       - name: Require executable AVX2 coverage
@@ -111,6 +114,7 @@ jobs:
         run: |
           ./bin/simd_tests
           ./bin/family_tests
+          ./bin/wide_tests
           ./bin/conversion_tests
           ./bin/guard_page_tests
       - name: Check generated code

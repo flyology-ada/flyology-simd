@@ -19,6 +19,7 @@ algorithm_object="obj/$architecture/$avx2/flyology_simd-algorithms-native.o"
 feature_object="obj/$architecture/$avx2/flyology_simd-features.o"
 slide_probe_object="obj/codegen-probes/$architecture/$avx2/slide_codegen_probe.o"
 permute_probe_object="obj/codegen-probes/$architecture/$avx2/permute_codegen_probe.o"
+wide_probe_object="obj/codegen-probes/$architecture/$avx2/wide_codegen_probe.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -33,6 +34,8 @@ disassemble "$algorithm_object" >"$temporary/algorithm.txt"
 disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
+disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
+nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -50,6 +53,18 @@ forbid_pattern() {
     description=$3
     if grep -Eiq "$pattern" "$file"; then
         echo "forbidden code generation found: $description" >&2
+        exit 1
+    fi
+}
+
+require_count() {
+    pattern=$1
+    expected=$2
+    file=$3
+    description=$4
+    actual=$(grep -Eic "$pattern" "$file" || true)
+    if [ "$actual" -ne "$expected" ]; then
+        echo "code-generation count mismatch: $description ($actual != $expected)" >&2
         exit 1
     fi
 }
@@ -111,6 +126,15 @@ case "$architecture" in
             require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/permute_2_${lane_kind}.txt" "NEON ${lane_kind} public two-source lane permutation"
         done
         forbid_pattern 'flyology_simd__backends__native__permute_lanes' "$temporary/permute-probe.txt" 'lane-permutation backend call in caller probe'
+        extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
+        extract_symbol 'wide_codegen_probe__f32_multiply' "$temporary/wide-probe.txt" "$temporary/wide_f32_multiply.txt"
+        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two NEON byte-add leaves in wide caller'
+        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
+        require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
+        require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
+        require_count 'flyology_simd__backends__native__(add_wrap|multiply)' 2 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        forbid_pattern 'flyology_simd__(__wide)?__(add_wrap|multiply)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
+        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
         extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
         extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"
@@ -251,6 +275,15 @@ case "$architecture" in
         require_pattern 'cmp(unord|eq|lt|le)(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating comparisons'
         require_pattern 'movdqu' "$temporary/native.txt" 'unaligned SSE2 load/store'
         require_pattern 'movdqa' "$temporary/native.txt" 'aligned SSE2 load/store'
+        extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
+        extract_symbol 'wide_codegen_probe__f32_multiply' "$temporary/wide-probe.txt" "$temporary/wide_f32_multiply.txt"
+        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two SSE2 byte-add leaves in wide caller'
+        require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_multiply.txt" 'two SSE F32-multiply leaves in wide caller'
+        require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
+        require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
+        require_count 'flyology_simd__backends__native__(add_wrap|multiply)' 2 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        forbid_pattern 'flyology_simd__(__wide)?__(add_wrap|multiply)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
+        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
         require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
         require_pattern 'movdqu' "$temporary/algorithm.txt" 'inlined vector load in representative loop'

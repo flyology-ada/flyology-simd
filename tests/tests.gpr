@@ -13,6 +13,7 @@ project Tests is
    for Main use
      ("simd_tests.adb",
       "family_tests.adb",
+      "wide_tests.adb",
       "conversion_tests.adb",
       "guard_page_tests.adb");
 
