@@ -580,13 +580,21 @@ is
    --  @param Table The 16 selectable byte lanes.
    --  @param Indices One unsigned table index for each result lane.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -752,13 +760,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -968,13 +984,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1189,13 +1213,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1405,13 +1437,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1626,13 +1666,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1842,13 +1890,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2063,13 +2119,21 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2250,13 +2314,23 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
+   --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
+   --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2436,13 +2510,23 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
-   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
+   --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 with Inline_Always;
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
+   --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.

@@ -1609,12 +1609,15 @@ procedure Family_Tests is
       Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);
       A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);
       B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);
+      Slide32 : constant F32x4 := From_Lanes ([NaN32, SNaN32, Inf32, Neg_Zero32]);
       NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);
       SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);
       Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);
       Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);
       A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);
       B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);
+      Slide64_A : constant F64x2 := From_Lanes ([NaN64, SNaN64]);
+      Slide64_B : constant F64x2 := From_Lanes ([Inf64, Neg_Zero64]);
       Zero32 : constant F32x4 := From_Lanes ([0.0, 0.0, 0.0, 0.0]);
       Numerator32 : constant F32x4 := From_Lanes ([1.0, 0.0, -1.0, 0.0]);
       Quiet32 : constant F32x4 := From_Lanes ([NaN32, NaN32, NaN32, NaN32]);
@@ -1641,6 +1644,31 @@ procedure Family_Tests is
       Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);
       Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);
    begin
+      for Slide in Natural range 0 .. 6 loop
+         for Lane in Lane_Index_32x4 loop
+            declare
+               Expected_Low : constant Interfaces.Unsigned_32 := (if Slide < 4 and then Lane < 4 - Slide then F32_Bits (Extract (Slide32, Lane_Index_32x4 (Lane + Slide))) else 0);
+               Expected_High : constant Interfaces.Unsigned_32 := (if Slide < 4 and then Lane >= Slide then F32_Bits (Extract (Slide32, Lane_Index_32x4 (Lane - Slide))) else 0);
+            begin
+               Check (F32_Bits (Extract (Slide_Lanes_Toward_Low (Slide32, Slide), Lane)) = Expected_Low and then F32_Bits (Extract (Backends.Native.Slide_Lanes_Toward_Low (Slide32, Slide), Lane)) = Expected_Low, "F32 special slide toward low" & Slide'Image & Lane'Image);
+               Check (F32_Bits (Extract (Slide_Lanes_Toward_High (Slide32, Slide), Lane)) = Expected_High and then F32_Bits (Extract (Backends.Native.Slide_Lanes_Toward_High (Slide32, Slide), Lane)) = Expected_High, "F32 special slide toward high" & Slide'Image & Lane'Image);
+            end;
+         end loop;
+      end loop;
+      for Slide in Natural range 0 .. 4 loop
+         for Lane in Lane_Index_64x2 loop
+            for Source_Choice in Boolean loop
+               declare
+                  Source : constant F64x2 := (if Source_Choice then Slide64_A else Slide64_B);
+                  Expected_Low : constant Interfaces.Unsigned_64 := (if Slide < 2 and then Lane < 2 - Slide then F64_Bits (Extract (Source, Lane_Index_64x2 (Lane + Slide))) else 0);
+                  Expected_High : constant Interfaces.Unsigned_64 := (if Slide < 2 and then Lane >= Slide then F64_Bits (Extract (Source, Lane_Index_64x2 (Lane - Slide))) else 0);
+               begin
+                  Check (F64_Bits (Extract (Slide_Lanes_Toward_Low (Source, Slide), Lane)) = Expected_Low and then F64_Bits (Extract (Backends.Native.Slide_Lanes_Toward_Low (Source, Slide), Lane)) = Expected_Low, "F64 special slide toward low" & Slide'Image & Lane'Image);
+                  Check (F64_Bits (Extract (Slide_Lanes_Toward_High (Source, Slide), Lane)) = Expected_High and then F64_Bits (Extract (Backends.Native.Slide_Lanes_Toward_High (Source, Slide), Lane)) = Expected_High, "F64 special slide toward high" & Slide'Image & Lane'Image);
+               end;
+            end loop;
+         end loop;
+      end loop;
       Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), "F32 NaN unordered");
       Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, "F32 quiet NaN returns number");
       Check ((F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), B32), 0)) and 16#7FC0_0000#) = 16#7FC0_0000#, "F32 signaling NaN is quieted");

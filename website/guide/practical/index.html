@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Apply explicit integer and floating-point arithmetic and reductions in Flyology SIMD.">
+  <meta name="description" content="Apply arithmetic, reductions, and lane slides in Flyology SIMD.">
   <title>Arithmetic and reductions · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/practical/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
@@ -13,7 +13,7 @@
   <main id="main" class="page-shell">
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and reductions</li></ol><h1>State arithmetic and reduction semantics explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes the vector dot product and separates integer overflow rules from floating-point rules.</p></header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li><li><a href="#result">Program result</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li><li><a href="#result">Program result</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">Chapter 1 formed four products. A complete dot product accumulates product vectors and then reduces four lane totals to one scalar value.</p>
         <section id="loop">
@@ -37,6 +37,21 @@ return Vector_Reduce_Add (Accumulator);</code></pre>
           <p><a data-api="Flyology_SIMD.Reduce_Add" data-api-signature="F32x4"><code>Reduce_Add</code></a> starts with positive zero and adds lanes in ascending order. The fold is <code>((((0.0 + lane 0) + lane 1) + lane 2) + lane 3)</code> on every backend.</p>
           <p>The dot-product loop accumulates element indexes 1 and 5 in lane 0, indexes 2 and 6 in lane 1, and so on. For the maintained input, the accumulator is <code>[13.0, 20.0, 29.0, 8.0]</code>. The defined fold returns 70.0.</p>
           <div class="semantic-callout"><strong>Do not require bitwise equality with the ordinary loop for arbitrary floating inputs.</strong><p>Floating-point addition is not associative. The ordinary loop and vector loop may round at different points. The maintained example uses exactly representable products and sums, so both return 70.0.</p></div>
+        </section>
+        <section id="neighbors">
+          <h2>Slide lanes to use neighboring values</h2>
+          <p>A three-point stencil combines each sample with its available left and right neighbors. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> supplies the selected target operations. Its <a data-api="Flyology_SIMD.Backends.Native.From_Lanes" data-api-signature="Lane_Values_F32x4"><code>From_Lanes</code></a> operation constructs the input.</p>
+          <pre><code class="language-ada">Samples : constant F32x4 := Native.From_Lanes ([1.0, 2.0, 3.0, 4.0]);
+Previous : constant F32x4 :=
+  Native.Slide_Lanes_Toward_High (Samples, 1);  --  [0, 1, 2, 3]
+Following : constant F32x4 :=
+  Native.Slide_Lanes_Toward_Low (Samples, 1);   --  [2, 3, 4, 0]
+Sums : constant F32x4 :=
+  Native.Add (Native.Add (Previous, Samples), Following);
+
+--  Sums is [3, 6, 9, 7].</code></pre>
+          <p><a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High" data-api-signature="F32x4"><code>Slide_Lanes_Toward_High</code></a> inserts positive zero at lane 0. <a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low" data-api-signature="F32x4"><code>Slide_Lanes_Toward_Low</code></a> inserts positive zero at lane 3. The two <a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Add</code></a> calls then combine each sample with those shifted neighbors.</p>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> prints both intermediate vectors and the result. The <a href="../operations/#integers">operation reference</a> defines zero, oversized, and edge-count behavior.</p>
         </section>
         <section id="integers">
           <h2>Choose wrapping or saturating integer arithmetic</h2>

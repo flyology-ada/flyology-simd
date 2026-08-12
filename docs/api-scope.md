@@ -42,7 +42,9 @@ lane `n`. It fills the vacated high-index lanes with zero.
 lane `n` when `n` is at least `Count`. It fills the vacated low-index lanes
 with zero. A count of zero returns the input. A count equal to or greater than
 the lane count returns `Zero`. Counts are in lanes, not bytes. Floating slides
-use positive zero for vacated lanes.
+use positive zero for vacated lanes. Retained floating lanes preserve every
+bit, including NaN payloads and signaling state, infinities, and signed zeros.
+Values moved past an edge are discarded.
 
 Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths

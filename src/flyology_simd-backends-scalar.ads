@@ -207,14 +207,22 @@ is
    function Slide_Lanes_Toward_Low
      (Value : U8x16; Count : Natural) return U8x16
      renames Flyology_SIMD.Slide_Lanes_Toward_Low;
-   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
    function Slide_Lanes_Toward_High
      (Value : U8x16; Count : Natural) return U8x16
      renames Flyology_SIMD.Slide_Lanes_Toward_High;
-   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  Count is in lanes.
+   --  A zero count returns Value.
+   --  Retained lanes keep their complete bit encoding.
+   --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
+   --  Return Zero when Count is equal to or greater than the lane count.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.

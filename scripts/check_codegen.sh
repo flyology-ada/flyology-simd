@@ -10,10 +10,14 @@ trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 cd "$project_root"
 alr build -- "-XFLYOLOGY_SIMD_ARCH=$architecture" \
   "-XFLYOLOGY_SIMD_AVX2=$avx2"
+alr exec -- gprbuild -f -p -P scripts/codegen_probes.gpr \
+  "-XFLYOLOGY_SIMD_ARCH=$architecture" \
+  "-XFLYOLOGY_SIMD_AVX2=$avx2"
 
 native_object="obj/$architecture/$avx2/flyology_simd-backends-native.o"
 algorithm_object="obj/$architecture/$avx2/flyology_simd-algorithms-native.o"
 feature_object="obj/$architecture/$avx2/flyology_simd-features.o"
+slide_probe_object="obj/codegen-probes/$architecture/$avx2/slide_codegen_probe.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -26,6 +30,7 @@ disassemble() {
 disassemble "$native_object" >"$temporary/native.txt"
 disassemble "$algorithm_object" >"$temporary/algorithm.txt"
 disassemble "$feature_object" >"$temporary/features.txt"
+disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 
 require_pattern() {
     pattern=$1
@@ -90,16 +95,21 @@ case "$architecture" in
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
-        extract_symbol 'native_slide_lanes_toward_low_u8x16_1' "$temporary/native.txt" "$temporary/slide_low_u8.txt"
-        extract_symbol 'native_slide_lanes_toward_high_u8x16_1' "$temporary/native.txt" "$temporary/slide_high_u8.txt"
-        extract_symbol 'native_slide_lanes_toward_low_u16x8_1' "$temporary/native.txt" "$temporary/slide_low_u16.txt"
-        extract_symbol 'native_slide_lanes_toward_low_u32x4_1' "$temporary/native.txt" "$temporary/slide_low_u32.txt"
-        extract_symbol 'native_slide_lanes_toward_high_f64x2_1' "$temporary/native.txt" "$temporary/slide_high_f64.txt"
-        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_low_u8.txt" 'NEON byte-lane slide toward low'
-        require_pattern 'ext.*v0.*v1.*v0.*#(0x)?0*f([^[:xdigit:]]|$)' "$temporary/slide_high_u8.txt" 'NEON byte-lane slide toward high'
-        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*2([^[:xdigit:]]|$)' "$temporary/slide_low_u16.txt" 'NEON 16-bit lane-slide scaling'
-        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/slide_low_u32.txt" 'NEON 32-bit lane-slide scaling'
-        require_pattern 'ext.*v0.*v1.*v0.*#(0x)?0*8([^[:xdigit:]]|$)' "$temporary/slide_high_f64.txt" 'NEON 64-bit lane-slide scaling'
+        extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
+        extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
+        extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"
+        extract_symbol 'slide_codegen_probe__u32_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u32_low.txt"
+        extract_symbol 'slide_codegen_probe__f32_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_f32_low.txt"
+        extract_symbol 'slide_codegen_probe__f32_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f32_high.txt"
+        extract_symbol 'slide_codegen_probe__f64_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f64_high.txt"
+        require_pattern 'ext.*#(0x)?0*1([^[:xdigit:]]|$)' "$temporary/probe_u8_low.txt" 'constant U8 slide toward low in caller'
+        require_pattern 'ext.*#(0x)?0*f([^[:xdigit:]]|$)' "$temporary/probe_u8_high.txt" 'constant U8 slide toward high in caller'
+        require_pattern 'ext.*#(0x)?0*2([^[:xdigit:]]|$)' "$temporary/probe_u16_low.txt" 'constant U16 lane scaling in caller'
+        require_pattern 'ext.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_u32_low.txt" 'constant U32 lane scaling in caller'
+        require_pattern 'ext.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_f32_low.txt" 'constant F32 slide toward low in caller'
+        require_pattern 'ext.*#(0x)?0*c([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
+        require_pattern 'ext.*#(0x)?0*8([^[:xdigit:]]|$)' "$temporary/probe_f64_high.txt" 'constant F64 lane scaling in caller'
+        forbid_pattern 'flyology_simd__backends__native__slide_lanes' "$temporary/slide-probe.txt" 'lane-slide dispatcher call in constant-count probe'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/native.txt" '128-bit unaligned load'
         require_pattern 'uaddlv' "$temporary/native.txt" 'vector mask/sum reduction'
         require_pattern 'sqadd.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed saturating arithmetic'
@@ -203,16 +213,21 @@ case "$architecture" in
         require_pattern 'pandn' "$temporary/native.txt" 'SSE2 mask selection'
         require_pattern 'punpckl(bw|wd|dq|qdq)' "$temporary/native.txt" 'SSE2 interleave family'
         require_pattern 'pshuf(d|lw|hw)' "$temporary/native.txt" 'SSE2 reverse/shuffle family'
-        extract_symbol 'native_slide_lanes_toward_low_u8x16_1' "$temporary/native.txt" "$temporary/slide_low_u8.txt"
-        extract_symbol 'native_slide_lanes_toward_high_u8x16_1' "$temporary/native.txt" "$temporary/slide_high_u8.txt"
-        extract_symbol 'native_slide_lanes_toward_low_u16x8_1' "$temporary/native.txt" "$temporary/slide_low_u16.txt"
-        extract_symbol 'native_slide_lanes_toward_low_u32x4_1' "$temporary/native.txt" "$temporary/slide_low_u32.txt"
-        extract_symbol 'native_slide_lanes_toward_high_f64x2_1' "$temporary/native.txt" "$temporary/slide_high_f64.txt"
-        require_pattern 'psrldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_low_u8.txt" 'SSE2 byte-lane slide toward low'
-        require_pattern 'pslldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_high_u8.txt" 'SSE2 byte-lane slide toward high'
-        require_pattern 'psrldq.*[$](0x)?0*2([^[:xdigit:]]|$)' "$temporary/slide_low_u16.txt" 'SSE2 16-bit lane-slide scaling'
-        require_pattern 'psrldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/slide_low_u32.txt" 'SSE2 32-bit lane-slide scaling'
-        require_pattern 'pslldq.*[$](0x)?0*8([^[:xdigit:]]|$)' "$temporary/slide_high_f64.txt" 'SSE2 64-bit lane-slide scaling'
+        extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
+        extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
+        extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"
+        extract_symbol 'slide_codegen_probe__u32_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u32_low.txt"
+        extract_symbol 'slide_codegen_probe__f32_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_f32_low.txt"
+        extract_symbol 'slide_codegen_probe__f32_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f32_high.txt"
+        extract_symbol 'slide_codegen_probe__f64_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f64_high.txt"
+        require_pattern 'psrldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/probe_u8_low.txt" 'constant U8 slide toward low in caller'
+        require_pattern 'pslldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/probe_u8_high.txt" 'constant U8 slide toward high in caller'
+        require_pattern 'psrldq.*[$](0x)?0*2([^[:xdigit:]]|$)' "$temporary/probe_u16_low.txt" 'constant U16 lane scaling in caller'
+        require_pattern 'psrldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_u32_low.txt" 'constant U32 lane scaling in caller'
+        require_pattern 'psrldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_f32_low.txt" 'constant F32 slide toward low in caller'
+        require_pattern 'pslldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
+        require_pattern 'pslldq.*[$](0x)?0*8([^[:xdigit:]]|$)' "$temporary/probe_f64_high.txt" 'constant F64 lane scaling in caller'
+        forbid_pattern 'flyology_simd__backends__native__slide_lanes' "$temporary/slide-probe.txt" 'lane-slide dispatcher call in constant-count probe'
         require_pattern 'addps' "$temporary/native.txt" 'SSE floating32 addition'
         require_pattern 'addpd' "$temporary/native.txt" 'SSE2 floating64 addition'
         require_pattern 'mul(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating multiplication'

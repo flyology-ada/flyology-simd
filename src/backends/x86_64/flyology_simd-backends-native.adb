@@ -428,8 +428,8 @@ package body Flyology_SIMD.Backends.Native is
 
    --  BEGIN GENERATED FULL-FAMILY X86 BODIES
    Sign_8 : aliased constant Lane_Values_8x16 := [others => 16#80#];
-   Sign_16 : aliased constant Lane_Values_8x16 := [for Lane in Lane_Index_8x16 => (if Lane mod 2 = 1 then 16#80# else 0)];
-   Sign_32 : aliased constant Lane_Values_8x16 := [for Lane in Lane_Index_8x16 => (if Lane mod 4 = 3 then 16#80# else 0)];
+   Sign_16 : aliased constant Lane_Values_8x16 := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];
+   Sign_32 : aliased constant Lane_Values_8x16 := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];
    Weights_X86_8 : aliased constant Lane_Values_8x16 := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
    Weights_X86_16 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];
    Weights_X86_32 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
@@ -503,20 +503,35 @@ package body Flyology_SIMD.Backends.Native is
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
    function Native_Slide_Lanes_Toward_Low_U8x16_1 is new SSE2_Unary_128 (U8x16, "psrldq $1, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_1);
    function Native_Slide_Lanes_Toward_Low_U8x16_2 is new SSE2_Unary_128 (U8x16, "psrldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_2);
    function Native_Slide_Lanes_Toward_Low_U8x16_3 is new SSE2_Unary_128 (U8x16, "psrldq $3, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_3);
    function Native_Slide_Lanes_Toward_Low_U8x16_4 is new SSE2_Unary_128 (U8x16, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_4);
    function Native_Slide_Lanes_Toward_Low_U8x16_5 is new SSE2_Unary_128 (U8x16, "psrldq $5, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_5);
    function Native_Slide_Lanes_Toward_Low_U8x16_6 is new SSE2_Unary_128 (U8x16, "psrldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_6);
    function Native_Slide_Lanes_Toward_Low_U8x16_7 is new SSE2_Unary_128 (U8x16, "psrldq $7, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_7);
    function Native_Slide_Lanes_Toward_Low_U8x16_8 is new SSE2_Unary_128 (U8x16, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_8);
    function Native_Slide_Lanes_Toward_Low_U8x16_9 is new SSE2_Unary_128 (U8x16, "psrldq $9, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_9);
    function Native_Slide_Lanes_Toward_Low_U8x16_10 is new SSE2_Unary_128 (U8x16, "psrldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_10);
    function Native_Slide_Lanes_Toward_Low_U8x16_11 is new SSE2_Unary_128 (U8x16, "psrldq $11, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_11);
    function Native_Slide_Lanes_Toward_Low_U8x16_12 is new SSE2_Unary_128 (U8x16, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_12);
    function Native_Slide_Lanes_Toward_Low_U8x16_13 is new SSE2_Unary_128 (U8x16, "psrldq $13, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_13);
    function Native_Slide_Lanes_Toward_Low_U8x16_14 is new SSE2_Unary_128 (U8x16, "psrldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_14);
    function Native_Slide_Lanes_Toward_Low_U8x16_15 is new SSE2_Unary_128 (U8x16, "psrldq $15, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_15);
    function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
      (if Count = 0 then Value
       elsif Count >= 16 then Flyology_SIMD.Zero
@@ -539,20 +554,35 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_U8x16_1 is new SSE2_Unary_128 (U8x16, "pslldq $1, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_1);
    function Native_Slide_Lanes_Toward_High_U8x16_2 is new SSE2_Unary_128 (U8x16, "pslldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_2);
    function Native_Slide_Lanes_Toward_High_U8x16_3 is new SSE2_Unary_128 (U8x16, "pslldq $3, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_3);
    function Native_Slide_Lanes_Toward_High_U8x16_4 is new SSE2_Unary_128 (U8x16, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_4);
    function Native_Slide_Lanes_Toward_High_U8x16_5 is new SSE2_Unary_128 (U8x16, "pslldq $5, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_5);
    function Native_Slide_Lanes_Toward_High_U8x16_6 is new SSE2_Unary_128 (U8x16, "pslldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_6);
    function Native_Slide_Lanes_Toward_High_U8x16_7 is new SSE2_Unary_128 (U8x16, "pslldq $7, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_7);
    function Native_Slide_Lanes_Toward_High_U8x16_8 is new SSE2_Unary_128 (U8x16, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_8);
    function Native_Slide_Lanes_Toward_High_U8x16_9 is new SSE2_Unary_128 (U8x16, "pslldq $9, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_9);
    function Native_Slide_Lanes_Toward_High_U8x16_10 is new SSE2_Unary_128 (U8x16, "pslldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_10);
    function Native_Slide_Lanes_Toward_High_U8x16_11 is new SSE2_Unary_128 (U8x16, "pslldq $11, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_11);
    function Native_Slide_Lanes_Toward_High_U8x16_12 is new SSE2_Unary_128 (U8x16, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_12);
    function Native_Slide_Lanes_Toward_High_U8x16_13 is new SSE2_Unary_128 (U8x16, "pslldq $13, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_13);
    function Native_Slide_Lanes_Toward_High_U8x16_14 is new SSE2_Unary_128 (U8x16, "pslldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_14);
    function Native_Slide_Lanes_Toward_High_U8x16_15 is new SSE2_Unary_128 (U8x16, "pslldq $15, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_15);
    function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
      (if Count = 0 then Value
       elsif Count >= 16 then Flyology_SIMD.Zero
@@ -575,20 +605,35 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_I8x16_1 is new SSE2_Unary_128 (I8x16, "psrldq $1, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_1);
    function Native_Slide_Lanes_Toward_Low_I8x16_2 is new SSE2_Unary_128 (I8x16, "psrldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_2);
    function Native_Slide_Lanes_Toward_Low_I8x16_3 is new SSE2_Unary_128 (I8x16, "psrldq $3, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_3);
    function Native_Slide_Lanes_Toward_Low_I8x16_4 is new SSE2_Unary_128 (I8x16, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_4);
    function Native_Slide_Lanes_Toward_Low_I8x16_5 is new SSE2_Unary_128 (I8x16, "psrldq $5, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_5);
    function Native_Slide_Lanes_Toward_Low_I8x16_6 is new SSE2_Unary_128 (I8x16, "psrldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_6);
    function Native_Slide_Lanes_Toward_Low_I8x16_7 is new SSE2_Unary_128 (I8x16, "psrldq $7, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_7);
    function Native_Slide_Lanes_Toward_Low_I8x16_8 is new SSE2_Unary_128 (I8x16, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_8);
    function Native_Slide_Lanes_Toward_Low_I8x16_9 is new SSE2_Unary_128 (I8x16, "psrldq $9, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_9);
    function Native_Slide_Lanes_Toward_Low_I8x16_10 is new SSE2_Unary_128 (I8x16, "psrldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_10);
    function Native_Slide_Lanes_Toward_Low_I8x16_11 is new SSE2_Unary_128 (I8x16, "psrldq $11, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_11);
    function Native_Slide_Lanes_Toward_Low_I8x16_12 is new SSE2_Unary_128 (I8x16, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_12);
    function Native_Slide_Lanes_Toward_Low_I8x16_13 is new SSE2_Unary_128 (I8x16, "psrldq $13, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_13);
    function Native_Slide_Lanes_Toward_Low_I8x16_14 is new SSE2_Unary_128 (I8x16, "psrldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_14);
    function Native_Slide_Lanes_Toward_Low_I8x16_15 is new SSE2_Unary_128 (I8x16, "psrldq $15, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_15);
    function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 is
      (if Count = 0 then Value
       elsif Count >= 16 then Flyology_SIMD.Zero
@@ -611,20 +656,35 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_I8x16_1 is new SSE2_Unary_128 (I8x16, "pslldq $1, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_1);
    function Native_Slide_Lanes_Toward_High_I8x16_2 is new SSE2_Unary_128 (I8x16, "pslldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_2);
    function Native_Slide_Lanes_Toward_High_I8x16_3 is new SSE2_Unary_128 (I8x16, "pslldq $3, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_3);
    function Native_Slide_Lanes_Toward_High_I8x16_4 is new SSE2_Unary_128 (I8x16, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_4);
    function Native_Slide_Lanes_Toward_High_I8x16_5 is new SSE2_Unary_128 (I8x16, "pslldq $5, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_5);
    function Native_Slide_Lanes_Toward_High_I8x16_6 is new SSE2_Unary_128 (I8x16, "pslldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_6);
    function Native_Slide_Lanes_Toward_High_I8x16_7 is new SSE2_Unary_128 (I8x16, "pslldq $7, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_7);
    function Native_Slide_Lanes_Toward_High_I8x16_8 is new SSE2_Unary_128 (I8x16, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_8);
    function Native_Slide_Lanes_Toward_High_I8x16_9 is new SSE2_Unary_128 (I8x16, "pslldq $9, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_9);
    function Native_Slide_Lanes_Toward_High_I8x16_10 is new SSE2_Unary_128 (I8x16, "pslldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_10);
    function Native_Slide_Lanes_Toward_High_I8x16_11 is new SSE2_Unary_128 (I8x16, "pslldq $11, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_11);
    function Native_Slide_Lanes_Toward_High_I8x16_12 is new SSE2_Unary_128 (I8x16, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_12);
    function Native_Slide_Lanes_Toward_High_I8x16_13 is new SSE2_Unary_128 (I8x16, "pslldq $13, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_13);
    function Native_Slide_Lanes_Toward_High_I8x16_14 is new SSE2_Unary_128 (I8x16, "pslldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_14);
    function Native_Slide_Lanes_Toward_High_I8x16_15 is new SSE2_Unary_128 (I8x16, "pslldq $15, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_15);
    function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 is
      (if Count = 0 then Value
       elsif Count >= 16 then Flyology_SIMD.Zero
@@ -647,12 +707,19 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_U16x8_1 is new SSE2_Unary_128 (U16x8, "psrldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_1);
    function Native_Slide_Lanes_Toward_Low_U16x8_2 is new SSE2_Unary_128 (U16x8, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_2);
    function Native_Slide_Lanes_Toward_Low_U16x8_3 is new SSE2_Unary_128 (U16x8, "psrldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_3);
    function Native_Slide_Lanes_Toward_Low_U16x8_4 is new SSE2_Unary_128 (U16x8, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_4);
    function Native_Slide_Lanes_Toward_Low_U16x8_5 is new SSE2_Unary_128 (U16x8, "psrldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_5);
    function Native_Slide_Lanes_Toward_Low_U16x8_6 is new SSE2_Unary_128 (U16x8, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_6);
    function Native_Slide_Lanes_Toward_Low_U16x8_7 is new SSE2_Unary_128 (U16x8, "psrldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_7);
    function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 is
      (if Count = 0 then Value
       elsif Count >= 8 then Flyology_SIMD.Zero
@@ -667,12 +734,19 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_U16x8_1 is new SSE2_Unary_128 (U16x8, "pslldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_1);
    function Native_Slide_Lanes_Toward_High_U16x8_2 is new SSE2_Unary_128 (U16x8, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_2);
    function Native_Slide_Lanes_Toward_High_U16x8_3 is new SSE2_Unary_128 (U16x8, "pslldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_3);
    function Native_Slide_Lanes_Toward_High_U16x8_4 is new SSE2_Unary_128 (U16x8, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_4);
    function Native_Slide_Lanes_Toward_High_U16x8_5 is new SSE2_Unary_128 (U16x8, "pslldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_5);
    function Native_Slide_Lanes_Toward_High_U16x8_6 is new SSE2_Unary_128 (U16x8, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_6);
    function Native_Slide_Lanes_Toward_High_U16x8_7 is new SSE2_Unary_128 (U16x8, "pslldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_7);
    function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 is
      (if Count = 0 then Value
       elsif Count >= 8 then Flyology_SIMD.Zero
@@ -687,12 +761,19 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_I16x8_1 is new SSE2_Unary_128 (I16x8, "psrldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_1);
    function Native_Slide_Lanes_Toward_Low_I16x8_2 is new SSE2_Unary_128 (I16x8, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_2);
    function Native_Slide_Lanes_Toward_Low_I16x8_3 is new SSE2_Unary_128 (I16x8, "psrldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_3);
    function Native_Slide_Lanes_Toward_Low_I16x8_4 is new SSE2_Unary_128 (I16x8, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_4);
    function Native_Slide_Lanes_Toward_Low_I16x8_5 is new SSE2_Unary_128 (I16x8, "psrldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_5);
    function Native_Slide_Lanes_Toward_Low_I16x8_6 is new SSE2_Unary_128 (I16x8, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_6);
    function Native_Slide_Lanes_Toward_Low_I16x8_7 is new SSE2_Unary_128 (I16x8, "psrldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_7);
    function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 is
      (if Count = 0 then Value
       elsif Count >= 8 then Flyology_SIMD.Zero
@@ -707,12 +788,19 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_I16x8_1 is new SSE2_Unary_128 (I16x8, "pslldq $2, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_1);
    function Native_Slide_Lanes_Toward_High_I16x8_2 is new SSE2_Unary_128 (I16x8, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_2);
    function Native_Slide_Lanes_Toward_High_I16x8_3 is new SSE2_Unary_128 (I16x8, "pslldq $6, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_3);
    function Native_Slide_Lanes_Toward_High_I16x8_4 is new SSE2_Unary_128 (I16x8, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_4);
    function Native_Slide_Lanes_Toward_High_I16x8_5 is new SSE2_Unary_128 (I16x8, "pslldq $10, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_5);
    function Native_Slide_Lanes_Toward_High_I16x8_6 is new SSE2_Unary_128 (I16x8, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_6);
    function Native_Slide_Lanes_Toward_High_I16x8_7 is new SSE2_Unary_128 (I16x8, "pslldq $14, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_7);
    function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 is
      (if Count = 0 then Value
       elsif Count >= 8 then Flyology_SIMD.Zero
@@ -727,8 +815,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_U32x4_1 is new SSE2_Unary_128 (U32x4, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_1);
    function Native_Slide_Lanes_Toward_Low_U32x4_2 is new SSE2_Unary_128 (U32x4, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_2);
    function Native_Slide_Lanes_Toward_Low_U32x4_3 is new SSE2_Unary_128 (U32x4, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_3);
    function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -739,8 +830,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_U32x4_1 is new SSE2_Unary_128 (U32x4, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_1);
    function Native_Slide_Lanes_Toward_High_U32x4_2 is new SSE2_Unary_128 (U32x4, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_2);
    function Native_Slide_Lanes_Toward_High_U32x4_3 is new SSE2_Unary_128 (U32x4, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_3);
    function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -751,8 +845,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_I32x4_1 is new SSE2_Unary_128 (I32x4, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_1);
    function Native_Slide_Lanes_Toward_Low_I32x4_2 is new SSE2_Unary_128 (I32x4, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_2);
    function Native_Slide_Lanes_Toward_Low_I32x4_3 is new SSE2_Unary_128 (I32x4, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_3);
    function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -763,8 +860,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_I32x4_1 is new SSE2_Unary_128 (I32x4, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_1);
    function Native_Slide_Lanes_Toward_High_I32x4_2 is new SSE2_Unary_128 (I32x4, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_2);
    function Native_Slide_Lanes_Toward_High_I32x4_3 is new SSE2_Unary_128 (I32x4, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_3);
    function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -775,6 +875,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_U64x2_1 is new SSE2_Unary_128 (U64x2, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U64x2_1);
    function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero
@@ -783,6 +884,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_U64x2_1 is new SSE2_Unary_128 (U64x2, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_U64x2_1);
    function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero
@@ -791,6 +893,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_I64x2_1 is new SSE2_Unary_128 (I64x2, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I64x2_1);
    function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero
@@ -799,6 +902,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_I64x2_1 is new SSE2_Unary_128 (I64x2, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_I64x2_1);
    function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero
@@ -807,8 +911,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_F32x4_1 is new SSE2_Unary_128 (F32x4, "psrldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_1);
    function Native_Slide_Lanes_Toward_Low_F32x4_2 is new SSE2_Unary_128 (F32x4, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_2);
    function Native_Slide_Lanes_Toward_Low_F32x4_3 is new SSE2_Unary_128 (F32x4, "psrldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_3);
    function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -819,8 +926,11 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_F32x4_1 is new SSE2_Unary_128 (F32x4, "pslldq $4, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_1);
    function Native_Slide_Lanes_Toward_High_F32x4_2 is new SSE2_Unary_128 (F32x4, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_2);
    function Native_Slide_Lanes_Toward_High_F32x4_3 is new SSE2_Unary_128 (F32x4, "pslldq $12, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_3);
    function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 is
      (if Count = 0 then Value
       elsif Count >= 4 then Flyology_SIMD.Zero
@@ -831,6 +941,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_Low_F64x2_1 is new SSE2_Unary_128 (F64x2, "psrldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F64x2_1);
    function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero
@@ -839,6 +950,7 @@ package body Flyology_SIMD.Backends.Native is
          when others => Flyology_SIMD.Zero));
 
    function Native_Slide_Lanes_Toward_High_F64x2_1 is new SSE2_Unary_128 (F64x2, "pslldq $8, %%xmm0");
+   pragma Inline_Always (Native_Slide_Lanes_Toward_High_F64x2_1);
    function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 is
      (if Count = 0 then Value
       elsif Count >= 2 then Flyology_SIMD.Zero

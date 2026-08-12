@@ -148,19 +148,10 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
 --  Encoded lanes 0 .. 14 contain ASCII 0 through E.
 --  Encoded lane 15 is zero because index 255 is out of range.</code></pre>
           <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/table_lookup.adb"><code>table_lookup.adb</code> example</a> maps all 16 hexadecimal digits and then checks an out-of-range index.</p>
-          <h3>Align neighboring lanes</h3>
-          <p>A lane slide changes lane positions without changing lane values. The count is in lanes. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code></a> fills the vacated high-index lanes with zero. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_High</code></a> fills the vacated low-index lanes with zero. A count equal to or greater than the lane count returns <code>Zero</code>.</p>
-          <p>This example forms a three-point sum. Each result lane contains the current sample and its available neighbors. Zero supplies the missing neighbor at each edge.</p>
-          <pre><code class="language-ada">Samples : constant F32x4 := Native.From_Lanes ([1.0, 2.0, 3.0, 4.0]);
-Previous : constant F32x4 :=
-  Native.Slide_Lanes_Toward_High (Samples, 1);  --  [0, 1, 2, 3]
-Following : constant F32x4 :=
-  Native.Slide_Lanes_Toward_Low (Samples, 1);   --  [2, 3, 4, 0]
-Sums : constant F32x4 :=
-  Native.Add (Native.Add (Previous, Samples), Following);
-
---  Sums is [3, 6, 9, 7].</code></pre>
-          <p>The same two operations are available for all ten 128-bit value types. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> builds this calculation with the native backend.</p>
+          <h3>Slide neighboring lanes</h3>
+          <p>The count is in lanes. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code></a> maps source lane <code>n + Count</code> to result lane <code>n</code>. It discards values beyond the low edge and fills vacated high-index lanes with zero. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_High</code></a> maps source lane <code>n - Count</code> to result lane <code>n</code> when <code>n &gt;= Count</code>. It discards values beyond the high edge and fills vacated low-index lanes with zero.</p>
+          <p>A zero count returns the input. A count equal to or greater than the lane count returns <code>Zero</code>. Retained lanes preserve their complete bit encoding. Vacated floating lanes contain positive zero.</p>
+          <p>The operations are available for all ten 128-bit value types. Chapter 2 <a href="../practical/#neighbors">builds a three-point floating stencil</a> and links the concrete native overloads.</p>
         </section>
         <section id="floats">
           <h2>Floating-point operation coverage</h2>

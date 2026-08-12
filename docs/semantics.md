@@ -32,7 +32,9 @@ toward lane 0 and fills vacated high-index lanes with zero.
 and fills vacated low-index lanes with zero. A zero count returns the input. A
 count equal to or greater than the lane count returns `Zero`. Floating
 vacated lanes contain positive zero. Lane slides do not reinterpret, convert,
-or combine lane values.
+or combine retained lane values. Each retained lane preserves its complete bit
+encoding, including a NaN payload, NaN signaling state, infinity, or signed
+zero. Values moved past an edge are discarded.
 
 `First_True` returns the lowest true lane. `Last_True` returns the highest true
 lane. Both return the applicable `Lane_Count_*` subtype's last value when the

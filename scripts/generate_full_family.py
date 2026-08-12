@@ -130,16 +130,16 @@ OPERATION_DOCS = {
     "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
     "Deinterleave_Odd": "Collect odd lanes from the left input, then odd lanes from the right input.",
     "Slide_Lanes_Toward_Low": (
-        "Count is in lanes. Move lanes toward lower lane indexes by Count "
-        "positions and fill vacated high-index lanes with zero. Return zero "
-        "when Count is equal to or greater than the lane count. Floating "
-        "zero fill is positive zero."
+        "Count is in lanes. A zero count returns Value. Retained lanes keep "
+        "their complete bit encoding. Move them toward lower lane indexes "
+        "and fill vacated high-index lanes with zero. Return Zero when Count "
+        "is equal to or greater than the lane count."
     ),
     "Slide_Lanes_Toward_High": (
-        "Count is in lanes. Move lanes toward higher lane indexes by Count "
-        "positions and fill vacated low-index lanes with zero. Return zero "
-        "when Count is equal to or greater than the lane count. Floating "
-        "zero fill is positive zero."
+        "Count is in lanes. A zero count returns Value. Retained lanes keep "
+        "their complete bit encoding. Move them toward higher lane indexes "
+        "and fill vacated low-index lanes with zero. Return Zero when Count "
+        "is equal to or greater than the lane count."
     ),
     "Table_Lookup": (
         "Use the unsigned value in each index lane for the corresponding result "
@@ -303,7 +303,19 @@ def document_spec(text: str) -> str:
                     summary = OPERATION_DOCS.get(
                         name, "Perform the documented portable operation."
                     )
-                documented.append(f"   --  {summary}")
+                if name.startswith("Slide_Lanes_"):
+                    for sentence in summary.split(". "):
+                        documented.append(
+                            f"   --  {sentence if sentence.endswith('.') else sentence + '.'}"
+                        )
+                else:
+                    documented.append(f"   --  {summary}")
+                if name.startswith("Slide_Lanes_") and (
+                    "F32x4" in declaration_text or "F64x2" in declaration_text
+                ):
+                    documented.append(
+                        "   --  Vacated floating lanes contain positive zero."
+                    )
                 for parameter in _parameter_names(" ".join(declaration)):
                     parameter_doc = PARAM_DOCS.get(
                         parameter, "The input parameter."
@@ -334,6 +346,9 @@ def strip_generated_docs(text: str) -> str:
             "Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.",
             CONVERT_SATURATE_SIGNED_DOC,
             CONVERT_SATURATE_UNSIGNED_DOC,
+            "Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.",
+            "Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.",
+            "Vacated floating lanes contain positive zero.",
         }
     )
     result: list[str] = []
@@ -344,6 +359,11 @@ def strip_generated_docs(text: str) -> str:
         if stripped.startswith("Public lane, array, vector, or mask type "):
             continue
         if stripped in summaries or stripped == "Perform the documented portable operation.":
+            continue
+        if any(
+            stripped.rstrip(".") in [part.rstrip(".") for part in summary.split(". ")]
+            for summary in summaries
+        ):
             continue
         result.append(line)
     return "\n".join(result) + ("\n" if text.endswith("\n") else "")
