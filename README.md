@@ -13,7 +13,8 @@ counts and masks. Integer operations name wrapping and saturation explicitly.
 Floating operations follow documented NaN and signed-zero rules without
 fast-math. Mask values support Boolean combination, reduction, and first/last
 true-lane queries. `Table_Lookup` performs a 16-entry byte lookup with a
-defined zero result for an out-of-range index. `Find_First`, `Count`, and `Is_ASCII` demonstrate
+defined zero result for an out-of-range index. Every value family has
+zero-filled lane slides in both index directions. `Find_First`, `Count`, and `Is_ASCII` demonstrate
 whole-buffer composition.
 
 “Full family” refers to the ten 128-bit value types. The API includes
@@ -22,7 +23,7 @@ finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
 narrowing and explicit 32-bit and 64-bit numeric conversion between integer
 and floating lanes. Same-width signed/unsigned numeric conversion is available
 for all four supported integer lane widths: 8, 16, 32, and 64 bits. General
-lane-index shuffles, lane slides, compression, and 256-bit types are not
+lane-index shuffles, compression, and 256-bit types are not
 implemented. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
@@ -75,6 +76,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/dot_product
 ./bin/conversions
 ./bin/table_lookup
+./bin/lane_slides
 ```
 
 See

@@ -205,6 +205,46 @@ procedure SIMD_Tests is
       end loop;
    end Test_All_Table_Indices;
 
+   procedure Test_Lane_Slides is
+      Value : constant U8x16 := From_Lanes
+        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+   begin
+      for Count in Natural range 0 .. 18 loop
+         Check
+           (Same
+              (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_Low
+                 (Value, Count),
+               Slide_Lanes_Toward_Low (Value, Count))
+            and then Same
+              (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
+                 (Value, Count),
+               Slide_Lanes_Toward_Low (Value, Count))
+            and then Same
+              (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_High
+                 (Value, Count),
+               Slide_Lanes_Toward_High (Value, Count))
+            and then Same
+              (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
+                 (Value, Count),
+               Slide_Lanes_Toward_High (Value, Count)),
+            "byte lane-slide backends" & Count'Image);
+         for Lane in Lane_Index_8x16 loop
+            Check
+              (Extract (Slide_Lanes_Toward_Low (Value, Count), Lane) =
+                 (if Count < 16 and then Lane < 16 - Count
+                  then Extract (Value, Lane_Index_8x16 (Lane + Count))
+                  else 0),
+               "byte slide toward low" & Count'Image & Lane'Image);
+            Check
+              (Extract (Slide_Lanes_Toward_High (Value, Count), Lane) =
+                 (if Count < 16 and then Lane >= Count
+                  then Extract (Value, Lane_Index_8x16 (Lane - Count))
+                  else 0),
+               "byte slide toward high" & Count'Image & Lane'Image);
+         end loop;
+      end loop;
+   end Test_Lane_Slides;
+
    procedure Test_All_Masks is
    begin
       for Raw in Natural range 0 .. 65_535 loop
@@ -336,6 +376,7 @@ procedure SIMD_Tests is
             Reference_Buffer : Byte_Array (0 .. 32) := [others => 0];
             Count : constant Lane_Count_8x16 := Iteration mod 17;
             Shift : constant Natural := Iteration mod 13;
+            Slide : constant Natural := Iteration mod 19;
          begin
             Check (Same (Flyology_SIMD.Backends.Native.Zero, Zero),
                    "native zero" & Iteration'Image);
@@ -457,6 +498,16 @@ procedure SIMD_Tests is
                  (Flyology_SIMD.Backends.Native.Deinterleave_Odd (A, B),
                   Deinterleave_Odd (A, B)),
                "native deinterleave" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
+                    (A, Slide),
+                  Slide_Lanes_Toward_Low (A, Slide))
+               and then Same
+                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
+                    (A, Slide),
+                  Slide_Lanes_Toward_High (A, Slide)),
+               "native lane slides" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),
@@ -475,6 +526,17 @@ procedure SIMD_Tests is
                Check (Test (Less_Than (A, B), Lane) =
                         (Extract (A, Lane) < Extract (B, Lane)),
                       "scalar comparison lane" & Lane'Image);
+               Check
+                 (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) =
+                    (if Slide < 16 and then Lane < 16 - Slide
+                     then Extract (A, Lane_Index_8x16 (Lane + Slide))
+                     else 0)
+                  and then
+                    Extract (Slide_Lanes_Toward_High (A, Slide), Lane) =
+                      (if Slide < 16 and then Lane >= Slide
+                       then Extract (A, Lane_Index_8x16 (Lane - Slide))
+                       else 0),
+                  "randomized independent lane slides" & Lane'Image);
             end loop;
             Store_Unaligned (Buffer, 1, A);
             Check
@@ -601,6 +663,7 @@ begin
    end if;
    Test_Core_Semantics;
    Test_All_Table_Indices;
+   Test_Lane_Slides;
    Test_All_Masks;
    Test_Memory;
    Test_Native_Differential;

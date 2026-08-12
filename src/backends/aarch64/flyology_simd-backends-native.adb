@@ -396,7 +396,7 @@ package body Flyology_SIMD.Backends.Native is
    begin
       Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
            Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
-           Clobber => "v0,memory", Volatile => True);
+           Clobber => "v0,v1,memory", Volatile => True);
       return Result;
    end NEON_Unary_128;
 
@@ -614,6 +614,350 @@ package body Flyology_SIMD.Backends.Native is
    function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
    function Native_Table_Lookup_U8x16 is new NEON_Binary_128 (U8x16, "tbl v0.16b, {v0.16b}, v1.16b");
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));
+
+   function Native_Slide_Lanes_Toward_Low_U8x16_1 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #1");
+   function Native_Slide_Lanes_Toward_Low_U8x16_2 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #2");
+   function Native_Slide_Lanes_Toward_Low_U8x16_3 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #3");
+   function Native_Slide_Lanes_Toward_Low_U8x16_4 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_U8x16_5 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #5");
+   function Native_Slide_Lanes_Toward_Low_U8x16_6 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #6");
+   function Native_Slide_Lanes_Toward_Low_U8x16_7 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #7");
+   function Native_Slide_Lanes_Toward_Low_U8x16_8 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_U8x16_9 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #9");
+   function Native_Slide_Lanes_Toward_Low_U8x16_10 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #10");
+   function Native_Slide_Lanes_Toward_Low_U8x16_11 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #11");
+   function Native_Slide_Lanes_Toward_Low_U8x16_12 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Native_Slide_Lanes_Toward_Low_U8x16_13 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #13");
+   function Native_Slide_Lanes_Toward_Low_U8x16_14 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #14");
+   function Native_Slide_Lanes_Toward_Low_U8x16_15 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #15");
+   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
+     (if Count = 0 then Value
+      elsif Count >= 16 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_U8x16_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_U8x16_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_U8x16_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_Low_U8x16_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_Low_U8x16_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_Low_U8x16_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_Low_U8x16_7 (Value),
+         when 8 => Native_Slide_Lanes_Toward_Low_U8x16_8 (Value),
+         when 9 => Native_Slide_Lanes_Toward_Low_U8x16_9 (Value),
+         when 10 => Native_Slide_Lanes_Toward_Low_U8x16_10 (Value),
+         when 11 => Native_Slide_Lanes_Toward_Low_U8x16_11 (Value),
+         when 12 => Native_Slide_Lanes_Toward_Low_U8x16_12 (Value),
+         when 13 => Native_Slide_Lanes_Toward_Low_U8x16_13 (Value),
+         when 14 => Native_Slide_Lanes_Toward_Low_U8x16_14 (Value),
+         when 15 => Native_Slide_Lanes_Toward_Low_U8x16_15 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_U8x16_1 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #15");
+   function Native_Slide_Lanes_Toward_High_U8x16_2 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #14");
+   function Native_Slide_Lanes_Toward_High_U8x16_3 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #13");
+   function Native_Slide_Lanes_Toward_High_U8x16_4 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_U8x16_5 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #11");
+   function Native_Slide_Lanes_Toward_High_U8x16_6 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #10");
+   function Native_Slide_Lanes_Toward_High_U8x16_7 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #9");
+   function Native_Slide_Lanes_Toward_High_U8x16_8 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_U8x16_9 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #7");
+   function Native_Slide_Lanes_Toward_High_U8x16_10 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #6");
+   function Native_Slide_Lanes_Toward_High_U8x16_11 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #5");
+   function Native_Slide_Lanes_Toward_High_U8x16_12 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Native_Slide_Lanes_Toward_High_U8x16_13 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #3");
+   function Native_Slide_Lanes_Toward_High_U8x16_14 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #2");
+   function Native_Slide_Lanes_Toward_High_U8x16_15 is new NEON_Unary_128 (U8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #1");
+   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
+     (if Count = 0 then Value
+      elsif Count >= 16 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_U8x16_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_U8x16_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_U8x16_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_High_U8x16_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_High_U8x16_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_High_U8x16_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_High_U8x16_7 (Value),
+         when 8 => Native_Slide_Lanes_Toward_High_U8x16_8 (Value),
+         when 9 => Native_Slide_Lanes_Toward_High_U8x16_9 (Value),
+         when 10 => Native_Slide_Lanes_Toward_High_U8x16_10 (Value),
+         when 11 => Native_Slide_Lanes_Toward_High_U8x16_11 (Value),
+         when 12 => Native_Slide_Lanes_Toward_High_U8x16_12 (Value),
+         when 13 => Native_Slide_Lanes_Toward_High_U8x16_13 (Value),
+         when 14 => Native_Slide_Lanes_Toward_High_U8x16_14 (Value),
+         when 15 => Native_Slide_Lanes_Toward_High_U8x16_15 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_I8x16_1 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #1");
+   function Native_Slide_Lanes_Toward_Low_I8x16_2 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #2");
+   function Native_Slide_Lanes_Toward_Low_I8x16_3 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #3");
+   function Native_Slide_Lanes_Toward_Low_I8x16_4 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_I8x16_5 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #5");
+   function Native_Slide_Lanes_Toward_Low_I8x16_6 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #6");
+   function Native_Slide_Lanes_Toward_Low_I8x16_7 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #7");
+   function Native_Slide_Lanes_Toward_Low_I8x16_8 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_I8x16_9 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #9");
+   function Native_Slide_Lanes_Toward_Low_I8x16_10 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #10");
+   function Native_Slide_Lanes_Toward_Low_I8x16_11 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #11");
+   function Native_Slide_Lanes_Toward_Low_I8x16_12 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Native_Slide_Lanes_Toward_Low_I8x16_13 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #13");
+   function Native_Slide_Lanes_Toward_Low_I8x16_14 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #14");
+   function Native_Slide_Lanes_Toward_Low_I8x16_15 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #15");
+   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 is
+     (if Count = 0 then Value
+      elsif Count >= 16 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_I8x16_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_I8x16_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_I8x16_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_Low_I8x16_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_Low_I8x16_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_Low_I8x16_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_Low_I8x16_7 (Value),
+         when 8 => Native_Slide_Lanes_Toward_Low_I8x16_8 (Value),
+         when 9 => Native_Slide_Lanes_Toward_Low_I8x16_9 (Value),
+         when 10 => Native_Slide_Lanes_Toward_Low_I8x16_10 (Value),
+         when 11 => Native_Slide_Lanes_Toward_Low_I8x16_11 (Value),
+         when 12 => Native_Slide_Lanes_Toward_Low_I8x16_12 (Value),
+         when 13 => Native_Slide_Lanes_Toward_Low_I8x16_13 (Value),
+         when 14 => Native_Slide_Lanes_Toward_Low_I8x16_14 (Value),
+         when 15 => Native_Slide_Lanes_Toward_Low_I8x16_15 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_I8x16_1 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #15");
+   function Native_Slide_Lanes_Toward_High_I8x16_2 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #14");
+   function Native_Slide_Lanes_Toward_High_I8x16_3 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #13");
+   function Native_Slide_Lanes_Toward_High_I8x16_4 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_I8x16_5 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #11");
+   function Native_Slide_Lanes_Toward_High_I8x16_6 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #10");
+   function Native_Slide_Lanes_Toward_High_I8x16_7 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #9");
+   function Native_Slide_Lanes_Toward_High_I8x16_8 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_I8x16_9 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #7");
+   function Native_Slide_Lanes_Toward_High_I8x16_10 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #6");
+   function Native_Slide_Lanes_Toward_High_I8x16_11 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #5");
+   function Native_Slide_Lanes_Toward_High_I8x16_12 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Native_Slide_Lanes_Toward_High_I8x16_13 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #3");
+   function Native_Slide_Lanes_Toward_High_I8x16_14 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #2");
+   function Native_Slide_Lanes_Toward_High_I8x16_15 is new NEON_Unary_128 (I8x16, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #1");
+   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 is
+     (if Count = 0 then Value
+      elsif Count >= 16 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_I8x16_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_I8x16_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_I8x16_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_High_I8x16_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_High_I8x16_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_High_I8x16_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_High_I8x16_7 (Value),
+         when 8 => Native_Slide_Lanes_Toward_High_I8x16_8 (Value),
+         when 9 => Native_Slide_Lanes_Toward_High_I8x16_9 (Value),
+         when 10 => Native_Slide_Lanes_Toward_High_I8x16_10 (Value),
+         when 11 => Native_Slide_Lanes_Toward_High_I8x16_11 (Value),
+         when 12 => Native_Slide_Lanes_Toward_High_I8x16_12 (Value),
+         when 13 => Native_Slide_Lanes_Toward_High_I8x16_13 (Value),
+         when 14 => Native_Slide_Lanes_Toward_High_I8x16_14 (Value),
+         when 15 => Native_Slide_Lanes_Toward_High_I8x16_15 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_U16x8_1 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #2");
+   function Native_Slide_Lanes_Toward_Low_U16x8_2 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_U16x8_3 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #6");
+   function Native_Slide_Lanes_Toward_Low_U16x8_4 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_U16x8_5 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #10");
+   function Native_Slide_Lanes_Toward_Low_U16x8_6 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Native_Slide_Lanes_Toward_Low_U16x8_7 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #14");
+   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 is
+     (if Count = 0 then Value
+      elsif Count >= 8 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_U16x8_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_U16x8_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_U16x8_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_Low_U16x8_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_Low_U16x8_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_Low_U16x8_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_Low_U16x8_7 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_U16x8_1 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #14");
+   function Native_Slide_Lanes_Toward_High_U16x8_2 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_U16x8_3 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #10");
+   function Native_Slide_Lanes_Toward_High_U16x8_4 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_U16x8_5 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #6");
+   function Native_Slide_Lanes_Toward_High_U16x8_6 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Native_Slide_Lanes_Toward_High_U16x8_7 is new NEON_Unary_128 (U16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #2");
+   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 is
+     (if Count = 0 then Value
+      elsif Count >= 8 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_U16x8_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_U16x8_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_U16x8_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_High_U16x8_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_High_U16x8_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_High_U16x8_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_High_U16x8_7 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_I16x8_1 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #2");
+   function Native_Slide_Lanes_Toward_Low_I16x8_2 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_I16x8_3 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #6");
+   function Native_Slide_Lanes_Toward_Low_I16x8_4 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_I16x8_5 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #10");
+   function Native_Slide_Lanes_Toward_Low_I16x8_6 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Native_Slide_Lanes_Toward_Low_I16x8_7 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #14");
+   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 is
+     (if Count = 0 then Value
+      elsif Count >= 8 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_I16x8_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_I16x8_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_I16x8_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_Low_I16x8_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_Low_I16x8_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_Low_I16x8_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_Low_I16x8_7 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_I16x8_1 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #14");
+   function Native_Slide_Lanes_Toward_High_I16x8_2 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_I16x8_3 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #10");
+   function Native_Slide_Lanes_Toward_High_I16x8_4 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_I16x8_5 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #6");
+   function Native_Slide_Lanes_Toward_High_I16x8_6 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Native_Slide_Lanes_Toward_High_I16x8_7 is new NEON_Unary_128 (I16x8, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #2");
+   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 is
+     (if Count = 0 then Value
+      elsif Count >= 8 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_I16x8_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_I16x8_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_I16x8_3 (Value),
+         when 4 => Native_Slide_Lanes_Toward_High_I16x8_4 (Value),
+         when 5 => Native_Slide_Lanes_Toward_High_I16x8_5 (Value),
+         when 6 => Native_Slide_Lanes_Toward_High_I16x8_6 (Value),
+         when 7 => Native_Slide_Lanes_Toward_High_I16x8_7 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_U32x4_1 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_U32x4_2 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_U32x4_3 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_U32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_U32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_U32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_U32x4_1 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_U32x4_2 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_U32x4_3 is new NEON_Unary_128 (U32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_U32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_U32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_U32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_I32x4_1 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_I32x4_2 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_I32x4_3 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_I32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_I32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_I32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_I32x4_1 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_I32x4_2 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_I32x4_3 is new NEON_Unary_128 (I32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_I32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_I32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_I32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_U64x2_1 is new NEON_Unary_128 (U64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_U64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_U64x2_1 is new NEON_Unary_128 (U64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_U64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_I64x2_1 is new NEON_Unary_128 (I64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_I64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_I64x2_1 is new NEON_Unary_128 (I64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_I64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_F32x4_1 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #4");
+   function Native_Slide_Lanes_Toward_Low_F32x4_2 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Native_Slide_Lanes_Toward_Low_F32x4_3 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #12");
+   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_F32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_Low_F32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_Low_F32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_F32x4_1 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #12");
+   function Native_Slide_Lanes_Toward_High_F32x4_2 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Native_Slide_Lanes_Toward_High_F32x4_3 is new NEON_Unary_128 (F32x4, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #4");
+   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 is
+     (if Count = 0 then Value
+      elsif Count >= 4 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_F32x4_1 (Value),
+         when 2 => Native_Slide_Lanes_Toward_High_F32x4_2 (Value),
+         when 3 => Native_Slide_Lanes_Toward_High_F32x4_3 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_Low_F64x2_1 is new NEON_Unary_128 (F64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v1.16b, #8");
+   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_Low_F64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
+
+   function Native_Slide_Lanes_Toward_High_F64x2_1 is new NEON_Unary_128 (F64x2, "movi v1.16b, #0" & ASCII.LF & ASCII.HT & "ext v0.16b, v1.16b, v0.16b, #8");
+   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 is
+     (if Count = 0 then Value
+      elsif Count >= 2 then Flyology_SIMD.Zero
+      else (case Count is
+         when 1 => Native_Slide_Lanes_Toward_High_F64x2_1 (Value),
+         when others => Flyology_SIMD.Zero));
 
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128 (I8x16, "add v0.16b, v0.16b, v1.16b");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));

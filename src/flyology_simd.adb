@@ -299,6 +299,38 @@ package body Flyology_SIMD is
       return Result;
    end Deinterleave_Odd;
 
+   function Slide_Lanes_Toward_Low
+     (Value : U8x16; Count : Natural) return U8x16
+   is
+      Result : U8x16 := Zero;
+   begin
+      if Count >= 16 then
+         return Result;
+      end if;
+      for Lane in Lane_Index_8x16 loop
+         if Lane < 16 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High
+     (Value : U8x16; Count : Natural) return U8x16
+   is
+      Result : U8x16 := Zero;
+   begin
+      if Count >= 16 then
+         return Result;
+      end if;
+      for Lane in Lane_Index_8x16 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
       Result : U8x16;
    begin
@@ -1373,6 +1405,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16 := Zero;
+   begin
+      if Count >= 16 then return Result; end if;
+      for Lane in Lane_Index_8x16 loop
+         if Lane < 16 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16 := Zero;
+   begin
+      if Count >= 16 then return Result; end if;
+      for Lane in Lane_Index_8x16 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1612,6 +1668,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 is
+      Result : U16x8 := Zero;
+   begin
+      if Count >= 8 then return Result; end if;
+      for Lane in Lane_Index_16x8 loop
+         if Lane < 8 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 is
+      Result : U16x8 := Zero;
+   begin
+      if Count >= 8 then return Result; end if;
+      for Lane in Lane_Index_16x8 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -1879,6 +1959,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8 := Zero;
+   begin
+      if Count >= 8 then return Result; end if;
+      for Lane in Lane_Index_16x8 loop
+         if Lane < 8 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8 := Zero;
+   begin
+      if Count >= 8 then return Result; end if;
+      for Lane in Lane_Index_16x8 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2118,6 +2222,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 is
+      Result : U32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane < 4 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 is
+      Result : U32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2385,6 +2513,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane < 4 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2624,6 +2776,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 is
+      Result : U64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane < 2 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 is
+      Result : U64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -2891,6 +3067,30 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane < 2 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -3069,6 +3269,30 @@ package body Flyology_SIMD is
       for Lane in Natural range 0 .. 1 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1); Result.Lanes (Lane + 2) := Right.Lanes (2 * Lane + 1); end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 is
+      Result : F32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane < 4 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 is
+      Result : F32x4 := Zero;
+   begin
+      if Count >= 4 then return Result; end if;
+      for Lane in Lane_Index_32x4 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
@@ -3238,6 +3462,30 @@ package body Flyology_SIMD is
       for Lane in Natural range 0 .. 0 loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + 1); Result.Lanes (Lane + 1) := Right.Lanes (2 * Lane + 1); end loop;
       return Result;
    end Deinterleave_Odd;
+   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 is
+      Result : F64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane < 2 - Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane + Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_Low;
+
+   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 is
+      Result : F64x2 := Zero;
+   begin
+      if Count >= 2 then return Result; end if;
+      for Lane in Lane_Index_64x2 loop
+         if Lane >= Count then
+            Result.Lanes (Lane) := Value.Lanes (Lane - Count);
+         end if;
+      end loop;
+      return Result;
+   end Slide_Lanes_Toward_High;
+
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;

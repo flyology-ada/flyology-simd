@@ -25,7 +25,8 @@ conversion uses `scvtf` and `ucvtf`, and floating-to-integer conversion uses
 `fcvtzs` and `fcvtzu`. Same-width signed/unsigned conversion uses signed
 maximum and unsigned minimum instructions for 8-, 16-, and 32-bit lanes. The
 64-bit conversions use comparisons and bit selection. Byte-table lookup uses
-`tbl`, including its zero result for indexes above 15. `Multiply_Wrap`, `Select_Value`,
+`tbl`, including its zero result for indexes above 15. Lane slides use `ext`
+with a zero vector and an immediate byte offset. `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
 `U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`. Floating minimum-number and
@@ -34,7 +35,8 @@ order.
 
 x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full
-memory operations across every 128-bit integer and floating family. Saturating
+memory operations across every 128-bit integer and floating family. Lane
+slides use the immediate-byte `psrldq` and `pslldq` instructions. Saturating
 arithmetic uses scalar composition for 32- and 64-bit lanes. `Reduce_Min` and
 `Reduce_Max` use scalar composition for all integer families. Except for the
 byte exact-sum implementation, integer `Reduce_Add_Wrap` also uses scalar

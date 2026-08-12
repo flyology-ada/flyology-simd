@@ -40,13 +40,26 @@ FALLBACKS = [
 TEST = ROOT / "tests" / "family_tests.adb"
 
 
+def value_types() -> list[tuple[str, str, int, int]]:
+    return [("U8x16", "U8", 8, 16)] + [
+        (vector, scalar, bits, lanes)
+        for vector, scalar, bits, lanes, *_ in INTEGER_TYPES
+    ] + list(FLOAT_TYPES)
+
+
 def contract() -> str:
     generated = emit_spec()
     operations = "   function Zero return I8x16;" + generated.split(
         "   function Zero return I8x16;", 1
     )[1]
-    byte_table = "   function Table_Lookup (Table, Indices : U8x16) return U8x16;"
-    return emit_conversion_spec() + "\n" + byte_table + "\n" + operations
+    byte_operations = "\n".join(
+        [
+            "   function Table_Lookup (Table, Indices : U8x16) return U8x16;",
+            "   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16;",
+            "   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16;",
+        ]
+    )
+    return emit_conversion_spec() + "\n" + byte_operations + "\n" + operations
 
 
 def call(name: str, result: str, args: str, params: str) -> str:
@@ -58,7 +71,9 @@ def call(name: str, result: str, args: str, params: str) -> str:
 
 def fallback_body() -> str:
     out: list[str] = [
-        call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16")
+        call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
+        call("Slide_Lanes_Toward_Low", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
+        call("Slide_Lanes_Toward_High", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
     ]
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
@@ -111,6 +126,10 @@ def fallback_body() -> str:
                      "Deinterleave_Odd"):
             out.append(call(name, vector, "Left, Right", f"Left, Right : {vector}"))
         out.append(call("Bitwise_Not", vector, "Value", f"Value : {vector}"))
+        out += [
+            call("Slide_Lanes_Toward_Low", vector, "Value, Count", f"Value : {vector}; Count : Natural"),
+            call("Slide_Lanes_Toward_High", vector, "Value, Count", f"Value : {vector}; Count : Natural"),
+        ]
         for name in ("Shift_Left_Logical", "Shift_Right_Logical"):
             out.append(call(name, vector, "Value, Count", f"Value : {vector}; Count : Natural"))
         if signed:
@@ -159,6 +178,8 @@ def fallback_body() -> str:
             call("Interleave_High", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Deinterleave_Even", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Deinterleave_Odd", vector, "Left, Right", f"Left, Right : {vector}"),
+            call("Slide_Lanes_Toward_Low", vector, "Value, Count", f"Value : {vector}; Count : Natural"),
+            call("Slide_Lanes_Toward_High", vector, "Value, Count", f"Value : {vector}; Count : Natural"),
             call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
             call("Load", vector, "Data, Start", f"Data : {arr}; Start : Natural"),
             f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is\n   begin Flyology_SIMD.Store (Data, Start, Value); end Store;",
@@ -215,7 +236,7 @@ def neon_helpers() -> list[str]:
         "   begin",
         "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
         "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,memory\", Volatile => True);",
+        "           Clobber => \"v0,v1,memory\", Volatile => True);",
         "      return Result;",
         "   end NEON_Unary_128;",
         "",
@@ -325,6 +346,46 @@ def compact(bits: int) -> str:
         f'"ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.{shape}, v0.{shape}, v2.{shape}" & ASCII.LF & ASCII.HT & '
         f'"{reduction}" & ASCII.LF & ASCII.HT & "{move}"'
     )
+
+
+def native_lane_slides(architecture: str) -> list[str]:
+    """Emit immediate-count native leaves and one public dispatcher per type."""
+    out: list[str] = []
+    generic = "NEON_Unary_128" if architecture == "aarch64" else "SSE2_Unary_128"
+    for vector, _, bits, lanes in value_types():
+        lane_bytes = bits // 8
+        for name, toward_low in (
+            ("Slide_Lanes_Toward_Low", True),
+            ("Slide_Lanes_Toward_High", False),
+        ):
+            cases: list[str] = []
+            for count in range(1, lanes):
+                byte_count = count * lane_bytes
+                native = f"Native_{name}_{vector}_{count}"
+                if architecture == "aarch64":
+                    ext_count = byte_count if toward_low else 16 - byte_count
+                    operands = "v0.16b, v1.16b" if toward_low else "v1.16b, v0.16b"
+                    instruction = (
+                        "movi v1.16b, #0" + '" & ASCII.LF & ASCII.HT & "' +
+                        f"ext v0.16b, {operands}, #{ext_count}"
+                    )
+                else:
+                    opcode = "psrldq" if toward_low else "pslldq"
+                    instruction = f"{opcode} ${byte_count}, %%xmm0"
+                out.append(
+                    f"   function {native} is new {generic} ({vector}, \"{instruction}\");"
+                )
+                cases.append(f"         when {count} => {native} (Value)")
+            out += [
+                f"   function {name} (Value : {vector}; Count : Natural) return {vector} is",
+                f"     (if Count = 0 then Value",
+                f"      elsif Count >= {lanes} then Flyology_SIMD.Zero",
+                "      else (case Count is",
+                ",\n".join(cases) + ",",
+                "         when others => Flyology_SIMD.Zero));",
+                "",
+            ]
+    return out
 
 
 def neon_body() -> str:
@@ -458,6 +519,7 @@ def neon_body() -> str:
         "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
     ]
     out.append("")
+    out += native_lane_slides("aarch64")
 
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
@@ -749,6 +811,7 @@ def x86_body() -> str:
     # composing the scalar authority.  AArch64 has direct widening/narrowing
     # leaves below; focused SSE2 lowering is the next backend optimization.
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
+    out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
     for source_vector, _, target_vector, _, _, _ in WIDENINGS:
@@ -1198,6 +1261,13 @@ def test_program() -> str:
             lines.append(f"         Check (Extract (Shift_Right_Arithmetic (A, {bits}), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), \"{vector} independent oversized arithmetic shift\" & Lane'Image);")
         lines += [
             "      end loop;",
+            f"      for Slide in Natural range 0 .. {lanes + 2} loop",
+            f"         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), \"{vector} native lane slides\" & Slide'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop",
+            f"            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < {lanes} and then Lane < {lanes} - Slide then Extract (A, {lane_index(bits, lanes)} (Lane + Slide)) else 0), \"{vector} independent slide toward low\" & Slide'Image & Lane'Image);",
+            f"            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < {lanes} and then Lane >= Slide then Extract (A, {lane_index(bits, lanes)} (Lane - Slide)) else 0), \"{vector} independent slide toward high\" & Slide'Image & Lane'Image);",
+            "         end loop;",
+            "      end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, {lane_index(bits, lanes)} ({lanes - 1} - Lane)), \"{vector} independent reverse\" & Lane'Image);",
             f"         Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, {lane_index(bits, lanes)} (Lane / 2)) else Extract (B, {lane_index(bits, lanes)} (Lane / 2))), \"{vector} independent interleave low\" & Lane'Image);",
@@ -1255,6 +1325,7 @@ def test_program() -> str:
             f"            R_B : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
             f"            Shift : constant Natural := Natural (Next_U64 mod {bits + 3});",
             f"            Tail : constant {count} := {count} (Next_U64 mod {lanes + 1});",
+            f"            Slide : constant Natural := Natural (Next_U64 mod {lanes + 3});",
             f"            Pattern : constant {mask_storage} := {mask_storage} (Next_U64 mod 2 ** {lanes});",
             "         begin",
             f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
@@ -1266,6 +1337,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), \"{vector} randomized native logical shifts\");",
             *(([f"            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), \"{vector} randomized native arithmetic shift\");"] if signed else [])),
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
+            f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
             f"            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
@@ -1349,6 +1421,13 @@ def test_program() -> str:
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
         lines += [f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");"]
         lines += [
+            f"      for Slide in Natural range 0 .. {lanes + 2} loop",
+            f"         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), \"{vector} native lane slides\" & Slide'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop",
+            f"            Check (Bits_{vector} (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane)) = (if Slide < {lanes} and then Lane < {lanes} - Slide then Bits_{vector} (Extract (A, {lane_index(bits, lanes)} (Lane + Slide))) else 0), \"{vector} independent slide toward low\" & Slide'Image & Lane'Image);",
+            f"            Check (Bits_{vector} (Extract (Slide_Lanes_Toward_High (A, Slide), Lane)) = (if Slide < {lanes} and then Lane >= Slide then Bits_{vector} (Extract (A, {lane_index(bits, lanes)} (Lane - Slide))) else 0), \"{vector} independent slide toward high\" & Slide'Image & Lane'Image);",
+            "         end loop;",
+            "      end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Bits_{vector} (Extract (Add (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) + Extract (B, Lane)) and then Bits_{vector} (Extract (Subtract (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) - Extract (B, Lane)) and then Bits_{vector} (Extract (Multiply (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) * Extract (B, Lane)), \"{vector} independent arithmetic\" & Lane'Image);",
             f"         Check (Bits_{vector} (Extract (Divide (A, B), Lane)) = Bits_{vector} (Extract (A, Lane) / Extract (B, Lane)), \"{vector} independent division\" & Lane'Image);",
@@ -1406,6 +1485,7 @@ def test_program() -> str:
             f"            R_A : constant {vector} := From_Lanes (R_Lanes);",
             f"            R_B : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
             f"            Tail : constant {count} := {count} (Next_U64 mod {lanes + 1});",
+            f"            Slide : constant Natural := Natural (Next_U64 mod {lanes + 3});",
             f"            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** {lanes});",
             "         begin",
             f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
@@ -1413,6 +1493,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), \"{vector} randomized native min/max\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), \"{vector} randomized native comparisons\");",
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
+            f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
             f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (R_A)) = Bits_{vector} (Reference_Reduce_Min_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (R_A)) = Bits_{vector} (Reference_Reduce_Max_{vector} (R_A)), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",

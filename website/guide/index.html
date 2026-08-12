@@ -147,7 +147,7 @@ alr build</code></pre>
         <section id="boundary">
           <h2>Know what this guide does not promise</h2>
           <p>The <a href="operations/">operation matrix</a> is a reference, not a chapter in the learning sequence. Use it to check exact overload coverage and edge semantics.</p>
-          <p>The API is experimental. The current value family is 128 bits wide. The matrix includes the 16-entry byte-table lookup. It also lists unimplemented general lane-index shuffles, lane slides, compression, and 256-bit types.</p>
+          <p>The API is experimental. The current value family is 128 bits wide. The matrix includes zero-filled lane slides and the 16-entry byte-table lookup. It also lists unimplemented general lane-index shuffles, compression, and 256-bit types.</p>
           <p>The scalar backend defines the result on every supported GNAT target. Target-specific code exists for AArch64 NEON and x86-64 SSE2, with an AVX2 path for selected whole-buffer byte algorithms. The <a href="../support/">support page</a> distinguishes implemented, executed, and continuously tested configurations.</p>
           <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Model vectors and lanes</a><a href="operations/"><span>Reference</span>Check operation coverage</a></div>
         </section>

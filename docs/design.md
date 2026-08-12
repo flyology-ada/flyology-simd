@@ -67,6 +67,10 @@ instruction-specific result.
   true. If the mask contains a true lane, the result is a valid lane index.
 - `Table_Lookup` uses each unsigned byte index independently. Indexes from 0
   through 15 select table lanes. Larger indexes return zero.
+- Lane-slide counts are in lanes. `Slide_Lanes_Toward_Low` fills vacated
+  high-index lanes with zero. `Slide_Lanes_Toward_High` fills vacated
+  low-index lanes with zero. A count equal to or greater than the lane count
+  returns zero.
 - Integer `Min`/`Max` use the lane type's signedness. Floating number min/max
   follows the NaN and signed-zero contract in `api-scope.md`.
 - Floating minimum-number and maximum-number reductions use an ascending-lane
@@ -99,8 +103,9 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   operations not expressible in SSE2 without changing semantics;
 - optional AVX2 whole-buffer objects are compiled separately with `-mavx2`.
 
-The AArch64 backend lowers widening, narrowing, and numeric conversion through
-verified NEON assembly leaves. The x86-64 SSE2 backend currently composes these
+The AArch64 backend lowers lane slides, widening, narrowing, and numeric
+conversion through verified NEON assembly leaves. The x86-64 SSE2 backend
+uses immediate byte-shift leaves for lane slides and currently composes these
 conversion operations from the scalar authority.
 This preserves the contract but does not claim an SSE2 instruction sequence
 for those operations.

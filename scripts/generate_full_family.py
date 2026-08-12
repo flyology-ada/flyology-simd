@@ -129,6 +129,18 @@ OPERATION_DOCS = {
     "Interleave_High": "Alternate lanes from the high half of both inputs, starting with the left input.",
     "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
     "Deinterleave_Odd": "Collect odd lanes from the left input, then odd lanes from the right input.",
+    "Slide_Lanes_Toward_Low": (
+        "Count is in lanes. Move lanes toward lower lane indexes by Count "
+        "positions and fill vacated high-index lanes with zero. Return zero "
+        "when Count is equal to or greater than the lane count. Floating "
+        "zero fill is positive zero."
+    ),
+    "Slide_Lanes_Toward_High": (
+        "Count is in lanes. Move lanes toward higher lane indexes by Count "
+        "positions and fill vacated low-index lanes with zero. Return zero "
+        "when Count is equal to or greater than the lane count. Floating "
+        "zero fill is positive zero."
+    ),
     "Table_Lookup": (
         "Use the unsigned value in each index lane for the corresponding result "
         "lane. A value from zero through 15 selects the table lane with the "
@@ -204,7 +216,7 @@ PARAM_DOCS = {
     "Right": "The right input.",
     "Lane": "The logical lane index.",
     "With_Value": "The replacement lane value.",
-    "Count": "The shift count or valid element count, as applicable.",
+    "Count": "The bit-shift count, lane-slide count, or valid element count, as applicable.",
     "Mask": "The input mask.",
     "If_True": "The value selected in true mask lanes.",
     "If_False": "The value selected in false mask lanes.",
@@ -293,8 +305,18 @@ def document_spec(text: str) -> str:
                     )
                 documented.append(f"   --  {summary}")
                 for parameter in _parameter_names(" ".join(declaration)):
+                    parameter_doc = PARAM_DOCS.get(
+                        parameter, "The input parameter."
+                    )
+                    if parameter == "Count":
+                        if name.startswith("Slide_Lanes_"):
+                            parameter_doc = "The number of lane positions to move."
+                        elif name.startswith("Shift_"):
+                            parameter_doc = "The number of bit positions to shift."
+                        else:
+                            parameter_doc = "The number of valid elements."
                     documented.append(
-                        f"   --  @param {parameter} {PARAM_DOCS.get(parameter, 'The input parameter.')}"
+                        f"   --  @param {parameter} {parameter_doc}"
                     )
                 if kind == "function":
                     documented.append("   --  @return The operation result.")
@@ -492,6 +514,8 @@ def emit_spec() -> str:
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Odd (Left, Right : {vector}) return {vector};",
+            f"   function Slide_Lanes_Toward_Low (Value : {vector}; Count : Natural) return {vector};",
+            f"   function Slide_Lanes_Toward_High (Value : {vector}; Count : Natural) return {vector};",
             f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean;",
             f"   function Load (Data : {arr}; Start : Natural) return {vector}",
             f"     with Pre => {extent};",
@@ -541,6 +565,8 @@ def emit_spec() -> str:
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Odd (Left, Right : {vector}) return {vector};",
+            f"   function Slide_Lanes_Toward_Low (Value : {vector}; Count : Natural) return {vector};",
+            f"   function Slide_Lanes_Toward_High (Value : {vector}; Count : Natural) return {vector};",
             f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean;",
             f"   function Load (Data : {arr}; Start : Natural) return {vector} with Pre => {extent};",
             f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) with Pre => {extent};",
@@ -600,6 +626,36 @@ def emit_private() -> str:
 
 def signed_unsigned(bits: int) -> str:
     return f"U{bits}"
+
+
+def emit_lane_slides(vector: str, idx: str, lanes: int) -> list[str]:
+    """Emit portable lane-index slides with zero-filled vacated lanes."""
+    return [
+        f"   function Slide_Lanes_Toward_Low (Value : {vector}; Count : Natural) return {vector} is",
+        f"      Result : {vector} := Zero;",
+        "   begin",
+        f"      if Count >= {lanes} then return Result; end if;",
+        f"      for Lane in {idx} loop",
+        f"         if Lane < {lanes} - Count then",
+        "            Result.Lanes (Lane) := Value.Lanes (Lane + Count);",
+        "         end if;",
+        "      end loop;",
+        "      return Result;",
+        "   end Slide_Lanes_Toward_Low;",
+        "",
+        f"   function Slide_Lanes_Toward_High (Value : {vector}; Count : Natural) return {vector} is",
+        f"      Result : {vector} := Zero;",
+        "   begin",
+        f"      if Count >= {lanes} then return Result; end if;",
+        f"      for Lane in {idx} loop",
+        "         if Lane >= Count then",
+        "            Result.Lanes (Lane) := Value.Lanes (Lane - Count);",
+        "         end if;",
+        "      end loop;",
+        "      return Result;",
+        "   end Slide_Lanes_Toward_High;",
+        "",
+    ]
 
 
 def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: bool) -> list[str]:
@@ -753,6 +809,7 @@ def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: b
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop", f"         Result.Lanes (2 * Lane) := Left.Lanes (Lane + {offset});", f"         Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + {offset});", "      end loop;", "      return Result;", f"   end {name};"]
     for name, parity in (("Deinterleave_Even", 0), ("Deinterleave_Odd", 1)):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop", f"         Result.Lanes (Lane) := Left.Lanes (2 * Lane + {parity});", f"         Result.Lanes (Lane + {lanes // 2}) := Right.Lanes (2 * Lane + {parity});", "      end loop;", "      return Result;", f"   end {name};"]
+    out += emit_lane_slides(vector, idx, lanes)
     out += [f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);", f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;", f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Data (Start + Lane); end loop;", "      return Result;", "   end Load_Unaligned;", f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is", "   begin", f"      for Lane in {idx} loop Data (Start + Lane) := Value.Lanes (Lane); end loop;", "   end Store_Unaligned;", f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;", f"   function Load_Partial (Data : {arr}; Start : Natural; Count : {count}) return {vector} is", "      Result : " + vector + " := Zero;", "   begin", "      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if;", "      return Result;", "   end Load_Partial;", f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is", "   begin", "      if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if;", "   end Store_Partial;", ""]
     return out
 
@@ -817,6 +874,7 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop Result.Lanes (2 * Lane) := Left.Lanes (Lane + {offset}); Result.Lanes (2 * Lane + 1) := Right.Lanes (Lane + {offset}); end loop;", "      return Result;", f"   end {name};"]
     for name, parity in (("Deinterleave_Even", 0), ("Deinterleave_Odd", 1)):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in Natural range 0 .. {lanes // 2 - 1} loop Result.Lanes (Lane) := Left.Lanes (2 * Lane + {parity}); Result.Lanes (Lane + {lanes // 2}) := Right.Lanes (2 * Lane + {parity}); end loop;", "      return Result;", f"   end {name};"]
+    out += emit_lane_slides(vector, idx, lanes)
     out += [f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 16 = 0);", f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;", f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Data (Start + Lane); end loop;", "      return Result;", "   end Load_Unaligned;", f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin for Lane in {idx} loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end Store_Unaligned;", f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));", f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;", f"   function Load_Partial (Data : {arr}; Start : Natural; Count : {count}) return {vector} is", f"      Result : {vector} := Zero;", "   begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Result.Lanes (Lane) := Data (Start + Lane); end loop; end if; return Result; end Load_Partial;", f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin if Count > 0 then for Lane in Natural range 0 .. Count - 1 loop Data (Start + Lane) := Value.Lanes (Lane); end loop; end if; end Store_Partial;", ""]
     return out
 

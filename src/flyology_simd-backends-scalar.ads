@@ -92,13 +92,13 @@ is
      renames Flyology_SIMD.Shift_Left_Logical;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16
      renames Flyology_SIMD.Shift_Right_Logical;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : U8x16) return Mask_8x16
      renames Flyology_SIMD.Equal;
@@ -203,6 +203,20 @@ is
    --  Collect odd lanes from the left input, then odd lanes from the right input.
    --  @param Left The left input.
    --  @param Right The right input.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_Low
+     (Value : U8x16; Count : Natural) return U8x16
+     renames Flyology_SIMD.Slide_Lanes_Toward_Low;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High
+     (Value : U8x16; Count : Natural) return U8x16
+     renames Flyology_SIMD.Slide_Lanes_Toward_High;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
    --  @return The operation result.
    function Table_Lookup (Table, Indices : U8x16) return U8x16
      renames Flyology_SIMD.Table_Lookup;
@@ -325,7 +339,7 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial
      (Data  : in out Byte_Array;
@@ -336,6 +350,6 @@ is
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 end Flyology_SIMD.Backends.Scalar;

@@ -83,6 +83,10 @@ package body Flyology_SIMD.Backends.Native is
    --  BEGIN GENERATED FULL-FAMILY FALLBACK BODIES
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
+   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Bit_Cast (Value : U8x16) return I8x16 is
      (Flyology_SIMD.Bit_Cast (Value));
    function Bit_Cast (Value : I8x16) return U8x16 is
@@ -248,6 +252,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I8x16) return I8x16 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is
@@ -333,6 +341,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U16x8) return U16x8 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is
@@ -416,6 +428,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I16x8) return I16x8 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is
@@ -501,6 +517,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U32x4) return U32x4 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is
@@ -584,6 +604,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I32x4) return I32x4 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is
@@ -669,6 +693,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : U64x2) return U64x2 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is
@@ -752,6 +780,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
    function Bitwise_Not (Value : I64x2) return I64x2 is
      (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
      (Flyology_SIMD.Shift_Left_Logical (Value, Count));
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is
@@ -849,6 +881,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Even (Left, Right));
    function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
+   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F32_Array; Start : Natural) return F32x4 is
@@ -920,6 +956,10 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Deinterleave_Even (Left, Right));
    function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is
      (Flyology_SIMD.Deinterleave_Odd (Left, Right));
+   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : F64_Array; Start : Natural) return F64x2 is

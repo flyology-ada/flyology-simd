@@ -127,6 +127,7 @@
               <tr><td>Selection and limits</td><td><a data-api="Flyology_SIMD"><code>Select_Value</code>, <code>Min</code>, <code>Max</code></a></td><td>All integer types</td></tr>
               <tr><td>Reductions</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add_Wrap</code>, <code>Reduce_Min</code>, <code>Reduce_Max</code></a></td><td>All integer types</td></tr>
               <tr><td>Lane permutations</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td>All integer types</td></tr>
+              <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td>All integer types</td></tr>
               <tr><td>16-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Table_Lookup"><code>Table_Lookup</code></a></td><td><code>U8x16</code></td></tr>
             </tbody>
           </table>
@@ -147,6 +148,19 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
 --  Encoded lanes 0 .. 14 contain ASCII 0 through E.
 --  Encoded lane 15 is zero because index 255 is out of range.</code></pre>
           <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/table_lookup.adb"><code>table_lookup.adb</code> example</a> maps all 16 hexadecimal digits and then checks an out-of-range index.</p>
+          <h3>Align neighboring lanes</h3>
+          <p>A lane slide changes lane positions without changing lane values. The count is in lanes. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code></a> fills the vacated high-index lanes with zero. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_High</code></a> fills the vacated low-index lanes with zero. A count equal to or greater than the lane count returns <code>Zero</code>.</p>
+          <p>This example forms a three-point sum. Each result lane contains the current sample and its available neighbors. Zero supplies the missing neighbor at each edge.</p>
+          <pre><code class="language-ada">Samples : constant F32x4 := Native.From_Lanes ([1.0, 2.0, 3.0, 4.0]);
+Previous : constant F32x4 :=
+  Native.Slide_Lanes_Toward_High (Samples, 1);  --  [0, 1, 2, 3]
+Following : constant F32x4 :=
+  Native.Slide_Lanes_Toward_Low (Samples, 1);   --  [2, 3, 4, 0]
+Sums : constant F32x4 :=
+  Native.Add (Native.Add (Previous, Samples), Following);
+
+--  Sums is [3, 6, 9, 7].</code></pre>
+          <p>The same two operations are available for all ten 128-bit value types. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> builds this calculation with the native backend.</p>
         </section>
         <section id="floats">
           <h2>Floating-point operation coverage</h2>
@@ -161,6 +175,7 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
               <tr><td>Selection and limits</td><td><code>Select_Value</code>, <a data-api="Flyology_SIMD"><code>Min_Number</code>, <code>Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Reductions</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add</code>, <code>Reduce_Min_Number</code>, <code>Reduce_Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Lane permutations</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
             </tbody>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
@@ -210,7 +225,7 @@ end if;</code></pre>
           <h2>Not implemented in 0.1.0-dev</h2>
           <p>The following groups are design targets, not current API:</p>
           <ul>
-            <li>general lane-index shuffles, lane slides, and compression;</li>
+            <li>general lane-index shuffles and compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>
           <div class="semantic-callout">

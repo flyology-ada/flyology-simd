@@ -90,6 +90,16 @@ case "$architecture" in
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
+        extract_symbol 'native_slide_lanes_toward_low_u8x16_1' "$temporary/native.txt" "$temporary/slide_low_u8.txt"
+        extract_symbol 'native_slide_lanes_toward_high_u8x16_1' "$temporary/native.txt" "$temporary/slide_high_u8.txt"
+        extract_symbol 'native_slide_lanes_toward_low_u16x8_1' "$temporary/native.txt" "$temporary/slide_low_u16.txt"
+        extract_symbol 'native_slide_lanes_toward_low_u32x4_1' "$temporary/native.txt" "$temporary/slide_low_u32.txt"
+        extract_symbol 'native_slide_lanes_toward_high_f64x2_1' "$temporary/native.txt" "$temporary/slide_high_f64.txt"
+        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_low_u8.txt" 'NEON byte-lane slide toward low'
+        require_pattern 'ext.*v0.*v1.*v0.*#(0x)?0*f([^[:xdigit:]]|$)' "$temporary/slide_high_u8.txt" 'NEON byte-lane slide toward high'
+        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*2([^[:xdigit:]]|$)' "$temporary/slide_low_u16.txt" 'NEON 16-bit lane-slide scaling'
+        require_pattern 'ext.*v0.*v0.*v1.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/slide_low_u32.txt" 'NEON 32-bit lane-slide scaling'
+        require_pattern 'ext.*v0.*v1.*v0.*#(0x)?0*8([^[:xdigit:]]|$)' "$temporary/slide_high_f64.txt" 'NEON 64-bit lane-slide scaling'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/native.txt" '128-bit unaligned load'
         require_pattern 'uaddlv' "$temporary/native.txt" 'vector mask/sum reduction'
         require_pattern 'sqadd.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed saturating arithmetic'
@@ -193,6 +203,16 @@ case "$architecture" in
         require_pattern 'pandn' "$temporary/native.txt" 'SSE2 mask selection'
         require_pattern 'punpckl(bw|wd|dq|qdq)' "$temporary/native.txt" 'SSE2 interleave family'
         require_pattern 'pshuf(d|lw|hw)' "$temporary/native.txt" 'SSE2 reverse/shuffle family'
+        extract_symbol 'native_slide_lanes_toward_low_u8x16_1' "$temporary/native.txt" "$temporary/slide_low_u8.txt"
+        extract_symbol 'native_slide_lanes_toward_high_u8x16_1' "$temporary/native.txt" "$temporary/slide_high_u8.txt"
+        extract_symbol 'native_slide_lanes_toward_low_u16x8_1' "$temporary/native.txt" "$temporary/slide_low_u16.txt"
+        extract_symbol 'native_slide_lanes_toward_low_u32x4_1' "$temporary/native.txt" "$temporary/slide_low_u32.txt"
+        extract_symbol 'native_slide_lanes_toward_high_f64x2_1' "$temporary/native.txt" "$temporary/slide_high_f64.txt"
+        require_pattern 'psrldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_low_u8.txt" 'SSE2 byte-lane slide toward low'
+        require_pattern 'pslldq.*[$](0x)?0*1([^[:xdigit:]]|$)' "$temporary/slide_high_u8.txt" 'SSE2 byte-lane slide toward high'
+        require_pattern 'psrldq.*[$](0x)?0*2([^[:xdigit:]]|$)' "$temporary/slide_low_u16.txt" 'SSE2 16-bit lane-slide scaling'
+        require_pattern 'psrldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/slide_low_u32.txt" 'SSE2 32-bit lane-slide scaling'
+        require_pattern 'pslldq.*[$](0x)?0*8([^[:xdigit:]]|$)' "$temporary/slide_high_f64.txt" 'SSE2 64-bit lane-slide scaling'
         require_pattern 'addps' "$temporary/native.txt" 'SSE floating32 addition'
         require_pattern 'addpd' "$temporary/native.txt" 'SSE2 floating64 addition'
         require_pattern 'mul(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating multiplication'

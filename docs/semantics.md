@@ -26,6 +26,14 @@ same position. A value from 0 through 15 selects the table lane whose lane
 index equals that value. A larger value produces zero. The operation does not
 mask or reduce an index before the lookup.
 
+Lane-slide counts are in lanes. `Slide_Lanes_Toward_Low` moves each source lane
+toward lane 0 and fills vacated high-index lanes with zero.
+`Slide_Lanes_Toward_High` moves each source lane toward the highest lane index
+and fills vacated low-index lanes with zero. A zero count returns the input. A
+count equal to or greater than the lane count returns `Zero`. Floating
+vacated lanes contain positive zero. Lane slides do not reinterpret, convert,
+or combine lane values.
+
 `First_True` returns the lowest true lane. `Last_True` returns the highest true
 lane. Both return the applicable `Lane_Count_*` subtype's last value when the
 mask has no true lane. This sentinel is one greater than the highest valid lane
@@ -92,7 +100,8 @@ the same lane width. Lane positions do not change. A negative signed input
 becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
-The portable 256-bit family remains pre-stabilization work.
+General lane-index shuffles, compression, and the portable 256-bit family
+remain pre-stabilization work.
 
 ## Memory
 

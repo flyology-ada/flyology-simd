@@ -137,6 +137,13 @@ procedure Family_Tests is
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I8x16 independent arithmetic shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 8), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), "I8x16 independent oversized arithmetic shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 18 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "I8x16 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 16 and then Lane < 16 - Slide then Extract (A, Lane_Index_8x16 (Lane + Slide)) else 0), "I8x16 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 16 and then Lane >= Slide then Extract (A, Lane_Index_8x16 (Lane - Slide)) else 0), "I8x16 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_8x16 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_8x16 (15 - Lane)), "I8x16 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (Lane / 2)) else Extract (B, Lane_Index_8x16 (Lane / 2))), "I8x16 independent interleave low" & Lane'Image);
@@ -195,6 +202,7 @@ procedure Family_Tests is
             R_B : constant I8x16 := From_Lanes (Random_I8x16_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 11);
             Tail : constant Lane_Count_8x16 := Lane_Count_8x16 (Next_U64 mod 17);
+            Slide : constant Natural := Natural (Next_U64 mod 19);
             Pattern : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Next_U64 mod 2 ** 16);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I8x16 randomized native construction");
@@ -206,6 +214,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I8x16 randomized native logical shifts");
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I8x16 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I8x16 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I8x16 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I8x16 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -299,6 +308,13 @@ procedure Family_Tests is
       for Lane in Lane_Index_16x8 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = U16 (Interfaces.Shift_Left (Interfaces.Unsigned_16 (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = U16 (Interfaces.Shift_Right (Interfaces.Unsigned_16 (Extract (A, Lane)), 1)), "U16x8 independent logical shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 10 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "U16x8 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 8 and then Lane < 8 - Slide then Extract (A, Lane_Index_16x8 (Lane + Slide)) else 0), "U16x8 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 8 and then Lane >= Slide then Extract (A, Lane_Index_16x8 (Lane - Slide)) else 0), "U16x8 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_16x8 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_16x8 (7 - Lane)), "U16x8 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_16x8 (Lane / 2)) else Extract (B, Lane_Index_16x8 (Lane / 2))), "U16x8 independent interleave low" & Lane'Image);
@@ -357,6 +373,7 @@ procedure Family_Tests is
             R_B : constant U16x8 := From_Lanes (Random_U16x8_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Tail : constant Lane_Count_16x8 := Lane_Count_16x8 (Next_U64 mod 9);
+            Slide : constant Natural := Natural (Next_U64 mod 11);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U16x8 randomized native construction");
@@ -367,6 +384,7 @@ procedure Family_Tests is
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U16x8 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U16x8 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U16x8 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U16x8 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -467,6 +485,13 @@ procedure Family_Tests is
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I16x8 independent arithmetic shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 16), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), "I16x8 independent oversized arithmetic shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 10 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "I16x8 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_16x8 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 8 and then Lane < 8 - Slide then Extract (A, Lane_Index_16x8 (Lane + Slide)) else 0), "I16x8 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 8 and then Lane >= Slide then Extract (A, Lane_Index_16x8 (Lane - Slide)) else 0), "I16x8 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_16x8 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_16x8 (7 - Lane)), "I16x8 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_16x8 (Lane / 2)) else Extract (B, Lane_Index_16x8 (Lane / 2))), "I16x8 independent interleave low" & Lane'Image);
@@ -525,6 +550,7 @@ procedure Family_Tests is
             R_B : constant I16x8 := From_Lanes (Random_I16x8_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Tail : constant Lane_Count_16x8 := Lane_Count_16x8 (Next_U64 mod 9);
+            Slide : constant Natural := Natural (Next_U64 mod 11);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I16x8 randomized native construction");
@@ -536,6 +562,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I16x8 randomized native logical shifts");
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I16x8 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I16x8 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I16x8 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -629,6 +656,13 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = U32 (Interfaces.Shift_Left (Interfaces.Unsigned_32 (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = U32 (Interfaces.Shift_Right (Interfaces.Unsigned_32 (Extract (A, Lane)), 1)), "U32x4 independent logical shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 6 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "U32x4 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 4 and then Lane < 4 - Slide then Extract (A, Lane_Index_32x4 (Lane + Slide)) else 0), "U32x4 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 4 and then Lane >= Slide then Extract (A, Lane_Index_32x4 (Lane - Slide)) else 0), "U32x4 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_32x4 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_32x4 (3 - Lane)), "U32x4 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_32x4 (Lane / 2)) else Extract (B, Lane_Index_32x4 (Lane / 2))), "U32x4 independent interleave low" & Lane'Image);
@@ -687,6 +721,7 @@ procedure Family_Tests is
             R_B : constant U32x4 := From_Lanes (Random_U32x4_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Slide : constant Natural := Natural (Next_U64 mod 7);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U32x4 randomized native construction");
@@ -697,6 +732,7 @@ procedure Family_Tests is
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U32x4 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U32x4 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U32x4 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U32x4 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -797,6 +833,13 @@ procedure Family_Tests is
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I32x4 independent arithmetic shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 32), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), "I32x4 independent oversized arithmetic shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 6 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "I32x4 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 4 and then Lane < 4 - Slide then Extract (A, Lane_Index_32x4 (Lane + Slide)) else 0), "I32x4 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 4 and then Lane >= Slide then Extract (A, Lane_Index_32x4 (Lane - Slide)) else 0), "I32x4 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_32x4 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_32x4 (3 - Lane)), "I32x4 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_32x4 (Lane / 2)) else Extract (B, Lane_Index_32x4 (Lane / 2))), "I32x4 independent interleave low" & Lane'Image);
@@ -855,6 +898,7 @@ procedure Family_Tests is
             R_B : constant I32x4 := From_Lanes (Random_I32x4_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Slide : constant Natural := Natural (Next_U64 mod 7);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I32x4 randomized native construction");
@@ -866,6 +910,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I32x4 randomized native logical shifts");
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I32x4 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I32x4 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I32x4 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -959,6 +1004,13 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = U64 (Interfaces.Shift_Left (Interfaces.Unsigned_64 (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = U64 (Interfaces.Shift_Right (Interfaces.Unsigned_64 (Extract (A, Lane)), 1)), "U64x2 independent logical shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 4 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "U64x2 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 2 and then Lane < 2 - Slide then Extract (A, Lane_Index_64x2 (Lane + Slide)) else 0), "U64x2 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 2 and then Lane >= Slide then Extract (A, Lane_Index_64x2 (Lane - Slide)) else 0), "U64x2 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_64x2 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_64x2 (1 - Lane)), "U64x2 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_64x2 (Lane / 2)) else Extract (B, Lane_Index_64x2 (Lane / 2))), "U64x2 independent interleave low" & Lane'Image);
@@ -1017,6 +1069,7 @@ procedure Family_Tests is
             R_B : constant U64x2 := From_Lanes (Random_U64x2_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Slide : constant Natural := Natural (Next_U64 mod 5);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U64x2 randomized native construction");
@@ -1027,6 +1080,7 @@ procedure Family_Tests is
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "U64x2 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U64x2 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U64x2 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U64x2 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -1127,6 +1181,13 @@ procedure Family_Tests is
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I64x2 independent arithmetic shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 64), Lane) = (if Extract (A, Lane) < 0 then -1 else 0), "I64x2 independent oversized arithmetic shift" & Lane'Image);
       end loop;
+      for Slide in Natural range 0 .. 4 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "I64x2 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_64x2 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 2 and then Lane < 2 - Slide then Extract (A, Lane_Index_64x2 (Lane + Slide)) else 0), "I64x2 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 2 and then Lane >= Slide then Extract (A, Lane_Index_64x2 (Lane - Slide)) else 0), "I64x2 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_64x2 loop
          Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_64x2 (1 - Lane)), "I64x2 independent reverse" & Lane'Image);
          Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_64x2 (Lane / 2)) else Extract (B, Lane_Index_64x2 (Lane / 2))), "I64x2 independent interleave low" & Lane'Image);
@@ -1185,6 +1246,7 @@ procedure Family_Tests is
             R_B : constant I64x2 := From_Lanes (Random_I64x2_Lanes);
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Slide : constant Natural := Natural (Next_U64 mod 5);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I64x2 randomized native construction");
@@ -1196,6 +1258,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I64x2 randomized native logical shifts");
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I64x2 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I64x2 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I64x2 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -1278,6 +1341,13 @@ procedure Family_Tests is
       Check (Same (Backends.Native.Deinterleave_Even (A, B), Deinterleave_Even (A, B)), "F32x4 Deinterleave_Even");
       Check (Same (Backends.Native.Deinterleave_Odd (A, B), Deinterleave_Odd (A, B)), "F32x4 Deinterleave_Odd");
       Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), "F32x4 reverse");
+      for Slide in Natural range 0 .. 6 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "F32x4 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_32x4 loop
+            Check (Bits_F32x4 (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane)) = (if Slide < 4 and then Lane < 4 - Slide then Bits_F32x4 (Extract (A, Lane_Index_32x4 (Lane + Slide))) else 0), "F32x4 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Bits_F32x4 (Extract (Slide_Lanes_Toward_High (A, Slide), Lane)) = (if Slide < 4 and then Lane >= Slide then Bits_F32x4 (Extract (A, Lane_Index_32x4 (Lane - Slide))) else 0), "F32x4 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_32x4 loop
          Check (Bits_F32x4 (Extract (Add (A, B), Lane)) = Bits_F32x4 (Extract (A, Lane) + Extract (B, Lane)) and then Bits_F32x4 (Extract (Subtract (A, B), Lane)) = Bits_F32x4 (Extract (A, Lane) - Extract (B, Lane)) and then Bits_F32x4 (Extract (Multiply (A, B), Lane)) = Bits_F32x4 (Extract (A, Lane) * Extract (B, Lane)), "F32x4 independent arithmetic" & Lane'Image);
          Check (Bits_F32x4 (Extract (Divide (A, B), Lane)) = Bits_F32x4 (Extract (A, Lane) / Extract (B, Lane)), "F32x4 independent division" & Lane'Image);
@@ -1337,6 +1407,7 @@ procedure Family_Tests is
             R_A : constant F32x4 := From_Lanes (R_Lanes);
             R_B : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
             Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
+            Slide : constant Natural := Natural (Next_U64 mod 7);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F32x4 randomized native construction");
@@ -1344,6 +1415,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F32x4 randomized native comparisons");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F32x4 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F32x4 randomized native select");
             Check (Bits_F32x4 (Backends.Native.Reduce_Add (R_A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Min_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Max_F32x4 (R_A)), "F32x4 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
@@ -1423,6 +1495,13 @@ procedure Family_Tests is
       Check (Same (Backends.Native.Deinterleave_Even (A, B), Deinterleave_Even (A, B)), "F64x2 Deinterleave_Even");
       Check (Same (Backends.Native.Deinterleave_Odd (A, B), Deinterleave_Odd (A, B)), "F64x2 Deinterleave_Odd");
       Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), "F64x2 reverse");
+      for Slide in Natural range 0 .. 4 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "F64x2 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_64x2 loop
+            Check (Bits_F64x2 (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane)) = (if Slide < 2 and then Lane < 2 - Slide then Bits_F64x2 (Extract (A, Lane_Index_64x2 (Lane + Slide))) else 0), "F64x2 independent slide toward low" & Slide'Image & Lane'Image);
+            Check (Bits_F64x2 (Extract (Slide_Lanes_Toward_High (A, Slide), Lane)) = (if Slide < 2 and then Lane >= Slide then Bits_F64x2 (Extract (A, Lane_Index_64x2 (Lane - Slide))) else 0), "F64x2 independent slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
       for Lane in Lane_Index_64x2 loop
          Check (Bits_F64x2 (Extract (Add (A, B), Lane)) = Bits_F64x2 (Extract (A, Lane) + Extract (B, Lane)) and then Bits_F64x2 (Extract (Subtract (A, B), Lane)) = Bits_F64x2 (Extract (A, Lane) - Extract (B, Lane)) and then Bits_F64x2 (Extract (Multiply (A, B), Lane)) = Bits_F64x2 (Extract (A, Lane) * Extract (B, Lane)), "F64x2 independent arithmetic" & Lane'Image);
          Check (Bits_F64x2 (Extract (Divide (A, B), Lane)) = Bits_F64x2 (Extract (A, Lane) / Extract (B, Lane)), "F64x2 independent division" & Lane'Image);
@@ -1482,6 +1561,7 @@ procedure Family_Tests is
             R_A : constant F64x2 := From_Lanes (R_Lanes);
             R_B : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
             Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
+            Slide : constant Natural := Natural (Next_U64 mod 5);
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F64x2 randomized native construction");
@@ -1489,6 +1569,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F64x2 randomized native comparisons");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F64x2 randomized native permutations");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F64x2 randomized native select");
             Check (Bits_F64x2 (Backends.Native.Reduce_Add (R_A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Min_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Max_F64x2 (R_A)), "F64x2 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);

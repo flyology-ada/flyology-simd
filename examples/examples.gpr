@@ -22,7 +22,8 @@ project Examples is
       "scale_measurements.adb",
       "dot_product.adb",
       "conversions.adb",
-      "table_lookup.adb");
+      "table_lookup.adb",
+      "lane_slides.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata");

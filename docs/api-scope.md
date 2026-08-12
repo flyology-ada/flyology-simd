@@ -24,7 +24,8 @@ never implicitly interchangeable.
 
 Every family supplies zero, splat, lane construction, extraction, replacement,
 comparison, selection, reverse, interleave, deinterleave, and typed memory
-operations. Integer families supply wrapping and saturating arithmetic,
+operations. Every family also supplies zero-filled lane slides in both lane-index
+directions. Integer families supply wrapping and saturating arithmetic,
 bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
 reductions. Floating families supply arithmetic, number minimum and maximum,
 and add/minimum/maximum reductions.
@@ -34,6 +35,14 @@ operation reads the unsigned value from the index lane at the same position. A
 value from 0 through 15 selects the table lane whose lane index equals that
 value. A larger value produces zero. The operation does not reduce an index
 modulo 16.
+
+`Slide_Lanes_Toward_Low` moves a value from source lane `n + Count` to result
+lane `n`. It fills the vacated high-index lanes with zero.
+`Slide_Lanes_Toward_High` moves a value from source lane `n - Count` to result
+lane `n` when `n` is at least `Count`. It fills the vacated low-index lanes
+with zero. A count of zero returns the input. A count equal to or greater than
+the lane count returns `Zero`. Counts are in lanes, not bytes. Floating slides
+use positive zero for vacated lanes.
 
 Lane-preserving `Bit_Cast` overloads connect signed, unsigned, and floating
 vectors that have the same lane width and lane count. Adjacent integer widths

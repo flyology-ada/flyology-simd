@@ -103,12 +103,12 @@ is
    function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
 
    function Equal (Left, Right : U8x16) return Mask_8x16;
@@ -200,6 +200,18 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low
+     (Value : U8x16; Count : Natural) return U8x16;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High
+     (Value : U8x16; Count : Natural) return U8x16;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Table_Lookup (Table, Indices : U8x16) return U8x16;
    --  Use the unsigned value in each index lane for the corresponding result lane. A value from zero through 15 selects the table lane with the same lane index. A larger value returns zero.
    --  @param Table The 16 selectable byte lanes.
@@ -268,7 +280,7 @@ is
    --  Perform the documented portable operation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    function Is_Aligned_16 (Data : Byte_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
@@ -327,7 +339,7 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial
      (Data  : in out Byte_Array;
@@ -338,7 +350,7 @@ is
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    --  BEGIN GENERATED 128-BIT FAMILIES
@@ -783,17 +795,17 @@ is
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16;
    --  Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes for equality.
@@ -872,6 +884,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -912,13 +934,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return U16x8;
@@ -994,12 +1016,12 @@ is
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes for equality.
@@ -1078,6 +1100,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -1118,13 +1150,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return I16x8;
@@ -1200,17 +1232,17 @@ is
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8;
    --  Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes for equality.
@@ -1289,6 +1321,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -1329,13 +1371,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return U32x4;
@@ -1411,12 +1453,12 @@ is
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes for equality.
@@ -1495,6 +1537,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -1535,13 +1587,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return I32x4;
@@ -1617,17 +1669,17 @@ is
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4;
    --  Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes for equality.
@@ -1706,6 +1758,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -1746,13 +1808,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return U64x2;
@@ -1828,12 +1890,12 @@ is
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes for equality.
@@ -1912,6 +1974,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -1952,13 +2024,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return I64x2;
@@ -2034,17 +2106,17 @@ is
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.
    --  @param Value The input value.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Equal (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes for equality.
@@ -2123,6 +2195,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -2163,13 +2245,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return F32x4;
@@ -2300,6 +2382,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -2339,13 +2431,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Zero return F64x2;
@@ -2476,6 +2568,16 @@ is
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
+   function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2;
+   --  Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
+   function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2;
+   --  Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.
+   --  @param Value The input value.
+   --  @param Count The number of lane positions to move.
+   --  @return The operation result.
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 16-byte-aligned address.
    --  @param Data The typed lane array.
@@ -2515,13 +2617,13 @@ is
    --  Read exactly Count elements and set the remaining lanes to zero.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
-   --  @param Count The shift count or valid element count, as applicable.
+   --  @param Count The number of valid elements.
    --  @param Value The input value.
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8;
