@@ -130,6 +130,14 @@ OPERATION_DOCS = {
         "the source lane. Selectors can repeat source lanes. A default-initialized "
         "map selects source lane zero for every result lane."
     ),
+    "Select_Left_Lane": "Construct a selector for one lane of the left input.",
+    "Select_Right_Lane": "Construct a selector for one lane of the right input.",
+    "Make_Two_Source_Lane_Map": (
+        "Build a reusable two-source lane map. For each result lane, the "
+        "selector gives one lane of the left or right input. Selectors can "
+        "repeat source lanes. A default-initialized map selects left lane "
+        "zero for every result lane."
+    ),
     "Permute_Lanes": (
         "Select each result lane through a reusable lane map. Moved lanes keep "
         "their complete bit encoding."
@@ -218,6 +226,11 @@ CONVERT_SATURATE_UNSIGNED_DOC = (
     "positions are preserved."
 )
 
+TWO_SOURCE_PERMUTE_DOC = (
+    "Select each result lane from the left or right vector through a reusable "
+    "two-source lane map. Moved lanes keep their complete bit encoding."
+)
+
 PARAM_DOCS = {
     "Value": "The input value.",
     "Values": "Lane values in logical lane order.",
@@ -225,7 +238,7 @@ PARAM_DOCS = {
     "Right": "The right input.",
     "Lane": "The logical lane index.",
     "Selectors": "One source-lane selector for each result lane.",
-    "Map": "The reusable source-lane map.",
+    "Map": "The reusable lane map.",
     "With_Value": "The replacement lane value.",
     "Count": "The bit-shift count, lane-slide count, or valid element count, as applicable.",
     "Mask": "The input mask.",
@@ -309,6 +322,18 @@ def document_spec(text: str) -> str:
                     documented.append(
                         "   --  A private, reusable result-lane to source-lane map."
                     )
+                elif name.startswith("Two_Source_Lane_Selector_"):
+                    documented.append(
+                        "   --  Select one lane from the left or right source vector."
+                    )
+                elif name.startswith("Two_Source_Lane_Selectors_"):
+                    documented.append(
+                        "   --  One two-source selector for each result lane."
+                    )
+                elif name.startswith("Two_Source_Lane_Map_"):
+                    documented.append(
+                        "   --  A private, reusable result-lane to two-source-lane map."
+                    )
                 else:
                     documented.append(f"   --  Public lane, array, vector, or mask type {name}.")
             else:
@@ -319,6 +344,8 @@ def document_spec(text: str) -> str:
                         if "Value : I" in declaration_text
                         else CONVERT_SATURATE_UNSIGNED_DOC
                     )
+                elif name == "Permute_Lanes" and "Left, Right" in declaration_text:
+                    summary = TWO_SOURCE_PERMUTE_DOC
                 else:
                     summary = OPERATION_DOCS.get(
                         name, "Perform the documented portable operation."
@@ -351,7 +378,17 @@ def document_spec(text: str) -> str:
                         f"   --  @param {parameter} {parameter_doc}"
                     )
                 if kind == "function":
-                    documented.append("   --  @return The operation result.")
+                    if name == "Select_Left_Lane":
+                        result_doc = "A selector for the requested left-input lane."
+                    elif name == "Select_Right_Lane":
+                        result_doc = "A selector for the requested right-input lane."
+                    elif name == "Make_Two_Source_Lane_Map":
+                        result_doc = "A reusable two-source lane map."
+                    elif name == "Make_Lane_Map":
+                        result_doc = "A reusable one-source lane map."
+                    else:
+                        result_doc = "The operation result."
+                    documented.append(f"   --  @return {result_doc}")
         index += 1
     return "\n".join(documented)
 
@@ -366,6 +403,7 @@ def strip_generated_docs(text: str) -> str:
             "Select one table byte for each index lane. An index from zero through 15 selects that table lane. An index of 16 or greater returns zero.",
             CONVERT_SATURATE_SIGNED_DOC,
             CONVERT_SATURATE_UNSIGNED_DOC,
+            TWO_SOURCE_PERMUTE_DOC,
             "Count is in lanes. Move lanes toward lower lane indexes by Count positions and fill vacated high-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.",
             "Count is in lanes. Move lanes toward higher lane indexes by Count positions and fill vacated low-index lanes with zero. Return zero when Count is equal to or greater than the lane count. Floating zero fill is positive zero.",
             "Vacated floating lanes contain positive zero.",
@@ -381,6 +419,9 @@ def strip_generated_docs(text: str) -> str:
         if stripped in (
             "One valid source-lane selector for each result lane.",
             "A private, reusable result-lane to source-lane map.",
+            "Select one lane from the left or right source vector.",
+            "One two-source selector for each result lane.",
+            "A private, reusable result-lane to two-source-lane map.",
         ):
             continue
         if stripped in summaries or stripped == "Perform the documented portable operation.":
@@ -424,6 +465,18 @@ def lane_selectors(bits: int, lanes: int) -> str:
 
 def lane_map(bits: int, lanes: int) -> str:
     return f"Lane_Map_{bits}x{lanes}"
+
+
+def two_source_lane_selector(bits: int, lanes: int) -> str:
+    return f"Two_Source_Lane_Selector_{bits}x{lanes}"
+
+
+def two_source_lane_selectors(bits: int, lanes: int) -> str:
+    return f"Two_Source_Lane_Selectors_{bits}x{lanes}"
+
+
+def two_source_lane_map(bits: int, lanes: int) -> str:
+    return f"Two_Source_Lane_Map_{bits}x{lanes}"
 
 
 def array_name(scalar: str) -> str:
@@ -509,6 +562,12 @@ def emit_spec() -> str:
                 f"   type {lane_selectors(bits, lanes)} is array ({lane_index(bits, lanes)}) of {lane_index(bits, lanes)};",
                 f"   type {lane_map(bits, lanes)} is private;",
                 f"   function Make_Lane_Map (Selectors : {lane_selectors(bits, lanes)}) return {lane_map(bits, lanes)};",
+                f"   type {two_source_lane_selector(bits, lanes)} is private;",
+                f"   function Select_Left_Lane (Lane : {lane_index(bits, lanes)}) return {two_source_lane_selector(bits, lanes)};",
+                f"   function Select_Right_Lane (Lane : {lane_index(bits, lanes)}) return {two_source_lane_selector(bits, lanes)};",
+                f"   type {two_source_lane_selectors(bits, lanes)} is array ({lane_index(bits, lanes)}) of {two_source_lane_selector(bits, lanes)};",
+                f"   type {two_source_lane_map(bits, lanes)} is private;",
+                f"   function Make_Two_Source_Lane_Map (Selectors : {two_source_lane_selectors(bits, lanes)}) return {two_source_lane_map(bits, lanes)};",
             ]
             seen_shapes.add(shape)
         out += [
@@ -567,6 +626,7 @@ def emit_spec() -> str:
             f"   function Reduce_Max (Value : {vector}) return {scalar};",
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
             f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector};",
+            f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
@@ -619,6 +679,7 @@ def emit_spec() -> str:
             f"   function Reduce_Max_Number (Value : {vector}) return {scalar};",
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
             f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector};",
+            f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
@@ -684,6 +745,16 @@ def emit_private() -> str:
                 "   end record;",
                 f"   for {lane_map(bits, lanes)}'Size use 128;",
                 "",
+                f"   type {two_source_lane_selector(bits, lanes)} is record",
+                "      Encoded : U8 := 0;",
+                "   end record;",
+                f"   for {two_source_lane_selector(bits, lanes)}'Size use 8;",
+                "",
+                f"   type {two_source_lane_map(bits, lanes)} is record",
+                f"      Byte_Indices : Lane_Values_8x16 := [{default_indices}];",
+                "   end record;",
+                f"   for {two_source_lane_map(bits, lanes)}'Size use 128;",
+                "",
             ]
             seen_shapes.add((bits, lanes))
     for bits, lanes, storage in MASKS:
@@ -704,6 +775,9 @@ def emit_scalar_backend_renames() -> str:
     for vector, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES:
         out.append(
             f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector} renames Flyology_SIMD.Permute_Lanes;"
+        )
+        out.append(
+            f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} renames Flyology_SIMD.Permute_Lanes;"
         )
     return document_spec("\n".join(out))
 def signed_unsigned(bits: int) -> str:
@@ -788,6 +862,65 @@ def emit_lane_permute(vector: str, bits: int, lanes: int) -> list[str]:
     ]
 
 
+def emit_two_source_lane_selectors(bits: int, lanes: int) -> list[str]:
+    """Emit scalar two-source selector constructors for one lane shape."""
+    selector = two_source_lane_selector(bits, lanes)
+    idx = lane_index(bits, lanes)
+    selectors = two_source_lane_selectors(bits, lanes)
+    mapping = two_source_lane_map(bits, lanes)
+    lane_bytes = bits // 8
+    return [
+        f"   function Select_Left_Lane (Lane : {idx}) return {selector} is",
+        "     (Encoded => U8 (Lane));",
+        f"   function Select_Right_Lane (Lane : {idx}) return {selector} is",
+        f"     (Encoded => U8 ({lanes} + Lane));",
+        f"   function Make_Two_Source_Lane_Map (Selectors : {selectors}) return {mapping} is",
+        f"      Result : {mapping};",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop",
+        "            Result.Byte_Indices",
+        f"              (Result_Lane * {lane_bytes} + Byte) :=",
+        "                U8",
+        "                  (Natural (Selectors (Result_Lane).Encoded) *",
+        f"                     {lane_bytes} + Byte);",
+        "         end loop;",
+        "      end loop;",
+        "      return Result;",
+        "   end Make_Two_Source_Lane_Map;",
+        "",
+    ]
+
+
+def emit_two_source_lane_permute(vector: str, bits: int, lanes: int) -> list[str]:
+    """Emit scalar selection from either of two same-shaped vectors."""
+    idx = lane_index(bits, lanes)
+    mapping = two_source_lane_map(bits, lanes)
+    return [
+        f"   function Permute_Lanes (Left, Right : {vector}; Map : {mapping}) return {vector} is",
+        f"      Result : {vector};",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        "         declare",
+        "            Encoded_Byte : constant Natural :=",
+        "              Natural",
+        "                (Map.Byte_Indices",
+        f"                   (Result_Lane * {bits // 8}));",
+        f"            Encoded : constant Natural := Encoded_Byte / {bits // 8};",
+        "         begin",
+        "            Result.Lanes (Result_Lane) :=",
+        f"              (if Encoded < {lanes} then",
+        f"                  Left.Lanes ({idx} (Encoded))",
+        "               else",
+        f"                  Right.Lanes ({idx} (Encoded - {lanes})));",
+        "         end;",
+        "      end loop;",
+        "      return Result;",
+        "   end Permute_Lanes;",
+        "",
+    ]
+
+
 def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: bool) -> list[str]:
     idx = lane_index(bits, lanes)
     vals = lane_values(vector)
@@ -818,6 +951,7 @@ def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: b
         "   end Replace;",
         "",
     ]
+    out += emit_two_source_lane_permute(vector, bits, lanes)
     out += emit_lane_permute(vector, bits, lanes)
     for name, op in (("Add_Wrap", "+"), ("Subtract_Wrap", "-")):
         expr = f"Left.Lanes (Lane) {op} Right.Lanes (Lane)"
@@ -978,6 +1112,7 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
         f"      Result : {vector} := Value;",
         "   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;",
     ]
+    out += emit_two_source_lane_permute(vector, bits, lanes)
     out += emit_lane_permute(vector, bits, lanes)
     for name, op in (("Add", "+"), ("Subtract", "-"), ("Multiply", "*"), ("Divide", "/")):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Left.Lanes (Lane) {op} Right.Lanes (Lane); end loop;", "      return Result;", f"   end {name};"]
@@ -1229,6 +1364,7 @@ def emit_body() -> str:
     for _, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES:
         if (bits, lanes) not in seen_shapes:
             out += emit_lane_map(bits, lanes)
+            out += emit_two_source_lane_selectors(bits, lanes)
             seen_shapes.add((bits, lanes))
     for item in INTEGER_TYPES:
         out += emit_integer_body(*item)

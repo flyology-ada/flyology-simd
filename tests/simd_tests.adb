@@ -126,6 +126,19 @@ procedure SIMD_Tests is
       Selectors : constant Lane_Selectors_8x16 :=
         [15, 0, 7, 7, 1, 14, 2, 8, 3, 3, 12, 2, 6, 5, 9, 4];
       Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
+      Two_Source_Map : constant Two_Source_Lane_Map_8x16 :=
+        Make_Two_Source_Lane_Map
+          ([Select_Left_Lane (15), Select_Right_Lane (0),
+            Select_Left_Lane (7), Select_Right_Lane (7),
+            Select_Left_Lane (1), Select_Right_Lane (14),
+            Select_Left_Lane (2), Select_Right_Lane (8),
+            Select_Left_Lane (3), Select_Right_Lane (3),
+            Select_Left_Lane (12), Select_Right_Lane (2),
+            Select_Left_Lane (6), Select_Right_Lane (5),
+            Select_Left_Lane (9), Select_Right_Lane (4)]);
+      Two_Source_Expected : constant U8x16 := From_Lanes
+        ([60, 0, 16#FF#, 1, 1, 210, 2, 16#55#,
+          3, 3, 30, 1, 16#FE#, 16#80#, 16#55#, 1]);
    begin
       Check
         (Extract (U8x16'(Zero), 0) = 0
@@ -203,6 +216,17 @@ procedure SIMD_Tests is
            (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
             Permute_Lanes (A, Map)),
          "byte fixed lane permutation backends");
+      Check
+        (Same (Permute_Lanes (A, B, Two_Source_Map), Two_Source_Expected)
+         and then Same
+           (Flyology_SIMD.Backends.Scalar.Permute_Lanes
+              (A, B, Two_Source_Map),
+            Two_Source_Expected)
+         and then Same
+           (Flyology_SIMD.Backends.Native.Permute_Lanes
+              (A, B, Two_Source_Map),
+            Two_Source_Expected),
+         "byte fixed two-source lane permutation");
    end Test_Core_Semantics;
 
    procedure Test_All_Table_Indices is
@@ -405,6 +429,16 @@ procedure SIMD_Tests is
             Slide : constant Natural := Iteration mod 19;
             Selectors : constant Lane_Selectors_8x16 := Random_Selectors;
             Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
+            Two_Source_Map : constant Two_Source_Lane_Map_8x16 :=
+              Make_Two_Source_Lane_Map
+                ([for Lane in Lane_Index_8x16 =>
+                   (if (Iteration + Lane) mod 2 = 0
+                    then Select_Left_Lane
+                      (Lane_Index_8x16
+                         ((Iteration * 3 + Lane * 5) mod 16))
+                    else Select_Right_Lane
+                      (Lane_Index_8x16
+                         ((Iteration * 3 + Lane * 5) mod 16)))]);
          begin
             Check (Same (Flyology_SIMD.Backends.Native.Zero, Zero),
                    "native zero" & Iteration'Image);
@@ -541,11 +575,26 @@ procedure SIMD_Tests is
                  (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
                   Permute_Lanes (A, Map)),
                "native lane permutation" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Permute_Lanes
+                    (A, B, Two_Source_Map),
+                  Permute_Lanes (A, B, Two_Source_Map)),
+               "native two-source lane permutation" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check
                  (Extract (Permute_Lanes (A, Map), Lane) =
                     Extract (A, Selectors (Lane)),
                   "randomized independent lane permutation" & Lane'Image);
+               Check
+                 (Extract (Permute_Lanes (A, B, Two_Source_Map), Lane) =
+                    Extract
+                      ((if (Iteration + Lane) mod 2 = 0
+                        then A else B),
+                       Lane_Index_8x16
+                         ((Iteration * 3 + Lane * 5) mod 16)),
+                  "varied independent two-source lane permutation" &
+                    Lane'Image);
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),
                       "scalar subtract lane" & Lane'Image);

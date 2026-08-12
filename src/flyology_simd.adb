@@ -48,6 +48,26 @@ package body Flyology_SIMD is
       return Result;
    end Make_Lane_Map;
 
+   function Select_Left_Lane
+     (Lane : Lane_Index_8x16) return Two_Source_Lane_Selector_8x16 is
+     (Encoded => U8 (Lane));
+
+   function Select_Right_Lane
+     (Lane : Lane_Index_8x16) return Two_Source_Lane_Selector_8x16 is
+     (Encoded => U8 (16 + Lane));
+
+   function Make_Two_Source_Lane_Map
+     (Selectors : Two_Source_Lane_Selectors_8x16)
+      return Two_Source_Lane_Map_8x16
+   is
+      Result : Two_Source_Lane_Map_8x16;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         Result.Byte_Indices (Result_Lane) := Selectors (Result_Lane).Encoded;
+      end loop;
+      return Result;
+   end Make_Two_Source_Lane_Map;
+
    function Permute_Lanes
      (Value : U8x16; Map : Lane_Map_8x16) return U8x16
    is
@@ -56,6 +76,26 @@ package body Flyology_SIMD is
       for Result_Lane in Lane_Index_8x16 loop
          Result.Lanes (Result_Lane) :=
            Value.Lanes (Lane_Index_8x16 (Map.Byte_Indices (Result_Lane)));
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
+   function Permute_Lanes
+     (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16
+   is
+      Result : U8x16;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         declare
+            Encoded : constant Natural :=
+              Natural (Map.Byte_Indices (Result_Lane));
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 16 then
+                  Left.Lanes (Lane_Index_8x16 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_8x16 (Encoded - 16)));
+         end;
       end loop;
       return Result;
    end Permute_Lanes;
@@ -1202,6 +1242,25 @@ package body Flyology_SIMD is
       return Result;
    end Make_Lane_Map;
 
+   function Select_Left_Lane (Lane : Lane_Index_16x8) return Two_Source_Lane_Selector_16x8 is
+     (Encoded => U8 (Lane));
+   function Select_Right_Lane (Lane : Lane_Index_16x8) return Two_Source_Lane_Selector_16x8 is
+     (Encoded => U8 (8 + Lane));
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_16x8) return Two_Source_Lane_Map_16x8 is
+      Result : Two_Source_Lane_Map_16x8;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         for Byte in Natural range 0 .. 1 loop
+            Result.Byte_Indices
+              (Result_Lane * 2 + Byte) :=
+                U8
+                  (Natural (Selectors (Result_Lane).Encoded) *
+                     2 + Byte);
+         end loop;
+      end loop;
+      return Result;
+   end Make_Two_Source_Lane_Map;
+
    function Make_Lane_Map (Selectors : Lane_Selectors_32x4) return Lane_Map_32x4 is
       Result : Lane_Map_32x4;
    begin
@@ -1216,6 +1275,25 @@ package body Flyology_SIMD is
       end loop;
       return Result;
    end Make_Lane_Map;
+
+   function Select_Left_Lane (Lane : Lane_Index_32x4) return Two_Source_Lane_Selector_32x4 is
+     (Encoded => U8 (Lane));
+   function Select_Right_Lane (Lane : Lane_Index_32x4) return Two_Source_Lane_Selector_32x4 is
+     (Encoded => U8 (4 + Lane));
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_32x4) return Two_Source_Lane_Map_32x4 is
+      Result : Two_Source_Lane_Map_32x4;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         for Byte in Natural range 0 .. 3 loop
+            Result.Byte_Indices
+              (Result_Lane * 4 + Byte) :=
+                U8
+                  (Natural (Selectors (Result_Lane).Encoded) *
+                     4 + Byte);
+         end loop;
+      end loop;
+      return Result;
+   end Make_Two_Source_Lane_Map;
 
    function Make_Lane_Map (Selectors : Lane_Selectors_64x2) return Lane_Map_64x2 is
       Result : Lane_Map_64x2;
@@ -1232,6 +1310,25 @@ package body Flyology_SIMD is
       return Result;
    end Make_Lane_Map;
 
+   function Select_Left_Lane (Lane : Lane_Index_64x2) return Two_Source_Lane_Selector_64x2 is
+     (Encoded => U8 (Lane));
+   function Select_Right_Lane (Lane : Lane_Index_64x2) return Two_Source_Lane_Selector_64x2 is
+     (Encoded => U8 (2 + Lane));
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_64x2) return Two_Source_Lane_Map_64x2 is
+      Result : Two_Source_Lane_Map_64x2;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         for Byte in Natural range 0 .. 7 loop
+            Result.Byte_Indices
+              (Result_Lane * 8 + Byte) :=
+                U8
+                  (Natural (Selectors (Result_Lane).Encoded) *
+                     8 + Byte);
+         end loop;
+      end loop;
+      return Result;
+   end Make_Two_Source_Lane_Map;
+
    function To_U8 is new Ada.Unchecked_Conversion (I8, U8);
    function To_I8 is new Ada.Unchecked_Conversion (U8, I8);
 
@@ -1246,6 +1343,27 @@ package body Flyology_SIMD is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
+
+   function Permute_Lanes (Left, Right : I8x16; Map : Two_Source_Lane_Map_8x16) return I8x16 is
+      Result : I8x16;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 1));
+            Encoded : constant Natural := Encoded_Byte / 1;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 16 then
+                  Left.Lanes (Lane_Index_8x16 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_8x16 (Encoded - 16)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
 
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16 is
       Result : I8x16;
@@ -1550,6 +1668,27 @@ package body Flyology_SIMD is
       return Result;
    end Replace;
 
+   function Permute_Lanes (Left, Right : U16x8; Map : Two_Source_Lane_Map_16x8) return U16x8 is
+      Result : U16x8;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 2));
+            Encoded : constant Natural := Encoded_Byte / 2;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 8 then
+                  Left.Lanes (Lane_Index_16x8 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_16x8 (Encoded - 8)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8 is
       Result : U16x8;
    begin
@@ -1830,6 +1969,27 @@ package body Flyology_SIMD is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
+
+   function Permute_Lanes (Left, Right : I16x8; Map : Two_Source_Lane_Map_16x8) return I16x8 is
+      Result : I16x8;
+   begin
+      for Result_Lane in Lane_Index_16x8 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 2));
+            Encoded : constant Natural := Encoded_Byte / 2;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 8 then
+                  Left.Lanes (Lane_Index_16x8 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_16x8 (Encoded - 8)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
 
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8 is
       Result : I16x8;
@@ -2134,6 +2294,27 @@ package body Flyology_SIMD is
       return Result;
    end Replace;
 
+   function Permute_Lanes (Left, Right : U32x4; Map : Two_Source_Lane_Map_32x4) return U32x4 is
+      Result : U32x4;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 4));
+            Encoded : constant Natural := Encoded_Byte / 4;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 4 then
+                  Left.Lanes (Lane_Index_32x4 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_32x4 (Encoded - 4)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4 is
       Result : U32x4;
    begin
@@ -2414,6 +2595,27 @@ package body Flyology_SIMD is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
+
+   function Permute_Lanes (Left, Right : I32x4; Map : Two_Source_Lane_Map_32x4) return I32x4 is
+      Result : I32x4;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 4));
+            Encoded : constant Natural := Encoded_Byte / 4;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 4 then
+                  Left.Lanes (Lane_Index_32x4 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_32x4 (Encoded - 4)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
 
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4 is
       Result : I32x4;
@@ -2718,6 +2920,27 @@ package body Flyology_SIMD is
       return Result;
    end Replace;
 
+   function Permute_Lanes (Left, Right : U64x2; Map : Two_Source_Lane_Map_64x2) return U64x2 is
+      Result : U64x2;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 8));
+            Encoded : constant Natural := Encoded_Byte / 8;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 2 then
+                  Left.Lanes (Lane_Index_64x2 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_64x2 (Encoded - 2)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2 is
       Result : U64x2;
    begin
@@ -2998,6 +3221,27 @@ package body Flyology_SIMD is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
+
+   function Permute_Lanes (Left, Right : I64x2; Map : Two_Source_Lane_Map_64x2) return I64x2 is
+      Result : I64x2;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 8));
+            Encoded : constant Natural := Encoded_Byte / 8;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 2 then
+                  Left.Lanes (Lane_Index_64x2 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_64x2 (Encoded - 2)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
 
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2 is
       Result : I64x2;
@@ -3309,6 +3553,27 @@ package body Flyology_SIMD is
    function Replace (Value : F32x4; Lane : Lane_Index_32x4; With_Value : F32) return F32x4 is
       Result : F32x4 := Value;
    begin Result.Lanes (Lane) := With_Value; return Result; end Replace;
+   function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4 is
+      Result : F32x4;
+   begin
+      for Result_Lane in Lane_Index_32x4 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 4));
+            Encoded : constant Natural := Encoded_Byte / 4;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 4 then
+                  Left.Lanes (Lane_Index_32x4 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_32x4 (Encoded - 4)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4 is
       Result : F32x4;
    begin
@@ -3517,6 +3782,27 @@ package body Flyology_SIMD is
    function Replace (Value : F64x2; Lane : Lane_Index_64x2; With_Value : F64) return F64x2 is
       Result : F64x2 := Value;
    begin Result.Lanes (Lane) := With_Value; return Result; end Replace;
+   function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2 is
+      Result : F64x2;
+   begin
+      for Result_Lane in Lane_Index_64x2 loop
+         declare
+            Encoded_Byte : constant Natural :=
+              Natural
+                (Map.Byte_Indices
+                   (Result_Lane * 8));
+            Encoded : constant Natural := Encoded_Byte / 8;
+         begin
+            Result.Lanes (Result_Lane) :=
+              (if Encoded < 2 then
+                  Left.Lanes (Lane_Index_64x2 (Encoded))
+               else
+                  Right.Lanes (Lane_Index_64x2 (Encoded - 2)));
+         end;
+      end loop;
+      return Result;
+   end Permute_Lanes;
+
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2 is
       Result : F64x2;
    begin

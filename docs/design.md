@@ -70,6 +70,10 @@ instruction-specific result.
 - `Make_Lane_Map` accepts only valid lane indexes. `Permute_Lanes` reads one
   source vector through that reusable map. Repeated selectors broadcast a
   source lane. Floating lane encodings remain unchanged.
+- `Make_Two_Source_Lane_Map` accepts only typed left-or-right lane selectors.
+  The three-argument `Permute_Lanes` overload selects independently from two
+  source vectors. Repeated selectors broadcast a source lane, and moved lane
+  encodings remain unchanged.
 - Lane-slide counts are in lanes. `Slide_Lanes_Toward_Low` fills vacated
   high-index lanes with zero. `Slide_Lanes_Toward_High` fills vacated
   low-index lanes with zero. A count equal to or greater than the lane count

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Compiled, executed, and continuous-test evidence for Flyology SIMD backends.">
+  <meta name="description" content="Evidence for compiled, executed, and continuously tested Flyology SIMD backends.">
   <title>Backend support · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/support/">
   <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
@@ -69,6 +69,7 @@
               <tr><td>Same-width signed/unsigned integer conversion</td><td>Advanced SIMD instruction sequences</td><td>Scalar composition</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Table_Lookup"><code>Table_Lookup</code></a></td><td>Advanced SIMD <code>tbl</code> leaf</td><td>Scalar composition</td></tr>
               <tr><td>One-source <a data-api="Flyology_SIMD"><code>Permute_Lanes</code></a></td><td>Advanced SIMD <code>tbl</code> after lane-map construction</td><td>Scalar composition</td></tr>
+              <tr><td>Two-source <a data-api="Flyology_SIMD"><code>Permute_Lanes</code></a></td><td>Advanced SIMD two-register <code>tbl</code> after lane-map construction</td><td>Scalar composition</td></tr>
               <tr><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code> and <code>Slide_Lanes_Toward_High</code></a></td><td>Advanced SIMD <code>ext</code> leaves</td><td>SSE2 immediate byte-shift leaves</td></tr>
               <tr><td>Lane-preserving <a data-api="Flyology_SIMD"><code>Bit_Cast</code></a></td><td>Shared Ada implementation</td><td>Shared Ada implementation</td></tr>
               <tr><td>Floating minimum-number and maximum-number reductions</td><td>Scalar Advanced SIMD leaves in ascending lane order</td><td>Scalar composition</td></tr>
@@ -91,7 +92,7 @@
           <p>The conversion tests cover integer truncation and saturation boundaries. Same-width signed/unsigned cases cover negative signed inputs around zero and unsigned inputs around the signed maximum. They also use deterministic, full-width pseudorandom inputs for the supported 8-, 16-, 32-, and 64-bit lanes. The tests cover <a data-api="Flyology_SIMD.F32"><code>F32</code></a> widening for signed zeros, subnormal and normal boundaries, infinities, and NaNs. Binary64 narrowing cases cover positive and negative halfway values, maximum finite binary32 values, overflow, gradual underflow to binary32 subnormals, underflow to signed zero, infinities, and NaNs. Integer-to-floating cases use an independent bit-level rounding oracle with deterministic, full-width pseudorandom inputs. Floating-to-integer cases use a separate bit-level oracle and raw pseudorandom floating encodings.</p>
           <p>Memory checks include every tail length, protected pages, and AddressSanitizer. Code-generation checks inspect primitive operations and representative buffer loops.</p>
           <p>Mask patterns and first/last true-lane results are exhaustive for each mask width. Byte-table tests cover every unsigned byte index, a fixed mixed mapping, and deterministic pseudorandom tables and indexes.</p>
-          <p>An independent lane oracle checks fixed selector maps and deterministic pseudorandom selector maps for all ten value types. The floating tests include repeated selectors and compare special IEEE encodings bit for bit. AArch64 code-generation probes require <code>tbl</code> through public byte, 16-bit integer, binary32, and binary64 overloads.</p>
+          <p>An independent lane oracle checks fixed maps for all ten value types. For each type, the tests run 250 deterministic cases. The cases use pseudorandom one-source selectors and two-source selectors that vary the source and lane. The tests also check each default-initialized two-source map. Floating cases include repeated selectors and compare special IEEE encodings bit for bit. AArch64 code-generation probes require one-register and two-register <code>tbl</code> forms through public byte, 16-bit integer, binary32, and binary64 overloads.</p>
           <p>Lane-slide tests cover zero, every in-range count, and oversized counts for all ten value types. They compare both native directions with independent lane results and deterministic pseudorandom vectors. Floating slide cases also preserve special IEEE encodings bit for bit.</p>
           <p>Floating reduction cases include NaNs, infinities, and signed zero. The protected-page test runs all byte-tail counts from 0 through 16. AVX2 jobs require executable AVX2 coverage and do not silently skip it.</p>
           <p>The workflow does not use <code>continue-on-error</code>.</p>
@@ -102,7 +103,7 @@
             <li>The public API is experimental.</li>
             <li>The verified compiler matrix contains one GNAT FSF version.</li>
             <li>The 256-bit family is not implemented.</li>
-            <li>Two-source general lane-index shuffles and compression are not implemented. One-source reusable lane maps are implemented.</li>
+            <li>Lane compression is not implemented. Reusable one-source and two-source lane maps are implemented.</li>
             <li>AVX2 accelerates three whole-buffer byte algorithms, not the primitive vector family.</li>
           </ul>
           <div class="next-links"><a href="../guide/operations/"><span>Operations</span>Read the exact API matrix</a><a href="../architecture/"><span>Architecture</span>Understand target composition</a></div>

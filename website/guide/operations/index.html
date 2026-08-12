@@ -129,6 +129,7 @@
               <tr><td>Reductions</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add_Wrap</code>, <code>Reduce_Min</code>, <code>Reduce_Max</code></a></td><td>All integer types</td></tr>
               <tr><td>Fixed lane arrangements</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td>All integer types</td></tr>
               <tr><td>One-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Make_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td>All integer types</td></tr>
+              <tr><td>Two-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Select_Left_Lane</code>, <code>Select_Right_Lane</code>, <code>Make_Two_Source_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td>All integer types</td></tr>
               <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td>All integer types</td></tr>
               <tr><td>16-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Table_Lookup"><code>Table_Lookup</code></a></td><td><code>U8x16</code></td></tr>
             </tbody>
@@ -164,7 +165,8 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
               <tr><td>Selection and limits</td><td><code>Select_Value</code>, <a data-api="Flyology_SIMD"><code>Min_Number</code>, <code>Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Reductions</td><td><a data-api="Flyology_SIMD"><code>Reduce_Add</code>, <code>Reduce_Min_Number</code>, <code>Reduce_Max_Number</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Fixed lane arrangements</td><td><a data-api="Flyology_SIMD"><code>Reverse_Lanes</code>, <code>Interleave_Low</code>, <code>Interleave_High</code>, <code>Deinterleave_Even</code>, <code>Deinterleave_Odd</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
-              <tr><td>One-source lane maps</td><td><code>Make_Lane_Map</code>, <code>Permute_Lanes</code></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>One-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Make_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
+              <tr><td>Two-source lane maps</td><td><a data-api="Flyology_SIMD"><code>Select_Left_Lane</code>, <code>Select_Right_Lane</code>, <code>Make_Two_Source_Lane_Map</code>, <code>Permute_Lanes</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
               <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td><code>F32x4</code>, <code>F64x2</code></td></tr>
             </tbody>
           </table>
@@ -181,7 +183,11 @@ Largest  : constant F32 := Reduce_Max_Number (Samples);  --   7.25</code></pre>
           <h3>Reuse one-source lane maps</h3>
           <p><code>Make_Lane_Map</code> constructs a strongly typed map from a selector array. The array contains one source-lane index for each result lane. <code>Permute_Lanes</code> then sets result lane <em>n</em> to the source lane selected at position <em>n</em>. A repeated selector copies one source lane to several result lanes. Each selected lane keeps its complete bit encoding.</p>
           <p>The four private map types are <a data-api="Flyology_SIMD.Lane_Map_8x16"><code>Lane_Map_8x16</code></a>, <a data-api="Flyology_SIMD.Lane_Map_16x8"><code>Lane_Map_16x8</code></a>, <a data-api="Flyology_SIMD.Lane_Map_32x4"><code>Lane_Map_32x4</code></a>, and <a data-api="Flyology_SIMD.Lane_Map_64x2"><code>Lane_Map_64x2</code></a>. Signed, unsigned, and floating vectors with the same lane shape use the same map type. <code>Permute_Lanes</code> supports all ten 128-bit value types.</p>
-          <p>Chapter 2 <a href="../practical/#permutations">uses a 32x4 lane map to rotate two planar points</a>. <code>Permute_Lanes</code> reads one source vector. Two-source general lane-index shuffles are not implemented.</p>
+          <p>Chapter 2 <a href="../practical/#permutations">uses a 32x4 lane map to rotate two planar points</a>. This <code>Permute_Lanes</code> overload reads one source vector.</p>
+          <h3>Select lanes from two source vectors</h3>
+          <p><code>Select_Left_Lane</code> and <code>Select_Right_Lane</code> construct a typed selector that records one source choice and one lane index. <code>Make_Two_Source_Lane_Map</code> stores one selector for each result lane. The three-argument <code>Permute_Lanes</code> overload sets result lane <em>n</em> to the selected lane of <code>Left</code> or <code>Right</code>.</p>
+          <p>The four private map types are <a data-api="Flyology_SIMD.Two_Source_Lane_Map_8x16"><code>Two_Source_Lane_Map_8x16</code></a>, <a data-api="Flyology_SIMD.Two_Source_Lane_Map_16x8"><code>Two_Source_Lane_Map_16x8</code></a>, <a data-api="Flyology_SIMD.Two_Source_Lane_Map_32x4"><code>Two_Source_Lane_Map_32x4</code></a>, and <a data-api="Flyology_SIMD.Two_Source_Lane_Map_64x2"><code>Two_Source_Lane_Map_64x2</code></a>. Signed, unsigned, and floating vectors with the same lane shape use the same map type. The overload supports all ten 128-bit value types.</p>
+          <p>Selectors can repeat lanes from either source vector. Each selected lane keeps its complete bit encoding. A default-initialized two-source map selects left lane 0 for every result lane. Chapter 2 <a href="../practical/#two-source">forms a cross-block successor window and calculates first differences</a>.</p>
           <h3>Slide neighboring lanes</h3>
           <p>The count is in lanes. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code></a> maps source lane <code>n + Count</code> to result lane <code>n</code>. It discards values beyond the low edge and fills vacated high-index lanes with zero. <a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_High</code></a> maps source lane <code>n - Count</code> to result lane <code>n</code> when <code>n &gt;= Count</code>. It discards values beyond the high edge and fills vacated low-index lanes with zero.</p>
           <p>A zero count returns the input. A count equal to or greater than the lane count returns <code>Zero</code>. Retained lanes preserve their complete bit encoding. Vacated floating lanes contain positive zero.</p>
@@ -226,7 +232,7 @@ end if;</code></pre>
           <h2>Not implemented in 0.1.0-dev</h2>
           <p>The following groups are design targets, not current API:</p>
           <ul>
-            <li>two-source general lane-index shuffles and compression;</li>
+            <li>lane compression;</li>
             <li>256-bit vector and mask types;</li>
           </ul>
           <div class="semantic-callout">

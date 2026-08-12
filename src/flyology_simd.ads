@@ -26,7 +26,30 @@ is
      (Selectors : Lane_Selectors_8x16) return Lane_Map_8x16;
    --  Build a reusable lane map. For each result lane, the selector gives the source lane. Selectors can repeat source lanes. A default-initialized map selects source lane zero for every result lane.
    --  @param Selectors One source-lane selector for each result lane.
-   --  @return The operation result.
+   --  @return A reusable one-source lane map.
+   type Two_Source_Lane_Selector_8x16 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane
+     (Lane : Lane_Index_8x16) return Two_Source_Lane_Selector_8x16;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested left-input lane.
+   function Select_Right_Lane
+     (Lane : Lane_Index_8x16) return Two_Source_Lane_Selector_8x16;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested right-input lane.
+   type Two_Source_Lane_Selectors_8x16 is
+     array (Lane_Index_8x16) of Two_Source_Lane_Selector_8x16;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_8x16 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map
+     (Selectors : Two_Source_Lane_Selectors_8x16)
+      return Two_Source_Lane_Map_8x16;
+   --  Build a reusable two-source lane map. For each result lane, the selector gives one lane of the left or right input. Selectors can repeat source lanes. A default-initialized map selects left lane zero for every result lane.
+   --  @param Selectors One source-lane selector for each result lane.
+   --  @return A reusable two-source lane map.
    type Byte_Array is array (Natural range <>) of aliased U8;
    --  Public lane, array, vector, or mask type Byte_Array.
 
@@ -194,7 +217,14 @@ is
      (Value : U8x16; Map : Lane_Map_8x16) return U8x16;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes
+     (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U8x16) return U8x16;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -415,7 +445,25 @@ is
    function Make_Lane_Map (Selectors : Lane_Selectors_16x8) return Lane_Map_16x8;
    --  Build a reusable lane map. For each result lane, the selector gives the source lane. Selectors can repeat source lanes. A default-initialized map selects source lane zero for every result lane.
    --  @param Selectors One source-lane selector for each result lane.
-   --  @return The operation result.
+   --  @return A reusable one-source lane map.
+   type Two_Source_Lane_Selector_16x8 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_16x8) return Two_Source_Lane_Selector_16x8;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested left-input lane.
+   function Select_Right_Lane (Lane : Lane_Index_16x8) return Two_Source_Lane_Selector_16x8;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested right-input lane.
+   type Two_Source_Lane_Selectors_16x8 is array (Lane_Index_16x8) of Two_Source_Lane_Selector_16x8;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_16x8 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_16x8) return Two_Source_Lane_Map_16x8;
+   --  Build a reusable two-source lane map. For each result lane, the selector gives one lane of the left or right input. Selectors can repeat source lanes. A default-initialized map selects left lane zero for every result lane.
+   --  @param Selectors One source-lane selector for each result lane.
+   --  @return A reusable two-source lane map.
    type Lane_Values_U16x8 is array (Lane_Index_16x8) of U16;
    --  Public lane, array, vector, or mask type Lane_Values_U16x8.
    type U16_Array is array (Natural range <>) of aliased U16;
@@ -441,7 +489,25 @@ is
    function Make_Lane_Map (Selectors : Lane_Selectors_32x4) return Lane_Map_32x4;
    --  Build a reusable lane map. For each result lane, the selector gives the source lane. Selectors can repeat source lanes. A default-initialized map selects source lane zero for every result lane.
    --  @param Selectors One source-lane selector for each result lane.
-   --  @return The operation result.
+   --  @return A reusable one-source lane map.
+   type Two_Source_Lane_Selector_32x4 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_32x4) return Two_Source_Lane_Selector_32x4;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested left-input lane.
+   function Select_Right_Lane (Lane : Lane_Index_32x4) return Two_Source_Lane_Selector_32x4;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested right-input lane.
+   type Two_Source_Lane_Selectors_32x4 is array (Lane_Index_32x4) of Two_Source_Lane_Selector_32x4;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_32x4 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_32x4) return Two_Source_Lane_Map_32x4;
+   --  Build a reusable two-source lane map. For each result lane, the selector gives one lane of the left or right input. Selectors can repeat source lanes. A default-initialized map selects left lane zero for every result lane.
+   --  @param Selectors One source-lane selector for each result lane.
+   --  @return A reusable two-source lane map.
    type Lane_Values_U32x4 is array (Lane_Index_32x4) of U32;
    --  Public lane, array, vector, or mask type Lane_Values_U32x4.
    type U32_Array is array (Natural range <>) of aliased U32;
@@ -467,7 +533,25 @@ is
    function Make_Lane_Map (Selectors : Lane_Selectors_64x2) return Lane_Map_64x2;
    --  Build a reusable lane map. For each result lane, the selector gives the source lane. Selectors can repeat source lanes. A default-initialized map selects source lane zero for every result lane.
    --  @param Selectors One source-lane selector for each result lane.
-   --  @return The operation result.
+   --  @return A reusable one-source lane map.
+   type Two_Source_Lane_Selector_64x2 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_64x2) return Two_Source_Lane_Selector_64x2;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested left-input lane.
+   function Select_Right_Lane (Lane : Lane_Index_64x2) return Two_Source_Lane_Selector_64x2;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The logical lane index.
+   --  @return A selector for the requested right-input lane.
+   type Two_Source_Lane_Selectors_64x2 is array (Lane_Index_64x2) of Two_Source_Lane_Selector_64x2;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_64x2 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_64x2) return Two_Source_Lane_Map_64x2;
+   --  Build a reusable two-source lane map. For each result lane, the selector gives one lane of the left or right input. Selectors can repeat source lanes. A default-initialized map selects left lane zero for every result lane.
+   --  @param Selectors One source-lane selector for each result lane.
+   --  @return A reusable two-source lane map.
    type Lane_Values_U64x2 is array (Lane_Index_64x2) of U64;
    --  Public lane, array, vector, or mask type Lane_Values_U64x2.
    type U64_Array is array (Natural range <>) of aliased U64;
@@ -915,7 +999,13 @@ is
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : I8x16; Map : Two_Source_Lane_Map_8x16) return I8x16;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I8x16) return I8x16;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1144,7 +1234,13 @@ is
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U16x8; Map : Two_Source_Lane_Map_16x8) return U16x8;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x8) return U16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1378,7 +1474,13 @@ is
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : I16x8; Map : Two_Source_Lane_Map_16x8) return I16x8;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I16x8) return I16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1607,7 +1709,13 @@ is
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U32x4; Map : Two_Source_Lane_Map_32x4) return U32x4;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x4) return U32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1841,7 +1949,13 @@ is
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : I32x4; Map : Two_Source_Lane_Map_32x4) return I32x4;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I32x4) return I32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2070,7 +2184,13 @@ is
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U64x2; Map : Two_Source_Lane_Map_64x2) return U64x2;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x2) return U64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2304,7 +2424,13 @@ is
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : I64x2; Map : Two_Source_Lane_Map_64x2) return I64x2;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I64x2) return I64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2504,7 +2630,13 @@ is
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F32x4) return F32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2705,7 +2837,13 @@ is
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F64x2) return F64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2980,6 +3118,18 @@ private
    end record;
    for Lane_Map_8x16'Size use 128;
 
+   type Two_Source_Lane_Selector_8x16 is record
+      Encoded : U8 := 0;
+   --  Select one lane from the left or right source vector.
+   end record;
+   for Two_Source_Lane_Selector_8x16'Size use 8;
+
+   type Two_Source_Lane_Map_8x16 is record
+      Byte_Indices : Lane_Values_8x16 := [others => 0];
+   --  A private, reusable result-lane to two-source-lane map.
+   end record;
+   for Two_Source_Lane_Map_8x16'Size use 128;
+
    type Mask_8x16 is record
       Bits : Interfaces.Unsigned_16;
    --  Public lane, array, vector, or mask type Mask_8x16.
@@ -3005,6 +3155,18 @@ private
    end record;
    for Lane_Map_16x8'Size use 128;
 
+   type Two_Source_Lane_Selector_16x8 is record
+      Encoded : U8 := 0;
+   --  Select one lane from the left or right source vector.
+   end record;
+   for Two_Source_Lane_Selector_16x8'Size use 8;
+
+   type Two_Source_Lane_Map_16x8 is record
+      Byte_Indices : Lane_Values_8x16 := [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
+   --  A private, reusable result-lane to two-source-lane map.
+   end record;
+   for Two_Source_Lane_Map_16x8'Size use 128;
+
    type I16x8 is record
       Lanes : Lane_Values_I16x8;
    --  Public lane, array, vector, or mask type I16x8.
@@ -3023,6 +3185,18 @@ private
    end record;
    for Lane_Map_32x4'Size use 128;
 
+   type Two_Source_Lane_Selector_32x4 is record
+      Encoded : U8 := 0;
+   --  Select one lane from the left or right source vector.
+   end record;
+   for Two_Source_Lane_Selector_32x4'Size use 8;
+
+   type Two_Source_Lane_Map_32x4 is record
+      Byte_Indices : Lane_Values_8x16 := [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
+   --  A private, reusable result-lane to two-source-lane map.
+   end record;
+   for Two_Source_Lane_Map_32x4'Size use 128;
+
    type I32x4 is record
       Lanes : Lane_Values_I32x4;
    --  Public lane, array, vector, or mask type I32x4.
@@ -3040,6 +3214,18 @@ private
    --  A private, reusable result-lane to source-lane map.
    end record;
    for Lane_Map_64x2'Size use 128;
+
+   type Two_Source_Lane_Selector_64x2 is record
+      Encoded : U8 := 0;
+   --  Select one lane from the left or right source vector.
+   end record;
+   for Two_Source_Lane_Selector_64x2'Size use 8;
+
+   type Two_Source_Lane_Map_64x2 is record
+      Byte_Indices : Lane_Values_8x16 := [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7];
+   --  A private, reusable result-lane to two-source-lane map.
+   end record;
+   for Two_Source_Lane_Map_64x2'Size use 128;
 
    type I64x2 is record
       Lanes : Lane_Values_I64x2;

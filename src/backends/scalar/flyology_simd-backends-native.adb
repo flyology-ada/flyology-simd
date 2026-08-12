@@ -85,6 +85,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
    function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
      (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
    function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
@@ -226,6 +228,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : I8x16; Map : Two_Source_Lane_Map_8x16) return I8x16 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : I8x16) return I8x16 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : I8x16) return I8x16 is
@@ -317,6 +321,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : U16x8; Map : Two_Source_Lane_Map_16x8) return U16x8 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : U16x8) return U16x8 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : U16x8) return U16x8 is
@@ -406,6 +412,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : I16x8; Map : Two_Source_Lane_Map_16x8) return I16x8 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : I16x8) return I16x8 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : I16x8) return I16x8 is
@@ -497,6 +505,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : U32x4; Map : Two_Source_Lane_Map_32x4) return U32x4 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : U32x4) return U32x4 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : U32x4) return U32x4 is
@@ -586,6 +596,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : I32x4; Map : Two_Source_Lane_Map_32x4) return I32x4 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : I32x4) return I32x4 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : I32x4) return I32x4 is
@@ -677,6 +689,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : U64x2; Map : Two_Source_Lane_Map_64x2) return U64x2 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : U64x2) return U64x2 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : U64x2) return U64x2 is
@@ -766,6 +780,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : I64x2; Map : Two_Source_Lane_Map_64x2) return I64x2 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add_Wrap (Left, Right : I64x2) return I64x2 is
      (Flyology_SIMD.Add_Wrap (Left, Right));
    function Subtract_Wrap (Left, Right : I64x2) return I64x2 is
@@ -857,6 +873,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add (Left, Right : F32x4) return F32x4 is
      (Flyology_SIMD.Add (Left, Right));
    function Subtract (Left, Right : F32x4) return F32x4 is
@@ -934,6 +952,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Replace (Value, Lane, With_Value));
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2 is
      (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
    function Add (Left, Right : F64x2) return F64x2 is
      (Flyology_SIMD.Add (Left, Right));
    function Subtract (Left, Right : F64x2) return F64x2 is

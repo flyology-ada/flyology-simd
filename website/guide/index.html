@@ -116,10 +116,10 @@ alr build</code></pre>
         </section>
         <section id="path">
           <h2>Follow the guide in order</h2>
-          <p>The chapters build one model. The dot product is the main numeric thread. A three-point stencil combines each sample with its available neighbors. A point rotation introduces arbitrary one-source lane selection. Byte counting appears where masks and runtime byte algorithms need a concrete case.</p>
+          <p>The chapters build one model. The dot product is the main numeric thread. A three-point stencil combines each sample with its available neighbors. A point rotation introduces one-source lane selection. A first-difference example then selects successors across two vector blocks. Byte counting appears where masks and runtime byte algorithms need a concrete case.</p>
           <ol class="guide-sequence">
             <li><div><a href="introduction/">Model vectors and lanes</a><p>Map array elements to lanes and process the first four dot-product terms.</p></div></li>
-            <li><div><a href="practical/">Apply arithmetic and move lanes</a><p>Complete the vector dot product, build a stencil, and rotate points with a reusable lane map.</p></div></li>
+            <li><div><a href="practical/">Apply arithmetic and move lanes</a><p>Complete the vector dot product, build a stencil, rotate points, and calculate differences across vector blocks.</p></div></li>
             <li><div><a href="masks/">Compare, select, and inspect masks</a><p>Use floating masks for selection and byte masks for compact bit extraction.</p></div></li>
             <li><div><a href="memory/">Use full, aligned, and partial memory operations</a><p>Read the three-element dot-product tail without crossing the valid array extent.</p></div></li>
             <li><div><a href="conversions/">Convert values and reinterpret bits</a><p>Distinguish numeric conversion, narrowing, widening, saturation, and bit casts.</p></div></li>
@@ -135,7 +135,7 @@ alr build</code></pre>
             </thead>
             <tbody>
               <tr><td>Does the operation I need exist?</td><td><a href="operations/">Operation coverage</a></td></tr>
-              <tr><td>How do I reorder lanes from one vector?</td><td><a href="practical/#permutations">Lane maps and point rotation</a></td></tr>
+              <tr><td>How do I reorder lanes from one or two vectors?</td><td><a href="practical/#permutations">Lane maps, point rotation, and cross-block differences</a></td></tr>
               <tr><td>How do comparison results select values?</td><td><a href="masks/">Masks and selection</a></td></tr>
               <tr><td>How do I process the last elements safely?</td><td><a href="memory/">Memory operations</a></td></tr>
               <tr><td>Which conversion preserves bits?</td><td><a href="conversions/">Conversions and bit casts</a></td></tr>
@@ -148,7 +148,7 @@ alr build</code></pre>
         <section id="boundary">
           <h2>Know what this guide does not promise</h2>
           <p>The <a href="operations/">operation matrix</a> is a reference, not a chapter in the learning sequence. Use it to check exact overload coverage and edge semantics.</p>
-          <p>The API is experimental. The current value family is 128 bits wide. The matrix includes reusable one-source lane maps, zero-filled lane slides, and the 16-entry byte-table lookup. It also lists unimplemented two-source general shuffles, compression, and 256-bit types.</p>
+          <p>The API is experimental. The current value family is 128 bits wide. The matrix includes reusable one-source and two-source lane maps, zero-filled lane slides, and the 16-entry byte-table lookup. Lane compression and 256-bit types are not implemented.</p>
           <p>The scalar backend defines the result on every supported GNAT target. Target-specific code exists for AArch64 NEON and x86-64 SSE2, with an AVX2 path for selected whole-buffer byte algorithms. The <a href="../support/">support page</a> distinguishes implemented, executed, and continuously tested configurations.</p>
           <div class="next-links"><a href="introduction/"><span>Chapter 1</span>Model vectors and lanes</a><a href="operations/"><span>Reference</span>Check operation coverage</a></div>
         </section>

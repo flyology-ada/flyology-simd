@@ -40,7 +40,15 @@ is
      renames Flyology_SIMD.Permute_Lanes;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
    --  @param Value The input value.
-   --  @param Map The reusable source-lane map.
+   --  @param Map The reusable lane map.
+   --  @return The operation result.
+   function Permute_Lanes
+     (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16
+     renames Flyology_SIMD.Permute_Lanes;
+   --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The reusable lane map.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Add_Wrap;

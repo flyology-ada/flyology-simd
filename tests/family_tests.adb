@@ -109,6 +109,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_8x16 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_8x16 := Make_Lane_Map ([others => 15]);
       Default_Map : Lane_Map_8x16;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_8x16 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_8x16 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_8x16 ((Lane * 3 + 1) mod 16)) else Select_Right_Lane (Lane_Index_8x16 ((Lane * 3 + 1) mod 16)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_8x16;
       Data, Reference : I8_Array (0 .. 21) := [others => 0];
       Aligned_Data : I8_Array (0 .. 15) := [others => 0] with Alignment => 16;
    begin
@@ -140,6 +142,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_8x16 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "I8x16 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 15))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 15))), "I8x16 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "I8x16 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "I8x16 native fixed two-source lane permutation");
+      for Lane in Lane_Index_8x16 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_8x16 ((Lane * 3 + 1) mod 16)), "I8x16 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "I8x16 default two-source lane map");
       for Shift in Natural range 0 .. 10 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I8x16 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I8x16 shr" & Shift'Image);
@@ -220,6 +225,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Next_U64 mod 2 ** 16);
             R_Selectors : constant Lane_Selectors_8x16 := Random_I8x16_Selectors;
             R_Map : constant Lane_Map_8x16 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_8x16 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_8x16 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)) else Select_Right_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I8x16 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I8x16 randomized arithmetic");
@@ -231,6 +237,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I8x16 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I8x16 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I8x16 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I8x16 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I8x16 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I8x16 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized native reductions");
@@ -240,6 +247,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I8x16 randomized native partial memory");
             for Lane in Lane_Index_8x16 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I8x16 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)), "I8x16 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I8x16 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) + I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I8x16 (I8x16_To_Bits (Extract (R_A, Lane)) - I8x16_To_Bits (Extract (R_B, Lane))), "I8x16 independent subtract oracle" & Lane'Image);
@@ -301,6 +309,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_16x8 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_16x8 := Make_Lane_Map ([others => 7]);
       Default_Map : Lane_Map_16x8;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Lane * 3 + 1) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Lane * 3 + 1) mod 8)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_16x8;
       Data, Reference : U16_Array (0 .. 13) := [others => 0];
       Aligned_Data : U16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
@@ -332,6 +342,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_16x8 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "U16x8 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 7))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 7))), "U16x8 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "U16x8 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "U16x8 native fixed two-source lane permutation");
+      for Lane in Lane_Index_16x8 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_16x8 ((Lane * 3 + 1) mod 8)), "U16x8 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "U16x8 default two-source lane map");
       for Shift in Natural range 0 .. 18 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "U16x8 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "U16x8 shr" & Shift'Image);
@@ -409,6 +422,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
             R_Selectors : constant Lane_Selectors_16x8 := Random_U16x8_Selectors;
             R_Map : constant Lane_Map_16x8 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U16x8 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U16x8 randomized arithmetic");
@@ -419,6 +433,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U16x8 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U16x8 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "U16x8 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U16x8 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U16x8 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized native reductions");
@@ -428,6 +443,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U16x8 randomized native partial memory");
             for Lane in Lane_Index_16x8 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U16x8 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)), "U16x8 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U16x8 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U16x8 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U16x8 independent subtract oracle" & Lane'Image);
@@ -493,6 +509,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_16x8 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_16x8 := Make_Lane_Map ([others => 7]);
       Default_Map : Lane_Map_16x8;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Lane * 3 + 1) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Lane * 3 + 1) mod 8)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_16x8;
       Data, Reference : I16_Array (0 .. 13) := [others => 0];
       Aligned_Data : I16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
@@ -524,6 +542,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_16x8 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "I16x8 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 7))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 7))), "I16x8 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "I16x8 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "I16x8 native fixed two-source lane permutation");
+      for Lane in Lane_Index_16x8 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_16x8 ((Lane * 3 + 1) mod 8)), "I16x8 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "I16x8 default two-source lane map");
       for Shift in Natural range 0 .. 18 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I16x8 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I16x8 shr" & Shift'Image);
@@ -604,6 +625,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 8);
             R_Selectors : constant Lane_Selectors_16x8 := Random_I16x8_Selectors;
             R_Map : constant Lane_Map_16x8 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I16x8 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I16x8 randomized arithmetic");
@@ -615,6 +637,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I16x8 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I16x8 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I16x8 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I16x8 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I16x8 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized native reductions");
@@ -624,6 +647,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I16x8 randomized native partial memory");
             for Lane in Lane_Index_16x8 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I16x8 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)), "I16x8 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I16x8 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) + I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I16x8 (I16x8_To_Bits (Extract (R_A, Lane)) - I16x8_To_Bits (Extract (R_B, Lane))), "I16x8 independent subtract oracle" & Lane'Image);
@@ -685,6 +709,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_32x4 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_32x4 := Make_Lane_Map ([others => 3]);
       Default_Map : Lane_Map_32x4;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : U32_Array (0 .. 9) := [others => 0];
       Aligned_Data : U32_Array (0 .. 3) := [others => 0] with Alignment => 16;
    begin
@@ -716,6 +742,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "U32x4 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))), "U32x4 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "U32x4 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "U32x4 native fixed two-source lane permutation");
+      for Lane in Lane_Index_32x4 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_32x4 ((Lane * 3 + 1) mod 4)), "U32x4 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "U32x4 default two-source lane map");
       for Shift in Natural range 0 .. 34 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "U32x4 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "U32x4 shr" & Shift'Image);
@@ -793,6 +822,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
             R_Selectors : constant Lane_Selectors_32x4 := Random_U32x4_Selectors;
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U32x4 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U32x4 randomized arithmetic");
@@ -803,6 +833,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U32x4 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U32x4 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "U32x4 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U32x4 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized native reductions");
@@ -812,6 +843,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U32x4 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)), "U32x4 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U32x4 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U32x4 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U32x4 independent subtract oracle" & Lane'Image);
@@ -877,6 +909,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_32x4 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_32x4 := Make_Lane_Map ([others => 3]);
       Default_Map : Lane_Map_32x4;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : I32_Array (0 .. 9) := [others => 0];
       Aligned_Data : I32_Array (0 .. 3) := [others => 0] with Alignment => 16;
    begin
@@ -908,6 +942,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "I32x4 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))), "I32x4 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "I32x4 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "I32x4 native fixed two-source lane permutation");
+      for Lane in Lane_Index_32x4 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_32x4 ((Lane * 3 + 1) mod 4)), "I32x4 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "I32x4 default two-source lane map");
       for Shift in Natural range 0 .. 34 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I32x4 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I32x4 shr" & Shift'Image);
@@ -988,6 +1025,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
             R_Selectors : constant Lane_Selectors_32x4 := Random_I32x4_Selectors;
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I32x4 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I32x4 randomized arithmetic");
@@ -999,6 +1037,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I32x4 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I32x4 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I32x4 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I32x4 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized native reductions");
@@ -1008,6 +1047,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I32x4 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)), "I32x4 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I32x4 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) + I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I32x4 (I32x4_To_Bits (Extract (R_A, Lane)) - I32x4_To_Bits (Extract (R_B, Lane))), "I32x4 independent subtract oracle" & Lane'Image);
@@ -1069,6 +1109,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_64x2 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_64x2 := Make_Lane_Map ([others => 1]);
       Default_Map : Lane_Map_64x2;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : U64_Array (0 .. 7) := [others => 0];
       Aligned_Data : U64_Array (0 .. 1) := [others => 0] with Alignment => 16;
    begin
@@ -1100,6 +1142,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "U64x2 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))), "U64x2 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "U64x2 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "U64x2 native fixed two-source lane permutation");
+      for Lane in Lane_Index_64x2 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_64x2 ((Lane * 3 + 1) mod 2)), "U64x2 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "U64x2 default two-source lane map");
       for Shift in Natural range 0 .. 66 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "U64x2 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "U64x2 shr" & Shift'Image);
@@ -1177,6 +1222,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
             R_Selectors : constant Lane_Selectors_64x2 := Random_U64x2_Selectors;
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U64x2 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U64x2 randomized arithmetic");
@@ -1187,6 +1233,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "U64x2 randomized native logical shifts");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U64x2 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "U64x2 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U64x2 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized native reductions");
@@ -1196,6 +1243,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U64x2 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)), "U64x2 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U64x2 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U64x2 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U64x2 independent subtract oracle" & Lane'Image);
@@ -1261,6 +1309,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_64x2 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_64x2 := Make_Lane_Map ([others => 1]);
       Default_Map : Lane_Map_64x2;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : I64_Array (0 .. 7) := [others => 0];
       Aligned_Data : I64_Array (0 .. 1) := [others => 0] with Alignment => 16;
    begin
@@ -1292,6 +1342,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "I64x2 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))), "I64x2 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "I64x2 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "I64x2 native fixed two-source lane permutation");
+      for Lane in Lane_Index_64x2 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_64x2 ((Lane * 3 + 1) mod 2)), "I64x2 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "I64x2 default two-source lane map");
       for Shift in Natural range 0 .. 66 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I64x2 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I64x2 shr" & Shift'Image);
@@ -1372,6 +1425,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
             R_Selectors : constant Lane_Selectors_64x2 := Random_I64x2_Selectors;
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I64x2 randomized native construction");
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I64x2 randomized arithmetic");
@@ -1383,6 +1437,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I64x2 randomized native arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I64x2 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I64x2 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I64x2 randomized native select");
             Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized native reductions");
@@ -1392,6 +1447,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I64x2 randomized independent lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)), "I64x2 varied independent two-source lane permutation" & Lane'Image);
                Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "I64x2 randomized native lane access" & Lane'Image);
                Check (Extract (Add_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) + I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent add oracle" & Lane'Image);
                Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Bits_To_I64x2 (I64x2_To_Bits (Extract (R_A, Lane)) - I64x2_To_Bits (Extract (R_B, Lane))), "I64x2 independent subtract oracle" & Lane'Image);
@@ -1456,6 +1512,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_32x4 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_32x4 := Make_Lane_Map ([others => 3]);
       Default_Map : Lane_Map_32x4;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Lane * 3 + 1) mod 4)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : F32_Array (0 .. 9) := [others => 0.0];
       Aligned_Data : F32_Array (0 .. 3) := [others => 0.0] with Alignment => 16;
    begin
@@ -1481,6 +1539,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Permute_Lanes (A, Fixed_Map), Lane)) = Bits_F32x4 (Extract (A, Fixed_Selectors (Lane))), "F32x4 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 3))), "F32x4 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "F32x4 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "F32x4 native fixed two-source lane permutation");
+      for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane)) = Bits_F32x4 (Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_32x4 ((Lane * 3 + 1) mod 4))), "F32x4 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "F32x4 default two-source lane map");
       for Slide in Natural range 0 .. 6 loop
          Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "F32x4 native lane slides" & Slide'Image);
          for Lane in Lane_Index_32x4 loop
@@ -1551,6 +1612,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 4);
             R_Selectors : constant Lane_Selectors_32x4 := Random_F32x4_Selectors;
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F32x4 randomized native construction");
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F32x4 randomized native arithmetic");
@@ -1558,6 +1620,7 @@ procedure Family_Tests is
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F32x4 randomized native comparisons");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F32x4 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "F32x4 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "F32x4 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F32x4 randomized native select");
             Check (Bits_F32x4 (Backends.Native.Reduce_Add (R_A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Min_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Max_F32x4 (R_A)), "F32x4 randomized native reductions");
@@ -1567,6 +1630,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F32x4 randomized native partial memory");
             for Lane in Lane_Index_32x4 loop
                Check (Bits_F32x4 (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_F32x4 (R_Lanes (R_Selectors (Lane))), "F32x4 randomized independent lane permutation" & Lane'Image);
+               Check (Bits_F32x4 (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_F32x4 (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4))), "F32x4 varied independent two-source lane permutation" & Lane'Image);
                Check (Bits_F32x4 (Backends.Native.Extract (R_A, Lane)) = Bits_F32x4 (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "F32x4 randomized native lane access" & Lane'Image);
                Check (Bits_F32x4 (Extract (Add (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F32x4 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F32x4 (Extract (Divide (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F32x4 randomized independent division" & Lane'Image); end if;
@@ -1628,6 +1692,8 @@ procedure Family_Tests is
       Fixed_Map : constant Lane_Map_64x2 := Make_Lane_Map (Fixed_Selectors);
       Broadcast_Map : constant Lane_Map_64x2 := Make_Lane_Map ([others => 1]);
       Default_Map : Lane_Map_64x2;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Lane * 3 + 1) mod 2)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : F64_Array (0 .. 7) := [others => 0.0];
       Aligned_Data : F64_Array (0 .. 1) := [others => 0.0] with Alignment => 16;
    begin
@@ -1653,6 +1719,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Permute_Lanes (A, Fixed_Map), Lane)) = Bits_F64x2 (Extract (A, Fixed_Selectors (Lane))), "F64x2 independent fixed lane permutation" & Lane'Image); end loop;
       Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 1))), "F64x2 repeated-selector broadcast");
       Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "F64x2 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "F64x2 native fixed two-source lane permutation");
+      for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane)) = Bits_F64x2 (Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_64x2 ((Lane * 3 + 1) mod 2))), "F64x2 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "F64x2 default two-source lane map");
       for Slide in Natural range 0 .. 4 loop
          Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "F64x2 native lane slides" & Slide'Image);
          for Lane in Lane_Index_64x2 loop
@@ -1723,6 +1792,7 @@ procedure Family_Tests is
             Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** 2);
             R_Selectors : constant Lane_Selectors_64x2 := Random_F64x2_Selectors;
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
             Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F64x2 randomized native construction");
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F64x2 randomized native arithmetic");
@@ -1730,6 +1800,7 @@ procedure Family_Tests is
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F64x2 randomized native comparisons");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "F64x2 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "F64x2 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "F64x2 randomized native two-source lane permutation");
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "F64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "F64x2 randomized native select");
             Check (Bits_F64x2 (Backends.Native.Reduce_Add (R_A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Min_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Max_F64x2 (R_A)), "F64x2 randomized native reductions");
@@ -1739,6 +1810,7 @@ procedure Family_Tests is
             Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F64x2 randomized native partial memory");
             for Lane in Lane_Index_64x2 loop
                Check (Bits_F64x2 (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_F64x2 (R_Lanes (R_Selectors (Lane))), "F64x2 randomized independent lane permutation" & Lane'Image);
+               Check (Bits_F64x2 (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_F64x2 (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2))), "F64x2 varied independent two-source lane permutation" & Lane'Image);
                Check (Bits_F64x2 (Backends.Native.Extract (R_A, Lane)) = Bits_F64x2 (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "F64x2 randomized native lane access" & Lane'Image);
                Check (Bits_F64x2 (Extract (Add (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F64x2 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F64x2 (Extract (Divide (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F64x2 randomized independent division" & Lane'Image); end if;
@@ -1772,8 +1844,11 @@ procedure Family_Tests is
       A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);
       B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);
       Slide32 : constant F32x4 := From_Lanes ([NaN32, SNaN32, Inf32, Neg_Zero32]);
+      Two32_Right : constant F32x4 := From_Lanes ([Neg_Zero32, Inf32, SNaN32, NaN32]);
       Permute32_Selectors : constant Lane_Selectors_32x4 := [3, 0, 1, 1];
       Permute32_Map : constant Lane_Map_32x4 := Make_Lane_Map (Permute32_Selectors);
+      Two32_Map_A : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([Select_Left_Lane (0), Select_Right_Lane (1), Select_Left_Lane (2), Select_Right_Lane (3)]);
+      Two32_Map_B : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([Select_Right_Lane (0), Select_Left_Lane (1), Select_Right_Lane (2), Select_Left_Lane (3)]);
       NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);
       SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);
       Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);
@@ -1784,6 +1859,8 @@ procedure Family_Tests is
       Slide64_B : constant F64x2 := From_Lanes ([Inf64, Neg_Zero64]);
       Permute64_Selectors : constant Lane_Selectors_64x2 := [1, 0];
       Permute64_Map : constant Lane_Map_64x2 := Make_Lane_Map (Permute64_Selectors);
+      Two64_Map_A : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([Select_Left_Lane (0), Select_Right_Lane (1)]);
+      Two64_Map_B : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([Select_Right_Lane (0), Select_Left_Lane (1)]);
       Zero32 : constant F32x4 := From_Lanes ([0.0, 0.0, 0.0, 0.0]);
       Numerator32 : constant F32x4 := From_Lanes ([1.0, 0.0, -1.0, 0.0]);
       Quiet32 : constant F32x4 := From_Lanes ([NaN32, NaN32, NaN32, NaN32]);
@@ -1812,9 +1889,13 @@ procedure Family_Tests is
    begin
       for Lane in Lane_Index_32x4 loop
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), "F32 special lane permutation" & Lane'Image);
+         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)), "F32 special two-source permutation A" & Lane'Image);
+         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_B), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Two32_Right else Slide32), Lane)), "F32 special two-source permutation B" & Lane'Image);
       end loop;
       for Lane in Lane_Index_64x2 loop
          Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_B, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_B, Permute64_Selectors (Lane))), "F64 special lane permutation" & Lane'Image);
+         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_A), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_A else Slide64_B), Lane)), "F64 special two-source permutation A" & Lane'Image);
+         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Slide64_B, Two64_Map_B), Lane)) = F64_Bits (Extract ((if Lane = 0 then Slide64_B else Slide64_A), Lane)), "F64 special two-source permutation B" & Lane'Image);
       end loop;
       for Slide in Natural range 0 .. 6 loop
          for Lane in Lane_Index_32x4 loop

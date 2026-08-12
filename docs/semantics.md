@@ -35,6 +35,13 @@ encoding, including floating NaN payload and signaling state, infinity, and
 signed zero. A map contains no vector value and can be reused.
 A default-initialized map selects source lane 0 for every result lane.
 
+`Make_Two_Source_Lane_Map` accepts a strongly typed left-or-right lane
+selector for every result lane. `Select_Left_Lane (i)` selects lane `i` of
+the `Left` input, and `Select_Right_Lane (i)` selects lane `i` of the `Right`
+input. The three-argument `Permute_Lanes` overload applies that reusable map.
+Selectors can repeat. Moved lanes preserve their complete bit encoding. A
+default-initialized two-source map selects `Left` lane 0 for every result lane.
+
 Lane-slide counts are in lanes. `Slide_Lanes_Toward_Low` moves each source lane
 toward lane 0 and fills vacated high-index lanes with zero.
 `Slide_Lanes_Toward_High` moves each source lane toward the highest lane index
@@ -111,8 +118,8 @@ the same lane width. Lane positions do not change. A negative signed input
 becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
-Two-source general lane-index shuffles, compression, and the portable 256-bit
-family remain pre-stabilization work.
+Lane compression and the portable 256-bit family remain pre-stabilization
+work.
 
 ## Memory
 
