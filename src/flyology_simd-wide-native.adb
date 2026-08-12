@@ -1,8 +1,10 @@
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
+   package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
@@ -62,48 +64,37 @@ package body Flyology_SIMD.Wide.Native is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));
 
    function Add_Wrap (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Add_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Add_Wrap (Left, Right));
 
    function Subtract_Wrap (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Subtract_Wrap (Left, Right));
 
    function Multiply_Wrap (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Multiply_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Multiply_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Multiply_Wrap (Left, Right));
 
    function Add_Saturate (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Add_Saturate (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add_Saturate (Left.High, Right.High)));
+     (Byte_Mechanism.Add_Saturate (Left, Right));
 
    function Subtract_Saturate (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract_Saturate (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract_Saturate (Left.High, Right.High)));
+     (Byte_Mechanism.Subtract_Saturate (Left, Right));
 
    function Bitwise_And (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_And (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_And (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_And (Left, Right));
 
    function Bitwise_Or (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Or (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Or (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_Or (Left, Right));
 
    function Bitwise_Xor (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Xor (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Xor (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_Xor (Left, Right));
 
    function Min (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Min (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Min (Left.High, Right.High)));
+     (Byte_Mechanism.Min (Left, Right));
 
    function Max (Left, Right : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Max (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Max (Left.High, Right.High)));
+     (Byte_Mechanism.Max (Left, Right));
 
    function Bitwise_Not (Value : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Not (Value.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Not (Value.High)));
+     (Byte_Mechanism.Bitwise_Not (Value));
 
    function Shift_Left_Logical (Value : U8x32; Count : Natural) return U8x32 is
      ((Low => Flyology_SIMD.Backends.Native.Shift_Left_Logical (Value.Low, Count),
@@ -310,48 +301,37 @@ package body Flyology_SIMD.Wide.Native is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));
 
    function Add_Wrap (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Add_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Add_Wrap (Left, Right));
 
    function Subtract_Wrap (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Subtract_Wrap (Left, Right));
 
    function Multiply_Wrap (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Multiply_Wrap (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Multiply_Wrap (Left.High, Right.High)));
+     (Byte_Mechanism.Multiply_Wrap (Left, Right));
 
    function Add_Saturate (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Add_Saturate (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add_Saturate (Left.High, Right.High)));
+     (Byte_Mechanism.Add_Saturate (Left, Right));
 
    function Subtract_Saturate (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract_Saturate (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract_Saturate (Left.High, Right.High)));
+     (Byte_Mechanism.Subtract_Saturate (Left, Right));
 
    function Bitwise_And (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_And (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_And (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_And (Left, Right));
 
    function Bitwise_Or (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Or (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Or (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_Or (Left, Right));
 
    function Bitwise_Xor (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Xor (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Xor (Left.High, Right.High)));
+     (Byte_Mechanism.Bitwise_Xor (Left, Right));
 
    function Min (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Min (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Min (Left.High, Right.High)));
+     (Byte_Mechanism.Min (Left, Right));
 
    function Max (Left, Right : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Max (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Max (Left.High, Right.High)));
+     (Byte_Mechanism.Max (Left, Right));
 
    function Bitwise_Not (Value : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Bitwise_Not (Value.Low),
-       High => Flyology_SIMD.Backends.Native.Bitwise_Not (Value.High)));
+     (Byte_Mechanism.Bitwise_Not (Value));
 
    function Shift_Left_Logical (Value : I8x32; Count : Natural) return I8x32 is
      ((Low => Flyology_SIMD.Backends.Native.Shift_Left_Logical (Value.Low, Count),

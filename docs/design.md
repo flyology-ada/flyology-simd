@@ -130,16 +130,16 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   differential tests and focused code-generation checks;
 - `x86_64`: full-family SSE2 lowering with explicit scalar composition for
   operations not expressible in SSE2 without changing semantics;
-- optional AVX2 whole-buffer objects and the optional Wide lookup
-  implementation subprogram are compiled separately with `-mavx2`.
+- optional AVX2 whole-buffer objects and the optional Wide byte-operation
+  subprograms are compiled separately with `-mavx2`.
 
 `Flyology_SIMD.Wide` is the scalar authority for the initial 256-bit profile.
 Its private values currently contain two 128-bit parts.
 `Flyology_SIMD.Wide.Native` composes selected 128-bit native operations across
 those parts. This boundary does not expose the pair, promise a stable ABI, or
 promise one 256-bit instruction for every operation. The optional x86-64 AVX2
-Wide backend is the narrow exception: it supplies one isolated 256-bit
-implementation subprogram for `U8x32` `Table_Lookup`.
+Wide backend is the narrow exception. It supplies isolated 256-bit subprograms
+for selected `U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`.
 Wide bit casts compose two same-shape 128-bit bit casts. Wide two-source lane
 maps use fixed-width Ada composition through the selected 128-bit lane access
 operations; they have no dedicated 256-bit instruction claim.
@@ -148,17 +148,26 @@ operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
 operations to the selected private part. Narrowing converts both private parts
 of each Wide input. Same-width numeric conversions apply one 128-bit operation
 to each private part.
-With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, Wide Native table lookup uses the
-target-selected mechanism. AArch64 applies one two-register `tbl` leaf to each
+With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, the signed and unsigned Wide byte
+operations use the selected 128-bit operations on each private part. AArch64
+uses the same composition. With the AVX2 selection, `Add_Wrap`,
+`Subtract_Wrap`, `Multiply_Wrap`, `Add_Saturate`, `Subtract_Saturate`,
+`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, and `Max`
+use isolated 256-bit subprograms for `U8x32` and `I8x32`.
+AVX2 has no packed byte multiplication instruction. `Multiply_Wrap` separates
+the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
+product to eight bits, and restores the original byte positions.
+With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, Wide Native table lookup also uses
+the target-selected mechanism. AArch64 applies one two-register `tbl` leaf to each
 16-lane index part. The x86-64 composed backend uses the scalar authority.
 With `FLYOLOGY_SIMD_ARCH=x86_64`, `FLYOLOGY_SIMD_AVX2=enabled`, and
 `FLYOLOGY_SIMD_WIDE_BACKEND=avx2`, one separately compiled 256-bit AVX2
 subprogram implements the complete lookup. The build rejects other
-configurations that select the Wide AVX2 backend. Both selections preserve the
-public result.
-The AVX2 selection is static and performs no runtime feature check. Its binary
-must run only where CPUID reports the AVX, AVX2, and OSXSAVE bits, and XCR0
-enables XMM and YMM register state.
+configurations that select the Wide AVX2 backend. Each selection preserves the
+public operation results.
+The AVX2 selection is static and performs no runtime feature check. Before a
+target runs this binary, CPUID must report the AVX, AVX2, and OSXSAVE bits, and
+XCR0 must enable XMM and YMM register state.
 Wide Native `Horizontal_Sum` adds the exact results from two selected 128-bit
 `Horizontal_Sum` operations. The public result is a `Natural` from 0 through
 8,160.

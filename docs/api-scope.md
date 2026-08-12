@@ -26,9 +26,9 @@ The current implementation composes each Wide value from private 128-bit
 parts. `Flyology_SIMD.Wide.Native` applies selected 128-bit native operations
 to those parts. This mechanism is not a public representation, an ABI promise,
 or a claim that one 256-bit instruction implements each operation. The optional
-x86-64 AVX2 Wide backend supplies one isolated 256-bit implementation
-subprogram for `U8x32` `Table_Lookup`.
-All other Wide operations retain the documented composition model.
+x86-64 AVX2 Wide backend supplies isolated 256-bit implementations for selected
+`U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`. All other Wide
+operations retain the documented composition model.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -180,19 +180,23 @@ Wide `U8x32` also supplies a 32-entry `Table_Lookup`. An index from 0 through
 31 selects the table lane with that index. A larger index produces zero. The
 operation does not mask or reduce an index before the lookup.
 
-The public lookup operation and its semantics do not change with the selected
-mechanism. `FLYOLOGY_SIMD_WIDE_BACKEND=composed` is the default.
+The public operation semantics do not change with the selected mechanism.
+`FLYOLOGY_SIMD_WIDE_BACKEND=composed` is the default. The `avx2` value selects
+256-bit implementations for the `U8x32` and `I8x32` `Add_Wrap`,
+`Subtract_Wrap`, `Multiply_Wrap`, `Add_Saturate`, `Subtract_Saturate`,
+`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, and `Max`
+overloads. It also selects the 256-bit `U8x32` lookup implementation.
 With `FLYOLOGY_SIMD_ARCH=x86_64` and `FLYOLOGY_SIMD_AVX2=enabled`, the value
-`avx2` selects one isolated 256-bit lookup implementation at compile time. The
-build rejects other configurations that select this backend. The library
-performs no runtime feature check for that selection. Applications must deploy
-the resulting binary only where CPUID reports the AVX, AVX2, and OSXSAVE bits,
-and XCR0 enables XMM and YMM register state.
+`avx2` selects these implementations at compile time. The build rejects other
+configurations that select this backend. The library performs no runtime
+feature check for that selection. Before a target runs the resulting binary,
+CPUID must report the AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and
+YMM register state.
 
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
-aligned operation requires 32-byte alignment. The initial Wide profile has no
-other AVX2-specific 256-bit implementation or code-generation claim.
+aligned operation requires 32-byte alignment. Other Wide operations have no
+AVX2-specific 256-bit implementation or code-generation claim.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

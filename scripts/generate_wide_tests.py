@@ -552,6 +552,151 @@ def integer_test(f: Family) -> str:
                 Reference_Horizontal_Sum (Wide.To_Lanes (R_A)),
               "U8x32 randomized exact horizontal sum" & Iteration'Image);
 '''
+    byte_oracle_checks = ""
+    byte_boundary_checks = ""
+    if f.bits == 8:
+        if f.signed:
+            wrap = lambda operator: (
+                f"Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) {operator} "
+                "Value_To_Bits (R_B_Lanes (Lane)))"
+            )
+            saturate = lambda operator: (
+                f"I8 (Integer'Max (Integer (I8'First), Integer'Min "
+                f"(Integer (I8'Last), Integer (R_A_Lanes (Lane)) {operator} "
+                "Integer (R_B_Lanes (Lane)))))"
+            )
+            bit = lambda operator: (
+                f"Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) {operator} "
+                "Value_To_Bits (R_B_Lanes (Lane)))"
+            )
+            complement = "Bits_To_Value (not Value_To_Bits (R_A_Lanes (Lane)))"
+        else:
+            wrap = lambda operator: f"R_A_Lanes (Lane) {operator} R_B_Lanes (Lane)"
+            saturate = lambda operator: (
+                f"U8 (Natural'Min (Natural (U8'Last), Natural (R_A_Lanes (Lane)) {operator} "
+                "Natural (R_B_Lanes (Lane))))"
+                if operator == "+" else
+                "(if R_A_Lanes (Lane) < R_B_Lanes (Lane) then 0 "
+                "else R_A_Lanes (Lane) - R_B_Lanes (Lane))"
+            )
+            bit = lambda operator: f"R_A_Lanes (Lane) {operator} R_B_Lanes (Lane)"
+            complement = "not R_A_Lanes (Lane)"
+        byte_oracle_checks = f'''
+            declare
+               R_A_Lanes : constant Wide.{f.values} := Wide.To_Lanes (R_A);
+               R_B_Lanes : constant Wide.{f.values} := Wide.To_Lanes (R_B);
+               Add_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {wrap('+')}];
+               Subtract_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {wrap('-')}];
+               Multiply_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {wrap('*')}];
+               Add_Saturate_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {saturate('+')}];
+               Subtract_Saturate_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {saturate('-')}];
+               And_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {bit('and')}];
+               Or_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {bit('or')}];
+               Xor_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {bit('xor')}];
+               Not_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} => {complement}];
+               Min_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B)) = Multiply_Expected
+                 and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Multiply_Expected,
+                 "{f.vector} independent randomized wrapping arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Native.To_Lanes (Native.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected
+                 and then Native.To_Lanes (Native.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected,
+                 "{f.vector} independent randomized saturating arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Native.To_Lanes (Native.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Not (R_A)) = Not_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Not (R_A)) = Not_Expected,
+                 "{f.vector} independent randomized bitwise operations" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "{f.vector} independent randomized extrema" & Iteration'Image);
+            end;
+'''
+        if f.signed:
+            edge_a_base = (-128, 127, 127, -128, 100, -100, -1, 1)
+            edge_b_base = (-1, 1, 127, -128, 100, -100, -128, 127)
+
+            def wrap_value(value: int) -> int:
+                return ((value + 128) % 256) - 128
+
+            clamp = lambda value: max(-128, min(127, value))
+        else:
+            edge_a_base = (0, 255, 255, 1, 128, 127, 200, 55)
+            edge_b_base = (1, 1, 255, 2, 128, 129, 100, 250)
+            wrap_value = lambda value: value % 256
+            clamp = lambda value: max(0, min(255, value))
+        edge_a = (edge_a_base * (f.lanes // len(edge_a_base)))[:f.lanes]
+        edge_b = (edge_b_base * (f.lanes // len(edge_b_base)))[:f.lanes]
+
+        def values(items: tuple[int, ...]) -> str:
+            return ", ".join(str(item) for item in items)
+
+        byte_boundary_checks = f'''
+      declare
+         Edge_A : constant Wide.{f.vector} := Wide.From_Lanes ([{values(edge_a)}]);
+         Edge_B : constant Wide.{f.vector} := Wide.From_Lanes ([{values(edge_b)}]);
+         Add_Wrap_Expected : constant Wide.{f.values} :=
+           [{values(tuple(wrap_value(a + b) for a, b in zip(edge_a, edge_b)))}];
+         Subtract_Wrap_Expected : constant Wide.{f.values} :=
+           [{values(tuple(wrap_value(a - b) for a, b in zip(edge_a, edge_b)))}];
+         Multiply_Wrap_Expected : constant Wide.{f.values} :=
+           [{values(tuple(wrap_value(a * b) for a, b in zip(edge_a, edge_b)))}];
+         Add_Saturate_Expected : constant Wide.{f.values} :=
+           [{values(tuple(clamp(a + b) for a, b in zip(edge_a, edge_b)))}];
+         Subtract_Saturate_Expected : constant Wide.{f.values} :=
+           [{values(tuple(clamp(a - b) for a, b in zip(edge_a, edge_b)))}];
+         Min_Expected : constant Wide.{f.values} :=
+           [{values(tuple(min(a, b) for a, b in zip(edge_a, edge_b)))}];
+         Max_Expected : constant Wide.{f.values} :=
+           [{values(tuple(max(a, b) for a, b in zip(edge_a, edge_b)))}];
+      begin
+         Check (Wide.To_Lanes (Wide.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Native.To_Lanes (Native.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Native.To_Lanes (Native.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected
+           and then Native.To_Lanes (Native.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected,
+           "{f.vector} literal wrapping boundaries");
+         Check (Wide.To_Lanes (Wide.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Native.To_Lanes (Native.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected
+           and then Native.To_Lanes (Native.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected,
+           "{f.vector} literal saturation boundaries");
+         Check (Wide.To_Lanes (Wide.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Edge_A, Edge_B)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Edge_A, Edge_B)) = Max_Expected,
+           "{f.vector} literal signedness extrema");
+      end;
+'''
     return f"""
    procedure Test_{f.vector} is
 {('      function Bits_To_Value is new Ada.Unchecked_Conversion (' + unsigned + ', ' + f.scalar + ');') if f.signed else ''}
@@ -622,6 +767,7 @@ def integer_test(f: Family) -> str:
         "{f.vector} complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
+{byte_boundary_checks}
 {lookup_checks}
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, {f.bits})) = Wide.{f.values}'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, {f.bits + 7})) = Wide.{f.values}'[others => 0],
@@ -862,6 +1008,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
+{byte_oracle_checks}
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)){' and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift))' if f.signed else ''},
               "{f.vector} randomized shifts" & Iteration'Image);

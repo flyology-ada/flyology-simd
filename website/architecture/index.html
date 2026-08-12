@@ -84,18 +84,19 @@
               <tr><td><a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a></td><td>The full 128-bit primitive contract for the selected scalar, AArch64, or x86-64 body.</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Backends.Scalar"><code>Backends.Scalar</code></a></td><td>The full 128-bit primitive contract. Each declaration renames the corresponding root scalar subprogram and matches a <code>Backends.Native</code> declaration.</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a></td><td>Private 256-bit types, the initial Wide operation profile, and its scalar authority.</td></tr>
-              <tr><td><a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a></td><td>Static target selection for Wide operations. Most operations compose selected 128-bit operations across private parts. The optional x86-64 AVX2 backend supplies one isolated 256-bit byte-table lookup implementation.</td></tr>
+              <tr><td><a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a></td><td>Static target selection for Wide operations. Most operations compose selected 128-bit operations across private parts. The optional x86-64 AVX2 backend supplies isolated 256-bit implementations for selected byte operations.</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Algorithms.Generic_Bytes"><code>Algorithms.Generic_Bytes</code></a></td><td>Static composition for <code>Find_First</code>, <code>Count</code>, and <code>Is_ASCII</code>.</td></tr>
               <tr><td><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a></td><td>One backend choice for one complete byte-buffer operation.</td></tr>
             </tbody>
           </table>
           <p>The root scalar body is the semantic reference for the complete 128-bit family. The Wide body is the scalar authority for its initial profile. Differential tests compare every current Wide Native operation group with that authority.</p>
-          <p>Wide values currently contain two private 128-bit parts. This mechanism is not a public representation or ABI. Only the optional x86-64 AVX2 <a data-api="Flyology_SIMD.Wide.U8x32"><code>U8x32</code></a> table lookup has a 256-bit instruction-sequence claim.</p>
+          <p>Wide values currently contain two private 128-bit parts. This mechanism is not a public representation or ABI. The optional x86-64 AVX2 backend has 256-bit instruction-sequence claims only for selected <a data-api="Flyology_SIMD.Wide.U8x32"><code>U8x32</code></a> and <a data-api="Flyology_SIMD.Wide.I8x32"><code>I8x32</code></a> operations.</p>
           <p><code>Wide.Native</code> uses these mechanisms:</p>
           <ul>
             <li>Bit casts apply the selected 128-bit bit cast to each private part.</li>
             <li>Two-source lane maps use fixed-width Ada composition and lane-access operations from the selected 128-bit backend.</li>
             <li>Conversions compose selected 128-bit operations. Widening applies <a data-api="Flyology_SIMD.Backends.Native"><code>Widen_Low</code> and <code>Widen_High</code></a> to the selected private part. Narrowing converts both private parts of each input. Same-width numeric conversions apply one operation to each private part.</li>
+            <li>The composed and AArch64 byte mechanisms apply selected 128-bit operations to both private parts. The AVX2 mechanism uses isolated 256-bit subprograms for the <a data-api="Flyology_SIMD.Wide.Native"><code>Add_Wrap</code>, <code>Subtract_Wrap</code>, <code>Multiply_Wrap</code>, <code>Add_Saturate</code>, <code>Subtract_Saturate</code>, <code>Bitwise_And</code>, <code>Bitwise_Or</code>, <code>Bitwise_Xor</code>, <code>Bitwise_Not</code>, <code>Min</code>, and <code>Max</code></a> byte overloads.</li>
             <li>The 32-entry <a data-api="Flyology_SIMD.Wide.Native.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Table_Lookup</code></a> uses composed target code by default. An x86-64 build can select one isolated AVX2 256-bit implementation instead.</li>
             <li>The <a data-api="Flyology_SIMD.Wide.Native.Horizontal_Sum" data-api-signature="Value : U8x32) return Natural"><code>Horizontal_Sum</code></a> operation computes the exact byte sum by adding two target-selected 128-bit exact byte-sum results.</li>
           </ul>
@@ -104,14 +105,14 @@
         <section id="static">
           <h2>Select primitive code at build time</h2>
           <p>The GPR scenario selects one body for <code>Backends.Native</code>. The choices are <code>scalar</code>, <code>aarch64</code>, and <code>x86_64</code>. Native architecture detection sets this value for normal Alire builds.</p>
-          <p><code>FLYOLOGY_SIMD_WIDE_BACKEND</code> selects the Wide lookup mechanism. Its default value, <code>composed</code>, preserves the target's composed implementation. The value <code>avx2</code> selects one isolated 256-bit lookup implementation. The build accepts this value only with <code>FLYOLOGY_SIMD_ARCH=x86_64</code> and <code>FLYOLOGY_SIMD_AVX2=enabled</code>.</p>
-          <div class="semantic-callout"><strong>The Wide AVX2 selection requires compatible targets.</strong><p>The static Wide lookup performs no runtime feature check. Use this build only when CPUID reports the AVX, AVX2, and OSXSAVE bits, and XCR0 enables XMM and YMM register state.</p></div>
+          <p><code>FLYOLOGY_SIMD_WIDE_BACKEND</code> selects the Wide byte-operation mechanisms. Its default value, <code>composed</code>, preserves the target's composed implementations. The value <code>avx2</code> selects the isolated 256-bit implementations. The build accepts this value only with <code>FLYOLOGY_SIMD_ARCH=x86_64</code> and <code>FLYOLOGY_SIMD_AVX2=enabled</code>.</p>
+          <div class="semantic-callout"><strong>The Wide AVX2 selection requires compatible targets.</strong><p>The static Wide operations perform no runtime feature check. Before a target runs this build, CPUID must report the AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.</p></div>
           <p><code>Algorithms.Generic_Bytes</code> receives primitive operations as generic formal subprograms. GNAT can inline those operations into the vector loop. There is no runtime feature test in each addition, comparison, or load.</p>
         </section>
         <section id="runtime">
           <h2>Select optional code once per buffer</h2>
           <p><a data-api="Flyology_SIMD.Features"><code>Features</code></a> reports which backends were compiled and which can run on the current system. <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> chooses one implementation before it starts the buffer loop.</p>
-          <p>The feature-checked <a data-api="Flyology_SIMD.Algorithms.AVX2"><code>Algorithms.AVX2</code></a> boundary is separate from the statically selected Wide lookup. Selecting the Wide AVX2 lookup does not add runtime dispatch.</p>
+          <p>The feature-checked <a data-api="Flyology_SIMD.Algorithms.AVX2"><code>Algorithms.AVX2</code></a> boundary is separate from the statically selected Wide operations. Selecting the Wide AVX2 backend does not add runtime dispatch.</p>
           <p>On x86-64, the AVX2 check requires CPUID to report the AVX, AVX2, and OSXSAVE bits. It also requires XCR0 to enable XMM and YMM register state. The AVX2 implementation is in separate objects.</p>
           <p>AArch64 Advanced SIMD, commonly called NEON, is part of the AArch64 architecture baseline. The AArch64 backend does not need a separate NEON feature test.</p>
         </section>

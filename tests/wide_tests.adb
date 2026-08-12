@@ -140,6 +140,44 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U8x32 double complement");
 
+      declare
+         Edge_A : constant Wide.U8x32 := Wide.From_Lanes ([0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55]);
+         Edge_B : constant Wide.U8x32 := Wide.From_Lanes ([1, 1, 255, 2, 128, 129, 100, 250, 1, 1, 255, 2, 128, 129, 100, 250, 1, 1, 255, 2, 128, 129, 100, 250, 1, 1, 255, 2, 128, 129, 100, 250]);
+         Add_Wrap_Expected : constant Wide.Lane_Values_U8x32 :=
+           [1, 0, 254, 3, 0, 0, 44, 49, 1, 0, 254, 3, 0, 0, 44, 49, 1, 0, 254, 3, 0, 0, 44, 49, 1, 0, 254, 3, 0, 0, 44, 49];
+         Subtract_Wrap_Expected : constant Wide.Lane_Values_U8x32 :=
+           [255, 254, 0, 255, 0, 254, 100, 61, 255, 254, 0, 255, 0, 254, 100, 61, 255, 254, 0, 255, 0, 254, 100, 61, 255, 254, 0, 255, 0, 254, 100, 61];
+         Multiply_Wrap_Expected : constant Wide.Lane_Values_U8x32 :=
+           [0, 255, 1, 2, 0, 255, 32, 182, 0, 255, 1, 2, 0, 255, 32, 182, 0, 255, 1, 2, 0, 255, 32, 182, 0, 255, 1, 2, 0, 255, 32, 182];
+         Add_Saturate_Expected : constant Wide.Lane_Values_U8x32 :=
+           [1, 255, 255, 3, 255, 255, 255, 255, 1, 255, 255, 3, 255, 255, 255, 255, 1, 255, 255, 3, 255, 255, 255, 255, 1, 255, 255, 3, 255, 255, 255, 255];
+         Subtract_Saturate_Expected : constant Wide.Lane_Values_U8x32 :=
+           [0, 254, 0, 0, 0, 0, 100, 0, 0, 254, 0, 0, 0, 0, 100, 0, 0, 254, 0, 0, 0, 0, 100, 0, 0, 254, 0, 0, 0, 0, 100, 0];
+         Min_Expected : constant Wide.Lane_Values_U8x32 :=
+           [0, 1, 255, 1, 128, 127, 100, 55, 0, 1, 255, 1, 128, 127, 100, 55, 0, 1, 255, 1, 128, 127, 100, 55, 0, 1, 255, 1, 128, 127, 100, 55];
+         Max_Expected : constant Wide.Lane_Values_U8x32 :=
+           [1, 255, 255, 2, 128, 129, 200, 250, 1, 255, 255, 2, 128, 129, 200, 250, 1, 255, 255, 2, 128, 129, 200, 250, 1, 255, 255, 2, 128, 129, 200, 250];
+      begin
+         Check (Wide.To_Lanes (Wide.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Native.To_Lanes (Native.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Native.To_Lanes (Native.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected
+           and then Native.To_Lanes (Native.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected,
+           "U8x32 literal wrapping boundaries");
+         Check (Wide.To_Lanes (Wide.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Native.To_Lanes (Native.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected
+           and then Native.To_Lanes (Native.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected,
+           "U8x32 literal saturation boundaries");
+         Check (Wide.To_Lanes (Wide.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Edge_A, Edge_B)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Edge_A, Edge_B)) = Max_Expected,
+           "U8x32 literal signedness extrema");
+      end;
+
+
       Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Mixed_Indices)) =
         Reference_Table_Lookup (Lookup_Table_Lanes, Mixed_Index_Lanes)
         and then Native.To_Lanes (Native.Table_Lookup (Lookup_Table, Mixed_Indices)) =
@@ -419,6 +457,65 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "U8x32 randomized bitwise extrema" & Iteration'Image);
+
+            declare
+               R_A_Lanes : constant Wide.Lane_Values_U8x32 := Wide.To_Lanes (R_A);
+               R_B_Lanes : constant Wide.Lane_Values_U8x32 := Wide.To_Lanes (R_B);
+               Add_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) + R_B_Lanes (Lane)];
+               Subtract_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) - R_B_Lanes (Lane)];
+               Multiply_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) * R_B_Lanes (Lane)];
+               Add_Saturate_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => U8 (Natural'Min (Natural (U8'Last), Natural (R_A_Lanes (Lane)) + Natural (R_B_Lanes (Lane))))];
+               Subtract_Saturate_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => (if R_A_Lanes (Lane) < R_B_Lanes (Lane) then 0 else R_A_Lanes (Lane) - R_B_Lanes (Lane))];
+               And_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) and R_B_Lanes (Lane)];
+               Or_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) or R_B_Lanes (Lane)];
+               Xor_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => R_A_Lanes (Lane) xor R_B_Lanes (Lane)];
+               Not_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => not R_A_Lanes (Lane)];
+               Min_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B)) = Multiply_Expected
+                 and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Multiply_Expected,
+                 "U8x32 independent randomized wrapping arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Native.To_Lanes (Native.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected
+                 and then Native.To_Lanes (Native.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected,
+                 "U8x32 independent randomized saturating arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Native.To_Lanes (Native.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Not (R_A)) = Not_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Not (R_A)) = Not_Expected,
+                 "U8x32 independent randomized bitwise operations" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "U8x32 independent randomized extrema" & Iteration'Image);
+            end;
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U8x32 randomized shifts" & Iteration'Image);
@@ -543,6 +640,44 @@ procedure Wide_Tests is
         "I8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I8x32 double complement");
+
+      declare
+         Edge_A : constant Wide.I8x32 := Wide.From_Lanes ([-128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1]);
+         Edge_B : constant Wide.I8x32 := Wide.From_Lanes ([-1, 1, 127, -128, 100, -100, -128, 127, -1, 1, 127, -128, 100, -100, -128, 127, -1, 1, 127, -128, 100, -100, -128, 127, -1, 1, 127, -128, 100, -100, -128, 127]);
+         Add_Wrap_Expected : constant Wide.Lane_Values_I8x32 :=
+           [127, -128, -2, 0, -56, 56, 127, -128, 127, -128, -2, 0, -56, 56, 127, -128, 127, -128, -2, 0, -56, 56, 127, -128, 127, -128, -2, 0, -56, 56, 127, -128];
+         Subtract_Wrap_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126];
+         Multiply_Wrap_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-128, 127, 1, 0, 16, 16, -128, 127, -128, 127, 1, 0, 16, 16, -128, 127, -128, 127, 1, 0, 16, 16, -128, 127, -128, 127, 1, 0, 16, 16, -128, 127];
+         Add_Saturate_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-128, 127, 127, -128, 127, -128, -128, 127, -128, 127, 127, -128, 127, -128, -128, 127, -128, 127, 127, -128, 127, -128, -128, 127, -128, 127, 127, -128, 127, -128, -128, 127];
+         Subtract_Saturate_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126, -127, 126, 0, 0, 0, 0, 127, -126];
+         Min_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-128, 1, 127, -128, 100, -100, -128, 1, -128, 1, 127, -128, 100, -100, -128, 1, -128, 1, 127, -128, 100, -100, -128, 1, -128, 1, 127, -128, 100, -100, -128, 1];
+         Max_Expected : constant Wide.Lane_Values_I8x32 :=
+           [-1, 127, 127, -128, 100, -100, -1, 127, -1, 127, 127, -128, 100, -100, -1, 127, -1, 127, 127, -128, 100, -100, -1, 127, -1, 127, 127, -128, 100, -100, -1, 127];
+      begin
+         Check (Wide.To_Lanes (Wide.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Native.To_Lanes (Native.Add_Wrap (Edge_A, Edge_B)) = Add_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Native.To_Lanes (Native.Subtract_Wrap (Edge_A, Edge_B)) = Subtract_Wrap_Expected
+           and then Wide.To_Lanes (Wide.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected
+           and then Native.To_Lanes (Native.Multiply_Wrap (Edge_A, Edge_B)) = Multiply_Wrap_Expected,
+           "I8x32 literal wrapping boundaries");
+         Check (Wide.To_Lanes (Wide.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Native.To_Lanes (Native.Add_Saturate (Edge_A, Edge_B)) = Add_Saturate_Expected
+           and then Wide.To_Lanes (Wide.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected
+           and then Native.To_Lanes (Native.Subtract_Saturate (Edge_A, Edge_B)) = Subtract_Saturate_Expected,
+           "I8x32 literal saturation boundaries");
+         Check (Wide.To_Lanes (Wide.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Edge_A, Edge_B)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Edge_A, Edge_B)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Edge_A, Edge_B)) = Max_Expected,
+           "I8x32 literal signedness extrema");
+      end;
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 8)) = Wide.Lane_Values_I8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 15)) = Wide.Lane_Values_I8x32'[others => 0],
@@ -798,6 +933,65 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I8x32 randomized bitwise extrema" & Iteration'Image);
+
+            declare
+               R_A_Lanes : constant Wide.Lane_Values_I8x32 := Wide.To_Lanes (R_A);
+               R_B_Lanes : constant Wide.Lane_Values_I8x32 := Wide.To_Lanes (R_B);
+               Add_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) + Value_To_Bits (R_B_Lanes (Lane)))];
+               Subtract_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) - Value_To_Bits (R_B_Lanes (Lane)))];
+               Multiply_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) * Value_To_Bits (R_B_Lanes (Lane)))];
+               Add_Saturate_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => I8 (Integer'Max (Integer (I8'First), Integer'Min (Integer (I8'Last), Integer (R_A_Lanes (Lane)) + Integer (R_B_Lanes (Lane)))))];
+               Subtract_Saturate_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => I8 (Integer'Max (Integer (I8'First), Integer'Min (Integer (I8'Last), Integer (R_A_Lanes (Lane)) - Integer (R_B_Lanes (Lane)))))];
+               And_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) and Value_To_Bits (R_B_Lanes (Lane)))];
+               Or_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) or Value_To_Bits (R_B_Lanes (Lane)))];
+               Xor_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (Value_To_Bits (R_A_Lanes (Lane)) xor Value_To_Bits (R_B_Lanes (Lane)))];
+               Not_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 => Bits_To_Value (not Value_To_Bits (R_A_Lanes (Lane)))];
+               Min_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Add_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Subtract_Expected
+                 and then Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B)) = Multiply_Expected
+                 and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Multiply_Expected,
+                 "I8x32 independent randomized wrapping arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Native.To_Lanes (Native.Add_Saturate (R_A, R_B)) = Add_Saturate_Expected
+                 and then Wide.To_Lanes (Wide.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected
+                 and then Native.To_Lanes (Native.Subtract_Saturate (R_A, R_B)) = Subtract_Saturate_Expected,
+                 "I8x32 independent randomized saturating arithmetic" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Native.To_Lanes (Native.Bitwise_And (R_A, R_B)) = And_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Or (R_A, R_B)) = Or_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Xor (R_A, R_B)) = Xor_Expected
+                 and then Wide.To_Lanes (Wide.Bitwise_Not (R_A)) = Not_Expected
+                 and then Native.To_Lanes (Native.Bitwise_Not (R_A)) = Not_Expected,
+                 "I8x32 independent randomized bitwise operations" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "I8x32 independent randomized extrema" & Iteration'Image);
+            end;
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I8x32 randomized shifts" & Iteration'Image);
@@ -910,6 +1104,7 @@ procedure Wide_Tests is
         "U16x16 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U16x16 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_U16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 23)) = Wide.Lane_Values_U16x16'[others => 0],
@@ -1166,6 +1361,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "U16x16 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U16x16 randomized shifts" & Iteration'Image);
@@ -1279,6 +1475,7 @@ procedure Wide_Tests is
         "I16x16 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I16x16 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_I16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 23)) = Wide.Lane_Values_I16x16'[others => 0],
@@ -1534,6 +1731,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I16x16 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I16x16 randomized shifts" & Iteration'Image);
@@ -1646,6 +1844,7 @@ procedure Wide_Tests is
         "U32x8 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U32x8 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_U32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 39)) = Wide.Lane_Values_U32x8'[others => 0],
@@ -1918,6 +2117,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "U32x8 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U32x8 randomized shifts" & Iteration'Image);
@@ -2047,6 +2247,7 @@ procedure Wide_Tests is
         "I32x8 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I32x8 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_I32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 39)) = Wide.Lane_Values_I32x8'[others => 0],
@@ -2318,6 +2519,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I32x8 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I32x8 randomized shifts" & Iteration'Image);
@@ -2446,6 +2648,7 @@ procedure Wide_Tests is
         "U64x4 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U64x4 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_U64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 71)) = Wide.Lane_Values_U64x4'[others => 0],
@@ -2718,6 +2921,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "U64x4 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U64x4 randomized shifts" & Iteration'Image);
@@ -2847,6 +3051,7 @@ procedure Wide_Tests is
         "I64x4 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I64x4 double complement");
+
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_I64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 71)) = Wide.Lane_Values_I64x4'[others => 0],
@@ -3118,6 +3323,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I64x4 randomized bitwise extrema" & Iteration'Image);
+
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I64x4 randomized shifts" & Iteration'Image);

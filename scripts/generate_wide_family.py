@@ -510,9 +510,21 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
               ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate",
                "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max"))
     for name in binary:
-        out.append(pair_function(name, f, f"Left, Right : {f.vector}", "Left.Low, Right.Low", "Left.High, Right.High", prefix=p))
+        if p != "Flyology_SIMD" and f.vector in ("U8x32", "I8x32"):
+            out.append(
+                f"   function {name} (Left, Right : {f.vector}) return {f.vector} is\n"
+                f"     (Byte_Mechanism.{name} (Left, Right));"
+            )
+        else:
+            out.append(pair_function(name, f, f"Left, Right : {f.vector}", "Left.Low, Right.Low", "Left.High, Right.High", prefix=p))
     if not f.floating:
-        out.append(pair_function("Bitwise_Not", f, f"Value : {f.vector}", "Value.Low", "Value.High", prefix=p))
+        if p != "Flyology_SIMD" and f.vector in ("U8x32", "I8x32"):
+            out.append(
+                f"   function Bitwise_Not (Value : {f.vector}) return {f.vector} is\n"
+                "     (Byte_Mechanism.Bitwise_Not (Value));"
+            )
+        else:
+            out.append(pair_function("Bitwise_Not", f, f"Value : {f.vector}", "Value.Low", "Value.High", prefix=p))
         for name in ("Shift_Left_Logical", "Shift_Right_Logical") + (("Shift_Right_Arithmetic",) if f.signed else ()):
             out.append(pair_function(name, f, f"Value : {f.vector}; Count : Natural", "Value.Low, Count", "Value.High, Count", prefix=p))
     comparisons = ("Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal") + (("Unordered",) if f.floating else ())
@@ -746,10 +758,12 @@ def native_body_text() -> str:
         seen_shapes.add(shape)
     conversions = conversion_bodies("Flyology_SIMD.Backends.Native")
     return f"""with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
+   package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;

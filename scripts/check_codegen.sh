@@ -25,6 +25,7 @@ feature_object="$object_root/flyology_simd-features.o"
 slide_probe_object="$probe_root/slide_codegen_probe.o"
 permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
+wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 
 disassemble() {
@@ -41,6 +42,13 @@ disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
+if [ -f "$wide_byte_object" ]; then
+    disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
+    nm -u "$wide_byte_object" >"$temporary/wide-byte-undefined.txt"
+else
+    : >"$temporary/wide-byte.txt"
+    : >"$temporary/wide-byte-undefined.txt"
+fi
 disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 
@@ -141,7 +149,7 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
         extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         extract_symbol 'wide_codegen_probe__u8_horizontal_sum' "$temporary/wide-probe.txt" "$temporary/wide_u8_horizontal_sum.txt"
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two NEON byte-add leaves in wide caller'
+        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two inlined NEON byte-add leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_to_u32.txt" 'two NEON F32-to-U32 bit-cast leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_widen.txt" 'two NEON byte-widen leaves in wide caller'
@@ -151,7 +159,7 @@ case "$architecture" in
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
         extract_symbol 'table_lookup_half' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
         require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
-        require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
+        require_pattern 'flyology_simd__backends__native__(neon_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
@@ -159,7 +167,7 @@ case "$architecture" in
         require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
         require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
-        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 9 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        require_count 'flyology_simd__backends__native__((neon_)?add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 9 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
         forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
         forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
@@ -260,6 +268,11 @@ case "$architecture" in
                         continue
                     fi
                     ;;
+                *flyology_simd-wide-byte_avx2_leaf.o)
+                    if [ "$wide_backend" = avx2 ]; then
+                        continue
+                    fi
+                    ;;
             esac
             disassemble "$object" >>"$temporary/baseline.txt"
         done
@@ -315,7 +328,11 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
         extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         extract_symbol 'wide_codegen_probe__u8_horizontal_sum' "$temporary/wide-probe.txt" "$temporary/wide_u8_horizontal_sum.txt"
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two SSE2 byte-add leaves in wide caller'
+        if [ "$wide_backend" = avx2 ]; then
+            require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
+        else
+            require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two inlined SSE2 byte-add leaves in wide caller'
+        fi
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_multiply.txt" 'two SSE F32-multiply leaves in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_to_u32.txt" 'two SSE F32-to-U32 bit-cast leaves in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_widen.txt" 'two selected byte-widen operations in wide caller'
@@ -323,7 +340,12 @@ case "$architecture" in
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
         require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum operations in wide caller'
-        require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
+        if [ "$wide_backend" = avx2 ]; then
+            require_pattern 'flyology_simd__wide__byte_avx2_leaf__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the isolated AVX2 byte implementation'
+            forbid_pattern 'flyology_simd__wide__byte_mechanism__' "$temporary/wide-undefined.txt" 'non-AVX2 byte mechanism call retained in the public Wide caller'
+        else
+            require_pattern 'flyology_simd__backends__native__(u8_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
+        fi
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
@@ -331,7 +353,11 @@ case "$architecture" in
         require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
         require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
-        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 9 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        if [ "$wide_backend" = avx2 ]; then
+            require_count 'flyology_simd__backends__native__(multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__(byte_avx2_leaf__add_wrap|lookup_mechanism__table_lookup_32)' 9 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
+        else
+            require_count 'flyology_simd__backends__native__((u8_)?add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 9 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
+        fi
         forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
         forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
@@ -356,6 +382,62 @@ case "$architecture" in
               'constant-time first-set-bit extraction in the AVX2 algorithm'
         fi
         if [ "$wide_backend" = avx2 ]; then
+            extract_symbol 'byte_avx2_leaf__add_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_add.txt"
+            extract_symbol 'byte_avx2_leaf__add_wrap__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_add.txt"
+            extract_symbol 'byte_avx2_leaf__subtract_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_subtract.txt"
+            extract_symbol 'byte_avx2_leaf__subtract_wrap__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_subtract.txt"
+            extract_symbol 'byte_avx2_leaf__multiply_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_multiply.txt"
+            extract_symbol 'byte_avx2_leaf__multiply_wrap__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_multiply.txt"
+            extract_symbol 'byte_avx2_leaf__add_saturate' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_add_sat.txt"
+            extract_symbol 'byte_avx2_leaf__add_saturate__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_add_sat.txt"
+            extract_symbol 'byte_avx2_leaf__subtract_saturate' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_sub_sat.txt"
+            extract_symbol 'byte_avx2_leaf__subtract_saturate__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_sub_sat.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_and' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_and.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_and__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_and.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_or' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_or.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_or__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_or.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_xor' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_xor.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_xor__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_xor.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_not' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_not.txt"
+            extract_symbol 'byte_avx2_leaf__bitwise_not__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_not.txt"
+            extract_symbol 'byte_avx2_leaf__min' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_min.txt"
+            extract_symbol 'byte_avx2_leaf__min__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_min.txt"
+            extract_symbol 'byte_avx2_leaf__max' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_max.txt"
+            extract_symbol 'byte_avx2_leaf__max__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_max.txt"
+            require_pattern 'vpaddb' "$temporary/wide_byte_u8_add.txt" 'AVX2 unsigned wrapping byte addition'
+            require_pattern 'vpaddb' "$temporary/wide_byte_i8_add.txt" 'AVX2 signed wrapping byte addition'
+            require_pattern 'vpsubb' "$temporary/wide_byte_u8_subtract.txt" 'AVX2 unsigned wrapping byte subtraction'
+            require_pattern 'vpsubb' "$temporary/wide_byte_i8_subtract.txt" 'AVX2 signed wrapping byte subtraction'
+            require_pattern 'vpmullw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned wrapping byte multiplication composition'
+            require_pattern 'vpmullw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed wrapping byte multiplication composition'
+            require_pattern 'vpand' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned wrapping byte product truncation'
+            require_pattern 'vpand' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed wrapping byte product truncation'
+            require_pattern 'vpsrlw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned odd-byte extraction'
+            require_pattern 'vpsrlw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed odd-byte extraction'
+            require_pattern 'vpsllw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned odd-byte placement'
+            require_pattern 'vpsllw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed odd-byte placement'
+            require_pattern 'vpaddusb' "$temporary/wide_byte_u8_add_sat.txt" 'AVX2 unsigned saturating byte addition'
+            require_pattern 'vpaddsb' "$temporary/wide_byte_i8_add_sat.txt" 'AVX2 signed saturating byte addition'
+            require_pattern 'vpsubusb' "$temporary/wide_byte_u8_sub_sat.txt" 'AVX2 unsigned saturating byte subtraction'
+            require_pattern 'vpsubsb' "$temporary/wide_byte_i8_sub_sat.txt" 'AVX2 signed saturating byte subtraction'
+            require_pattern 'vpand' "$temporary/wide_byte_u8_and.txt" 'AVX2 unsigned byte bitwise conjunction'
+            require_pattern 'vpand' "$temporary/wide_byte_i8_and.txt" 'AVX2 signed byte bitwise conjunction'
+            require_pattern 'vpor' "$temporary/wide_byte_u8_or.txt" 'AVX2 unsigned byte bitwise disjunction'
+            require_pattern 'vpor' "$temporary/wide_byte_i8_or.txt" 'AVX2 signed byte bitwise disjunction'
+            require_pattern 'vpxor' "$temporary/wide_byte_u8_xor.txt" 'AVX2 unsigned byte bitwise exclusive disjunction'
+            require_pattern 'vpxor' "$temporary/wide_byte_i8_xor.txt" 'AVX2 signed byte bitwise exclusive disjunction'
+            require_pattern 'vpcmpeqd' "$temporary/wide_byte_u8_not.txt" 'AVX2 unsigned byte complement mask'
+            require_pattern 'vpxor' "$temporary/wide_byte_u8_not.txt" 'AVX2 unsigned byte complement'
+            require_pattern 'vpcmpeqd' "$temporary/wide_byte_i8_not.txt" 'AVX2 signed byte complement mask'
+            require_pattern 'vpxor' "$temporary/wide_byte_i8_not.txt" 'AVX2 signed byte complement'
+            require_pattern 'vpminub' "$temporary/wide_byte_u8_min.txt" 'AVX2 unsigned byte minimum'
+            require_pattern 'vpminsb' "$temporary/wide_byte_i8_min.txt" 'AVX2 signed byte minimum'
+            require_pattern 'vpmaxub' "$temporary/wide_byte_u8_max.txt" 'AVX2 unsigned byte maximum'
+            require_pattern 'vpmaxsb' "$temporary/wide_byte_i8_max.txt" 'AVX2 signed byte maximum'
+            for leaf in "$temporary"/wide_byte_*.txt; do
+                require_pattern 'vzeroupper' "$leaf" 'AVX-SSE transition cleanup in each Wide byte leaf'
+            done
+            forbid_pattern 'flyology_simd__backends__native|flyology_simd__wide__(native|add_wrap|subtract_wrap|multiply_wrap|add_saturate|subtract_saturate|bitwise_|min|max)' "$temporary/wide-byte-undefined.txt" 'scalar, composed, or public dispatcher call from the AVX2 byte implementation'
             extract_symbol 'table_lookup_32' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
             require_pattern 'vpshufb' "$temporary/wide_lookup_leaf.txt" \
               'AVX2 lane-local byte selection in the Wide lookup leaf'
