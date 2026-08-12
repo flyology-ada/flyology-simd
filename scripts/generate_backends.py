@@ -316,6 +316,29 @@ def neon_helpers() -> list[str]:
         "",
         "   generic",
         "      type Vector_Type is private;",
+        "   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type;",
+        "   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT &",
+        "           \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp1 v2.4s, v0.4s, v0.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp2 v3.4s, v0.4s, v0.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp1 v4.4s, v1.4s, v1.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp2 v5.4s, v1.4s, v1.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"umull v6.2d, v2.2s, v4.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"mul v7.2s, v2.2s, v5.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"mla v7.2s, v3.2s, v4.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"shll v7.2d, v7.2s, #32\" & ASCII.LF & ASCII.HT &",
+        "           \"add v0.2d, v6.2d, v7.2d\" & ASCII.LF & ASCII.HT &",
+        "           \"str q0, [%0]\",",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address)],",
+        "           Clobber => \"v0,v1,v2,v3,v4,v5,v6,v7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Multiply_64_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
         "      type Map_Type is private;",
         "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type;",
         "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type is",
@@ -795,7 +818,10 @@ def neon_body() -> str:
         ]
         out += neon_compress_expand(vector, bits, lanes)
         if bits == 64:
-            out.append(call("Multiply_Wrap", vector, "Left, Right", f"Left, Right : {vector}"))
+            out += [
+                f"   function Native_Multiply_Wrap_{vector} is new NEON_Multiply_64_128 ({vector});",
+                f"   function Multiply_Wrap (Left, Right : {vector}) return {vector} is (Native_Multiply_Wrap_{vector} (Left, Right));",
+            ]
         dup = f"dup v1.{shape}, %{'2' if bits == 64 else 'w2'}"
         for name, amount, instruction in (
             ("Shift_Left_Logical", "Interfaces.Integer_64 (Count)", f"ushl v0.{shape}, v0.{shape}, v1.{shape}"),
@@ -1521,6 +1547,23 @@ def test_program() -> str:
             f"      Default_Two_Source_Map : {two_source_lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
+            *(
+                [
+                    "      Multiply_Edge_Left : constant U64x2 := From_Lanes ([16#FFFF_FFFF_0000_0001#, 16#8000_0001_0000_0001#]);",
+                    "      Multiply_Edge_Right : constant U64x2 := From_Lanes ([16#0000_0002_FFFF_FFFF#, 16#FFFF_FFFF_0000_0003#]);",
+                    "      Multiply_Edge_Expected : constant Lane_Values_U64x2 := [16#0000_0003_FFFF_FFFF#, 16#8000_0002_0000_0003#];",
+                ]
+                if vector == "U64x2"
+                else (
+                    [
+                        "      Multiply_Edge_Left : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFF_0000_0001#)]);",
+                        "      Multiply_Edge_Right : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#FFFF_FFFF_FFFF_FFFF#), Bits_To_I64x2 (16#FFFF_FFFE_0000_0003#)]);",
+                        "      Multiply_Edge_Expected : constant Lane_Values_I64x2 := [Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFB_0000_0003#)];",
+                    ]
+                    if vector == "I64x2"
+                    else []
+                )
+            ),
             "   begin",
             f"      Check (To_Lanes (A) = [{agg_a}], \"{vector} scalar lane construction\");",
             f"      Check (Same ({vector}'(Backends.Native.Zero), {vector}'(Zero)) and then Same ({vector}'(Backends.Native.Splat (To_Lanes (A) (0))), {vector}'(Splat (To_Lanes (A) (0)))), \"{vector} native construction\");",
@@ -1533,6 +1576,10 @@ def test_program() -> str:
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
+        if bits == 64:
+            lines.append(
+                f"      Check (Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, \"{vector} independent 32-bit partial-product boundaries\");"
+            )
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
             f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");",
@@ -1657,7 +1704,7 @@ def test_program() -> str:
             f"               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
-            f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent multiply oracle\" & Lane'Image);",
+            f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent scalar and native multiply oracle\" & Lane'Image);",
             f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent saturation oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Extract (Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} independent bitwise oracle\" & Lane'Image);",
             f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",

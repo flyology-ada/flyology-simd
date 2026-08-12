@@ -38,11 +38,24 @@ expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
 `Compress` and `Expand` derive an index map from the mask and then use
 `tbl` for every value family.
-`Multiply_Wrap` and `Select_Value` use scalar composition for `U64x2` and
-`I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
-composition for `F32x4` and `F64x2`. Floating minimum-number and
+The `U64x2` and `I64x2` `Multiply_Wrap` overloads use a dedicated Advanced
+SIMD sequence. The sequence separates each operand lane into low and high
+32-bit parts. It computes the low-by-low product and the low 32 bits of the
+low-by-high and high-by-low cross-products. It adds the cross-products, shifts
+that sum left by 32 bits, and adds the shifted value to the low-by-low product.
+The sequence keeps the low 64 bits. The high-by-high product cannot affect
+those bits. `Select_Value` uses scalar composition for `U64x2` and `I64x2`.
+`Select_Value`, `Reduce_Add`, and `Unordered` use scalar composition for
+`F32x4` and `F64x2`. Floating minimum-number and
 maximum-number reductions use scalar Advanced SIMD leaves in ascending lane
 order.
+
+Fixed test cases for signed and unsigned lanes cover 32-bit partial-product
+boundaries. For each type, 250 deterministic pseudorandom cases use an
+independent lane oracle for wrapping multiplication. The AArch64
+code-generation gate requires the deinterleave, low-by-low multiplication,
+cross-product, shift, and addition instruction classes in both overloads. It
+rejects calls to the portable multiplication operation.
 
 x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full

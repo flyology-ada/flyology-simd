@@ -284,8 +284,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Bit_Cast",
     }
     aarch_scalar = (
-        (name == "Multiply_Wrap" and "64x2" in declaration)
-        or (name == "Select_Value" and "64x2" in declaration)
+        (name == "Select_Value" and "64x2" in declaration)
         or (name in {"Select_Value", "Reduce_Add", "Unordered"}
             and ("F32x4" in declaration or "F64x2" in declaration))
     )
@@ -307,8 +306,12 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Cross-platform support: The AArch64, x86-64, and scalar backends use "
             "the same fixed-width Ada implementation."
         )
-    aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
-    x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
+    if name == "Multiply_Wrap" and "64x2" in declaration:
+        aarch = "a dedicated NEON 32-bit partial-product sequence"
+        x86 = "a dedicated SSE2 32-bit partial-product sequence"
+    else:
+        aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
+        x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
     return (
         f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
         f"backend uses {x86}. A scalar build uses the portable scalar implementation."

@@ -69,6 +69,23 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected 18 operations without a "
                 f"Native counterpart, found {text.count(shared)}"
             )
+        multiply_support = "dedicated NEON 32-bit partial-product sequence"
+        if text.count(multiply_support) != 2:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: expected two portable 64-bit "
+                f"Multiply_Wrap notes with exact Native lowering, found "
+                f"{text.count(multiply_support)}"
+            )
+    if path.name == "flyology_simd-backends-native.ads":
+        for phrase, backend in (
+            ("dedicated NEON 32-bit partial-product sequence", "AArch64"),
+            ("dedicated SSE2 32-bit partial-product sequence", "x86-64"),
+        ):
+            if text.count(phrase) != 2:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected two exact 64-bit "
+                    f"Multiply_Wrap {backend} notes, found {text.count(phrase)}"
+                )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

@@ -2536,7 +2536,7 @@ is
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U64x2) return U64x2;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON 32-bit partial-product sequence. The x86-64 backend uses a dedicated SSE2 32-bit partial-product sequence. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2829,7 +2829,7 @@ is
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I64x2) return I64x2;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON 32-bit partial-product sequence. The x86-64 backend uses a dedicated SSE2 32-bit partial-product sequence. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

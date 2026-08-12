@@ -410,6 +410,29 @@ package body Flyology_SIMD.Backends.Native is
 
    generic
       type Vector_Type is private;
+   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type;
+   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &
+           "uzp1 v2.4s, v0.4s, v0.4s" & ASCII.LF & ASCII.HT &
+           "uzp2 v3.4s, v0.4s, v0.4s" & ASCII.LF & ASCII.HT &
+           "uzp1 v4.4s, v1.4s, v1.4s" & ASCII.LF & ASCII.HT &
+           "uzp2 v5.4s, v1.4s, v1.4s" & ASCII.LF & ASCII.HT &
+           "umull v6.2d, v2.2s, v4.2s" & ASCII.LF & ASCII.HT &
+           "mul v7.2s, v2.2s, v5.2s" & ASCII.LF & ASCII.HT &
+           "mla v7.2s, v3.2s, v4.2s" & ASCII.LF & ASCII.HT &
+           "shll v7.2d, v7.2s, #32" & ASCII.LF & ASCII.HT &
+           "add v0.2d, v6.2d, v7.2d" & ASCII.LF & ASCII.HT &
+           "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address)],
+           Clobber => "v0,v1,v2,v3,v4,v5,v6,v7,memory", Volatile => True);
+      return Result;
+   end NEON_Multiply_64_128;
+
+   generic
+      type Vector_Type is private;
       type Map_Type is private;
    function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type;
    function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type is
@@ -1970,8 +1993,8 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_U64x2 (Value, Map);
    end Expand;
 
-   function Multiply_Wrap (Left, Right : U64x2) return U64x2 is
-     (Flyology_SIMD.Multiply_Wrap (Left, Right));
+   function Native_Multiply_Wrap_U64x2 is new NEON_Multiply_64_128 (U64x2);
+   function Multiply_Wrap (Left, Right : U64x2) return U64x2 is (Native_Multiply_Wrap_U64x2 (Left, Right));
    function Native_Shift_Left_Logical_U64x2 is new NEON_Shift_128 (U64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
      (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U64x2 (Value, Interfaces.Integer_64 (Count)));
@@ -2105,8 +2128,8 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_I64x2 (Value, Map);
    end Expand;
 
-   function Multiply_Wrap (Left, Right : I64x2) return I64x2 is
-     (Flyology_SIMD.Multiply_Wrap (Left, Right));
+   function Native_Multiply_Wrap_I64x2 is new NEON_Multiply_64_128 (I64x2);
+   function Multiply_Wrap (Left, Right : I64x2) return I64x2 is (Native_Multiply_Wrap_I64x2 (Left, Right));
    function Native_Shift_Left_Logical_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
      (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I64x2 (Value, Interfaces.Integer_64 (Count)));

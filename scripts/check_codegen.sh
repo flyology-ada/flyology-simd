@@ -214,6 +214,28 @@ case "$architecture" in
         require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 reduction lane broadcast'
         require_pattern 'cmhi.*2d' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum comparison'
         require_pattern 'bif.*16b' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum selection'
+        extract_symbol 'native_multiply_wrap_u64x2' "$temporary/native.txt" "$temporary/multiply_u64.txt"
+        extract_symbol 'native_multiply_wrap_i64x2' "$temporary/native.txt" "$temporary/multiply_i64.txt"
+        for multiply_probe in multiply_u64 multiply_i64; do
+            require_count '(^|[[:space:]])uzp1(\.4s)?[[:space:]]+v[0-9]+' 2 "$temporary/${multiply_probe}.txt" \
+              "two low-word deinterleaves in ${multiply_probe}"
+            require_count '(^|[[:space:]])uzp2(\.4s)?[[:space:]]+v[0-9]+' 2 "$temporary/${multiply_probe}.txt" \
+              "two high-word deinterleaves in ${multiply_probe}"
+            require_count '(^|[[:space:]])umull(\.2d)?[[:space:]]+v[0-9]+' 1 "$temporary/${multiply_probe}.txt" \
+              "one low-word full product in ${multiply_probe}"
+            require_count '(^|[[:space:]])mul(\.2s)?[[:space:]]+v[0-9]+' 1 "$temporary/${multiply_probe}.txt" \
+              "one first cross product in ${multiply_probe}"
+            require_count '(^|[[:space:]])mla(\.2s)?[[:space:]]+v[0-9]+' 1 "$temporary/${multiply_probe}.txt" \
+              "one second cross product in ${multiply_probe}"
+            require_count '(^|[[:space:]])shll(\.2d)?[[:space:]]+v[0-9]+.*#(32|0x20)([^[:xdigit:]]|$)' 1 \
+              "$temporary/${multiply_probe}.txt" \
+              "32-bit cross-product shift in ${multiply_probe}"
+            require_count '(^|[[:space:]])add(\.2d)?[[:space:]]+v[0-9]+' 1 "$temporary/${multiply_probe}.txt" \
+              "one modulo-64 product combination in ${multiply_probe}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__multiply_wrap' \
+              "$temporary/${multiply_probe}.txt" \
+              "out-of-line or portable multiplication in ${multiply_probe}"
+        done
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
         for lane_kind in u8 i8 u16 i16 u32 i32 f32 u64 i64 f64; do
