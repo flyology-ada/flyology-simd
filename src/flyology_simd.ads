@@ -199,7 +199,7 @@ is
    function Select_Value
      (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -1142,7 +1142,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -1435,7 +1435,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -1734,7 +1734,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -2027,7 +2027,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -2326,7 +2326,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -2619,7 +2619,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -2918,7 +2918,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -3176,7 +3176,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.
@@ -3435,7 +3435,7 @@ is
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2;
    --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param If_True The value selected in true mask lanes.
    --  @param If_False The value selected in false mask lanes.

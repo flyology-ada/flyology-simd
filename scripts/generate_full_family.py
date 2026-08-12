@@ -284,8 +284,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Bit_Cast",
     }
     aarch_scalar = (
-        (name == "Select_Value" and "64x2" in declaration)
-        or (name in {"Select_Value", "Reduce_Add", "Unordered"}
+        (name in {"Reduce_Add", "Unordered"}
             and ("F32x4" in declaration or "F64x2" in declaration))
     )
     x86_scalar = (
@@ -309,6 +308,9 @@ def native_support_doc(name: str, declaration: str) -> str:
     if name == "Multiply_Wrap" and "64x2" in declaration:
         aarch = "a dedicated NEON 32-bit partial-product sequence"
         x86 = "a dedicated SSE2 32-bit partial-product sequence"
+    elif name == "Select_Value":
+        aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
+        x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"

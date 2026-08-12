@@ -86,6 +86,19 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: expected two exact 64-bit "
                     f"Multiply_Wrap {backend} notes, found {text.count(phrase)}"
                 )
+        select_support = (
+            "Select_Value", "The AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence."
+        )
+        select_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split(f"function {select_support[0]}")[1:]
+        ]
+        selected = sum(select_support[1] in block for block in select_blocks)
+        if selected != 10:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: expected ten exact Select_Value "
+                f"NEON classifications, found {selected}"
+            )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

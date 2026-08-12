@@ -565,6 +565,40 @@ package body Flyology_SIMD.Backends.Native is
    generic
       type Vector_Type is private;
       Dup_Instruction : String;
+      Test_Instruction : String;
+   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;
+   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => Dup_Instruction & ASCII.LF & ASCII.HT &
+           "ldr q3, [%4]" & ASCII.LF & ASCII.HT & Test_Instruction & ASCII.LF & ASCII.HT &
+           "ldr q0, [%2]" & ASCII.LF & ASCII.HT & "ldr q1, [%3]" & ASCII.LF & ASCII.HT &
+           "bsl v2.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT & "str q2, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), Interfaces.Unsigned_64'Asm_Input ("r", Bits), System.Address'Asm_Input ("r", If_True'Address), System.Address'Asm_Input ("r", If_False'Address), System.Address'Asm_Input ("r", Weights)],
+           Clobber => "v0,v1,v2,v3,memory", Volatile => True);
+      return Result;
+   end NEON_Select_128;
+
+   generic
+      type Vector_Type is private;
+   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;
+   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "dup v2.16b, %w1" & ASCII.LF & ASCII.HT &
+           "lsr w9, %w1, #8" & ASCII.LF & ASCII.HT & "dup v3.16b, w9" & ASCII.LF & ASCII.HT &
+           "ins v2.d[1], v3.d[0]" & ASCII.LF & ASCII.HT & "ldr q3, [%4]" & ASCII.LF & ASCII.HT &
+           "cmtst v2.16b, v2.16b, v3.16b" & ASCII.LF & ASCII.HT &
+           "ldr q0, [%2]" & ASCII.LF & ASCII.HT & "ldr q1, [%3]" & ASCII.LF & ASCII.HT &
+           "bsl v2.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT & "str q2, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), Interfaces.Unsigned_16'Asm_Input ("r", Bits), System.Address'Asm_Input ("r", If_True'Address), System.Address'Asm_Input ("r", If_False'Address), System.Address'Asm_Input ("r", Weights)],
+           Clobber => "v0,v1,v2,v3,x9,memory", Volatile => True);
+      return Result;
+   end NEON_Select_16_Lanes_128;
+
+   generic
+      type Vector_Type is private;
+      Dup_Instruction : String;
       Shift_Instruction : String;
    function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type;
    function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type is
@@ -1325,8 +1359,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I8x16 (Left, Right, Weights_8x16'Address)));
    function Less_Than (Left, Right : I8x16) return Mask_8x16 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_I8x16 is new NEON_Select_16_Lanes_128 (I8x16);
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is (Native_Select_I8x16 (Mask.Bits, Weights_8x16'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "addv b0, v0.16b", "str b0, [%0]");
    function Reduce_Add_Wrap (Value : I8x16) return I8 is (Native_Reduce_Add_Wrap_I8x16 (Value));
    function Native_Reduce_Min_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "sminv b0, v0.16b", "str b0, [%0]");
@@ -1460,8 +1494,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U16x8 (Left, Right, Weights_16x8'Address)));
    function Less_Than (Left, Right : U16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_U16x8 is new NEON_Select_128 (U16x8, "dup v2.8h, %w1", "cmtst v2.8h, v2.8h, v3.8h");
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is (Native_Select_U16x8 (Interfaces.Unsigned_64 (Mask.Bits), Weights_16x8'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "addv h0, v0.8h", "str h0, [%0]");
    function Reduce_Add_Wrap (Value : U16x8) return U16 is (Native_Reduce_Add_Wrap_U16x8 (Value));
    function Native_Reduce_Min_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "uminv h0, v0.8h", "str h0, [%0]");
@@ -1598,8 +1632,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I16x8 (Left, Right, Weights_16x8'Address)));
    function Less_Than (Left, Right : I16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_I16x8 is new NEON_Select_128 (I16x8, "dup v2.8h, %w1", "cmtst v2.8h, v2.8h, v3.8h");
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is (Native_Select_I16x8 (Interfaces.Unsigned_64 (Mask.Bits), Weights_16x8'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "addv h0, v0.8h", "str h0, [%0]");
    function Reduce_Add_Wrap (Value : I16x8) return I16 is (Native_Reduce_Add_Wrap_I16x8 (Value));
    function Native_Reduce_Min_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "sminv h0, v0.8h", "str h0, [%0]");
@@ -1733,8 +1767,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U32x4 (Left, Right, Weights_32x4'Address)));
    function Less_Than (Left, Right : U32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_U32x4 is new NEON_Select_128 (U32x4, "dup v2.4s, %w1", "cmtst v2.4s, v2.4s, v3.4s");
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is (Native_Select_U32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_32x4'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "addv s0, v0.4s", "str s0, [%0]");
    function Reduce_Add_Wrap (Value : U32x4) return U32 is (Native_Reduce_Add_Wrap_U32x4 (Value));
    function Native_Reduce_Min_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "uminv s0, v0.4s", "str s0, [%0]");
@@ -1871,8 +1905,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I32x4 (Left, Right, Weights_32x4'Address)));
    function Less_Than (Left, Right : I32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_I32x4 is new NEON_Select_128 (I32x4, "dup v2.4s, %w1", "cmtst v2.4s, v2.4s, v3.4s");
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is (Native_Select_I32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_32x4'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "addv s0, v0.4s", "str s0, [%0]");
    function Reduce_Add_Wrap (Value : I32x4) return I32 is (Native_Reduce_Add_Wrap_I32x4 (Value));
    function Native_Reduce_Min_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "sminv s0, v0.4s", "str s0, [%0]");
@@ -2006,8 +2040,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U64x2 (Left, Right, Weights_64x2'Address)));
    function Less_Than (Left, Right : U64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_U64x2 is new NEON_Select_128 (U64x2, "dup v2.2d, %1", "cmtst v2.2d, v2.2d, v3.2d");
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is (Native_Select_U64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_64x2'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "addp d0, v0.2d", "str d0, [%0]");
    function Reduce_Add_Wrap (Value : U64x2) return U64 is (Native_Reduce_Add_Wrap_U64x2 (Value));
    function Native_Reduce_Min_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
@@ -2144,8 +2178,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_I64x2 (Left, Right, Weights_64x2'Address)));
    function Less_Than (Left, Right : I64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_I64x2 is new NEON_Select_128 (I64x2, "dup v2.2d, %1", "cmtst v2.2d, v2.2d, v3.2d");
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is (Native_Select_I64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_64x2'Address, If_True, If_False));
    function Native_Reduce_Add_Wrap_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "addp d0, v0.2d", "str d0, [%0]");
    function Reduce_Add_Wrap (Value : I64x2) return I64 is (Native_Reduce_Add_Wrap_I64x2 (Value));
    function Native_Reduce_Min_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
@@ -2220,8 +2254,8 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Permute_2_F32x4 is new NEON_Permute_2_128 (F32x4, Two_Source_Lane_Map_32x4);
    pragma Inline_Always (Native_Permute_2_F32x4);
    function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4 is (Native_Permute_2_F32x4 (Left, Right, Map));
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_F32x4 is new NEON_Select_128 (F32x4, "dup v2.4s, %w1", "cmtst v2.4s, v2.4s, v3.4s");
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_32x4'Address, If_True, If_False));
    function Reduce_Add (Value : F32x4) return F32 is
      (Flyology_SIMD.Reduce_Add (Value));
    function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4 is
@@ -2341,8 +2375,8 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Permute_2_F64x2 is new NEON_Permute_2_128 (F64x2, Two_Source_Lane_Map_64x2);
    pragma Inline_Always (Native_Permute_2_F64x2);
    function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2 is (Native_Permute_2_F64x2 (Left, Right, Map));
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Native_Select_F64x2 is new NEON_Select_128 (F64x2, "dup v2.2d, %1", "cmtst v2.2d, v2.2d, v3.2d");
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_64x2'Address, If_True, If_False));
    function Reduce_Add (Value : F64x2) return F64 is
      (Flyology_SIMD.Reduce_Add (Value));
    function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2 is
