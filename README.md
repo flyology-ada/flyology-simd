@@ -15,9 +15,9 @@ counts and masks. Integer operations name wrapping and saturation explicitly.
 Floating operations follow documented NaN and signed-zero rules without
 fast-math. Mask values support Boolean combination, reduction, and first/last
 true-lane queries. `Table_Lookup` performs a 16-entry byte lookup with a
-defined zero result for an out-of-range index. Each 128-bit value family
-supports reusable, strongly typed lane maps that reorder or broadcast lanes
-from one source vector, or select lanes from two source vectors. Every family
+defined zero result for an out-of-range index. Each value family at both
+widths supports reusable, strongly typed lane maps that reorder or broadcast
+lanes from one source vector, or select lanes from two source vectors. Every family
 has zero-filled lane slides in both index directions. Every family also has
 stable mask compression and expansion. `Find_First`, `Count`,
 and `Is_ASCII` demonstrate whole-buffer composition.
@@ -30,7 +30,7 @@ and floating lanes. Same-width signed/unsigned numeric conversion is available
 for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
 compression and expansion are available for all ten 128-bit value types.
 The initial 256-bit profile supplies common arithmetic, comparison, mask,
-lane-movement, reduction, and typed memory operations. See the
+lane-movement, reduction, typed memory, and same-shape bit-cast operations. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -134,8 +134,8 @@ The complete artifact is written to the ignored `build/site/` directory.
 
 Lane zero is the first logical element loaded.  Partial loads read only the
 declared count and zero-fill the rest; partial stores modify only that count.
-Aligned operations require a 16-byte-aligned address. Full and unaligned
-operations do not require 16-byte alignment. No primitive allocates, performs I/O,
+Aligned 128-bit operations require a 16-byte-aligned address. Full and
+unaligned operations have no alignment requirement. No primitive allocates, performs I/O,
 locks, waits, starts a task, or reads ambient configuration.  Checks and IEEE
 floating defaults are not globally disabled; `-ffast-math` is not used.
 

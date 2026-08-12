@@ -3,10 +3,52 @@
 
 from pathlib import Path
 
-from generate_wide_family import FAMILIES, ROOT, Family
+from generate_wide_family import BIT_CAST_TARGETS, FAMILIES, ROOT, Family
 
 
 TEST = ROOT / "tests" / "wide_tests.adb"
+
+
+def bit_expression(f: Family, expression: str) -> str:
+    if f.signed or f.floating:
+        return f"Value_To_Bits ({expression})"
+    return expression
+
+
+def bit_cast_tests(f: Family, source: str, label: str) -> str:
+    blocks = []
+    source_bits = bit_expression(f, f"Wide.Extract ({source}, Lane)")
+    for target in BIT_CAST_TARGETS[f.vector]:
+        target_family = next(item for item in FAMILIES if item.vector == target)
+        target_unsigned = f"U{target_family.bits}"
+        if target_family.signed or target_family.floating:
+            target_conversion = (
+                f"         function Target_To_Bits is new Ada.Unchecked_Conversion "
+                f"({target_family.scalar}, {target_unsigned});\n"
+            )
+            scalar_bits = "Target_To_Bits (Wide.Extract (Scalar_Cast, Lane))"
+            native_bits = "Target_To_Bits (Wide.Extract (Native_Cast, Lane))"
+        else:
+            target_conversion = ""
+            scalar_bits = "Wide.Extract (Scalar_Cast, Lane)"
+            native_bits = "Wide.Extract (Native_Cast, Lane)"
+        blocks.append(f'''      declare
+{target_conversion}         Scalar_Cast : constant Wide.{target} := Wide.Bit_Cast ({source});
+         Native_Cast : constant Wide.{target} := Native.Bit_Cast ({source});
+         Round_Trip : constant Wide.{f.vector} := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.{f.vector} := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check ({scalar_bits} = {source_bits}
+              and then {native_bits} = {source_bits},
+              "{f.vector} to {target} {label}direct bit cast" & Lane'Image);
+            Check ({bit_expression(f, 'Wide.Extract (Round_Trip, Lane)')} = {source_bits}
+              and then {bit_expression(f, 'Wide.Extract (Native_Round_Trip, Lane)')} = {source_bits},
+              "{f.vector} to {target} {label}bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+''')
+    return "".join(blocks)
 
 
 def integer_test(f: Family) -> str:
@@ -22,9 +64,17 @@ def integer_test(f: Family) -> str:
         else f"{unsigned} (Next_U64 mod 2 ** {f.bits})"
     )
     random_value = f"Bits_To_Value ({raw})" if f.signed else raw
+    edge_patterns = (0, 1 << (f.bits - 1), (1 << f.bits) - 1,
+                     int("AA" * (f.bits // 8), 16))
+    edge_values = []
+    for lane in range(f.lanes):
+        bits = f"{unsigned} (16#{edge_patterns[lane % len(edge_patterns)]:0{f.bits // 4}X}#)"
+        edge_values.append(f"Bits_To_Value ({bits})" if f.signed else bits)
+    bit_lanes = ", ".join(edge_values)
     return f"""
    procedure Test_{f.vector} is
 {('      function Bits_To_Value is new Ada.Unchecked_Conversion (' + unsigned + ', ' + f.scalar + ');') if f.signed else ''}
+{('      function Value_To_Bits is new Ada.Unchecked_Conversion (' + f.scalar + ', ' + unsigned + ');') if f.signed else ''}
       function Random_Lanes return Wide.{f.values} is
          Result : Wide.{f.values};
       begin
@@ -43,8 +93,10 @@ def integer_test(f: Family) -> str:
       end Random_Map;
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
+      Bit_Lanes : constant Wide.{f.values} := [{bit_lanes}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       B : constant Wide.{f.vector} := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.{f.vector} := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.{f.mask} :=
         Wide.Mask_From_Bit_Mask ({f.mask_bits} ({alt}));
       Packed : constant Wide.{f.vector} := Wide.Compress (A, Alternating);
@@ -56,6 +108,8 @@ def integer_test(f: Family) -> str:
       Aligned_Data : {f.array} (0 .. {f.lanes - 1}) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.{f.selectors};
+      Two_Selectors : Wide.{f.two_selectors};
+      Native_Two_Selectors : Wide.{f.two_selectors};
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.{f.values}'[others => 0]
@@ -100,10 +154,52 @@ def integer_test(f: Family) -> str:
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "{f.vector} expansion position");
          Map_Selectors (Lane) := Wide.{f.index} ({f.lanes - 1} - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes}))
+            else Wide.Select_Right_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes})));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes}))
+            else Native.Select_Right_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes})));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.{f.index} => A_Lanes ({f.lanes - 1} - Lane)],
         "{f.vector} lane map");
+      declare
+         Scalar_Map : constant Wide.{f.two_map} :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.{f.two_map} :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.{f.vector} :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.{f.vector} :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod {f.lanes})
+               else B_Lanes ((Lane * 3 + 1) mod {f.lanes}))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "{f.vector} two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.{f.two_map};
+         Native_Default_Map : Wide.{f.two_map};
+         Scalar_Default : constant Wide.{f.vector} :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.{f.vector} :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "{f.vector} default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+{bit_cast_tests(f, 'Bit_Vector', 'edge ')}
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.{f.index} => A_Lanes ({f.lanes - 1} - Lane)],
         "{f.vector} reverse");
@@ -252,11 +348,18 @@ def integer_test(f: Family) -> str:
             R_A : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.{f.lane_map} := Random_Map;
+            R_Two_Selectors : Wide.{f.two_selectors};
             R_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask
               ({f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
             Shift : constant Natural := Natural (Next_U64 mod {f.bits + 3});
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
+            for Lane in Wide.{f.index} loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.{f.index} (Next_U64 mod {f.lanes}))
+                  else Wide.Select_Right_Lane (Wide.{f.index} (Next_U64 mod {f.lanes})));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -283,6 +386,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "{f.vector} randomized selection and movement" & Iteration'Image);
@@ -290,6 +394,7 @@ def integer_test(f: Family) -> str:
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "{f.vector} randomized reductions" & Iteration'Image);
+{bit_cast_tests(f, 'R_A', 'randomized ')}
          end;
       end loop;
    end Test_{f.vector};
@@ -314,6 +419,7 @@ def float_test(f: Family) -> str:
     order_lanes = ", ".join(order_values)
     positive_zero_order = ", ".join("0.0" if i % 2 == 0 else f"Bits_To_Value ({sign_bit})" for i in range(f.lanes))
     negative_zero_order = ", ".join(f"Bits_To_Value ({sign_bit})" if i % 2 == 0 else "0.0" for i in range(f.lanes))
+    random_bits = "Next_U64" if f.bits == 64 else f"Next_U64 mod 2 ** {f.bits}"
     return f"""
    procedure Test_{f.vector} is
       function Bits_To_Value is new Ada.Unchecked_Conversion ({bit_type}, {f.scalar});
@@ -326,6 +432,15 @@ def float_test(f: Family) -> str:
          end loop;
          return Result;
       end Random_Lanes;
+      function Random_Bit_Lanes return Wide.{f.values} is
+         Result : Wide.{f.values};
+      begin
+         for Lane in Wide.{f.index} loop
+            Result (Lane) := Bits_To_Value
+              ({bit_type} ({random_bits}));
+         end loop;
+         return Result;
+      end Random_Bit_Lanes;
       function Random_Map return Wide.{f.lane_map} is
          Selectors : Wide.{f.selectors};
       begin
@@ -354,6 +469,8 @@ def float_test(f: Family) -> str:
       Negative_Zero_First : constant Wide.{f.vector} :=
         Wide.From_Lanes ([{negative_zero_order}]);
       Map_Selectors : Wide.{f.selectors};
+      Two_Selectors : Wide.{f.two_selectors};
+      Native_Two_Selectors : Wide.{f.two_selectors};
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       for Lane in Wide.{f.index} loop
@@ -441,7 +558,52 @@ def float_test(f: Family) -> str:
         "{f.vector} native add reduction");
       for Lane in Wide.{f.index} loop
          Map_Selectors (Lane) := Wide.{f.index} ({f.lanes - 1} - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes}))
+            else Wide.Select_Right_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes})));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes}))
+            else Native.Select_Right_Lane (Wide.{f.index} ((Lane * 3 + 1) mod {f.lanes})));
       end loop;
+      declare
+         Scalar_Map : constant Wide.{f.two_map} :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.{f.two_map} :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.{f.vector} :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Map);
+         Native_Result : constant Wide.{f.vector} :=
+           Native.Permute_Lanes (Specials, A, Native_Map);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+              (if Lane mod 2 = 0
+               then Value_To_Bits (Special_Lanes ((Lane * 3 + 1) mod {f.lanes}))
+               else Value_To_Bits (A_Lanes ((Lane * 3 + 1) mod {f.lanes})))
+              and then Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Wide.Extract (Scalar_Result, Lane)),
+              "{f.vector} special-bit two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.{f.two_map};
+         Native_Default_Map : Wide.{f.two_map};
+         Scalar_Default : constant Wide.{f.vector} :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Default_Map);
+         Native_Default : constant Wide.{f.vector} :=
+           Native.Permute_Lanes (Specials, A, Native_Default_Map);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Default, Lane)) =
+              Value_To_Bits (Special_Lanes (0))
+              and then Value_To_Bits (Wide.Extract (Native_Default, Lane)) =
+                Value_To_Bits (Special_Lanes (0)),
+              "{f.vector} default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+{bit_cast_tests(f, 'Specials', 'special ')}
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -531,11 +693,19 @@ def float_test(f: Family) -> str:
          declare
             R_A : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
+            R_Bits : constant Wide.{f.vector} := Wide.From_Lanes (Random_Bit_Lanes);
             R_Map : constant Wide.{f.lane_map} := Random_Map;
+            R_Two_Selectors : Wide.{f.two_selectors};
             R_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask
               ({f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
+            for Lane in Wide.{f.index} loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.{f.index} (Next_U64 mod {f.lanes}))
+                  else Wide.Select_Right_Lane (Wide.{f.index} (Next_U64 mod {f.lanes})));
+            end loop;
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
@@ -549,6 +719,7 @@ def float_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "{f.vector} randomized selection and movement" & Iteration'Image);
@@ -556,6 +727,7 @@ def float_test(f: Family) -> str:
               and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
               and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
               "{f.vector} randomized reductions" & Iteration'Image);
+{bit_cast_tests(f, 'R_Bits', 'randomized ')}
          end;
       end loop;
    end Test_{f.vector};

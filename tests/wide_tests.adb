@@ -39,6 +39,7 @@ procedure Wide_Tests is
 
    procedure Test_U8x32 is
 
+
       function Random_Lanes return Wide.Lane_Values_U8x32 is
          Result : Wide.Lane_Values_U8x32;
       begin
@@ -57,8 +58,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
       B_Lanes : constant Wide.Lane_Values_U8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#)];
       A : constant Wide.U8x32 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U8x32 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.U8x32 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_8x32 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765));
       Packed : constant Wide.U8x32 := Wide.Compress (A, Alternating);
@@ -70,6 +73,8 @@ procedure Wide_Tests is
       Aligned_Data : Byte_Array (0 .. 31) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_8x32;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "U8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U8x32'[others => 0]
@@ -114,10 +119,68 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "U8x32 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_8x32 (31 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32))
+            else Native.Select_Right_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "U8x32 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_8x32 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_8x32 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.U8x32 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.U8x32 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 32)
+               else B_Lanes ((Lane * 3 + 1) mod 32))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "U8x32 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_8x32;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_8x32;
+         Scalar_Default : constant Wide.U8x32 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.U8x32 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "U8x32 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I8, U8);
+         Scalar_Cast : constant Wide.I8x32 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.I8x32 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U8x32 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U8x32 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U8x32 to I8x32 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U8x32 to I8x32 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "U8x32 reverse");
@@ -266,11 +329,18 @@ procedure Wide_Tests is
             R_A : constant Wide.U8x32 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.U8x32 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_8x32 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
             R_Mask : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_8x32 (Next_U64 mod 2 ** 32));
             Shift : constant Natural := Natural (Next_U64 mod 11);
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_8x32 (Next_U64 mod 32))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_8x32 (Next_U64 mod 32)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -297,6 +367,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U8x32 randomized selection and movement" & Iteration'Image);
@@ -304,6 +375,23 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "U8x32 randomized reductions" & Iteration'Image);
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I8, U8);
+         Scalar_Cast : constant Wide.I8x32 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.I8x32 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U8x32 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U8x32 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U8x32 to I8x32 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U8x32 to I8x32 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_U8x32;
@@ -311,6 +399,7 @@ procedure Wide_Tests is
 
    procedure Test_I8x32 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U8, I8);
+      function Value_To_Bits is new Ada.Unchecked_Conversion (I8, U8);
       function Random_Lanes return Wide.Lane_Values_I8x32 is
          Result : Wide.Lane_Values_I8x32;
       begin
@@ -329,8 +418,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#))];
       A : constant Wide.I8x32 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I8x32 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.I8x32 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_8x32 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765));
       Packed : constant Wide.I8x32 := Wide.Compress (A, Alternating);
@@ -342,6 +433,8 @@ procedure Wide_Tests is
       Aligned_Data : I8_Array (0 .. 31) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_8x32;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "I8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I8x32'[others => 0]
@@ -386,10 +479,67 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "I8x32 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_8x32 (31 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32))
+            else Native.Select_Right_Lane (Wide.Lane_Index_8x32 ((Lane * 3 + 1) mod 32)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "I8x32 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_8x32 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_8x32 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.I8x32 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.I8x32 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 32)
+               else B_Lanes ((Lane * 3 + 1) mod 32))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "I8x32 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_8x32;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_8x32;
+         Scalar_Default : constant Wide.I8x32 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.I8x32 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "I8x32 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U8x32 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.U8x32 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I8x32 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I8x32 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I8x32 to U8x32 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I8x32 to U8x32 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "I8x32 reverse");
@@ -538,11 +688,18 @@ procedure Wide_Tests is
             R_A : constant Wide.I8x32 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.I8x32 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_8x32 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
             R_Mask : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_8x32 (Next_U64 mod 2 ** 32));
             Shift : constant Natural := Natural (Next_U64 mod 11);
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_8x32 (Next_U64 mod 32))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_8x32 (Next_U64 mod 32)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -569,6 +726,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I8x32 randomized selection and movement" & Iteration'Image);
@@ -576,12 +734,29 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "I8x32 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U8x32 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.U8x32 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I8x32 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I8x32 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I8x32 to U8x32 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I8x32 to U8x32 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_I8x32;
 
 
    procedure Test_U16x16 is
+
 
       function Random_Lanes return Wide.Lane_Values_U16x16 is
          Result : Wide.Lane_Values_U16x16;
@@ -601,8 +776,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
       A : constant Wide.U16x16 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U16x16 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.U16x16 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_16x16 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845));
       Packed : constant Wide.U16x16 := Wide.Compress (A, Alternating);
@@ -614,6 +791,8 @@ procedure Wide_Tests is
       Aligned_Data : U16_Array (0 .. 15) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_16x16;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "U16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U16x16'[others => 0]
@@ -658,10 +837,68 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "U16x16 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_16x16 (15 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16))
+            else Native.Select_Right_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "U16x16 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_16x16 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_16x16 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.U16x16 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.U16x16 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 16)
+               else B_Lanes ((Lane * 3 + 1) mod 16))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "U16x16 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_16x16;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_16x16;
+         Scalar_Default : constant Wide.U16x16 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.U16x16 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "U16x16 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
+         Scalar_Cast : constant Wide.I16x16 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.I16x16 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U16x16 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U16x16 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U16x16 to I16x16 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U16x16 to I16x16 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "U16x16 reverse");
@@ -810,11 +1047,18 @@ procedure Wide_Tests is
             R_A : constant Wide.U16x16 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.U16x16 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_16x16 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
             R_Mask : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_16x16 (Next_U64 mod 2 ** 16));
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_16x16 (Next_U64 mod 16))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_16x16 (Next_U64 mod 16)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -841,6 +1085,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U16x16 randomized selection and movement" & Iteration'Image);
@@ -848,6 +1093,23 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "U16x16 randomized reductions" & Iteration'Image);
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
+         Scalar_Cast : constant Wide.I16x16 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.I16x16 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U16x16 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U16x16 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U16x16 to I16x16 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U16x16 to I16x16 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_U16x16;
@@ -855,6 +1117,7 @@ procedure Wide_Tests is
 
    procedure Test_I16x16 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U16, I16);
+      function Value_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
       function Random_Lanes return Wide.Lane_Values_I16x16 is
          Result : Wide.Lane_Values_I16x16;
       begin
@@ -873,8 +1136,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
       A : constant Wide.I16x16 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I16x16 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.I16x16 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_16x16 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845));
       Packed : constant Wide.I16x16 := Wide.Compress (A, Alternating);
@@ -886,6 +1151,8 @@ procedure Wide_Tests is
       Aligned_Data : I16_Array (0 .. 15) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_16x16;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "I16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I16x16'[others => 0]
@@ -930,10 +1197,67 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "I16x16 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_16x16 (15 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16))
+            else Native.Select_Right_Lane (Wide.Lane_Index_16x16 ((Lane * 3 + 1) mod 16)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "I16x16 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_16x16 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_16x16 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.I16x16 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.I16x16 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 16)
+               else B_Lanes ((Lane * 3 + 1) mod 16))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "I16x16 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_16x16;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_16x16;
+         Scalar_Default : constant Wide.I16x16 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.I16x16 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "I16x16 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U16x16 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.U16x16 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I16x16 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I16x16 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I16x16 to U16x16 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I16x16 to U16x16 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "I16x16 reverse");
@@ -1082,11 +1406,18 @@ procedure Wide_Tests is
             R_A : constant Wide.I16x16 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.I16x16 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_16x16 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
             R_Mask : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_16x16 (Next_U64 mod 2 ** 16));
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_16x16 (Next_U64 mod 16))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_16x16 (Next_U64 mod 16)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1113,6 +1444,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I16x16 randomized selection and movement" & Iteration'Image);
@@ -1120,12 +1452,29 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "I16x16 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U16x16 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.U16x16 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I16x16 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I16x16 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I16x16 to U16x16 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I16x16 to U16x16 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_I16x16;
 
 
    procedure Test_U32x8 is
+
 
       function Random_Lanes return Wide.Lane_Values_U32x8 is
          Result : Wide.Lane_Values_U32x8;
@@ -1145,8 +1494,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
       A : constant Wide.U32x8 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U32x8 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.U32x8 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_32x8 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_32x8 (85));
       Packed : constant Wide.U32x8 := Wide.Compress (A, Alternating);
@@ -1158,6 +1509,8 @@ procedure Wide_Tests is
       Aligned_Data : U32_Array (0 .. 7) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_32x8;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "U32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U32x8'[others => 0]
@@ -1202,10 +1555,84 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "U32x8 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_32x8 (7 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Native.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "U32x8 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.U32x8 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.U32x8 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 8)
+               else B_Lanes ((Lane * 3 + 1) mod 8))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "U32x8 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Scalar_Default : constant Wide.U32x8 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.U32x8 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "U32x8 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+         Scalar_Cast : constant Wide.I32x8 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.I32x8 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U32x8 to I32x8 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U32x8 to I32x8 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F32, U32);
+         Scalar_Cast : constant Wide.F32x8 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.F32x8 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U32x8 to F32x8 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U32x8 to F32x8 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "U32x8 reverse");
@@ -1354,11 +1781,18 @@ procedure Wide_Tests is
             R_A : constant Wide.U32x8 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.U32x8 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_32x8 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
             R_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1385,6 +1819,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U32x8 randomized selection and movement" & Iteration'Image);
@@ -1392,6 +1827,39 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "U32x8 randomized reductions" & Iteration'Image);
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+         Scalar_Cast : constant Wide.I32x8 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.I32x8 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U32x8 to I32x8 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U32x8 to I32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F32, U32);
+         Scalar_Cast : constant Wide.F32x8 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.F32x8 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U32x8 to F32x8 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U32x8 to F32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_U32x8;
@@ -1399,6 +1867,7 @@ procedure Wide_Tests is
 
    procedure Test_I32x8 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U32, I32);
+      function Value_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
       function Random_Lanes return Wide.Lane_Values_I32x8 is
          Result : Wide.Lane_Values_I32x8;
       begin
@@ -1417,8 +1886,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
       A : constant Wide.I32x8 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I32x8 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.I32x8 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_32x8 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_32x8 (85));
       Packed : constant Wide.I32x8 := Wide.Compress (A, Alternating);
@@ -1430,6 +1901,8 @@ procedure Wide_Tests is
       Aligned_Data : I32_Array (0 .. 7) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_32x8;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "I32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I32x8'[others => 0]
@@ -1474,10 +1947,83 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "I32x8 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_32x8 (7 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Native.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "I32x8 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.I32x8 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.I32x8 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 8)
+               else B_Lanes ((Lane * 3 + 1) mod 8))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "I32x8 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Scalar_Default : constant Wide.I32x8 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.I32x8 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "I32x8 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I32x8 to U32x8 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I32x8 to U32x8 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F32, U32);
+         Scalar_Cast : constant Wide.F32x8 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.F32x8 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I32x8 to F32x8 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I32x8 to F32x8 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "I32x8 reverse");
@@ -1626,11 +2172,18 @@ procedure Wide_Tests is
             R_A : constant Wide.I32x8 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.I32x8 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_32x8 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
             R_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1657,6 +2210,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I32x8 randomized selection and movement" & Iteration'Image);
@@ -1664,12 +2218,45 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "I32x8 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I32x8 to U32x8 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I32x8 to U32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F32, U32);
+         Scalar_Cast : constant Wide.F32x8 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.F32x8 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I32x8 to F32x8 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I32x8 to F32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_I32x8;
 
 
    procedure Test_U64x4 is
+
 
       function Random_Lanes return Wide.Lane_Values_U64x4 is
          Result : Wide.Lane_Values_U64x4;
@@ -1689,8 +2276,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
       A : constant Wide.U64x4 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U64x4 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.U64x4 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_64x4 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_64x4 (5));
       Packed : constant Wide.U64x4 := Wide.Compress (A, Alternating);
@@ -1702,6 +2291,8 @@ procedure Wide_Tests is
       Aligned_Data : U64_Array (0 .. 3) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_64x4;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "U64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U64x4'[others => 0]
@@ -1746,10 +2337,84 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "U64x4 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_64x4 (3 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Native.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "U64x4 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.U64x4 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.U64x4 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 4)
+               else B_Lanes ((Lane * 3 + 1) mod 4))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "U64x4 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Scalar_Default : constant Wide.U64x4 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.U64x4 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "U64x4 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+         Scalar_Cast : constant Wide.I64x4 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.I64x4 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U64x4 to I64x4 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U64x4 to I64x4 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F64, U64);
+         Scalar_Cast : constant Wide.F64x4 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.F64x4 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.U64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (Bit_Vector, Lane),
+              "U64x4 to F64x4 edge direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (Bit_Vector, Lane),
+              "U64x4 to F64x4 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "U64x4 reverse");
@@ -1898,11 +2563,18 @@ procedure Wide_Tests is
             R_A : constant Wide.U64x4 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.U64x4 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_64x4 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
             R_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1929,6 +2601,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U64x4 randomized selection and movement" & Iteration'Image);
@@ -1936,6 +2609,39 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "U64x4 randomized reductions" & Iteration'Image);
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+         Scalar_Cast : constant Wide.I64x4 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.I64x4 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U64x4 to I64x4 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U64x4 to I64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F64, U64);
+         Scalar_Cast : constant Wide.F64x4 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.F64x4 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.U64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.U64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Wide.Extract (R_A, Lane)
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Wide.Extract (R_A, Lane),
+              "U64x4 to F64x4 randomized direct bit cast" & Lane'Image);
+            Check (Wide.Extract (Round_Trip, Lane) = Wide.Extract (R_A, Lane)
+              and then Wide.Extract (Native_Round_Trip, Lane) = Wide.Extract (R_A, Lane),
+              "U64x4 to F64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_U64x4;
@@ -1943,6 +2649,7 @@ procedure Wide_Tests is
 
    procedure Test_I64x4 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U64, I64);
+      function Value_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
       function Random_Lanes return Wide.Lane_Values_I64x4 is
          Result : Wide.Lane_Values_I64x4;
       begin
@@ -1961,8 +2668,10 @@ procedure Wide_Tests is
       end Random_Map;
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
+      Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
       A : constant Wide.I64x4 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I64x4 := Wide.From_Lanes (B_Lanes);
+      Bit_Vector : constant Wide.I64x4 := Wide.From_Lanes (Bit_Lanes);
       Alternating : constant Wide.Mask_64x4 :=
         Wide.Mask_From_Bit_Mask (Mask_Bits_64x4 (5));
       Packed : constant Wide.I64x4 := Wide.Compress (A, Alternating);
@@ -1974,6 +2683,8 @@ procedure Wide_Tests is
       Aligned_Data : I64_Array (0 .. 3) := [others => 0]
         with Alignment => 32;
       Map_Selectors : Wide.Lane_Selectors_64x4;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "I64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I64x4'[others => 0]
@@ -2018,10 +2729,83 @@ procedure Wide_Tests is
          Check (E (Lane) = (if Lane mod 2 = 0 then A_Lanes (Lane) else 0),
            "I64x4 expansion position");
          Map_Selectors (Lane) := Wide.Lane_Index_64x4 (3 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Native.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
       end loop;
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "I64x4 lane map");
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.I64x4 :=
+           Wide.Permute_Lanes (A, B, Scalar_Map);
+         Native_Result : constant Wide.I64x4 :=
+           Native.Permute_Lanes (A, B, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Result, Lane) =
+              (if Lane mod 2 = 0
+               then A_Lanes ((Lane * 3 + 1) mod 4)
+               else B_Lanes ((Lane * 3 + 1) mod 4))
+              and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
+              "I64x4 two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Scalar_Default : constant Wide.I64x4 :=
+           Wide.Permute_Lanes (A, B, Scalar_Default_Map);
+         Native_Default : constant Wide.I64x4 :=
+           Native.Permute_Lanes (A, B, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Default, Lane) = A_Lanes (0)
+              and then Wide.Extract (Native_Default, Lane) = A_Lanes (0),
+              "I64x4 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I64x4 to U64x4 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I64x4 to U64x4 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F64, U64);
+         Scalar_Cast : constant Wide.F64x4 := Wide.Bit_Cast (Bit_Vector);
+         Native_Cast : constant Wide.F64x4 := Native.Bit_Cast (Bit_Vector);
+         Round_Trip : constant Wide.I64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I64x4 to F64x4 edge direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Bit_Vector, Lane)),
+              "I64x4 to F64x4 edge bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "I64x4 reverse");
@@ -2170,11 +2954,18 @@ procedure Wide_Tests is
             R_A : constant Wide.I64x4 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.I64x4 := Wide.From_Lanes (Random_Lanes);
             R_Map : constant Wide.Lane_Map_64x4 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
             R_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4)));
+            end loop;
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -2201,6 +2992,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I64x4 randomized selection and movement" & Iteration'Image);
@@ -2208,6 +3000,38 @@ procedure Wide_Tests is
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
               "I64x4 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I64x4 to U64x4 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I64x4 to U64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (F64, U64);
+         Scalar_Cast : constant Wide.F64x4 := Wide.Bit_Cast (R_A);
+         Native_Cast : constant Wide.F64x4 := Native.Bit_Cast (R_A);
+         Round_Trip : constant Wide.I64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.I64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I64x4 to F64x4 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_A, Lane)),
+              "I64x4 to F64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_I64x4;
@@ -2224,6 +3048,15 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+      function Random_Bit_Lanes return Wide.Lane_Values_F32x8 is
+         Result : Wide.Lane_Values_F32x8;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Result (Lane) := Bits_To_Value
+              (Interfaces.Unsigned_32 (Next_U64 mod 2 ** 32));
+         end loop;
+         return Result;
+      end Random_Bit_Lanes;
       function Random_Map return Wide.Lane_Map_32x8 is
          Selectors : Wide.Lane_Selectors_32x8;
       begin
@@ -2252,6 +3085,8 @@ procedure Wide_Tests is
       Negative_Zero_First : constant Wide.F32x8 :=
         Wide.From_Lanes ([Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0]);
       Map_Selectors : Wide.Lane_Selectors_32x8;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "F32x8 lane round trip");
       for Lane in Wide.Lane_Index_32x8 loop
@@ -2339,7 +3174,83 @@ procedure Wide_Tests is
         "F32x8 native add reduction");
       for Lane in Wide.Lane_Index_32x8 loop
          Map_Selectors (Lane) := Wide.Lane_Index_32x8 (7 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8))
+            else Native.Select_Right_Lane (Wide.Lane_Index_32x8 ((Lane * 3 + 1) mod 8)));
       end loop;
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.F32x8 :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Map);
+         Native_Result : constant Wide.F32x8 :=
+           Native.Permute_Lanes (Specials, A, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+              (if Lane mod 2 = 0
+               then Value_To_Bits (Special_Lanes ((Lane * 3 + 1) mod 8))
+               else Value_To_Bits (A_Lanes ((Lane * 3 + 1) mod 8)))
+              and then Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Wide.Extract (Scalar_Result, Lane)),
+              "F32x8 special-bit two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_32x8;
+         Scalar_Default : constant Wide.F32x8 :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Default_Map);
+         Native_Default : constant Wide.F32x8 :=
+           Native.Permute_Lanes (Specials, A, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Default, Lane)) =
+              Value_To_Bits (Special_Lanes (0))
+              and then Value_To_Bits (Wide.Extract (Native_Default, Lane)) =
+                Value_To_Bits (Special_Lanes (0)),
+              "F32x8 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (Specials);
+         Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (Specials);
+         Round_Trip : constant Wide.F32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F32x8 to U32x8 special direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F32x8 to U32x8 special bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+         Scalar_Cast : constant Wide.I32x8 := Wide.Bit_Cast (Specials);
+         Native_Cast : constant Wide.I32x8 := Native.Bit_Cast (Specials);
+         Round_Trip : constant Wide.F32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F32x8 to I32x8 special direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F32x8 to I32x8 special bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -2429,11 +3340,19 @@ procedure Wide_Tests is
          declare
             R_A : constant Wide.F32x8 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.F32x8 := Wide.From_Lanes (Random_Lanes);
+            R_Bits : constant Wide.F32x8 := Wide.From_Lanes (Random_Bit_Lanes);
             R_Map : constant Wide.Lane_Map_32x8 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
             R_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_32x8 (Next_U64 mod 8)));
+            end loop;
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
@@ -2447,6 +3366,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "F32x8 randomized selection and movement" & Iteration'Image);
@@ -2454,6 +3374,38 @@ procedure Wide_Tests is
               and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
               and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
               "F32x8 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (R_Bits);
+         Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (R_Bits);
+         Round_Trip : constant Wide.F32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F32x8 to U32x8 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F32x8 to U32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+         Scalar_Cast : constant Wide.I32x8 := Wide.Bit_Cast (R_Bits);
+         Native_Cast : constant Wide.I32x8 := Native.Bit_Cast (R_Bits);
+         Round_Trip : constant Wide.F32x8 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F32x8 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F32x8 to I32x8 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F32x8 to I32x8 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_F32x8;
@@ -2470,6 +3422,15 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+      function Random_Bit_Lanes return Wide.Lane_Values_F64x4 is
+         Result : Wide.Lane_Values_F64x4;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Result (Lane) := Bits_To_Value
+              (Interfaces.Unsigned_64 (Next_U64));
+         end loop;
+         return Result;
+      end Random_Bit_Lanes;
       function Random_Map return Wide.Lane_Map_64x4 is
          Selectors : Wide.Lane_Selectors_64x4;
       begin
@@ -2498,6 +3459,8 @@ procedure Wide_Tests is
       Negative_Zero_First : constant Wide.F64x4 :=
         Wide.From_Lanes ([Bits_To_Value (16#8000_0000_0000_0000#), 0.0, Bits_To_Value (16#8000_0000_0000_0000#), 0.0]);
       Map_Selectors : Wide.Lane_Selectors_64x4;
+      Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
+      Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "F64x4 lane round trip");
       for Lane in Wide.Lane_Index_64x4 loop
@@ -2585,7 +3548,83 @@ procedure Wide_Tests is
         "F64x4 native add reduction");
       for Lane in Wide.Lane_Index_64x4 loop
          Map_Selectors (Lane) := Wide.Lane_Index_64x4 (3 - Lane);
+         Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
+         Native_Two_Selectors (Lane) :=
+           (if Lane mod 2 = 0
+            then Native.Select_Left_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4))
+            else Native.Select_Right_Lane (Wide.Lane_Index_64x4 ((Lane * 3 + 1) mod 4)));
       end loop;
+      declare
+         Scalar_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Wide.Make_Two_Source_Lane_Map (Two_Selectors);
+         Native_Map : constant Wide.Two_Source_Lane_Map_64x4 :=
+           Native.Make_Two_Source_Lane_Map (Native_Two_Selectors);
+         Scalar_Result : constant Wide.F64x4 :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Map);
+         Native_Result : constant Wide.F64x4 :=
+           Native.Permute_Lanes (Specials, A, Native_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+              (if Lane mod 2 = 0
+               then Value_To_Bits (Special_Lanes ((Lane * 3 + 1) mod 4))
+               else Value_To_Bits (A_Lanes ((Lane * 3 + 1) mod 4)))
+              and then Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Wide.Extract (Scalar_Result, Lane)),
+              "F64x4 special-bit two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Native_Default_Map : Wide.Two_Source_Lane_Map_64x4;
+         Scalar_Default : constant Wide.F64x4 :=
+           Wide.Permute_Lanes (Specials, A, Scalar_Default_Map);
+         Native_Default : constant Wide.F64x4 :=
+           Native.Permute_Lanes (Specials, A, Native_Default_Map);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Value_To_Bits (Wide.Extract (Scalar_Default, Lane)) =
+              Value_To_Bits (Special_Lanes (0))
+              and then Value_To_Bits (Wide.Extract (Native_Default, Lane)) =
+                Value_To_Bits (Special_Lanes (0)),
+              "F64x4 default two-source lane map" & Lane'Image);
+         end loop;
+      end;
+      declare
+         Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (Specials);
+         Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (Specials);
+         Round_Trip : constant Wide.F64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F64x4 to U64x4 special direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F64x4 to U64x4 special bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+         Scalar_Cast : constant Wide.I64x4 := Wide.Bit_Cast (Specials);
+         Native_Cast : constant Wide.I64x4 := Native.Bit_Cast (Specials);
+         Round_Trip : constant Wide.F64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F64x4 to I64x4 special direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (Specials, Lane)),
+              "F64x4 to I64x4 special bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -2675,11 +3714,19 @@ procedure Wide_Tests is
          declare
             R_A : constant Wide.F64x4 := Wide.From_Lanes (Random_Lanes);
             R_B : constant Wide.F64x4 := Wide.From_Lanes (Random_Lanes);
+            R_Bits : constant Wide.F64x4 := Wide.From_Lanes (Random_Bit_Lanes);
             R_Map : constant Wide.Lane_Map_64x4 := Random_Map;
+            R_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
             R_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask
               (Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               R_Two_Selectors (Lane) :=
+                 (if Next_U64 mod 2 = 0
+                  then Wide.Select_Left_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4))
+                  else Wide.Select_Right_Lane (Wide.Lane_Index_64x4 (Next_U64 mod 4)));
+            end loop;
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
@@ -2693,6 +3740,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "F64x4 randomized selection and movement" & Iteration'Image);
@@ -2700,6 +3748,38 @@ procedure Wide_Tests is
               and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
               and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
               "F64x4 randomized reductions" & Iteration'Image);
+      declare
+         Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (R_Bits);
+         Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (R_Bits);
+         Round_Trip : constant Wide.F64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Scalar_Cast, Lane) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Wide.Extract (Native_Cast, Lane) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F64x4 to U64x4 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F64x4 to U64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+      declare
+         function Target_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+         Scalar_Cast : constant Wide.I64x4 := Wide.Bit_Cast (R_Bits);
+         Native_Cast : constant Wide.I64x4 := Native.Bit_Cast (R_Bits);
+         Round_Trip : constant Wide.F64x4 := Wide.Bit_Cast (Scalar_Cast);
+         Native_Round_Trip : constant Wide.F64x4 := Native.Bit_Cast (Native_Cast);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Target_To_Bits (Wide.Extract (Scalar_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Target_To_Bits (Wide.Extract (Native_Cast, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F64x4 to I64x4 randomized direct bit cast" & Lane'Image);
+            Check (Value_To_Bits (Wide.Extract (Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane))
+              and then Value_To_Bits (Wide.Extract (Native_Round_Trip, Lane)) = Value_To_Bits (Wide.Extract (R_Bits, Lane)),
+              "F64x4 to I64x4 randomized bit-cast round trip" & Lane'Image);
+         end loop;
+      end;
+
          end;
       end loop;
    end Test_F64x4;

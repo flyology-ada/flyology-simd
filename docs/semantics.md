@@ -134,9 +134,9 @@ becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
 The Wide package applies the same lane, arithmetic, mask, floating-point,
-reduction, compression, slide, and memory rules to its 256-bit types. Its
-initial profile does not include two-source lane maps, `Bit_Cast`,
-width-changing or numeric conversions, or `Table_Lookup`. The private
+reduction, compression, slide, lane-map, bit-cast, and memory rules to its
+256-bit types. Its initial profile does not include width-changing or numeric
+conversions or `Table_Lookup`. The private
 pair-of-128 implementation is not a caller ABI or a single-instruction
 promise.
 

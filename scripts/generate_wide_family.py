@@ -63,6 +63,18 @@ class Family:
         return f"Lane_Map_{self.bits}x{self.lanes}"
 
     @property
+    def two_selector(self) -> str:
+        return f"Two_Source_Lane_Selector_{self.bits}x{self.lanes}"
+
+    @property
+    def two_selectors(self) -> str:
+        return f"Two_Source_Lane_Selectors_{self.bits}x{self.lanes}"
+
+    @property
+    def two_map(self) -> str:
+        return f"Two_Source_Lane_Map_{self.bits}x{self.lanes}"
+
+    @property
     def array(self) -> str:
         return "Byte_Array" if self.scalar == "U8" else f"{self.scalar}_Array"
 
@@ -79,6 +91,19 @@ FAMILIES = [
     Family("F32x8", "F32x4", "F32", 32, 8, floating=True),
     Family("F64x4", "F64x2", "F64", 64, 4, floating=True),
 ]
+
+BY_VECTOR = {family.vector: family for family in FAMILIES}
+
+BIT_CAST_TARGETS = {
+    "U8x32": ("I8x32",), "I8x32": ("U8x32",),
+    "U16x16": ("I16x16",), "I16x16": ("U16x16",),
+    "U32x8": ("I32x8", "F32x8"),
+    "I32x8": ("U32x8", "F32x8"),
+    "F32x8": ("U32x8", "I32x8"),
+    "U64x4": ("I64x4", "F64x4"),
+    "I64x4": ("U64x4", "F64x4"),
+    "F64x4": ("U64x4", "I64x4"),
+}
 
 
 def mask_storage(family: Family) -> str:
@@ -126,6 +151,18 @@ def declaration(f: Family, first_shape: bool) -> str:
             "   --  A reusable, validated mapping from result lanes to source lanes.",
             f"   function Make_Lane_Map (Selectors : {f.selectors}) return {f.lane_map};",
             doc("Build a reusable map from result lanes to source lanes.", ("Selectors",)),
+            f"   type {f.two_selector} is private;",
+            "   --  Select one lane from the left or right source vector.",
+            f"   function Select_Left_Lane (Lane : {f.index}) return {f.two_selector};",
+            doc("Construct a selector for one lane of the left input.", ("Lane",)),
+            f"   function Select_Right_Lane (Lane : {f.index}) return {f.two_selector};",
+            doc("Construct a selector for one lane of the right input.", ("Lane",)),
+            f"   type {f.two_selectors} is array ({f.index}) of {f.two_selector};",
+            "   --  One two-source selector for each result lane.",
+            f"   type {f.two_map} is private;",
+            "   --  A private, reusable result-lane to two-source-lane map.",
+            f"   function Make_Two_Source_Lane_Map (Selectors : {f.two_selectors}) return {f.two_map};",
+            doc("Build a reusable map from result lanes to lanes of two inputs.", ("Selectors",)),
             f"   type {f.mask} is private;",
             f"   --  One semantic Boolean truth for each of {f.lanes} lanes.",
             f"   subtype {f.mask_bits} is {mask_storage(f)} range 0 .. {(1 << f.lanes) - 1};",
@@ -134,8 +171,6 @@ def declaration(f: Family, first_shape: bool) -> str:
     out += [
         f"   type {f.values} is array ({f.index}) of {f.scalar};",
         f"   --  {f.scalar} lane values in logical lane order.",
-        f"   type {f.vector} is private;",
-        f"   --  A private 256-bit vector containing {f.lanes} {f.scalar} lanes.",
         f"   function Zero return {f.vector};",
         doc("Return a vector whose lanes are zero."),
         f"   function Splat (Value : {f.scalar}) return {f.vector};",
@@ -149,6 +184,11 @@ def declaration(f: Family, first_shape: bool) -> str:
         f"   function Replace (Value : {f.vector}; Lane : {f.index}; With_Value : {f.scalar}) return {f.vector};",
         doc("Return a copy with one lane replaced.", ("Value", "Lane", "With_Value")),
     ]
+    for target in BIT_CAST_TARGETS[f.vector]:
+        out += [
+            f"   function Bit_Cast (Value : {f.vector}) return {target};",
+            doc("Reinterpret every lane bit pattern without changing lane position.", ("Value",)),
+        ]
     for name in binary_float if f.floating else binary_integer:
         out += [f"   function {name} (Left, Right : {f.vector}) return {f.vector};",
                 doc(f"Apply {name} independently to corresponding lanes.", ("Left", "Right"))]
@@ -179,6 +219,8 @@ def declaration(f: Family, first_shape: bool) -> str:
         doc("Reverse logical lane order.", ("Value",)),
         f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector};",
         doc("Select each result lane through a reusable lane map.", ("Value", "Map")),
+        f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector};",
+        doc("Select each result lane from one lane of either input.", ("Left", "Right", "Map")),
     ]
     for name in movement:
         out += [f"   function {name} (Left, Right : {f.vector}) return {f.vector};",
@@ -241,6 +283,11 @@ def spec_text() -> str:
         declarations_list.append(declaration(f, shape not in seen_shapes))
         seen_shapes.add(shape)
     declarations = "\n\n".join(declarations_list)
+    vector_types = "\n".join(
+        f"   type {family.vector} is private;\n"
+        f"   --  A private 256-bit vector containing {family.lanes} {family.scalar} lanes."
+        for family in FAMILIES
+    )
     reps = []
     seen_shapes = set()
     for f in FAMILIES:
@@ -252,6 +299,8 @@ def spec_text() -> str:
         if shape not in seen_shapes:
             reps += [
                 f"   type {f.lane_map} is record\n      Selectors : {f.selectors} := [others => 0];\n   end record;",
+                f"   type {f.two_selector} is record\n      From_Right : Boolean := False;\n      Lane : {f.index} := 0;\n   end record;",
+                f"   type {f.two_map} is record\n      Selectors : {f.two_selectors} := [others => (From_Right => False, Lane => 0)];\n   end record;",
                 f"   type {f.mask} is record\n      Low, High : {f.half_mask};\n   end record;",
             ]
             seen_shapes.add(shape)
@@ -261,6 +310,8 @@ def spec_text() -> str:
 package Flyology_SIMD.Wide
   with Preelaborate
 is
+{vector_types}
+
 {declarations}
 
 private
@@ -285,7 +336,12 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
     p = prefix
     out = []
     if first_shape:
-        out.append(f"   function Make_Lane_Map (Selectors : {f.selectors}) return {f.lane_map} is\n     ((Selectors => Selectors));")
+        out += [
+            f"   function Make_Lane_Map (Selectors : {f.selectors}) return {f.lane_map} is\n     ((Selectors => Selectors));",
+            f"   function Select_Left_Lane (Lane : {f.index}) return {f.two_selector} is\n     ((From_Right => False, Lane => Lane));",
+            f"   function Select_Right_Lane (Lane : {f.index}) return {f.two_selector} is\n     ((From_Right => True, Lane => Lane));",
+            f"   function Make_Two_Source_Lane_Map (Selectors : {f.two_selectors}) return {f.two_map} is\n     ((Selectors => Selectors));",
+        ]
     out += [
         f"   function Zero return {f.vector} is\n     ((Low => {p}.Zero, High => {p}.Zero));",
         pair_function("Splat", f, f"Value : {f.scalar}", "Value", "Value", prefix=p),
@@ -302,6 +358,12 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
         f"      then (Low => {p}.Replace (Value.Low, Lane, With_Value), High => Value.High)\n"
         f"      else (Low => Value.Low, High => {p}.Replace (Value.High, Lane - {f.half_lanes}, With_Value)));",
     ]
+    for target_name in BIT_CAST_TARGETS[f.vector]:
+        target = BY_VECTOR[target_name]
+        out.append(
+            f"   function Bit_Cast (Value : {f.vector}) return {target.vector} is\n"
+            f"     ((Low => {p}.Bit_Cast (Value.Low), High => {p}.Bit_Cast (Value.High)));"
+        )
     binary = (("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number") if f.floating else
               ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate",
                "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max"))
@@ -345,6 +407,7 @@ def scalar_movement_body(f: Family) -> list[str]:
         *reductions,
         f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, {total - 1} - Lane)]));",
         f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, Map.Selectors (Lane))]));",
+        f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract ((if Map.Selectors (Lane).From_Right then Right else Left), Map.Selectors (Lane).Lane)]));",
         f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));",
         f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, {half} + Lane / 2) else Extract (Right, {half} + Lane / 2))]));",
         f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane < {half} then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - {half})))]));",

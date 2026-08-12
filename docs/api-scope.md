@@ -166,16 +166,24 @@ mask/value conversions. Applications must call the explicit operations above.
 The Wide families supply zero, splat, lane construction and access, integer
 and floating arithmetic, comparisons, selection, stable compression and
 expansion, reductions, reverse, interleave and deinterleave, one-source lane
-maps, zero-filled lane slides, mask operations, and typed memory operations.
+maps, two-source lane maps, zero-filled lane slides, mask operations, typed
+memory operations, and same-shape bit casts.
 Wide integer families also supply wrapping and saturating arithmetic, bitwise
 operations, shifts, minimum, and maximum.
 
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. The initial Wide profile does
-not include two-source lane maps, `Bit_Cast`, width-changing or numeric
-conversions, or `Table_Lookup`. It also has no AVX2-specific 256-bit leaf or
+not include width-changing or numeric conversions or `Table_Lookup`. It also
+has no AVX2-specific 256-bit leaf or
 code-generation claim.
+
+Wide two-source maps use the same selector rule as the 128-bit maps. Result
+lane `n` reads the lane selected at map position `n` from `Left` or `Right`.
+Selectors can repeat, and a default-initialized map selects `Left` lane 0.
+Wide `Bit_Cast` connects every signed, unsigned, and floating type with the
+same lane shape. It preserves each lane's complete bits and position and does
+not perform numeric conversion.
 
 ## Floating-point contract
 

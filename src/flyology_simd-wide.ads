@@ -4,6 +4,27 @@ with Interfaces;
 package Flyology_SIMD.Wide
   with Preelaborate
 is
+   type U8x32 is private;
+   --  A private 256-bit vector containing 32 U8 lanes.
+   type I8x32 is private;
+   --  A private 256-bit vector containing 32 I8 lanes.
+   type U16x16 is private;
+   --  A private 256-bit vector containing 16 U16 lanes.
+   type I16x16 is private;
+   --  A private 256-bit vector containing 16 I16 lanes.
+   type U32x8 is private;
+   --  A private 256-bit vector containing 8 U32 lanes.
+   type I32x8 is private;
+   --  A private 256-bit vector containing 8 I32 lanes.
+   type U64x4 is private;
+   --  A private 256-bit vector containing 4 U64 lanes.
+   type I64x4 is private;
+   --  A private 256-bit vector containing 4 I64 lanes.
+   type F32x8 is private;
+   --  A private 256-bit vector containing 8 F32 lanes.
+   type F64x4 is private;
+   --  A private 256-bit vector containing 4 F64 lanes.
+
    subtype Lane_Index_8x32 is Natural range 0 .. 31;
    --  Logical lane indexes for 32-lane vectors.
    subtype Lane_Count_8x32 is Natural range 0 .. 32;
@@ -16,14 +37,30 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   type Two_Source_Lane_Selector_8x32 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_8x32) return Two_Source_Lane_Selector_8x32;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_8x32) return Two_Source_Lane_Selector_8x32;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   type Two_Source_Lane_Selectors_8x32 is array (Lane_Index_8x32) of Two_Source_Lane_Selector_8x32;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_8x32 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_8x32) return Two_Source_Lane_Map_8x32;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    type Mask_8x32 is private;
    --  One semantic Boolean truth for each of 32 lanes.
    subtype Mask_Bits_8x32 is Interfaces.Unsigned_32 range 0 .. 4294967295;
    --  Compact bits for exactly 32 mask lanes.
    type Lane_Values_U8x32 is array (Lane_Index_8x32) of U8;
    --  U8 lane values in logical lane order.
-   type U8x32 is private;
-   --  A private 256-bit vector containing 32 U8 lanes.
    function Zero return U8x32;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -49,6 +86,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U8x32) return I8x32;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U8x32) return U8x32;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -174,6 +215,12 @@ is
    function Permute_Lanes (Value : U8x32; Map : Lane_Map_8x32) return U8x32;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U8x32; Map : Two_Source_Lane_Map_8x32) return U8x32;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U8x32) return U8x32;
@@ -312,8 +359,6 @@ is
 
    type Lane_Values_I8x32 is array (Lane_Index_8x32) of I8;
    --  I8 lane values in logical lane order.
-   type I8x32 is private;
-   --  A private 256-bit vector containing 32 I8 lanes.
    function Zero return I8x32;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -339,6 +384,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I8x32) return U8x32;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : I8x32) return I8x32;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -471,6 +520,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I8x32; Map : Two_Source_Lane_Map_8x32) return I8x32;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I8x32) return I8x32;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -561,14 +616,30 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   type Two_Source_Lane_Selector_16x16 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_16x16) return Two_Source_Lane_Selector_16x16;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_16x16) return Two_Source_Lane_Selector_16x16;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   type Two_Source_Lane_Selectors_16x16 is array (Lane_Index_16x16) of Two_Source_Lane_Selector_16x16;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_16x16 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_16x16) return Two_Source_Lane_Map_16x16;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    type Mask_16x16 is private;
    --  One semantic Boolean truth for each of 16 lanes.
    subtype Mask_Bits_16x16 is Interfaces.Unsigned_16 range 0 .. 65535;
    --  Compact bits for exactly 16 mask lanes.
    type Lane_Values_U16x16 is array (Lane_Index_16x16) of U16;
    --  U16 lane values in logical lane order.
-   type U16x16 is private;
-   --  A private 256-bit vector containing 16 U16 lanes.
    function Zero return U16x16;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -594,6 +665,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U16x16) return I16x16;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U16x16) return U16x16;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -719,6 +794,12 @@ is
    function Permute_Lanes (Value : U16x16; Map : Lane_Map_16x16) return U16x16;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U16x16; Map : Two_Source_Lane_Map_16x16) return U16x16;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x16) return U16x16;
@@ -857,8 +938,6 @@ is
 
    type Lane_Values_I16x16 is array (Lane_Index_16x16) of I16;
    --  I16 lane values in logical lane order.
-   type I16x16 is private;
-   --  A private 256-bit vector containing 16 I16 lanes.
    function Zero return I16x16;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -884,6 +963,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I16x16) return U16x16;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : I16x16) return I16x16;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1016,6 +1099,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I16x16; Map : Two_Source_Lane_Map_16x16) return I16x16;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I16x16) return I16x16;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -1106,14 +1195,30 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   type Two_Source_Lane_Selector_32x8 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_32x8) return Two_Source_Lane_Selector_32x8;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_32x8) return Two_Source_Lane_Selector_32x8;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   type Two_Source_Lane_Selectors_32x8 is array (Lane_Index_32x8) of Two_Source_Lane_Selector_32x8;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_32x8 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_32x8) return Two_Source_Lane_Map_32x8;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    type Mask_32x8 is private;
    --  One semantic Boolean truth for each of 8 lanes.
    subtype Mask_Bits_32x8 is Interfaces.Unsigned_8 range 0 .. 255;
    --  Compact bits for exactly 8 mask lanes.
    type Lane_Values_U32x8 is array (Lane_Index_32x8) of U32;
    --  U32 lane values in logical lane order.
-   type U32x8 is private;
-   --  A private 256-bit vector containing 8 U32 lanes.
    function Zero return U32x8;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1139,6 +1244,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U32x8) return I32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U32x8) return F32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U32x8) return U32x8;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1264,6 +1377,12 @@ is
    function Permute_Lanes (Value : U32x8; Map : Lane_Map_32x8) return U32x8;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U32x8; Map : Two_Source_Lane_Map_32x8) return U32x8;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x8) return U32x8;
@@ -1402,8 +1521,6 @@ is
 
    type Lane_Values_I32x8 is array (Lane_Index_32x8) of I32;
    --  I32 lane values in logical lane order.
-   type I32x8 is private;
-   --  A private 256-bit vector containing 8 I32 lanes.
    function Zero return I32x8;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1429,6 +1546,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I32x8) return U32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I32x8) return F32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : I32x8) return I32x8;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1561,6 +1686,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I32x8; Map : Two_Source_Lane_Map_32x8) return I32x8;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I32x8) return I32x8;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -1651,14 +1782,30 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   type Two_Source_Lane_Selector_64x4 is private;
+   --  Select one lane from the left or right source vector.
+   function Select_Left_Lane (Lane : Lane_Index_64x4) return Two_Source_Lane_Selector_64x4;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_64x4) return Two_Source_Lane_Selector_64x4;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   type Two_Source_Lane_Selectors_64x4 is array (Lane_Index_64x4) of Two_Source_Lane_Selector_64x4;
+   --  One two-source selector for each result lane.
+   type Two_Source_Lane_Map_64x4 is private;
+   --  A private, reusable result-lane to two-source-lane map.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_64x4) return Two_Source_Lane_Map_64x4;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    type Mask_64x4 is private;
    --  One semantic Boolean truth for each of 4 lanes.
    subtype Mask_Bits_64x4 is Interfaces.Unsigned_8 range 0 .. 15;
    --  Compact bits for exactly 4 mask lanes.
    type Lane_Values_U64x4 is array (Lane_Index_64x4) of U64;
    --  U64 lane values in logical lane order.
-   type U64x4 is private;
-   --  A private 256-bit vector containing 4 U64 lanes.
    function Zero return U64x4;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1684,6 +1831,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U64x4) return I64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U64x4) return F64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U64x4) return U64x4;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1809,6 +1964,12 @@ is
    function Permute_Lanes (Value : U64x4; Map : Lane_Map_64x4) return U64x4;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U64x4; Map : Two_Source_Lane_Map_64x4) return U64x4;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x4) return U64x4;
@@ -1947,8 +2108,6 @@ is
 
    type Lane_Values_I64x4 is array (Lane_Index_64x4) of I64;
    --  I64 lane values in logical lane order.
-   type I64x4 is private;
-   --  A private 256-bit vector containing 4 I64 lanes.
    function Zero return I64x4;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1974,6 +2133,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I64x4) return U64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I64x4) return F64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : I64x4) return I64x4;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -2106,6 +2273,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I64x4; Map : Two_Source_Lane_Map_64x4) return I64x4;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I64x4) return I64x4;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -2186,8 +2359,6 @@ is
 
    type Lane_Values_F32x8 is array (Lane_Index_32x8) of F32;
    --  F32 lane values in logical lane order.
-   type F32x8 is private;
-   --  A private 256-bit vector containing 8 F32 lanes.
    function Zero return F32x8;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -2213,6 +2384,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F32x8) return U32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F32x8) return I32x8;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add (Left, Right : F32x8) return F32x8;
    --  Apply Add independently to corresponding lanes.
@@ -2311,6 +2490,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8) return F32x8;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : F32x8) return F32x8;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -2391,8 +2576,6 @@ is
 
    type Lane_Values_F64x4 is array (Lane_Index_64x4) of F64;
    --  F64 lane values in logical lane order.
-   type F64x4 is private;
-   --  A private 256-bit vector containing 4 F64 lanes.
    function Zero return F64x4;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -2418,6 +2601,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F64x4) return U64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F64x4) return I64x4;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add (Left, Right : F64x4) return F64x4;
    --  Apply Add independently to corresponding lanes.
@@ -2516,6 +2707,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : F64x4; Map : Two_Source_Lane_Map_64x4) return F64x4;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : F64x4) return F64x4;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -2602,6 +2799,13 @@ private
    type Lane_Map_8x32 is record
       Selectors : Lane_Selectors_8x32 := [others => 0];
    end record;
+   type Two_Source_Lane_Selector_8x32 is record
+      From_Right : Boolean := False;
+      Lane : Lane_Index_8x32 := 0;
+   end record;
+   type Two_Source_Lane_Map_8x32 is record
+      Selectors : Two_Source_Lane_Selectors_8x32 := [others => (From_Right => False, Lane => 0)];
+   end record;
    type Mask_8x32 is record
       Low, High : Mask_8x16;
    end record;
@@ -2615,6 +2819,13 @@ private
    for U16x16'Size use 256;
    type Lane_Map_16x16 is record
       Selectors : Lane_Selectors_16x16 := [others => 0];
+   end record;
+   type Two_Source_Lane_Selector_16x16 is record
+      From_Right : Boolean := False;
+      Lane : Lane_Index_16x16 := 0;
+   end record;
+   type Two_Source_Lane_Map_16x16 is record
+      Selectors : Two_Source_Lane_Selectors_16x16 := [others => (From_Right => False, Lane => 0)];
    end record;
    type Mask_16x16 is record
       Low, High : Mask_16x8;
@@ -2630,6 +2841,13 @@ private
    type Lane_Map_32x8 is record
       Selectors : Lane_Selectors_32x8 := [others => 0];
    end record;
+   type Two_Source_Lane_Selector_32x8 is record
+      From_Right : Boolean := False;
+      Lane : Lane_Index_32x8 := 0;
+   end record;
+   type Two_Source_Lane_Map_32x8 is record
+      Selectors : Two_Source_Lane_Selectors_32x8 := [others => (From_Right => False, Lane => 0)];
+   end record;
    type Mask_32x8 is record
       Low, High : Mask_32x4;
    end record;
@@ -2643,6 +2861,13 @@ private
    for U64x4'Size use 256;
    type Lane_Map_64x4 is record
       Selectors : Lane_Selectors_64x4 := [others => 0];
+   end record;
+   type Two_Source_Lane_Selector_64x4 is record
+      From_Right : Boolean := False;
+      Lane : Lane_Index_64x4 := 0;
+   end record;
+   type Two_Source_Lane_Map_64x4 is record
+      Selectors : Two_Source_Lane_Selectors_64x4 := [others => (From_Right => False, Lane => 0)];
    end record;
    type Mask_64x4 is record
       Low, High : Mask_64x2;

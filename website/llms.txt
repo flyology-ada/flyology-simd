@@ -26,6 +26,7 @@ Key constraints:
 - Runtime CPU dispatch occurs once at whole-buffer algorithm boundaries.
 - AArch64 NEON and x86-64 SSE2 implement the full 128-bit family.
 - The initial 256-bit Wide profile composes selected 128-bit operations in a private pair.
+- Wide supports two-source lane maps and bit casts between types with the same lane shape.
 - Wide currently has no AVX2-specific 256-bit leaf or code-generation claim.
 - AVX2 is optional and enters only after CPU and OS extended-state checks.
 - No low-level operation allocates, performs I/O, locks, waits, or starts a task.

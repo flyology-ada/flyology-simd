@@ -91,6 +91,7 @@
           </table>
           <p>The root scalar body is the semantic reference for the complete 128-bit family. The Wide body is the scalar authority for its initial profile. Differential tests compare every current Wide Native operation group with that authority.</p>
           <p>Wide values currently contain two private 128-bit parts. This mechanism is not a public representation or ABI. <code>Wide.Native</code> does not yet contain an AVX2-specific 256-bit primitive implementation, and the project makes no 256-bit instruction-sequence claim.</p>
+          <p>Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane maps use fixed-width Ada composition. That composition calls lane-access operations from the selected 128-bit backend. The scalar and Native tests compare both mechanisms across all ten value types.</p>
         </section>
         <section id="static">
           <h2>Select primitive code at build time</h2>

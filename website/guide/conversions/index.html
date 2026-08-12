@@ -20,6 +20,7 @@
           <pre><code class="language-ada">Values : constant F32x4 := From_Lanes ([1.0, -0.0, 2.0, -2.0]);
 Encodings : constant U32x4 := Bit_Cast (Values);</code></pre>
           <p>The result contains four IEEE binary32 encodings. It does not contain the integers 1, 0, 2, and -2.</p>
+          <p>The <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> package applies the same rule at 256 bits. For example, its <a data-api="Flyology_SIMD.Wide.Bit_Cast" data-api-signature="Value : F32x8) return U32x8"><code>Bit_Cast</code></a> overload reinterprets <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a> as <a data-api="Flyology_SIMD.Wide.U32x8"><code>U32x8</code></a> without changing any lane bit or position. Wide bit casts connect signed, unsigned, and floating types with the same lane width and lane count. They do not perform numeric conversion.</p>
         </section>
         <section id="width">
           <h2>Use widening and narrowing for lane-width changes</h2>

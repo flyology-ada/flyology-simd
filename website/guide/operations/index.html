@@ -108,13 +108,17 @@
               <tr><th>Group</th><th>Current Wide profile</th></tr>
             </thead>
             <tbody>
-              <tr><td>All value types</td><td>Construction and lane access; equality; selection; compression and expansion; reverse; interleave and deinterleave; one-source lane maps; lane slides; mask operations; typed memory operations</td></tr>
+              <tr><td>Construction and access</td><td>Zero; splat; lane construction, extraction, and replacement</td></tr>
+              <tr><td>Comparison and selection</td><td>Equality; ordered comparisons; floating unordered comparison; value selection</td></tr>
+              <tr><td>Lane movement</td><td>Reverse; interleave and deinterleave; one-source maps; <a data-api="Flyology_SIMD.Wide"><code>Select_Left_Lane</code>, <code>Select_Right_Lane</code>, <code>Make_Two_Source_Lane_Map</code>, and three-argument <code>Permute_Lanes</code></a>; lane slides</td></tr>
+              <tr><td>Mask and memory</td><td>Mask operations; compression and expansion; typed full, aligned, unaligned, and partial memory operations</td></tr>
+              <tr><td>Bit reinterpretation</td><td><a data-api="Flyology_SIMD.Wide"><code>Bit_Cast</code></a> between signed, unsigned, and floating types that have the same lane width and lane count</td></tr>
               <tr><td>Integer types</td><td>Wrapping and saturating arithmetic; bitwise operations; shifts; ordered comparisons; minimum; maximum; add, minimum, and maximum reductions</td></tr>
               <tr><td>Floating types</td><td>Arithmetic; ordered and unordered comparisons; number minimum and maximum; add, number-minimum, and number-maximum reductions</td></tr>
-              <tr><td>Not in the profile</td><td>Two-source lane maps; <code>Bit_Cast</code>; width-changing and numeric conversions; <code>Table_Lookup</code></td></tr>
+              <tr><td>Not in the profile</td><td>Width-changing and numeric conversions; <code>Table_Lookup</code></td></tr>
             </tbody>
           </table>
-          <p>An operation with the same name as a 128-bit operation has the same lane semantics.</p>
+          <p>An operation with the same name as a 128-bit operation has the same lane semantics. Wide two-source maps can select and repeat lanes from either input. Wide bit casts preserve every lane bit and position between signed, unsigned, and floating types that have the same lane width and lane count.</p>
           <p>A full Wide load or store transfers one complete 256-bit vector. An aligned Wide load or store requires 32-byte alignment. The current implementation uses private 128-bit parts, and <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> composes selected native 128-bit operations across them. The pair is not a public representation or ABI. There is no AVX2-specific 256-bit primitive implementation or code-generation claim.</p>
           <p>Chapter 2 <a href="../practical/#wide-dot">uses <code>F32x8</code> for an eight-lane weighted sum</a>.</p>
         </section>

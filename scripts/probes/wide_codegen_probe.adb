@@ -10,4 +10,9 @@ package body Wide_Codegen_Probe is
      (Left, Right : Flyology_SIMD.Wide.F32x8)
       return Flyology_SIMD.Wide.F32x8 is
      (Flyology_SIMD.Wide.Native.Multiply (Left, Right));
+
+   function F32_To_U32_Bits
+     (Value : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.U32x8 is
+     (Flyology_SIMD.Wide.Native.Bit_Cast (Value));
 end Wide_Codegen_Probe;

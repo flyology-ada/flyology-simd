@@ -6,6 +6,18 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   function Select_Left_Lane (Lane : Lane_Index_8x32) return Two_Source_Lane_Selector_8x32 with Inline_Always;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_8x32) return Two_Source_Lane_Selector_8x32 with Inline_Always;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_8x32) return Two_Source_Lane_Map_8x32 with Inline_Always;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    function Zero return U8x32 with Inline_Always;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -31,6 +43,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U8x32) return I8x32 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -156,6 +172,12 @@ is
    function Permute_Lanes (Value : U8x32; Map : Lane_Map_8x32) return U8x32 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U8x32; Map : Two_Source_Lane_Map_8x32) return U8x32 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U8x32) return U8x32 with Inline_Always;
@@ -317,6 +339,10 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : I8x32) return U8x32 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add_Wrap (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
    --  @param Left The left input.
@@ -448,6 +474,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I8x32; Map : Two_Source_Lane_Map_8x32) return I8x32 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -529,6 +561,18 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   function Select_Left_Lane (Lane : Lane_Index_16x16) return Two_Source_Lane_Selector_16x16 with Inline_Always;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_16x16) return Two_Source_Lane_Selector_16x16 with Inline_Always;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_16x16) return Two_Source_Lane_Map_16x16 with Inline_Always;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    function Zero return U16x16 with Inline_Always;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -554,6 +598,10 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U16x16) return I16x16 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -679,6 +727,12 @@ is
    function Permute_Lanes (Value : U16x16; Map : Lane_Map_16x16) return U16x16 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U16x16; Map : Two_Source_Lane_Map_16x16) return U16x16 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x16) return U16x16 with Inline_Always;
@@ -840,6 +894,10 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : I16x16) return U16x16 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add_Wrap (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
    --  @param Left The left input.
@@ -971,6 +1029,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I16x16; Map : Two_Source_Lane_Map_16x16) return I16x16 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -1052,6 +1116,18 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   function Select_Left_Lane (Lane : Lane_Index_32x8) return Two_Source_Lane_Selector_32x8 with Inline_Always;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_32x8) return Two_Source_Lane_Selector_32x8 with Inline_Always;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_32x8) return Two_Source_Lane_Map_32x8 with Inline_Always;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    function Zero return U32x8 with Inline_Always;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1077,6 +1153,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U32x8) return I32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U32x8) return F32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1202,6 +1286,12 @@ is
    function Permute_Lanes (Value : U32x8; Map : Lane_Map_32x8) return U32x8 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U32x8; Map : Two_Source_Lane_Map_32x8) return U32x8 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x8) return U32x8 with Inline_Always;
@@ -1363,6 +1453,14 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : I32x8) return U32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I32x8) return F32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add_Wrap (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
    --  @param Left The left input.
@@ -1494,6 +1592,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I32x8; Map : Two_Source_Lane_Map_32x8) return I32x8 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -1575,6 +1679,18 @@ is
    --  Build a reusable map from result lanes to source lanes.
    --  @param Selectors The selectors input.
    --  @return The operation result.
+   function Select_Left_Lane (Lane : Lane_Index_64x4) return Two_Source_Lane_Selector_64x4 with Inline_Always;
+   --  Construct a selector for one lane of the left input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Select_Right_Lane (Lane : Lane_Index_64x4) return Two_Source_Lane_Selector_64x4 with Inline_Always;
+   --  Construct a selector for one lane of the right input.
+   --  @param Lane The lane input.
+   --  @return The operation result.
+   function Make_Two_Source_Lane_Map (Selectors : Two_Source_Lane_Selectors_64x4) return Two_Source_Lane_Map_64x4 with Inline_Always;
+   --  Build a reusable map from result lanes to lanes of two inputs.
+   --  @param Selectors The selectors input.
+   --  @return The operation result.
    function Zero return U64x4 with Inline_Always;
    --  Return a vector whose lanes are zero.
    --  @return The operation result.
@@ -1600,6 +1716,14 @@ is
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U64x4) return I64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : U64x4) return F64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
    --  @return The operation result.
    function Add_Wrap (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
@@ -1725,6 +1849,12 @@ is
    function Permute_Lanes (Value : U64x4; Map : Lane_Map_64x4) return U64x4 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : U64x4; Map : Two_Source_Lane_Map_64x4) return U64x4 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x4) return U64x4 with Inline_Always;
@@ -1886,6 +2016,14 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : I64x4) return U64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : I64x4) return F64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add_Wrap (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
    --  @param Left The left input.
@@ -2017,6 +2155,12 @@ is
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
+   function Permute_Lanes (Left, Right : I64x4; Map : Two_Source_Lane_Map_64x4) return I64x4 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @param Map The map input.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Interleave_Low with the documented lane mapping.
    --  @param Left The left input.
@@ -2120,6 +2264,14 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : F32x8) return U32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F32x8) return I32x8 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add (Left, Right : F32x8) return F32x8 with Inline_Always;
    --  Apply Add independently to corresponding lanes.
    --  @param Left The left input.
@@ -2215,6 +2367,12 @@ is
    function Permute_Lanes (Value : F32x8; Map : Lane_Map_32x8) return F32x8 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8) return F32x8 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F32x8) return F32x8 with Inline_Always;
@@ -2320,6 +2478,14 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Bit_Cast (Value : F64x4) return U64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Bit_Cast (Value : F64x4) return I64x4 with Inline_Always;
+   --  Reinterpret every lane bit pattern without changing lane position.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Add (Left, Right : F64x4) return F64x4 with Inline_Always;
    --  Apply Add independently to corresponding lanes.
    --  @param Left The left input.
@@ -2415,6 +2581,12 @@ is
    function Permute_Lanes (Value : F64x4; Map : Lane_Map_64x4) return F64x4 with Inline_Always;
    --  Select each result lane through a reusable lane map.
    --  @param Value The value input.
+   --  @param Map The map input.
+   --  @return The operation result.
+   function Permute_Lanes (Left, Right : F64x4; Map : Two_Source_Lane_Map_64x4) return F64x4 with Inline_Always;
+   --  Select each result lane from one lane of either input.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F64x4) return F64x4 with Inline_Always;

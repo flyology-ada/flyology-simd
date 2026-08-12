@@ -147,6 +147,7 @@ Differences : constant F32x4 :=
           <pre><code class="language-text">successors : 4.00000E+00 9.00000E+00 1.60000E+01 2.50000E+01
 differences: 3.00000E+00 5.00000E+00 7.00000E+00 9.00000E+00</code></pre>
           <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/cross_block_differences.adb">maintained cross-block example</a> asserts the intermediate and final vectors before it prints them.</p>
+          <p>The <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> package uses the same selector rule for its 256-bit values. A <a data-api="Flyology_SIMD.Wide.Two_Source_Lane_Map_32x8"><code>Two_Source_Lane_Map_32x8</code></a> selects eight 32-bit result lanes. The three-argument <a data-api="Flyology_SIMD.Wide.Native.Permute_Lanes" data-api-signature="Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8"><code>Wide.Native.Permute_Lanes</code></a> overload applies that map to two <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a> values. Thus, the cross-block window pattern also applies to eight-lane blocks.</p>
         </section>
         <section id="integers">
           <h2>Choose wrapping or saturating integer arithmetic</h2>

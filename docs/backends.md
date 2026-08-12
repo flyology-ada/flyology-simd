@@ -75,6 +75,10 @@ tests cover fixed vectors and 128 deterministic pseudorandom inputs for all ten
 value families. They compare every current Native operation group with the
 scalar authority, cover all partial-memory counts, and exercise floating
 reduction order, signed zero, and special lane encodings.
+Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane
+maps use fixed-width scalar composition through selected lane access
+operations. The differential tests check the scalar and Native maps for all
+ten value types and check floating special encodings bit for bit.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow
