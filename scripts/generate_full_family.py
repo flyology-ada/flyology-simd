@@ -125,6 +125,15 @@ OPERATION_DOCS = {
     "Reduce_Min_Number": "Apply Min_Number to all floating lanes in ascending lane order.",
     "Reduce_Max_Number": "Apply Max_Number to all floating lanes in ascending lane order.",
     "Reverse_Lanes": "Reverse logical lane order.",
+    "Make_Lane_Map": (
+        "Build a reusable lane map. For each result lane, the selector gives "
+        "the source lane. Selectors can repeat source lanes. A default-initialized "
+        "map selects source lane zero for every result lane."
+    ),
+    "Permute_Lanes": (
+        "Select each result lane through a reusable lane map. Moved lanes keep "
+        "their complete bit encoding."
+    ),
     "Interleave_Low": "Alternate lanes from the low half of both inputs, starting with the left input.",
     "Interleave_High": "Alternate lanes from the high half of both inputs, starting with the left input.",
     "Deinterleave_Even": "Collect even lanes from the left input, then even lanes from the right input.",
@@ -215,6 +224,8 @@ PARAM_DOCS = {
     "Left": "The left input.",
     "Right": "The right input.",
     "Lane": "The logical lane index.",
+    "Selectors": "One source-lane selector for each result lane.",
+    "Map": "The reusable source-lane map.",
     "With_Value": "The replacement lane value.",
     "Count": "The bit-shift count, lane-slide count, or valid element count, as applicable.",
     "Mask": "The input mask.",
@@ -290,7 +301,16 @@ def document_spec(text: str) -> str:
         )
         if not has_trailing_doc:
             if kind in ("type", "subtype"):
-                documented.append(f"   --  Public lane, array, vector, or mask type {name}.")
+                if name.startswith("Lane_Selectors_"):
+                    documented.append(
+                        "   --  One valid source-lane selector for each result lane."
+                    )
+                elif name.startswith("Lane_Map_"):
+                    documented.append(
+                        "   --  A private, reusable result-lane to source-lane map."
+                    )
+                else:
+                    documented.append(f"   --  Public lane, array, vector, or mask type {name}.")
             else:
                 declaration_text = " ".join(declaration)
                 if name == "Convert_Saturate":
@@ -358,6 +378,11 @@ def strip_generated_docs(text: str) -> str:
             continue
         if stripped.startswith("Public lane, array, vector, or mask type "):
             continue
+        if stripped in (
+            "One valid source-lane selector for each result lane.",
+            "A private, reusable result-lane to source-lane map.",
+        ):
+            continue
         if stripped in summaries or stripped == "Perform the documented portable operation.":
             continue
         if any(
@@ -391,6 +416,14 @@ def lane_count(bits: int, lanes: int) -> str:
 
 def lane_values(vector: str) -> str:
     return f"Lane_Values_{vector}"
+
+
+def lane_selectors(bits: int, lanes: int) -> str:
+    return f"Lane_Selectors_{bits}x{lanes}"
+
+
+def lane_map(bits: int, lanes: int) -> str:
+    return f"Lane_Map_{bits}x{lanes}"
 
 
 def array_name(scalar: str) -> str:
@@ -473,6 +506,9 @@ def emit_spec() -> str:
             out += [
                 f"   subtype {lane_index(bits, lanes)} is Natural range 0 .. {lanes - 1};",
                 f"   subtype {lane_count(bits, lanes)} is Natural range 0 .. {lanes};",
+                f"   type {lane_selectors(bits, lanes)} is array ({lane_index(bits, lanes)}) of {lane_index(bits, lanes)};",
+                f"   type {lane_map(bits, lanes)} is private;",
+                f"   function Make_Lane_Map (Selectors : {lane_selectors(bits, lanes)}) return {lane_map(bits, lanes)};",
             ]
             seen_shapes.add(shape)
         out += [
@@ -530,6 +566,7 @@ def emit_spec() -> str:
             f"   function Reduce_Min (Value : {vector}) return {scalar};",
             f"   function Reduce_Max (Value : {vector}) return {scalar};",
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
+            f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
@@ -581,6 +618,7 @@ def emit_spec() -> str:
             f"   function Reduce_Min_Number (Value : {vector}) return {scalar};",
             f"   function Reduce_Max_Number (Value : {vector}) return {scalar};",
             f"   function Reverse_Lanes (Value : {vector}) return {vector};",
+            f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector};",
             f"   function Interleave_Low (Left, Right : {vector}) return {vector};",
             f"   function Interleave_High (Left, Right : {vector}) return {vector};",
             f"   function Deinterleave_Even (Left, Right : {vector}) return {vector};",
@@ -624,6 +662,7 @@ def emit_spec() -> str:
 
 def emit_private() -> str:
     out = []
+    seen_shapes = {(8, 16)}
     for vector, _, _, _, *_ in INTEGER_TYPES + FLOAT_TYPES:
         out += [
             f"   type {vector} is record",
@@ -632,6 +671,21 @@ def emit_private() -> str:
             f"   for {vector}'Size use 128;",
             "",
         ]
+        bits = next(item[2] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+        lanes = next(item[3] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+        if (bits, lanes) not in seen_shapes:
+            lane_bytes = bits // 8
+            default_indices = ", ".join(
+                str(byte) for _ in range(lanes) for byte in range(lane_bytes)
+            )
+            out += [
+                f"   type {lane_map(bits, lanes)} is record",
+                f"      Byte_Indices : Lane_Values_8x16 := [{default_indices}];",
+                "   end record;",
+                f"   for {lane_map(bits, lanes)}'Size use 128;",
+                "",
+            ]
+            seen_shapes.add((bits, lanes))
     for bits, lanes, storage in MASKS:
         mask = mask_for(bits, lanes)
         out += [
@@ -644,6 +698,14 @@ def emit_private() -> str:
     return "\n".join(out)
 
 
+def emit_scalar_backend_renames() -> str:
+    """Emit the scalar package's full-family renames from the public spec."""
+    out: list[str] = []
+    for vector, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES:
+        out.append(
+            f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector} renames Flyology_SIMD.Permute_Lanes;"
+        )
+    return document_spec("\n".join(out))
 def signed_unsigned(bits: int) -> str:
     return f"U{bits}"
 
@@ -678,6 +740,54 @@ def emit_lane_slides(vector: str, idx: str, lanes: int) -> list[str]:
     ]
 
 
+def emit_lane_map(bits: int, lanes: int) -> list[str]:
+    """Emit a private byte-index map that can feed a native table lookup."""
+    idx = lane_index(bits, lanes)
+    selectors = lane_selectors(bits, lanes)
+    mapping = lane_map(bits, lanes)
+    bytes_per_lane = bits // 8
+    return [
+        f"   function Make_Lane_Map (Selectors : {selectors}) return {mapping} is",
+        f"      Result : {mapping};",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        f"         for Byte in Natural range 0 .. {bytes_per_lane - 1} loop",
+        "            Result.Byte_Indices",
+        f"              (Result_Lane * {bytes_per_lane} + Byte) :=",
+        "                U8",
+        f"                  (Natural (Selectors (Result_Lane)) * {bytes_per_lane}",
+        "                   + Byte);",
+        "         end loop;",
+        "      end loop;",
+        "      return Result;",
+        "   end Make_Lane_Map;",
+        "",
+    ]
+
+
+def emit_lane_permute(vector: str, bits: int, lanes: int) -> list[str]:
+    idx = lane_index(bits, lanes)
+    mapping = lane_map(bits, lanes)
+    bytes_per_lane = bits // 8
+    return [
+        f"   function Permute_Lanes (Value : {vector}; Map : {mapping}) return {vector} is",
+        f"      Result : {vector};",
+        "   begin",
+        f"      for Result_Lane in {idx} loop",
+        "         Result.Lanes (Result_Lane) :=",
+        "           Value.Lanes",
+        f"             ({idx}",
+        "                (Natural",
+        "                   (Map.Byte_Indices",
+        f"                      (Result_Lane * {bytes_per_lane}))",
+        f"                 / {bytes_per_lane}));",
+        "      end loop;",
+        "      return Result;",
+        "   end Permute_Lanes;",
+        "",
+    ]
+
+
 def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: bool) -> list[str]:
     idx = lane_index(bits, lanes)
     vals = lane_values(vector)
@@ -708,6 +818,7 @@ def emit_integer_body(vector: str, scalar: str, bits: int, lanes: int, signed: b
         "   end Replace;",
         "",
     ]
+    out += emit_lane_permute(vector, bits, lanes)
     for name, op in (("Add_Wrap", "+"), ("Subtract_Wrap", "-")):
         expr = f"Left.Lanes (Lane) {op} Right.Lanes (Lane)"
         if signed:
@@ -867,6 +978,7 @@ def emit_float_body(vector: str, scalar: str, bits: int, lanes: int) -> list[str
         f"      Result : {vector} := Value;",
         "   begin Result.Lanes (Lane) := With_Value; return Result; end Replace;",
     ]
+    out += emit_lane_permute(vector, bits, lanes)
     for name, op in (("Add", "+"), ("Subtract", "-"), ("Multiply", "*"), ("Divide", "/")):
         out += [f"   function {name} (Left, Right : {vector}) return {vector} is", f"      Result : {vector};", "   begin", f"      for Lane in {idx} loop Result.Lanes (Lane) := Left.Lanes (Lane) {op} Right.Lanes (Lane); end loop;", "      return Result;", f"   end {name};"]
     out += [f"   function Compare_{vector} (Left, Right : {vector}; Kind : Character) return {mask} is", f"      Bits : {storage} := 0;", "      Truth : Boolean;", "   begin", f"      for Lane in {idx} loop", "         case Kind is", "            when '=' => Truth := Left.Lanes (Lane) = Right.Lanes (Lane);", "            when '<' => Truth := Left.Lanes (Lane) < Right.Lanes (Lane);", "            when 'L' => Truth := Left.Lanes (Lane) <= Right.Lanes (Lane);", "            when '>' => Truth := Left.Lanes (Lane) > Right.Lanes (Lane);", "            when 'G' => Truth := Left.Lanes (Lane) >= Right.Lanes (Lane);", "            when others => Truth := Left.Lanes (Lane) /= Left.Lanes (Lane) or else Right.Lanes (Lane) /= Right.Lanes (Lane);", "         end case;", f"         if Truth then Bits := Bits or Interfaces.Shift_Left ({storage}'(1), Lane); end if;", "      end loop;", "      return (Bits => Bits);", f"   end Compare_{vector};"]
@@ -1113,6 +1225,11 @@ def emit_conversion_body() -> str:
 
 def emit_body() -> str:
     out = [emit_conversion_body()]
+    seen_shapes = {(8, 16)}
+    for _, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES:
+        if (bits, lanes) not in seen_shapes:
+            out += emit_lane_map(bits, lanes)
+            seen_shapes.add((bits, lanes))
     for item in INTEGER_TYPES:
         out += emit_integer_body(*item)
     for item in FLOAT_TYPES:

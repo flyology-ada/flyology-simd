@@ -580,6 +580,11 @@ is
    --  @param Table The 16 selectable byte lanes.
    --  @param Indices One unsigned table index for each result lane.
    --  @return The operation result.
+   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
+   --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
    --  Count is in lanes.
    --  A zero count returns Value.
@@ -739,6 +744,11 @@ is
    function Reverse_Lanes (Value : I8x16) return I8x16;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I8x16) return I8x16;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -963,6 +973,11 @@ is
    function Reverse_Lanes (Value : U16x8) return U16x8;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x8) return U16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1193,6 +1208,11 @@ is
    --  Reverse logical lane order.
    --  @param Value The input value.
    --  @return The operation result.
+   function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I16x8) return I16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
    --  @param Left The left input.
@@ -1416,6 +1436,11 @@ is
    function Reverse_Lanes (Value : U32x4) return U32x4;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x4) return U32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -1646,6 +1671,11 @@ is
    --  Reverse logical lane order.
    --  @param Value The input value.
    --  @return The operation result.
+   function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I32x4) return I32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
    --  @param Left The left input.
@@ -1869,6 +1899,11 @@ is
    function Reverse_Lanes (Value : U64x2) return U64x2;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x2) return U64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2099,6 +2134,11 @@ is
    --  Reverse logical lane order.
    --  @param Value The input value.
    --  @return The operation result.
+   function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
+   --  @return The operation result.
    function Interleave_Low (Left, Right : I64x2) return I64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
    --  @param Left The left input.
@@ -2293,6 +2333,11 @@ is
    function Reverse_Lanes (Value : F32x4) return F32x4;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F32x4) return F32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
@@ -2489,6 +2534,11 @@ is
    function Reverse_Lanes (Value : F64x2) return F64x2;
    --  Reverse logical lane order.
    --  @param Value The input value.
+   --  @return The operation result.
+   function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2 with Inline_Always;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F64x2) return F64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.

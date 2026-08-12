@@ -48,6 +48,15 @@ procedure SIMD_Tests is
       return Result;
    end Random_Lanes;
 
+   function Random_Selectors return Lane_Selectors_8x16 is
+      Result : Lane_Selectors_8x16;
+   begin
+      for Lane in Result'Range loop
+         Result (Lane) := Lane_Index_8x16 (Next_U8 mod 16);
+      end loop;
+      return Result;
+   end Random_Selectors;
+
    function Same (Left, Right : U8x16) return Boolean is
      (To_Lanes (Left) = To_Lanes (Right));
 
@@ -114,6 +123,9 @@ procedure SIMD_Tests is
           16#A1#, 16#AE#, 0, 16#A8#,
           16#A3#, 0, 16#AC#, 16#A2#,
           0, 16#A5#, 16#A9#, 16#A4#]);
+      Selectors : constant Lane_Selectors_8x16 :=
+        [15, 0, 7, 7, 1, 14, 2, 8, 3, 3, 12, 2, 6, 5, 9, 4];
+      Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
    begin
       Check
         (Extract (U8x16'(Zero), 0) = 0
@@ -177,6 +189,20 @@ procedure SIMD_Tests is
               (Lookup_Table, Lookup_Indices),
             Lookup_Expected),
          "native table lookup literal semantics");
+      for Lane in Lane_Index_8x16 loop
+         Check
+           (Extract (Permute_Lanes (A, Map), Lane) =
+              Extract (A, Selectors (Lane)),
+            "byte fixed lane permutation" & Lane'Image);
+      end loop;
+      Check
+        (Same
+           (Flyology_SIMD.Backends.Scalar.Permute_Lanes (A, Map),
+            Permute_Lanes (A, Map))
+         and then Same
+           (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
+            Permute_Lanes (A, Map)),
+         "byte fixed lane permutation backends");
    end Test_Core_Semantics;
 
    procedure Test_All_Table_Indices is
@@ -377,6 +403,8 @@ procedure SIMD_Tests is
             Count : constant Lane_Count_8x16 := Iteration mod 17;
             Shift : constant Natural := Iteration mod 13;
             Slide : constant Natural := Iteration mod 19;
+            Selectors : constant Lane_Selectors_8x16 := Random_Selectors;
+            Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
          begin
             Check (Same (Flyology_SIMD.Backends.Native.Zero, Zero),
                    "native zero" & Iteration'Image);
@@ -508,7 +536,16 @@ procedure SIMD_Tests is
                     (A, Slide),
                   Slide_Lanes_Toward_High (A, Slide)),
                "native lane slides" & Iteration'Image);
+            Check
+              (Same
+                 (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
+                  Permute_Lanes (A, Map)),
+               "native lane permutation" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
+               Check
+                 (Extract (Permute_Lanes (A, Map), Lane) =
+                    Extract (A, Selectors (Lane)),
+                  "randomized independent lane permutation" & Lane'Image);
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),
                       "scalar subtract lane" & Lane'Image);

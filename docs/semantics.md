@@ -26,6 +26,15 @@ same position. A value from 0 through 15 selects the table lane whose lane
 index equals that value. A larger value produces zero. The operation does not
 mask or reduce an index before the lookup.
 
+`Make_Lane_Map` accepts one strongly typed source-lane selector for every
+result lane. Each selector is in range by construction. Selectors can repeat a
+source lane and do not need to form a one-to-one permutation. `Permute_Lanes`
+uses the map for vectors with the same lane shape. Result lane `n` is the
+source lane selected for result lane `n`. It preserves the complete lane bit
+encoding, including floating NaN payload and signaling state, infinity, and
+signed zero. A map contains no vector value and can be reused.
+A default-initialized map selects source lane 0 for every result lane.
+
 Lane-slide counts are in lanes. `Slide_Lanes_Toward_Low` moves each source lane
 toward lane 0 and fills vacated high-index lanes with zero.
 `Slide_Lanes_Toward_High` moves each source lane toward the highest lane index
@@ -102,8 +111,8 @@ the same lane width. Lane positions do not change. A negative signed input
 becomes zero in the unsigned result. An unsigned input above the signed maximum
 becomes that maximum. All other values are preserved.
 
-General lane-index shuffles, compression, and the portable 256-bit family
-remain pre-stabilization work.
+Two-source general lane-index shuffles, compression, and the portable 256-bit
+family remain pre-stabilization work.
 
 ## Memory
 

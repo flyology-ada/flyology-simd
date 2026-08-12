@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Apply arithmetic, reductions, and lane slides in Flyology SIMD.">
-  <title>Arithmetic and reductions · Flyology SIMD</title>
+  <meta name="description" content="Apply arithmetic, reductions, lane slides, and reusable lane maps in Flyology SIMD.">
+  <title>Arithmetic and lane movement · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/practical/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
 </head>
@@ -11,11 +11,11 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and reductions</li></ol><h1>State arithmetic and reduction semantics explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes the vector dot product and separates integer overflow rules from floating-point rules.</p></header>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and lane movement</li></ol><h1>Compute and rearrange lanes explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes the vector dot product, then uses lane movement in a stencil and a point rotation.</p></header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li><li><a href="#result">Program result</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#permutations">Point rotation</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li><li><a href="#result">Dot-product result</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">Chapter 1 formed four products. A complete dot product accumulates product vectors and then reduces four lane totals to one scalar value.</p>
+        <p class="chapter-lead">Chapter 1 formed four products. This chapter completes the dot product, then shows how slides and lane maps rearrange data for other calculations.</p>
         <section id="loop">
           <h2>Accumulate four lane totals</h2>
           <p>The maintained example passes scalar or native operations to one generic function. Its loop has this structure:</p>
@@ -51,7 +51,34 @@ Sums : constant F32x4 :=
 
 --  Sums is [3, 6, 9, 7].</code></pre>
           <p><a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High" data-api-signature="F32x4"><code>Slide_Lanes_Toward_High</code></a> inserts positive zero at lane 0. <a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low" data-api-signature="F32x4"><code>Slide_Lanes_Toward_Low</code></a> inserts positive zero at lane 3. The two <a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Add</code></a> calls then combine each sample with those shifted neighbors.</p>
-          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> prints both intermediate vectors and the result. The <a href="../operations/#integers">operation reference</a> defines zero, oversized, and edge-count behavior.</p>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> prints both intermediate vectors and the result. The <a href="../operations/#lane-movement">operation reference</a> defines zero, oversized, and edge-count behavior.</p>
+        </section>
+        <section id="permutations">
+          <h2>Reuse a lane map to rotate points</h2>
+          <p>A lane slide moves all retained lanes by the same offset and fills the vacated lanes with zero. A reusable lane map selects each result lane independently from one source vector.</p>
+          <p>Store two planar points as <code>[x0, y0, x1, y1]</code>. A 90-degree counterclockwise rotation maps each point <code>(x, y)</code> to <code>(-y, x)</code>. The rotation first swaps each pair of coordinates and then applies the signs.</p>
+          <p>A <a data-api="Flyology_SIMD.Lane_Selectors_32x4"><code>Lane_Selectors_32x4</code></a> value gives one source-lane index for each result lane. <a data-api="Flyology_SIMD.Make_Lane_Map" data-api-signature="Lane_Selectors_32x4"><code>Make_Lane_Map</code></a> constructs a reusable <a data-api="Flyology_SIMD.Lane_Map_32x4"><code>Lane_Map_32x4</code></a> from those strongly typed selectors.</p>
+          <pre><code class="language-ada">Swap_XY : constant Lane_Map_32x4 :=
+  Make_Lane_Map ([1, 0, 3, 2]);
+
+Points : constant F32x4 :=
+  Native.From_Lanes ([2.0, 5.0, -3.0, 4.0]);
+Signs : constant F32x4 :=
+  Native.From_Lanes ([-1.0, 1.0, -1.0, 1.0]);
+
+Rotated : constant F32x4 :=
+  Native.Multiply
+    (Native.Permute_Lanes (Points, Swap_XY), Signs);
+
+--  The permutation is [5, 2, 4, -3].
+--  Rotated is [-5, 2, -4, -3].</code></pre>
+          <p>Selector 1 supplies result lane 0, selector 0 supplies result lane 1, and the next two selectors do the same for the second point. The <a data-api="Flyology_SIMD.Backends.Native.Permute_Lanes" data-api-signature="F32x4"><code>Backends.Native.Permute_Lanes</code></a> call therefore returns <code>[5.0, 2.0, 4.0, -3.0]</code>. <a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Backends.Native.Multiply</code></a> applies the signs and returns the two rotated points.</p>
+          <p>A repeated selector broadcasts one source lane to several result lanes. <code>Permute_Lanes</code> preserves each selected lane's complete bit pattern; it does not perform numeric conversion. The same 32x4 map can be reused with signed, unsigned, or floating 32-bit vectors.</p>
+          <p><code>Permute_Lanes</code> reads one source vector. Two-source general lane-index shuffles are not implemented.</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/permute_points</code></pre>
+          <pre><code class="language-text">rotated points: [-5.00000E+00, 2.00000E+00] [-4.00000E+00,-3.00000E+00]</code></pre>
+          <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/permute_points.adb">maintained point-rotation example</a> creates the map once and uses the native backend for both operations.</p>
         </section>
         <section id="integers">
           <h2>Choose wrapping or saturating integer arithmetic</h2>
@@ -75,7 +102,7 @@ Saturated : constant U16x8 := Add_Saturate (Input, Increment);
           <p>Before an algorithm depends on NaN payloads, signaling state, signed zero, or conversion boundaries, read the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a>.</p>
         </section>
         <section id="result">
-          <h2>Run the complete numeric example</h2>
+          <h2>Run the complete dot-product example</h2>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/dot_product</code></pre>
           <pre><code class="language-text">ordinary Ada dot: 7.00000E+01

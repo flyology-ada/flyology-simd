@@ -24,8 +24,9 @@ never implicitly interchangeable.
 
 Every family supplies zero, splat, lane construction, extraction, replacement,
 comparison, selection, reverse, interleave, deinterleave, and typed memory
-operations. Every family also supplies zero-filled lane slides in both lane-index
-directions. Integer families supply wrapping and saturating arithmetic,
+operations. Every family also supplies reusable, strongly typed one-source
+lane maps and zero-filled lane slides in both lane-index directions. Integer
+families supply wrapping and saturating arithmetic,
 bitwise operations, shifts, minimum, maximum, and add/minimum/maximum
 reductions. Floating families supply arithmetic, number minimum and maximum,
 and add/minimum/maximum reductions.
@@ -35,6 +36,15 @@ operation reads the unsigned value from the index lane at the same position. A
 value from 0 through 15 selects the table lane whose lane index equals that
 value. A larger value produces zero. The operation does not reduce an index
 modulo 16.
+
+`Make_Lane_Map` validates selectors through the lane-index subtype. For each
+result lane `n`, `Permute_Lanes` selects the source lane stored at map position
+`n`. A selector can occur more than once, so the operation can broadcast a
+lane as well as reorder lanes. The map is shared by signed, unsigned, and
+floating vectors with the same lane shape. Moved lanes preserve every bit.
+Default initialization produces a lane-zero broadcast map.
+The current operation reads one source vector; a general two-source shuffle is
+not in this release.
 
 `Slide_Lanes_Toward_Low` moves a value from source lane `n + Count` to result
 lane `n`. It fills the vacated high-index lanes with zero.

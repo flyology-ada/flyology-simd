@@ -25,6 +25,8 @@ from generate_full_family import (
     emit_spec,
     lane_count,
     lane_index,
+    lane_map,
+    lane_selectors,
     lane_values,
     mask_for,
     replace_block,
@@ -56,14 +58,16 @@ def contract() -> str:
     byte_operations = "\n".join(
         [
             "   function Table_Lookup (Table, Indices : U8x16) return U8x16;",
+            "   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16;",
             "   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16;",
             "   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16;",
         ]
     )
     result = emit_conversion_spec() + "\n" + byte_operations + "\n" + operations
     return re.sub(
-        r"(function Slide_Lanes_Toward_(?:Low|High) "
-        r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+);",
+        r"(function (?:Slide_Lanes_Toward_(?:Low|High) "
+        r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+|"
+        r"Permute_Lanes \(Value : [A-Za-z0-9_]+; Map : Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+));",
         r"\1 with Inline_Always;",
         result,
     )
@@ -79,6 +83,7 @@ def call(name: str, result: str, args: str, params: str) -> str:
 def fallback_body() -> str:
     out: list[str] = [
         call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
+        call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"),
         call("Slide_Lanes_Toward_Low", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
         call("Slide_Lanes_Toward_High", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
     ]
@@ -126,6 +131,7 @@ def fallback_body() -> str:
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate",
                      "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max",
@@ -168,6 +174,7 @@ def fallback_body() -> str:
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
         ]
         for name in ("Add", "Subtract", "Multiply", "Divide"):
             out.append(call(name, vector, "Left, Right", f"Left, Right : {vector}"))
@@ -233,6 +240,22 @@ def neon_helpers() -> list[str]:
         "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
         "      return Result;",
         "   end NEON_Binary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Map_Type is private;",
+        "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type;",
+        "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT &",
+        "           \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT &",
+        "           \"tbl v0.16b, {v0.16b}, v1.16b\" & ASCII.LF & ASCII.HT &",
+        "           \"str q0, [%0]\",",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Map'Address)],",
+        "           Clobber => \"v0,v1,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Permute_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
@@ -525,6 +548,9 @@ def neon_body() -> str:
     out += [
         "   function Native_Table_Lookup_U8x16 is new NEON_Binary_128 (U8x16, \"tbl v0.16b, {v0.16b}, v1.16b\");",
         "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
+        "   function Native_Permute_U8x16 is new NEON_Permute_128 (U8x16, Lane_Map_8x16);",
+        "   pragma Inline_Always (Native_Permute_U8x16);",
+        "   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));",
     ]
     out.append("")
     out += native_lane_slides("aarch64")
@@ -590,6 +616,9 @@ def neon_body() -> str:
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            f"   function Native_Permute_{vector} is new NEON_Permute_128 ({vector}, {lane_map(bits, lanes)});",
+            f"   pragma Inline_Always (Native_Permute_{vector});",
+            f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector} is (Native_Permute_{vector} (Value, Map));",
         ]
         if bits == 64:
             out.append(call("Multiply_Wrap", vector, "Left, Right", f"Left, Right : {vector}"))
@@ -649,6 +678,9 @@ def neon_body() -> str:
             call("Splat", vector, "Value", f"Value : {scalar}"), call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"), call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            f"   function Native_Permute_{vector} is new NEON_Permute_128 ({vector}, {lane_map(bits, lanes)});",
+            f"   pragma Inline_Always (Native_Permute_{vector});",
+            f"   function Permute_Lanes (Value : {vector}; Map : {lane_map(bits, lanes)}) return {vector} is (Native_Permute_{vector} (Value, Map));",
             call("Select_Value", vector, "Mask, If_True, If_False", f"Mask : {mask}; If_True, If_False : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
         ]
@@ -819,6 +851,7 @@ def x86_body() -> str:
     # composing the scalar authority.  AArch64 has direct widening/narrowing
     # leaves below; focused SSE2 lowering is the next backend optimization.
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
+    out.append(call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"))
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
@@ -997,6 +1030,7 @@ def x86_body() -> str:
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
         ]
         if bits > 16:
             out += [
@@ -1069,6 +1103,7 @@ def x86_body() -> str:
             call("Splat", vector, "Value", f"Value : {scalar}"), call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"), call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
+            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
             call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
@@ -1231,10 +1266,20 @@ def test_program() -> str:
             f"      for Lane in {lane_index(bits, lanes)} loop Result (Lane) := {random_lane}; end loop;",
             "      return Result;",
             f"   end Random_{vector}_Lanes;",
+            f"   function Random_{vector}_Selectors return {lane_selectors(bits, lanes)} is",
+            f"      Result : {lane_selectors(bits, lanes)};",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop Result (Lane) := {lane_index(bits, lanes)} (Next_U64 mod {lanes}); end loop;",
+            "      return Result;",
+            f"   end Random_{vector}_Selectors;",
             f"   function Same (Left, Right : {vector}) return Boolean is (To_Lanes (Left) = To_Lanes (Right));",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
             f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
+            f"      Fixed_Selectors : constant {lane_selectors(bits, lanes)} := [{', '.join(str((n * 3 + 1) % lanes) for n in range(lanes))}];",
+            f"      Fixed_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (Fixed_Selectors);",
+            f"      Broadcast_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map ([others => {lanes - 1}]);",
+            f"      Default_Map : {lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
             "   begin",
@@ -1252,6 +1297,10 @@ def test_program() -> str:
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
             f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");",
+            f"      Check (Same (Backends.Native.Permute_Lanes (A, Fixed_Map), Permute_Lanes (A, Fixed_Map)), \"{vector} native fixed lane permutation\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), \"{vector} independent fixed lane permutation\" & Lane'Image); end loop;",
+            f"      Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, {lanes - 1}))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, {lanes - 1}))), \"{vector} repeated-selector broadcast\");",
+            f"      Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), \"{vector} default lane map\");",
             f"      for Shift in Natural range 0 .. {bits + 2} loop",
             f"         Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), \"{vector} shl\" & Shift'Image);",
             f"         Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), \"{vector} shr\" & Shift'Image);",
@@ -1335,6 +1384,8 @@ def test_program() -> str:
             f"            Tail : constant {count} := {count} (Next_U64 mod {lanes + 1});",
             f"            Slide : constant Natural := Natural (Next_U64 mod {lanes + 3});",
             f"            Pattern : constant {mask_storage} := {mask_storage} (Next_U64 mod 2 ** {lanes});",
+            f"            R_Selectors : constant {lane_selectors(bits, lanes)} := Random_{vector}_Selectors;",
+            f"            R_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (R_Selectors);",
             "         begin",
             f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
             f"            Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), \"{vector} randomized arithmetic\");",
@@ -1345,6 +1396,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), \"{vector} randomized native logical shifts\");",
             *(([f"            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), \"{vector} randomized native arithmetic shift\");"] if signed else [])),
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
+            f"            Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), \"{vector} randomized native lane permutation\");",
             f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
             f"            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized native reductions\");",
@@ -1353,6 +1405,7 @@ def test_program() -> str:
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), \"{vector} randomized native partial memory\");",
             f"            for Lane in {lane_index(bits, lanes)} loop",
+            f"               Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), \"{vector} randomized independent lane permutation\" & Lane'Image);",
             f"               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
@@ -1385,6 +1438,12 @@ def test_program() -> str:
             "      end loop;",
             "      return Result;",
             f"   end Random_{vector}_Lanes;",
+            f"   function Random_{vector}_Selectors return {lane_selectors(bits, lanes)} is",
+            f"      Result : {lane_selectors(bits, lanes)};",
+            "   begin",
+            f"      for Lane in {lane_index(bits, lanes)} loop Result (Lane) := {lane_index(bits, lanes)} (Next_U64 mod {lanes}); end loop;",
+            "      return Result;",
+            f"   end Random_{vector}_Selectors;",
             f"   function Bits_{vector} is new Ada.Unchecked_Conversion ({scalar}, {uint});",
             f"   function Same (Left, Right : {vector}) return Boolean is",
             f"      L : constant {vals} := To_Lanes (Left);",
@@ -1415,6 +1474,10 @@ def test_program() -> str:
             f"   end Reference_Reduce_Max_{vector};",
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);", f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
+            f"      Fixed_Selectors : constant {lane_selectors(bits, lanes)} := [{', '.join(str((n * 3 + 1) % lanes) for n in range(lanes))}];",
+            f"      Fixed_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (Fixed_Selectors);",
+            f"      Broadcast_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map ([others => {lanes - 1}]);",
+            f"      Default_Map : {lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;", "   begin",
             f"      Check (Same (A, From_Lanes (To_Lanes (A))), \"{vector} scalar lane roundtrip\");",
@@ -1427,7 +1490,13 @@ def test_program() -> str:
         ]
         for name in ("Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
-        lines += [f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");"]
+        lines += [
+            f"      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), \"{vector} reverse\");",
+            f"      Check (Same (Backends.Native.Permute_Lanes (A, Fixed_Map), Permute_Lanes (A, Fixed_Map)), \"{vector} native fixed lane permutation\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Permute_Lanes (A, Fixed_Map), Lane)) = Bits_{vector} (Extract (A, Fixed_Selectors (Lane))), \"{vector} independent fixed lane permutation\" & Lane'Image); end loop;",
+            f"      Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, {lanes - 1}))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, {lanes - 1}))), \"{vector} repeated-selector broadcast\");",
+            f"      Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), \"{vector} default lane map\");",
+        ]
         lines += [
             f"      for Slide in Natural range 0 .. {lanes + 2} loop",
             f"         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), \"{vector} native lane slides\" & Slide'Image);",
@@ -1495,12 +1564,15 @@ def test_program() -> str:
             f"            Tail : constant {count} := {count} (Next_U64 mod {lanes + 1});",
             f"            Slide : constant Natural := Natural (Next_U64 mod {lanes + 3});",
             f"            Pattern : constant Interfaces.Unsigned_8 := Interfaces.Unsigned_8 (Next_U64 mod 2 ** {lanes});",
+            f"            R_Selectors : constant {lane_selectors(bits, lanes)} := Random_{vector}_Selectors;",
+            f"            R_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (R_Selectors);",
             "         begin",
             f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
             f"            Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), \"{vector} randomized native arithmetic\");",
             f"            Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), \"{vector} randomized native min/max\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), \"{vector} randomized native comparisons\");",
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
+            f"            Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), \"{vector} randomized native lane permutation\");",
             f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
             f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (R_A)) = Bits_{vector} (Reference_Reduce_Min_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (R_A)) = Bits_{vector} (Reference_Reduce_Max_{vector} (R_A)), \"{vector} randomized native reductions\");",
@@ -1509,6 +1581,7 @@ def test_program() -> str:
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), \"{vector} randomized native partial memory\");",
             f"            for Lane in {lane_index(bits, lanes)} loop",
+            f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_{vector} (R_Lanes (R_Selectors (Lane))), \"{vector} randomized independent lane permutation\" & Lane'Image);",
             f"               Check (Bits_{vector} (Backends.Native.Extract (R_A, Lane)) = Bits_{vector} (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Bits_{vector} (Extract (Add (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_{vector} (Extract (Subtract (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_{vector} (Extract (Multiply (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) * Extract (R_B, Lane)), \"{vector} randomized independent arithmetic\" & Lane'Image);",
             f"               if Extract (R_B, Lane) /= 0.0 then Check (Bits_{vector} (Extract (Divide (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) / Extract (R_B, Lane)), \"{vector} randomized independent division\" & Lane'Image); end if;",
@@ -1543,6 +1616,8 @@ def test_program() -> str:
         "      A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);",
         "      B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);",
         "      Slide32 : constant F32x4 := From_Lanes ([NaN32, SNaN32, Inf32, Neg_Zero32]);",
+        "      Permute32_Selectors : constant Lane_Selectors_32x4 := [3, 0, 1, 1];",
+        "      Permute32_Map : constant Lane_Map_32x4 := Make_Lane_Map (Permute32_Selectors);",
         "      NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);",
         "      SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);",
         "      Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);",
@@ -1551,6 +1626,8 @@ def test_program() -> str:
         "      B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
         "      Slide64_A : constant F64x2 := From_Lanes ([NaN64, SNaN64]);",
         "      Slide64_B : constant F64x2 := From_Lanes ([Inf64, Neg_Zero64]);",
+        "      Permute64_Selectors : constant Lane_Selectors_64x2 := [1, 0];",
+        "      Permute64_Map : constant Lane_Map_64x2 := Make_Lane_Map (Permute64_Selectors);",
         "      Zero32 : constant F32x4 := From_Lanes ([0.0, 0.0, 0.0, 0.0]);",
         "      Numerator32 : constant F32x4 := From_Lanes ([1.0, 0.0, -1.0, 0.0]);",
         "      Quiet32 : constant F32x4 := From_Lanes ([NaN32, NaN32, NaN32, NaN32]);",
@@ -1577,6 +1654,12 @@ def test_program() -> str:
         "      Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);",
         "      Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);",
         "   begin",
+        "      for Lane in Lane_Index_32x4 loop",
+        "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), \"F32 special lane permutation\" & Lane'Image);",
+        "      end loop;",
+        "      for Lane in Lane_Index_64x2 loop",
+        "         Check (F64_Bits (Extract (Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_A, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_A, Permute64_Selectors (Lane))) and then F64_Bits (Extract (Backends.Native.Permute_Lanes (Slide64_B, Permute64_Map), Lane)) = F64_Bits (Extract (Slide64_B, Permute64_Selectors (Lane))), \"F64 special lane permutation\" & Lane'Image);",
+        "      end loop;",
         "      for Slide in Natural range 0 .. 6 loop",
         "         for Lane in Lane_Index_32x4 loop",
         "            declare",

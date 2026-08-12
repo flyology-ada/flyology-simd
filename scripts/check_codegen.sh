@@ -18,6 +18,7 @@ native_object="obj/$architecture/$avx2/flyology_simd-backends-native.o"
 algorithm_object="obj/$architecture/$avx2/flyology_simd-algorithms-native.o"
 feature_object="obj/$architecture/$avx2/flyology_simd-features.o"
 slide_probe_object="obj/codegen-probes/$architecture/$avx2/slide_codegen_probe.o"
+permute_probe_object="obj/codegen-probes/$architecture/$avx2/permute_codegen_probe.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -31,6 +32,7 @@ disassemble "$native_object" >"$temporary/native.txt"
 disassemble "$algorithm_object" >"$temporary/algorithm.txt"
 disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
+disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 
 require_pattern() {
     pattern=$1
@@ -95,6 +97,11 @@ case "$architecture" in
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
+        for lane_kind in u8 u16 f32 f64; do
+            extract_symbol "permute_codegen_probe__${lane_kind}_permute" "$temporary/permute-probe.txt" "$temporary/permute_${lane_kind}.txt"
+            require_pattern 'tbl.*16b' "$temporary/permute_${lane_kind}.txt" "NEON ${lane_kind} public lane permutation"
+        done
+        forbid_pattern 'flyology_simd__backends__native__permute_lanes' "$temporary/permute-probe.txt" 'lane-permutation backend call in caller probe'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
         extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
         extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"

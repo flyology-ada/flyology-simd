@@ -35,6 +35,13 @@ is
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
    --  @return The operation result.
+   function Permute_Lanes
+     (Value : U8x16; Map : Lane_Map_8x16) return U8x16
+     renames Flyology_SIMD.Permute_Lanes;
+   --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
+   --  @param Value The input value.
+   --  @param Map The reusable source-lane map.
+   --  @return The operation result.
    function Add_Wrap (Left, Right : U8x16) return U8x16
      renames Flyology_SIMD.Add_Wrap;
    --  Add corresponding lanes modulo the lane width.
