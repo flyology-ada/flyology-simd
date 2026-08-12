@@ -27,6 +27,7 @@ permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
+wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -50,6 +51,7 @@ else
     : >"$temporary/wide-byte-undefined.txt"
 fi
 disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
+disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 
 require_pattern() {
@@ -346,6 +348,11 @@ case "$architecture" in
                         continue
                     fi
                     ;;
+                *flyology_simd-wide-permute_mechanism.o)
+                    if [ "$wide_backend" = avx2 ]; then
+                        continue
+                    fi
+                    ;;
             esac
             disassemble "$object" >>"$temporary/baseline.txt"
         done
@@ -401,6 +408,10 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
         extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         extract_symbol 'wide_codegen_probe__u8_horizontal_sum' "$temporary/wide-probe.txt" "$temporary/wide_u8_horizontal_sum.txt"
+        extract_symbol 'wide_codegen_probe__u8_permute' "$temporary/wide-probe.txt" "$temporary/wide_u8_permute.txt"
+        extract_symbol 'wide_codegen_probe__u16_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_u16_permute_2.txt"
+        extract_symbol 'wide_codegen_probe__f32_permute' "$temporary/wide-probe.txt" "$temporary/wide_f32_permute.txt"
+        extract_symbol 'wide_codegen_probe__f64_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_f64_permute_2.txt"
         for lane_kind in u8 i8; do
             for operation in equal less less_equal greater greater_equal select; do
                 extract_symbol "wide_codegen_probe__${lane_kind}_${operation}" \
@@ -410,6 +421,28 @@ case "$architecture" in
         done
         if [ "$wide_backend" = avx2 ]; then
             require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
+            for permute_probe in wide_u8_permute wide_f32_permute; do
+                require_count 'vpshufb' 2 "$temporary/${permute_probe}.txt" \
+                  "two AVX2 byte shuffles in one-source ${permute_probe} caller"
+                require_count 'vperm2i128' 1 "$temporary/${permute_probe}.txt" \
+                  "one AVX2 cross-half selection in one-source ${permute_probe} caller"
+                require_count 'vzeroupper' 1 "$temporary/${permute_probe}.txt" \
+                  "AVX2 boundary cleanup in one-source ${permute_probe} caller"
+                forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)|flyology_simd__wide__native__permute_lanes' \
+                  "$temporary/${permute_probe}.txt" \
+                  "scalar, per-lane, or public permutation helper in ${permute_probe} caller"
+            done
+            for permute_probe in wide_u16_permute_2 wide_f64_permute_2; do
+                require_count 'vpshufb' 4 "$temporary/${permute_probe}.txt" \
+                  "four AVX2 byte shuffles in two-source ${permute_probe} caller"
+                require_count 'vperm2i128' 2 "$temporary/${permute_probe}.txt" \
+                  "two AVX2 cross-half selections in two-source ${permute_probe} caller"
+                require_count 'vzeroupper' 1 "$temporary/${permute_probe}.txt" \
+                  "AVX2 boundary cleanup in two-source ${permute_probe} caller"
+                forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)|flyology_simd__wide__native__permute_lanes' \
+                  "$temporary/${permute_probe}.txt" \
+                  "scalar, per-lane, or public permutation helper in ${permute_probe} caller"
+            done
         else
             require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two inlined SSE2 byte-add leaves in wide caller'
         fi
@@ -504,6 +537,7 @@ case "$architecture" in
               'constant-time first-set-bit extraction in the AVX2 algorithm'
         fi
         if [ "$wide_backend" = avx2 ]; then
+            forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)' "$temporary/wide-permute.txt" 'scalar or per-lane helper in AVX2 permutation object'
             extract_symbol 'byte_avx2_leaf__add_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_add.txt"
             extract_symbol 'byte_avx2_leaf__add_wrap__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_add.txt"
             extract_symbol 'byte_avx2_leaf__subtract_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_subtract.txt"

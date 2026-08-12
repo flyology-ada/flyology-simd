@@ -106,6 +106,7 @@ def invalid_support(path: Path) -> list[str]:
             "function Replace": "only on the private part that contains the requested lane",
             "function Test": "only on the private part that contains the requested lane",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
+            "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
         }
         for declaration, phrase in required.items():
             count = sum(
@@ -137,6 +138,7 @@ def invalid_support(path: Path) -> list[str]:
                 "function First_True": 4,
                 "function Last_True": 4,
                 "function Table_Lookup": 1,
+                "function Permute_Lanes": 20,
                 "function Test": 4,
             }.get(declaration, 10)
             if count != expected:

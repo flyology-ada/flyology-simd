@@ -218,13 +218,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U8x32; Map : Lane_Map_8x32) return U8x32 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U8x32; Map : Two_Source_Lane_Map_8x32) return U8x32 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -581,13 +581,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I8x32; Map : Lane_Map_8x32) return I8x32 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I8x32; Map : Two_Source_Lane_Map_8x32) return I8x32 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -889,13 +889,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U16x16; Map : Lane_Map_16x16) return U16x16 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U16x16; Map : Two_Source_Lane_Map_16x16) return U16x16 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -1252,13 +1252,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I16x16; Map : Lane_Map_16x16) return I16x16 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I16x16; Map : Two_Source_Lane_Map_16x16) return I16x16 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -1565,13 +1565,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U32x8; Map : Lane_Map_32x8) return U32x8 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U32x8; Map : Two_Source_Lane_Map_32x8) return U32x8 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -1933,13 +1933,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I32x8; Map : Lane_Map_32x8) return I32x8 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I32x8; Map : Two_Source_Lane_Map_32x8) return I32x8 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -2246,13 +2246,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U64x4; Map : Lane_Map_64x4) return U64x4 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U64x4; Map : Two_Source_Lane_Map_64x4) return U64x4 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -2614,13 +2614,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I64x4; Map : Lane_Map_64x4) return I64x4 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I64x4; Map : Two_Source_Lane_Map_64x4) return I64x4 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -2872,13 +2872,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : F32x8; Map : Lane_Map_32x8) return F32x8 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8) return F32x8 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.
@@ -3130,13 +3130,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : F64x4; Map : Lane_Map_64x4) return F64x4 with Inline_Always;
    --  Select each result lane through a reusable lane map.
-   --  Cross-platform support: The AArch64 backend uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Map The map input.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : F64x4; Map : Two_Source_Lane_Map_64x4) return F64x4 with Inline_Always;
    --  Select each result lane from one lane of either input.
-   --  Cross-platform support: The AArch64 backend uses four-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The map input.

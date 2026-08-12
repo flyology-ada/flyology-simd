@@ -93,6 +93,9 @@ project Flyology_SIMD is
                   for Switches
                     ("flyology_simd-wide-byte_avx2_leaf.adb") use
                     Common_Ada & ("-O3", "-mavx2");
+                  for Switches
+                    ("flyology_simd-wide-permute_mechanism.adb") use
+                    Common_Ada & ("-O3", "-mavx2");
                when "composed" =>
                   null;
             end case;

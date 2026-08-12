@@ -142,13 +142,17 @@ promise a stable ABI, or promise one 256-bit instruction for every operation.
 Wide `Table_Lookup` uses a target-selected lookup mechanism. Wide `Compress`
 and `Expand` use a target-selected compression and expansion mechanism. The optional
 x86-64 AVX2 Wide backend supplies isolated 256-bit subprograms for selected
-`U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`.
+`U8x32` and `I8x32` operations, `U8x32` `Table_Lookup`, and both permutation
+forms for all ten Wide value types.
 Wide bit casts compose two same-shape 128-bit bit casts. Wide two-source lane
 maps and one-source lane maps use a target-selected permutation mechanism. On
 AArch64, the mechanism derives a 32-byte index map from the lane map. It runs
 one two-register `tbl` operation for each one-source result half and one
-four-register `tbl` operation for each two-source result half. The x86-64
-composed and AVX2 selections call the Wide scalar implementation.
+four-register `tbl` operation for each two-source result half. The composed
+x86-64 backend calls the Wide scalar implementation. The optional AVX2
+permutation implementation derives the same 32-byte map. It applies 256-bit
+byte shuffles and cross-half selection for both map forms and all ten value
+types.
 Wide conversion operations compose the corresponding 128-bit conversion
 operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
 operations to the selected private part. Narrowing converts both private parts

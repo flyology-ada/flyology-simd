@@ -78,7 +78,8 @@ and value selection use isolated 256-bit mechanisms. Less-than reverses the
 greater-than operands. `Less_Equal (Left, Right)` complements
 `Greater_Than (Left, Right)`. `Greater_Equal (Left, Right)` complements
 `Greater_Than (Right, Left)`. The AVX2 selection also implements the `U8x32`
-table lookup. Before a target runs this build, CPUID must report the
+table lookup and both `Permute_Lanes` forms for all ten Wide value types.
+Before a target runs this build, CPUID must report the
 AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.
 Select the backend with:
 
@@ -159,8 +160,11 @@ The complete artifact is written to the ignored `build/site/` directory.
   implementation for these operations. Wide `Permute_Lanes` also uses a
   target-selected mechanism. On AArch64, one-source maps use one two-register
   `tbl` operation for each result half. Two-source maps use one four-register
-  `tbl` operation for each result half. The x86-64 selections call the Wide
-  scalar implementation. On x86-64, a separate build selection can use isolated
+  `tbl` operation for each result half. The composed x86-64 backend calls the
+  Wide scalar implementation. The optional AVX2 permutation implementation
+  derives the same 32-byte map. It uses 256-bit byte shuffles and cross-half
+  selection for both map forms and all ten value types.
+  On x86-64, the same build selection can use isolated
   AVX2-specific 256-bit implementations for the signed and unsigned byte
   operations listed above. AVX2 has no packed byte
   multiply instruction, so wrapping byte multiplication composes 16-bit word

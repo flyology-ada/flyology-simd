@@ -9,7 +9,7 @@ continuous execution.  A source file alone is not a support claim.
 | AArch64 NEON full 128-bit family | yes | yes | yes, macOS AArch64 | macOS AArch64 |
 | x86-64 SSE2 full 128-bit family | yes | Linux x86-64 | differential + ASan, Linux x86-64 | Linux x86-64 |
 | x86-64 AVX2 algorithms | yes | Linux x86-64 | differential, Linux x86-64 AVX2 | Linux x86-64 with runtime gate |
-| x86-64 AVX2 Wide byte operations | yes | Linux x86-64 | differential + code generation, Linux x86-64 AVX2 | Linux x86-64, static selection |
+| x86-64 AVX2 Wide byte operations and permutation | yes | Linux x86-64 | differential + code generation, Linux x86-64 AVX2 | Linux x86-64, static selection |
 
 The initial `Flyology_SIMD.Wide` profile is compiled and executed on the local
 Darwin AArch64 development host. The workflow is configured to run
@@ -78,8 +78,9 @@ lookup mechanism. Wide `Compress` and `Expand` use a target-selected compression
 and expansion mechanism. The AVX2
 selection implements 256-bit `U8x32` and `I8x32` wrapping arithmetic,
 saturating arithmetic, bitwise operations, minimum, maximum, comparison, and
-value selection. It also implements the 256-bit `U8x32` table lookup. No other
-Wide operation has a 256-bit instruction claim. The
+value selection. It also implements the 256-bit `U8x32` table lookup and both
+permutation forms for all ten Wide value types. No other Wide operation has a
+256-bit instruction claim. The
 current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
@@ -96,8 +97,11 @@ Wide bit casts compose two selected 128-bit bit casts. Wide one-source and
 two-source lane maps use a target-selected permutation mechanism. On AArch64,
 the mechanism derives a 32-byte index map from the lane map. It runs one
 two-register `tbl` operation for each one-source result half and one
-four-register `tbl` operation for each two-source result half. The x86-64
-composed and AVX2 selections call the Wide scalar implementation.
+four-register `tbl` operation for each two-source result half. The composed
+x86-64 backend calls the Wide scalar implementation. The optional AVX2
+permutation implementation derives the same 32-byte map. It uses 256-bit
+`vpshufb` and `vperm2i128` composition for both map forms and all ten value
+types.
 Independent lane-array oracles check scalar and Native results for all ten
 value types. Floating cases compare raw lane encodings bit for bit.
 Wide conversion operations compose the corresponding selected 128-bit

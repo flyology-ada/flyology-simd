@@ -141,14 +141,24 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", declaration)
     operation = match.group(1) if match else ""
     if summary.startswith("Select each result lane through"):
-        mechanism = (
-            "AArch64 uses two-register NEON tbl for each result half; "
-            "x86-64 uses the Wide scalar implementation"
+        return (
+            "Cross-platform support: The AArch64 backend derives a 32-byte "
+            "index map and runs one two-register NEON tbl operation for each "
+            "result half. The composed x86-64 backend calls the Wide scalar "
+            "implementation. The optional AVX2 backend derives a 32-byte index "
+            "map and uses two vpshufb instructions, one vperm2i128 instruction, "
+            "mask selection, and vzeroupper. In a scalar build, this overload "
+            "calls the portable Wide implementation."
         )
     elif summary.startswith("Select each result lane from one lane of either"):
-        mechanism = (
-            "AArch64 uses four-register NEON tbl for each result half; "
-            "x86-64 uses the Wide scalar implementation"
+        return (
+            "Cross-platform support: The AArch64 backend derives a 32-byte "
+            "index map and runs one four-register NEON tbl operation for each "
+            "result half. The composed x86-64 backend calls the Wide scalar "
+            "implementation. The optional AVX2 backend derives a 32-byte index "
+            "map and uses four vpshufb instructions, two vperm2i128 "
+            "instructions, mask selection, and vzeroupper. In a scalar build, "
+            "this overload calls the portable Wide implementation."
         )
     elif summary.startswith("Stably pack") or summary.startswith("Place consecutive"):
         mechanism = (
@@ -249,7 +259,14 @@ def wide_portable_support(summary: str, declaration: str) -> str:
     native = wide_native_support(summary, declaration).removeprefix(
         "Cross-platform support: "
     )
-    native = native[0].lower() + native[1:]
+    if summary.startswith("Select each result lane"):
+        native = native.replace(
+            "In a scalar build, this overload calls the portable Wide implementation.",
+            "In a scalar build, the matching Wide.Native overload calls the "
+            "portable Wide implementation.",
+        )
+    if native.startswith("The "):
+        native = "the " + native.removeprefix("The ")
     return (
         "Cross-platform support: This overload uses the portable scalar Wide "
         "implementation on every supported GNAT target. For the matching "
@@ -1175,6 +1192,169 @@ end Flyology_SIMD.Wide.Permute_Mechanism;
 """
 
 
+def permute_avx2_body_text() -> str:
+    one_instantiations = []
+    two_instantiations = []
+    bodies = []
+    for f in FAMILIES:
+        one_permute = f"Permute_One_{f.vector}"
+        two_permute = f"Permute_Two_{f.vector}"
+        one_instantiations.extend((
+            f"   function {one_permute} is new Permute_One_256 ({f.vector});",
+            f"   pragma Inline_Always ({one_permute});",
+        ))
+        two_instantiations.extend((
+            f"   function {two_permute} is new Permute_Two_256 ({f.vector});",
+            f"   pragma Inline_Always ({two_permute});",
+        ))
+        lane_bytes = f.bits // 8
+        bodies.append(
+            f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"            Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"              U8 (Map.Selectors (Result_Lane) * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {one_permute} (Value, Indexes);\n"
+            "   end Permute_Lanes;"
+        )
+        bodies.append(
+            f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            "            Indexes (Result_Lane * " + str(lane_bytes) + " + Byte) :=\n"
+            "              (if Map.Selectors (Result_Lane).From_Right\n"
+            "               then U8 (32)\n"
+            "               else U8 (0))\n"
+            f"              + U8 (Map.Selectors (Result_Lane).Lane * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {two_permute} (Left, Right, Indexes);\n"
+            "   end Permute_Lanes;"
+        )
+    return f"""with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Permute_Mechanism is
+   use System.Machine_Code;
+   use type Interfaces.Unsigned_8;
+
+   type Byte_Map is array (Natural range 0 .. 31) of U8
+     with Component_Size => 8, Size => 256;
+   type Byte_Constants is array (Natural range 0 .. 31) of U8
+     with Component_Size => 8, Size => 256;
+
+   Lane_Bias : aliased constant Byte_Constants :=
+     [0 .. 15 => 0, 16 .. 31 => 16];
+   Sixteen : aliased constant U8 := 16;
+   Thirty_Two : aliased constant U8 := 32;
+
+   generic
+      type Vector_Type is private;
+   function Permute_One_256
+     (Value : Vector_Type; Map : Byte_Map) return Vector_Type;
+
+   function Permute_One_256
+     (Value : Vector_Type; Map : Byte_Map) return Vector_Type
+   is
+      Result : Vector_Type;
+   begin
+      Asm
+        (Template =>
+           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm1, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vperm2i128 $1, %%ymm0, %%ymm0, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm1, %%ymm3, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%3), %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpxor %%ymm4, %%ymm1, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%4), %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm5, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpxor %%ymm5, %%ymm5, %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm5, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm4, %%ymm2, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpandn %%ymm3, %%ymm4, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm3, %%ymm2, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vmovdqu %%ymm2, (%0)" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address),
+            System.Address'Asm_Input ("r", Map'Address),
+            System.Address'Asm_Input ("r", Lane_Bias'Address),
+            System.Address'Asm_Input ("r", Sixteen'Address)],
+         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,ymm5,memory",
+         Volatile => True);
+      return Result;
+   end Permute_One_256;
+
+   generic
+      type Vector_Type is private;
+   function Permute_Two_256
+     (Left, Right : Vector_Type; Map : Byte_Map) return Vector_Type;
+
+   function Permute_Two_256
+     (Left, Right : Vector_Type; Map : Byte_Map) return Vector_Type
+   is
+      Result : Vector_Type;
+   begin
+      Asm
+        (Template =>
+           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%3), %%ymm2" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%4), %%ymm9" & ASCII.LF & ASCII.HT &
+           "vpxor %%ymm9, %%ymm2, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%5), %%ymm8" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm8, %%ymm3, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpxor %%ymm8, %%ymm8, %%ymm8" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm8, %%ymm3, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm2, %%ymm0, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vperm2i128 $1, %%ymm0, %%ymm0, %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm2, %%ymm5, %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm3, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpandn %%ymm5, %%ymm3, %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm5, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm2, %%ymm1, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vperm2i128 $1, %%ymm1, %%ymm1, %%ymm7" & ASCII.LF & ASCII.HT &
+           "vpshufb %%ymm2, %%ymm7, %%ymm7" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm3, %%ymm6, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpandn %%ymm7, %%ymm3, %%ymm7" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm7, %%ymm6, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%6), %%ymm10" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm2, %%ymm10, %%ymm10" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm8, %%ymm10, %%ymm10" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm10, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpandn %%ymm6, %%ymm10, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm6, %%ymm4, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vmovdqu %%ymm4, (%0)" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Left'Address),
+            System.Address'Asm_Input ("r", Right'Address),
+            System.Address'Asm_Input ("r", Map'Address),
+            System.Address'Asm_Input ("r", Lane_Bias'Address),
+            System.Address'Asm_Input ("r", Sixteen'Address),
+            System.Address'Asm_Input ("r", Thirty_Two'Address)],
+         Clobber =>
+           "ymm0,ymm1,ymm2,ymm3,ymm4,ymm5,ymm6,ymm7,ymm8,ymm9,ymm10,memory",
+         Volatile => True);
+      return Result;
+   end Permute_Two_256;
+
+{chr(10).join(one_instantiations)}
+{chr(10).join(two_instantiations)}
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Permute_Mechanism;
+"""
+
+
 def compact_composed_body_text() -> str:
     bodies = []
     for f in FAMILIES:
@@ -1306,7 +1486,7 @@ def main() -> None:
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),
-        PERMUTE_AVX2: permute_composed_body_text(),
+        PERMUTE_AVX2: permute_avx2_body_text(),
         PERMUTE_INVALID: permute_composed_body_text(),
     }
     for path, content in outputs.items():

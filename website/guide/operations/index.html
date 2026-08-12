@@ -134,7 +134,7 @@
             <li>the 32-entry <a data-api="Flyology_SIMD.Wide.Native.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Table_Lookup</code></a> for <code>U8x32</code>.</li>
           </ul>
           <p>Wide <a data-api="Flyology_SIMD.Wide.Native"><code>Compress</code> and <code>Expand</code></a> use the target-selected compression and expansion mechanism. On AArch64, the mechanism derives a 32-byte index map from the mask. It runs one two-register <code>tbl</code> operation for each 128-bit result half. The x86-64 composed and AVX2 selections call the Wide scalar implementation.</p>
-          <p>Wide <a data-api="Flyology_SIMD.Wide.Native"><code>Permute_Lanes</code></a> uses the target-selected permutation mechanism. On AArch64, the mechanism derives a 32-byte index map from the lane map. A one-source map runs one two-register <code>tbl</code> operation for each result half. A two-source map runs one four-register <code>tbl</code> operation for each result half. The x86-64 composed and AVX2 selections call the Wide scalar implementation.</p>
+          <p>Wide <a data-api="Flyology_SIMD.Wide.Native"><code>Permute_Lanes</code></a> uses the target-selected permutation mechanism. On AArch64, the mechanism derives a 32-byte index map from the lane map. A one-source map runs one two-register <code>tbl</code> operation for each result half. A two-source map runs one four-register <code>tbl</code> operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 permutation implementation derives the same map and uses 256-bit byte shuffles plus cross-half selection for both map forms and all ten value types.</p>
           <p>The byte operations in the preceding list, <code>Table_Lookup</code>, compression and expansion, and lane permutation use their documented mechanisms. Other Wide operations compose selected 128-bit operations or use fixed-width Ada code.</p>
           <p>In the AVX2 byte mechanism, equality, greater-than, and value selection have isolated 256-bit implementation subprograms. <code>Less_Than (Left, Right)</code> calls <code>Greater_Than (Right, Left)</code>. <code>Less_Equal (Left, Right)</code> complements <code>Greater_Than (Left, Right)</code>. <code>Greater_Equal (Left, Right)</code> complements <code>Greater_Than (Right, Left)</code>. AVX2 has no packed byte multiplication instruction. The wrapping multiply separates byte lanes in 16-bit words, uses word multiplication, and retains the low eight bits of each result.</p>
           <div class="semantic-callout"><strong>The static Wide operations perform no runtime feature check.</strong><p>Before a target runs this build, CPUID must report the AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state. The <a data-api="Flyology_SIMD.Algorithms.AVX2"><code>Algorithms.AVX2</code></a> package checks these conditions before each public whole-buffer entry. <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> selects one safe algorithm for each buffer.</p></div>
@@ -142,7 +142,7 @@
           <pre><code class="language-shell">alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
   -XFLYOLOGY_SIMD_AVX2=enabled \
   -XFLYOLOGY_SIMD_WIDE_BACKEND=avx2</code></pre>
-          <p>Chapter 2 <a href="../practical/#wide-dot">uses <code>F32x8</code> for an eight-lane weighted sum</a>.</p>
+          <p>Chapter 2 demonstrates <a href="../practical/#permutations">one-source permutation</a> and <a href="../practical/#two-source">two-source permutation</a>. Selecting AVX2 with the three build variables above changes the lowering, not the Ada source or its results.</p>
         </section>
         <section id="conversions">
           <h2>Convert bits and lane widths explicitly</h2>
@@ -302,7 +302,7 @@ end if;</code></pre>
         </section>
         <section id="not-implemented">
           <h2>Current profile limits</h2>
-          <p>The complete 128-bit family and initial Wide profile do not imply that every planned operation or lowering exists. Only the optional x86-64 byte operations listed in the Wide section have dedicated 256-bit implementations.</p>
+          <p>The complete 128-bit family and initial Wide profile do not imply that every planned operation or lowering exists. Dedicated 256-bit implementations currently cover the optional x86-64 byte operations and lookup listed in the Wide section, plus both Wide permutation forms for all ten value types.</p>
           <div class="semantic-callout">
             <strong>Coverage statement</strong>
             <p>“Complete 128-bit family” means that all ten 128-bit value types have the documented root-package profile. “Initial Wide profile” means that all ten 256-bit value types have only the groups listed in the Wide section.</p>
