@@ -114,6 +114,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U8x32'[others => 0],
         "U8x32 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "U8x32 splat construction");
       for Lane in Wide.Lane_Index_8x32 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_8x32 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -340,6 +343,8 @@ procedure Wide_Tests is
               "U8x32 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last,
               "U8x32 mask algebra" & Pattern'Image);
@@ -355,6 +360,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "U8x32 native unaligned memory");
       Data := [others => 0];
@@ -512,6 +518,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I8x32'[others => 0],
         "I8x32 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "I8x32 splat construction");
       for Lane in Wide.Lane_Index_8x32 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_8x32 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -713,6 +722,8 @@ procedure Wide_Tests is
               "I8x32 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last,
               "I8x32 mask algebra" & Pattern'Image);
@@ -728,6 +739,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "I8x32 native unaligned memory");
       Data := [others => 0];
@@ -873,6 +885,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U16x16'[others => 0],
         "U16x16 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "U16x16 splat construction");
       for Lane in Wide.Lane_Index_16x16 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_16x16 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -1075,6 +1090,8 @@ procedure Wide_Tests is
               "U16x16 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last,
               "U16x16 mask algebra" & Pattern'Image);
@@ -1090,6 +1107,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "U16x16 native unaligned memory");
       Data := [others => 0];
@@ -1236,6 +1254,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I16x16'[others => 0],
         "I16x16 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "I16x16 splat construction");
       for Lane in Wide.Lane_Index_16x16 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_16x16 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -1437,6 +1458,8 @@ procedure Wide_Tests is
               "I16x16 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last,
               "I16x16 mask algebra" & Pattern'Image);
@@ -1452,6 +1475,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "I16x16 native unaligned memory");
       Data := [others => 0];
@@ -1597,6 +1621,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U32x8'[others => 0],
         "U32x8 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "U32x8 splat construction");
       for Lane in Wide.Lane_Index_32x8 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_32x8 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -1815,6 +1842,8 @@ procedure Wide_Tests is
               "U32x8 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "U32x8 mask algebra" & Pattern'Image);
@@ -1830,6 +1859,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "U32x8 native unaligned memory");
       Data := [others => 0];
@@ -1992,6 +2022,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I32x8'[others => 0],
         "I32x8 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "I32x8 splat construction");
       for Lane in Wide.Lane_Index_32x8 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_32x8 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -2209,6 +2242,8 @@ procedure Wide_Tests is
               "I32x8 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "I32x8 mask algebra" & Pattern'Image);
@@ -2224,6 +2259,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "I32x8 native unaligned memory");
       Data := [others => 0];
@@ -2385,6 +2421,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U64x4'[others => 0],
         "U64x4 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "U64x4 splat construction");
       for Lane in Wide.Lane_Index_64x4 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_64x4 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -2603,6 +2642,8 @@ procedure Wide_Tests is
               "U64x4 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "U64x4 mask algebra" & Pattern'Image);
@@ -2618,6 +2659,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "U64x4 native unaligned memory");
       Data := [others => 0];
@@ -2780,6 +2822,9 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I64x4'[others => 0],
         "I64x4 zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "I64x4 splat construction");
       for Lane in Wide.Lane_Index_64x4 loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.Lane_Index_64x4 => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -2997,6 +3042,8 @@ procedure Wide_Tests is
               "I64x4 mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "I64x4 mask algebra" & Pattern'Image);
@@ -3012,6 +3059,7 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "I64x4 native unaligned memory");
       Data := [others => 0];
@@ -3181,6 +3229,13 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "F32x8 lane round trip");
+      Check ((for all Lane in Wide.Lane_Index_32x8 =>
+        Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
+          Value_To_Bits (F32 (2.0)))
+        and then (for all Lane in Wide.Lane_Index_32x8 =>
+          Value_To_Bits (Native.Extract (Native.Splat (2.0), Lane)) =
+            Value_To_Bits (F32 (2.0))),
+        "F32x8 splat construction");
       for Lane in Wide.Lane_Index_32x8 loop
          Check (Value_To_Bits (Wide.Extract (Wide.Zero, Lane)) = 0
            and then Value_To_Bits (Native.Extract (Native.Zero, Lane)) = 0,
@@ -3385,6 +3440,8 @@ procedure Wide_Tests is
               "F32x8 mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "F32x8 mask algebra" & Pattern'Image);
@@ -3400,6 +3457,9 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then (for all Lane in Wide.Lane_Index_32x8 =>
+          Value_To_Bits (Wide.Extract (Wide.Load_Unaligned (Data, Data'First + 1), Lane)) =
+            Value_To_Bits (A_Lanes (Lane)))
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "F32x8 native unaligned memory");
       Data := [others => 0.0];
@@ -3555,6 +3615,13 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "F64x4 lane round trip");
+      Check ((for all Lane in Wide.Lane_Index_64x4 =>
+        Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
+          Value_To_Bits (F64 (2.0)))
+        and then (for all Lane in Wide.Lane_Index_64x4 =>
+          Value_To_Bits (Native.Extract (Native.Splat (2.0), Lane)) =
+            Value_To_Bits (F64 (2.0))),
+        "F64x4 splat construction");
       for Lane in Wide.Lane_Index_64x4 loop
          Check (Value_To_Bits (Wide.Extract (Wide.Zero, Lane)) = 0
            and then Value_To_Bits (Native.Extract (Native.Zero, Lane)) = 0,
@@ -3759,6 +3826,8 @@ procedure Wide_Tests is
               "F64x4 mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "F64x4 mask algebra" & Pattern'Image);
@@ -3774,6 +3843,9 @@ procedure Wide_Tests is
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then (for all Lane in Wide.Lane_Index_64x4 =>
+          Value_To_Bits (Wide.Extract (Wide.Load_Unaligned (Data, Data'First + 1), Lane)) =
+            Value_To_Bits (A_Lanes (Lane)))
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "F64x4 native unaligned memory");
       Data := [others => 0.0];

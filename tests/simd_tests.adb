@@ -211,6 +211,8 @@ procedure SIMD_Tests is
              "unsigned min/max");
       Check (Horizontal_Sum (Splat (255)) = 4_080, "horizontal sum");
       Check (Extract (Reverse_Bytes (A), 0) = Extract (A, 15), "reverse");
+      Check (Same (Reverse_Lanes (A), Reverse_Bytes (A)),
+             "reverse lanes compatibility");
       Check (Extract (Interleave_Low (A, B), 2) = Extract (A, 1)
              and Extract (Interleave_Low (A, B), 3) = Extract (B, 1),
              "interleave low");

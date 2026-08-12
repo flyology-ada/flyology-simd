@@ -597,6 +597,9 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Zero) = Wide.{f.values}'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.{f.values}'[others => 0],
         "{f.vector} zero construction");
+      Check (Wide.To_Lanes (Wide.Splat (B_Lanes (0))) = B_Lanes
+        and then Native.To_Lanes (Native.Splat (B_Lanes (0))) = B_Lanes,
+        "{f.vector} splat construction");
       for Lane in Wide.{f.index} loop
          Check (Wide.To_Lanes (Wide.Replace (Wide.Zero, Lane, A_Lanes (Lane))) =
            [for Position in Wide.{f.index} => (if Position = Lane then A_Lanes (Lane) else 0)]
@@ -783,6 +786,8 @@ def integer_test(f: Family) -> str:
               "{f.vector} mask predicates" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = {all_bits}
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {all_bits}
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {all_bits}
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = {all_bits},
               "{f.vector} mask algebra" & Pattern'Image);
@@ -798,6 +803,7 @@ def integer_test(f: Family) -> str:
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then Wide.To_Lanes (Wide.Load_Unaligned (Data, Data'First + 1)) = A_Lanes
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "{f.vector} native unaligned memory");
       Data := [others => 0];
@@ -957,6 +963,13 @@ def float_test(f: Family) -> str:
       Native_Two_Selectors : Wide.{f.two_selectors};
    begin
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
+      Check ((for all Lane in Wide.{f.index} =>
+        Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
+          Value_To_Bits ({f.scalar} (2.0)))
+        and then (for all Lane in Wide.{f.index} =>
+          Value_To_Bits (Native.Extract (Native.Splat (2.0), Lane)) =
+            Value_To_Bits ({f.scalar} (2.0))),
+        "{f.vector} splat construction");
       for Lane in Wide.{f.index} loop
          Check (Value_To_Bits (Wide.Extract (Wide.Zero, Lane)) = 0
            and then Value_To_Bits (Native.Extract (Native.Zero, Lane)) = 0,
@@ -1130,6 +1143,8 @@ def float_test(f: Family) -> str:
               "{f.vector} mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {f.mask_bits}'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = {f.mask_bits}'Last
+              and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {f.mask_bits}'Last
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = {f.mask_bits}'Last,
               "{f.vector} mask algebra" & Pattern'Image);
@@ -1145,6 +1160,9 @@ def float_test(f: Family) -> str:
       Native.Store_Unaligned (Native_Data, Native_Data'First + 1, A);
       Wide.Store_Unaligned (Data, Data'First + 1, A);
       Check (Native_Data = Data
+        and then (for all Lane in Wide.{f.index} =>
+          Value_To_Bits (Wide.Extract (Wide.Load_Unaligned (Data, Data'First + 1), Lane)) =
+            Value_To_Bits (A_Lanes (Lane)))
         and then Native.To_Lanes (Native.Load_Unaligned (Native_Data, Native_Data'First + 1)) = A_Lanes,
         "{f.vector} native unaligned memory");
       Data := [others => 0.0];
