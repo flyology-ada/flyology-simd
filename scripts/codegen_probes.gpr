@@ -6,9 +6,14 @@ project Codegen_Probes is
      external ("FLYOLOGY_SIMD_ARCH", "scalar");
    type AVX2_Kind is ("disabled", "enabled");
    AVX2 : AVX2_Kind := external ("FLYOLOGY_SIMD_AVX2", "disabled");
+   type Wide_Backend_Kind is ("composed", "avx2");
+   Wide_Backend : Wide_Backend_Kind :=
+     external ("FLYOLOGY_SIMD_WIDE_BACKEND", "composed");
 
    for Source_Dirs use ("probes");
-   for Object_Dir use "../obj/codegen-probes/" & Architecture & "/" & AVX2;
+   for Object_Dir use
+     "../obj/codegen-probes/" & Architecture & "/" & AVX2 & "/" &
+     Wide_Backend;
 
    package Compiler is
       for Default_Switches ("Ada") use

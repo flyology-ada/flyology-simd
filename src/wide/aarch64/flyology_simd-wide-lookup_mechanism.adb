@@ -3,7 +3,7 @@ with System.Machine_Code;
 package body Flyology_SIMD.Wide.Lookup_Mechanism is
    use System.Machine_Code;
 
-   function Table_Lookup_32
+   function Table_Lookup_Half
      (Table_Low, Table_High, Indices : U8x16) return U8x16
    is
       Result : U8x16;
@@ -23,5 +23,10 @@ package body Flyology_SIMD.Wide.Lookup_Mechanism is
          Clobber => "v0,v1,v2,memory",
          Volatile => True);
       return Result;
-   end Table_Lookup_32;
+   end Table_Lookup_Half;
+
+   function Table_Lookup_32
+     (Table, Indices : U8x32) return U8x32 is
+     ((Low => Table_Lookup_Half (Table.Low, Table.High, Indices.Low),
+       High => Table_Lookup_Half (Table.Low, Table.High, Indices.High)));
 end Flyology_SIMD.Wide.Lookup_Mechanism;

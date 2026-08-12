@@ -6,9 +6,13 @@ project Examples is
      external ("FLYOLOGY_SIMD_ARCH", "scalar");
    type AVX2_Kind is ("disabled", "enabled");
    AVX2 : AVX2_Kind := external ("FLYOLOGY_SIMD_AVX2", "disabled");
+   type Wide_Backend_Kind is ("composed", "avx2");
+   Wide_Backend : Wide_Backend_Kind :=
+     external ("FLYOLOGY_SIMD_WIDE_BACKEND", "composed");
 
    for Source_Dirs use (".");
-   for Object_Dir use "../obj/examples/" & Architecture & "/" & AVX2;
+   for Object_Dir use
+     "../obj/examples/" & Architecture & "/" & AVX2 & "/" & Wide_Backend;
    for Exec_Dir use "../bin";
    for Main use
      ("find_byte.adb",

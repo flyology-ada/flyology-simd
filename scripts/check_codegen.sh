@@ -4,23 +4,28 @@ set -eu
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 architecture=${1:-aarch64}
 avx2=${2:-disabled}
+wide_backend=${3:-composed}
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/flyology-simd-codegen.XXXXXX")
 trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 
 cd "$project_root"
 alr build -- "-XFLYOLOGY_SIMD_ARCH=$architecture" \
-  "-XFLYOLOGY_SIMD_AVX2=$avx2"
+  "-XFLYOLOGY_SIMD_AVX2=$avx2" \
+  "-XFLYOLOGY_SIMD_WIDE_BACKEND=$wide_backend"
 alr exec -- gprbuild -f -p -P scripts/codegen_probes.gpr \
   "-XFLYOLOGY_SIMD_ARCH=$architecture" \
-  "-XFLYOLOGY_SIMD_AVX2=$avx2"
+  "-XFLYOLOGY_SIMD_AVX2=$avx2" \
+  "-XFLYOLOGY_SIMD_WIDE_BACKEND=$wide_backend"
 
-native_object="obj/$architecture/$avx2/flyology_simd-backends-native.o"
-algorithm_object="obj/$architecture/$avx2/flyology_simd-algorithms-native.o"
-feature_object="obj/$architecture/$avx2/flyology_simd-features.o"
-slide_probe_object="obj/codegen-probes/$architecture/$avx2/slide_codegen_probe.o"
-permute_probe_object="obj/codegen-probes/$architecture/$avx2/permute_codegen_probe.o"
-wide_probe_object="obj/codegen-probes/$architecture/$avx2/wide_codegen_probe.o"
-wide_lookup_object="obj/$architecture/$avx2/flyology_simd-wide-lookup_mechanism.o"
+object_root="obj/$architecture/$avx2/$wide_backend"
+probe_root="obj/codegen-probes/$architecture/$avx2/$wide_backend"
+native_object="$object_root/flyology_simd-backends-native.o"
+algorithm_object="$object_root/flyology_simd-algorithms-native.o"
+feature_object="$object_root/flyology_simd-features.o"
+slide_probe_object="$probe_root/slide_codegen_probe.o"
+permute_probe_object="$probe_root/permute_codegen_probe.o"
+wide_probe_object="$probe_root/wide_codegen_probe.o"
+wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -142,9 +147,9 @@ case "$architecture" in
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_widen.txt" 'two NEON byte-widen leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u16_narrow.txt" 'two NEON U16-narrow leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i32_to_f32.txt" 'two NEON I32-to-F32 conversion leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_table_lookup.txt" 'two 16-lane table-lookup leaves in wide caller'
+        require_count '(^|[[:space:]])bl[[:space:]]' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
-        extract_symbol 'table_lookup_32' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
+        extract_symbol 'table_lookup_half' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
         require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
         require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
@@ -247,9 +252,14 @@ case "$architecture" in
         ;;
     x86_64)
         : >"$temporary/baseline.txt"
-        for object in "obj/x86_64/$avx2"/*.o; do
+        for object in "$object_root"/*.o; do
             case "$object" in
                 *flyology_simd-algorithms-avx2_implementation.o) continue ;;
+                *flyology_simd-wide-lookup_mechanism.o)
+                    if [ "$wide_backend" = avx2 ]; then
+                        continue
+                    fi
+                    ;;
             esac
             disassemble "$object" >>"$temporary/baseline.txt"
         done
@@ -311,7 +321,7 @@ case "$architecture" in
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_widen.txt" 'two selected byte-widen operations in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u16_narrow.txt" 'two selected U16-narrow operations in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_table_lookup.txt" 'two target-selected table-lookup operations in wide caller'
+        require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum operations in wide caller'
         require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
@@ -327,19 +337,34 @@ case "$architecture" in
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
         require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
         require_pattern 'movdqu' "$temporary/algorithm.txt" 'inlined vector load in representative loop'
-        forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
+        #  In GNU and Apple disassembly, an instruction mnemonic is a
+        #  whitespace-delimited token. Reject every VEX/EVEX mnemonic, not
+        #  only the instruction classes used by the current AVX2 leaves.
+        avx_instruction='(^|[[:space:]])v[a-z0-9]+([[:space:]]|$)|(^|[^[:alnum:]_])%?ymm[0-9]+([^[:alnum:]_]|$)'
+        forbid_pattern "$avx_instruction" \
           "$temporary/native.txt" 'AVX instructions in the SSE2 baseline object'
-        forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
+        forbid_pattern "$avx_instruction" \
           "$temporary/features.txt" 'AVX instructions in feature detection'
-        forbid_pattern '(^|[^a-z])(ymm[0-9]+|v(p|mov|add|sub|and|or|xor))' \
+        forbid_pattern "$avx_instruction" \
           "$temporary/baseline.txt" 'AVX instructions outside the AVX2-only object'
         if [ "$avx2" = enabled ]; then
-            avx_object="obj/x86_64/enabled/flyology_simd-algorithms-avx2_implementation.o"
+            avx_object="$object_root/flyology_simd-algorithms-avx2_implementation.o"
             disassemble "$avx_object" >"$temporary/avx2.txt"
             require_pattern 'ymm[0-9]+|vp[a-z]+' "$temporary/avx2.txt" \
               'AVX2 vectorization in the AVX2-only algorithm object'
             require_pattern 'bsf' "$temporary/avx2.txt" \
               'constant-time first-set-bit extraction in the AVX2 algorithm'
+        fi
+        if [ "$wide_backend" = avx2 ]; then
+            extract_symbol 'table_lookup_32' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
+            require_pattern 'vpshufb' "$temporary/wide_lookup_leaf.txt" \
+              'AVX2 lane-local byte selection in the Wide lookup leaf'
+            require_pattern 'vperm2i128' "$temporary/wide_lookup_leaf.txt" \
+              'AVX2 cross-half table selection in the Wide lookup leaf'
+            require_pattern 'vpsubusb' "$temporary/wide_lookup_leaf.txt" \
+              'AVX2 out-of-range index rejection in the Wide lookup leaf'
+            require_pattern 'vzeroupper' "$temporary/wide_lookup_leaf.txt" \
+              'AVX-SSE transition cleanup in the Wide lookup leaf'
         fi
         ;;
     *)
@@ -359,4 +384,4 @@ if nm -u "$algorithm_object" 2>/dev/null | grep -Eq \
     exit 1
 fi
 
-echo "code-generation checks passed: architecture=$architecture avx2=$avx2"
+echo "code-generation checks passed: architecture=$architecture avx2=$avx2 wide_backend=$wide_backend"

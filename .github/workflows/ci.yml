@@ -16,12 +16,15 @@ jobs:
         include:
           - architecture: scalar
             avx2: disabled
+            wide_backend: composed
             release: false
           - architecture: x86_64
             avx2: disabled
+            wide_backend: composed
             release: true
           - architecture: x86_64
             avx2: enabled
+            wide_backend: avx2
             release: true
     steps:
       - uses: actions/checkout@v7.0.1
@@ -38,28 +41,47 @@ jobs:
           python3 scripts/generate_wide_tests.py
           python3 scripts/check_backend_contracts.py
           git diff --exit-code
+      - name: Reject Wide AVX2 without AVX2 objects
+        if: ${{ matrix.architecture == 'x86_64' && matrix.avx2 == 'disabled' }}
+        run: |
+          if alr build -- \
+            -XFLYOLOGY_SIMD_ARCH=x86_64 \
+            -XFLYOLOGY_SIMD_AVX2=disabled \
+            -XFLYOLOGY_SIMD_WIDE_BACKEND=avx2 \
+            > /tmp/flyology-simd-invalid-wide.log 2>&1
+          then
+            echo "invalid Wide AVX2 configuration built successfully" >&2
+            exit 1
+          fi
+          grep -F \
+            "FLYOLOGY_SIMD_WIDE_BACKEND=avx2 requires x86_64 and FLYOLOGY_SIMD_AVX2=enabled" \
+            /tmp/flyology-simd-invalid-wide.log
       - name: Build debug library
         if: ${{ !matrix.release }}
         run: >-
           alr build --
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+          -XFLYOLOGY_SIMD_WIDE_BACKEND=${{ matrix.wide_backend }}
       - name: Build release library
         if: ${{ matrix.release }}
         run: >-
           alr build --release --
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+          -XFLYOLOGY_SIMD_WIDE_BACKEND=${{ matrix.wide_backend }}
       - name: Build tests
         run: >-
           alr exec -- gprbuild -p -P tests/tests.gpr
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+          -XFLYOLOGY_SIMD_WIDE_BACKEND=${{ matrix.wide_backend }}
       - name: Build examples
         run: >-
           alr exec -- gprbuild -p -P examples/examples.gpr
           -XFLYOLOGY_SIMD_ARCH=${{ matrix.architecture }}
           -XFLYOLOGY_SIMD_AVX2=${{ matrix.avx2 }}
+          -XFLYOLOGY_SIMD_WIDE_BACKEND=${{ matrix.wide_backend }}
       - name: Run differential tests
         run: |
           ./bin/simd_tests
@@ -72,7 +94,9 @@ jobs:
         run: ./bin/simd_tests --require-avx2
       - name: Check generated code
         if: ${{ matrix.architecture == 'x86_64' }}
-        run: ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}
+        run: >-
+          ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}
+          ${{ matrix.wide_backend }}
 
   linux-sanitizer:
     runs-on: ubuntu-24.04

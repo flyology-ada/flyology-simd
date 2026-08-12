@@ -122,7 +122,13 @@
             </tbody>
           </table>
           <p>An operation with the same name as a 128-bit operation has the same lane semantics. Wide two-source maps can select and repeat lanes from either input. Wide bit casts preserve every lane bit and position between signed, unsigned, and floating types that have the same lane width and lane count. Wide conversions use the same rounding, saturation, exceptional-input, and lane-order rules as the corresponding 128-bit operations.</p>
-          <p>A full Wide load or store transfers one complete 256-bit vector. An aligned Wide load or store requires 32-byte alignment. The current implementation uses private 128-bit parts, and <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> composes selected native 128-bit operations across them. The pair is not a public representation or ABI. There is no AVX2-specific 256-bit primitive implementation or code-generation claim.</p>
+          <p>A full Wide load or store transfers one complete 256-bit vector. An aligned Wide load or store requires 32-byte alignment. The current implementation uses private 128-bit parts, and <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> composes selected native 128-bit operations across them. The pair is not a public representation or ABI.</p>
+          <p>The composed Wide backend is the default. On x86-64, <code>FLYOLOGY_SIMD_WIDE_BACKEND=avx2</code> statically selects one isolated 256-bit implementation for the <code>U8x32</code> lookup. Every other Wide operation retains 128-bit composition.</p>
+          <div class="semantic-callout"><strong>The static Wide lookup performs no runtime feature check.</strong><p>Run this build only where CPUID reports the AVX, AVX2, and OSXSAVE bits, and XCR0 enables XMM and YMM register state. The <a data-api="Flyology_SIMD.Algorithms.AVX2"><code>Algorithms.AVX2</code></a> package checks these conditions before each public whole-buffer entry. <a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> selects one safe algorithm for each buffer.</p></div>
+          <p>The build rejects other configurations that select the Wide AVX2 backend. If every deployment target meets the CPU and OS requirement, build the x86-64 selection with:</p>
+          <pre><code class="language-shell">alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
+  -XFLYOLOGY_SIMD_AVX2=enabled \
+  -XFLYOLOGY_SIMD_WIDE_BACKEND=avx2</code></pre>
           <p>Chapter 2 <a href="../practical/#wide-dot">uses <code>F32x8</code> for an eight-lane weighted sum</a>.</p>
         </section>
         <section id="conversions">
@@ -283,7 +289,7 @@ end if;</code></pre>
         </section>
         <section id="not-implemented">
           <h2>Current profile limits</h2>
-          <p>The complete 128-bit family and initial Wide profile do not imply that every planned operation or lowering exists. In particular, the Wide profile has the omissions listed above and has no dedicated 256-bit primitive implementation.</p>
+          <p>The complete 128-bit family and initial Wide profile do not imply that every planned operation or lowering exists. Only the optional x86-64 <code>U8x32</code> table lookup has a dedicated 256-bit implementation.</p>
           <div class="semantic-callout">
             <strong>Coverage statement</strong>
             <p>“Complete 128-bit family” means that all ten 128-bit value types have the documented root-package profile. “Initial Wide profile” means that all ten 256-bit value types have only the groups listed in the Wide section.</p>

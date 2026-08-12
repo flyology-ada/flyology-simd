@@ -488,10 +488,7 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
         else:
             out.append(
                 "   function Table_Lookup (Table, Indices : U8x32) return U8x32 is\n"
-                "     ((Low => Lookup_Mechanism.Table_Lookup_32 "
-                "(Table.Low, Table.High, Indices.Low),\n"
-                "       High => Lookup_Mechanism.Table_Lookup_32 "
-                "(Table.Low, Table.High, Indices.High)));"
+                "     (Lookup_Mechanism.Table_Lookup_32 (Table, Indices));"
             )
         out.append(
             "   function Horizontal_Sum (Value : U8x32) return Natural is\n"

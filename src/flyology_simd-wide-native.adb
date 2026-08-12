@@ -48,8 +48,7 @@ package body Flyology_SIMD.Wide.Native is
       else (Low => Value.Low, High => Flyology_SIMD.Backends.Native.Replace (Value.High, Lane - 16, With_Value)));
 
    function Table_Lookup (Table, Indices : U8x32) return U8x32 is
-     ((Low => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.Low),
-       High => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.High)));
+     (Lookup_Mechanism.Table_Lookup_32 (Table, Indices));
 
    function Horizontal_Sum (Value : U8x32) return Natural is
       --  Each exact half sum is at most 16 * 255, so their sum

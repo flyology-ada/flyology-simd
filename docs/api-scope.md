@@ -25,7 +25,10 @@ value and mask types:
 The current implementation composes each Wide value from private 128-bit
 parts. `Flyology_SIMD.Wide.Native` applies selected 128-bit native operations
 to those parts. This mechanism is not a public representation, an ABI promise,
-or a claim that one 256-bit instruction implements an operation.
+or a claim that one 256-bit instruction implements each operation. The optional
+x86-64 AVX2 Wide backend supplies one isolated 256-bit implementation
+subprogram for `U8x32` `Table_Lookup`.
+All other Wide operations retain the documented composition model.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -177,10 +180,19 @@ Wide `U8x32` also supplies a 32-entry `Table_Lookup`. An index from 0 through
 31 selects the table lane with that index. A larger index produces zero. The
 operation does not mask or reduce an index before the lookup.
 
+The public lookup operation and its semantics do not change with the selected
+mechanism. `FLYOLOGY_SIMD_WIDE_BACKEND=composed` is the default.
+With `FLYOLOGY_SIMD_ARCH=x86_64` and `FLYOLOGY_SIMD_AVX2=enabled`, the value
+`avx2` selects one isolated 256-bit lookup implementation at compile time. The
+build rejects other configurations that select this backend. The library
+performs no runtime feature check for that selection. Applications must deploy
+the resulting binary only where CPUID reports the AVX, AVX2, and OSXSAVE bits,
+and XCR0 enables XMM and YMM register state.
+
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. The initial Wide profile has no
-AVX2-specific 256-bit leaf or code-generation claim.
+other AVX2-specific 256-bit implementation or code-generation claim.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

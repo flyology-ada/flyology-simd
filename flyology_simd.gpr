@@ -6,12 +6,59 @@ project Flyology_SIMD is
    type AVX2_Kind is ("disabled", "enabled");
    AVX2 : AVX2_Kind := external ("FLYOLOGY_SIMD_AVX2", "disabled");
 
+   type Wide_Backend_Kind is ("composed", "avx2");
+   Wide_Backend : Wide_Backend_Kind :=
+     external ("FLYOLOGY_SIMD_WIDE_BACKEND", "composed");
+
    for Languages use ("Ada");
-   for Source_Dirs use
-     ("src", "src/backends/" & Architecture, "src/config/" & AVX2,
-      "src/avx2/" & AVX2);
-   for Object_Dir use "obj/" & Architecture & "/" & AVX2;
-   for Library_Dir use "lib/" & Architecture & "/" & AVX2;
+   case Architecture is
+      when "scalar" =>
+         case Wide_Backend is
+            when "composed" =>
+               for Source_Dirs use
+                 ("src", "src/backends/scalar", "src/config/" & AVX2,
+                  "src/avx2/" & AVX2, "src/wide/composed");
+            when "avx2" =>
+               for Source_Dirs use
+                 ("src", "src/backends/scalar", "src/config/" & AVX2,
+                  "src/avx2/" & AVX2, "src/wide/invalid");
+         end case;
+      when "aarch64" =>
+         case Wide_Backend is
+            when "composed" =>
+               for Source_Dirs use
+                 ("src", "src/backends/aarch64", "src/config/" & AVX2,
+                  "src/avx2/" & AVX2, "src/wide/aarch64");
+            when "avx2" =>
+               for Source_Dirs use
+                 ("src", "src/backends/aarch64", "src/config/" & AVX2,
+                  "src/avx2/" & AVX2, "src/wide/invalid");
+         end case;
+      when "x86_64" =>
+         case Wide_Backend is
+            when "composed" =>
+               for Source_Dirs use
+                 ("src", "src/backends/x86_64", "src/config/" & AVX2,
+                  "src/avx2/" & AVX2, "src/wide/composed");
+            when "avx2" =>
+               case AVX2 is
+                  when "enabled" =>
+                     for Source_Dirs use
+                       ("src", "src/backends/x86_64",
+                        "src/config/enabled", "src/avx2/enabled",
+                        "src/wide/avx2");
+                  when "disabled" =>
+                     for Source_Dirs use
+                       ("src", "src/backends/x86_64",
+                        "src/config/disabled", "src/avx2/disabled",
+                        "src/wide/invalid");
+               end case;
+         end case;
+   end case;
+   for Object_Dir use
+     "obj/" & Architecture & "/" & AVX2 & "/" & Wide_Backend;
+   for Library_Dir use
+     "lib/" & Architecture & "/" & AVX2 & "/" & Wide_Backend;
    for Library_Name use "flyology_simd";
    for Library_Kind use "static";
 
@@ -36,6 +83,14 @@ project Flyology_SIMD is
                     ("flyology_simd-algorithms-avx2_implementation.adb") use
                     Common_Ada & ("-O3", "-mavx2");
                when "disabled" =>
+                  null;
+            end case;
+            case Wide_Backend is
+               when "avx2" =>
+                  for Switches
+                    ("flyology_simd-wide-lookup_mechanism.adb") use
+                    Common_Ada & ("-O3", "-mavx2");
+               when "composed" =>
                   null;
             end case;
          when others =>

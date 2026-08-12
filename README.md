@@ -71,6 +71,23 @@ alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
   -XFLYOLOGY_SIMD_AVX2=enabled
 ```
 
+The Wide lookup backend defaults to portable composition. Select the optional
+isolated 256-bit `U8x32` table-lookup implementation only when CPUID reports
+the AVX, AVX2, and OSXSAVE bits, and XCR0 enables XMM and YMM register state:
+
+```sh
+alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
+  -XFLYOLOGY_SIMD_AVX2=enabled \
+  -XFLYOLOGY_SIMD_WIDE_BACKEND=avx2
+```
+
+The build rejects this selection unless `FLYOLOGY_SIMD_ARCH=x86_64` and
+`FLYOLOGY_SIMD_AVX2=enabled`. The static Wide lookup performs no runtime feature
+check. Do not run that build unless all listed CPU and OS conditions hold. The
+`FLYOLOGY_SIMD_AVX2=enabled` setting also compiles separate
+whole-buffer algorithms. Their public AVX2 entry points check CPU and OS
+features. `Algorithms.Runtime` selects one safe algorithm for each buffer.
+
 Build the examples with `examples/examples.gpr`:
 
 ```sh
@@ -127,8 +144,10 @@ The complete artifact is written to the ignored `build/site/` directory.
   scalar composition where SSE2 has no semantics-preserving instruction;
   optional AVX2 whole-buffer algorithms remain in separately compiled objects.
   `Flyology_SIMD.Wide.Native` composes the selected 128-bit operations in
-  private pairs, including the Wide conversion operations. It does not
-  currently claim an AVX2-specific 256-bit leaf.
+  private pairs, including the Wide conversion operations. On x86-64, a
+  separate build selection can use one isolated AVX2-specific 256-bit
+  implementation for the
+  `U8x32` `Table_Lookup`. Other Wide operations retain 128-bit composition.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.

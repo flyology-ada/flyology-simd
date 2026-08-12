@@ -9,6 +9,7 @@ continuous execution.  A source file alone is not a support claim.
 | AArch64 NEON full 128-bit family | yes | yes | yes, macOS AArch64 | macOS AArch64 |
 | x86-64 SSE2 full 128-bit family | yes | Linux x86-64 | differential + ASan, Linux x86-64 | Linux x86-64 |
 | x86-64 AVX2 algorithms | yes | Linux x86-64 | differential, Linux x86-64 AVX2 | Linux x86-64 with runtime gate |
+| x86-64 AVX2 Wide `U8x32` lookup | yes | Linux x86-64 | differential + code generation, Linux x86-64 AVX2 | Linux x86-64, static selection |
 
 The initial `Flyology_SIMD.Wide` profile is compiled and executed on the local
 Darwin AArch64 development host. The workflow is configured to run
@@ -63,19 +64,20 @@ also use scalar composition on x86-64.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once
-with baseline-safe code. Detection and SSE2 objects are built with AVX disabled;
-AVX and AVX2 instructions are absent outside the AVX2-only object. The public
-AVX2 package is a baseline-safe wrapper that rejects an unavailable backend
-before entering that private object.
+with baseline-safe code. Detection and SSE2 objects are built with AVX disabled.
+AVX and AVX2 instructions are absent outside the optional AVX2 algorithm object
+and the optional Wide lookup object. The public AVX2 algorithm package is a
+baseline-safe wrapper that rejects an unavailable backend before it enters that
+private object.
 
 Wide values have a private pair-of-128 implementation.
 `Flyology_SIMD.Wide.Native` composes selected 128-bit backend operations on
-the two parts. It does not yet contain an AVX2-specific 256-bit leaf, and the
-code-generation checks make no 256-bit instruction claim. The current Wide
-tests cover fixed vectors and 128 deterministic pseudorandom inputs for all ten
-value families. They compare every current Native operation group with the
-scalar authority, cover all partial-memory counts, and exercise floating
-reduction order, signed zero, and special lane encodings.
+the two parts for every operation except the optional x86-64 AVX2 `U8x32`
+table lookup. No other Wide operation has a 256-bit instruction claim. The
+current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
+for all ten value families. They compare every current Native operation group
+with the scalar authority, cover all partial-memory counts, and exercise
+floating reduction order, signed zero, and special lane encodings.
 Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane
 maps use fixed-width scalar composition through selected lane access
 operations. The differential tests check the scalar and Native maps for all
@@ -91,12 +93,25 @@ code-generation probes require two selected 128-bit calls for representative
 widening, narrowing, and numeric
 conversion operations. The project does not claim a 256-bit instruction
 sequence.
-Wide 32-entry lookup applies one target-selected lookup to each private index
-part. On AArch64, that mechanism is a two-register `tbl` leaf. On scalar and
-x86-64 targets, it is exact scalar composition. Tests compare fixed,
-exhaustive-index, and deterministic pseudorandom cases with an independent lane
-oracle. Caller-level checks require two target-selected operations, and the
-AArch64 leaf check requires two-register `tbl`.
+The default Wide 32-entry lookup uses composed target code. On AArch64, it
+applies one two-register `tbl` leaf to each private index part. On scalar and
+x86-64 targets, the composed selection uses the scalar authority. The optional
+x86-64 AVX2 selection uses one separately compiled 256-bit implementation
+subprogram. Tests compare
+fixed, all-index, and deterministic pseudorandom cases with an independent
+lane oracle for each selection. The x86-64 code-generation gate requires one
+mechanism call from the public caller. For the AVX2 selection, the isolated
+subprogram must contain `vpshufb`, `vperm2i128`, `vpsubusb`, and `vzeroupper`.
+Baseline objects must remain free of AVX instructions.
+
+`FLYOLOGY_SIMD_WIDE_BACKEND` accepts `composed`, the default, or `avx2`.
+The `avx2` value selects the optional implementation subprogram only with
+`FLYOLOGY_SIMD_ARCH=x86_64` and `FLYOLOGY_SIMD_AVX2=enabled`. The build rejects
+other configurations. This is compile-time selection without a feature check.
+The application must deploy that binary only where CPUID reports the AVX,
+AVX2, and OSXSAVE bits, and XCR0 enables XMM and YMM register state. This rule
+differs from `Algorithms.AVX2`, which checks these conditions before it enters
+an optional whole-buffer object.
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native
 results with an independent lane oracle. AArch64 and x86-64 caller-level
