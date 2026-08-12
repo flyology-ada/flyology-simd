@@ -185,6 +185,71 @@ procedure Wide_Tests is
       end Check_Permutations;
 
 
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_U8x32; Label_Text : String)
+      is
+         Left : constant Wide.U8x32 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.U8x32 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.U8x32;
+            Expected : Wide.Lane_Values_U8x32; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "U8x32 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_8x32 => Left_Values (31 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane mod 2 = 0
+                then Left_Values (16 + Lane / 2)
+                else Right_Values (16 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane < 16
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 16)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane < 16
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 16) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 34 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_8x32 =>
+                  (if Count < 32 and then Lane < 32 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_8x32 =>
+                  (if Count < 32 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
+
+
       function Reference_Table_Lookup
         (Table, Indices : Wide.Lane_Values_U8x32)
          return Wide.Lane_Values_U8x32
@@ -557,6 +622,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "U8x32 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 32)) = Wide.Lane_Values_U8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 33)) = Wide.Lane_Values_U8x32'[others => 0],
         "U8x32 oversized slides");
@@ -739,6 +805,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1050,6 +1118,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "I8x32 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_I8x32; Label_Text : String)
+      is
+         Left : constant Wide.I8x32 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.I8x32 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.I8x32;
+            Expected : Wide.Lane_Values_I8x32; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "I8x32 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_8x32 => Left_Values (31 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane mod 2 = 0
+                then Left_Values (16 + Lane / 2)
+                else Right_Values (16 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane < 16
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 16)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_8x32 =>
+               (if Lane < 16
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 16) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 34 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_8x32 =>
+                  (if Count < 32 and then Lane < 32 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_8x32 =>
+                  (if Count < 32 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
@@ -1366,6 +1499,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_8x32 => A_Lanes (31 - Lane)],
         "I8x32 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 32)) = Wide.Lane_Values_I8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 33)) = Wide.Lane_Values_I8x32'[others => 0],
         "I8x32 oversized slides");
@@ -1548,6 +1682,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1817,6 +1953,71 @@ procedure Wide_Tests is
       end Check_Permutations;
 
 
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_U16x16; Label_Text : String)
+      is
+         Left : constant Wide.U16x16 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.U16x16 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.U16x16;
+            Expected : Wide.Lane_Values_U16x16; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "U16x16 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_16x16 => Left_Values (15 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane mod 2 = 0
+                then Left_Values (8 + Lane / 2)
+                else Right_Values (8 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane < 8
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 8)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane < 8
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 8) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 18 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_16x16 =>
+                  (if Count < 16 and then Lane < 16 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_16x16 =>
+                  (if Count < 16 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
+
+
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
@@ -2020,6 +2221,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "U16x16 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 16)) = Wide.Lane_Values_U16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 17)) = Wide.Lane_Values_U16x16'[others => 0],
         "U16x16 oversized slides");
@@ -2202,6 +2404,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -2378,6 +2582,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "I16x16 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_I16x16; Label_Text : String)
+      is
+         Left : constant Wide.I16x16 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.I16x16 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.I16x16;
+            Expected : Wide.Lane_Values_I16x16; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "I16x16 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_16x16 => Left_Values (15 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane mod 2 = 0
+                then Left_Values (8 + Lane / 2)
+                else Right_Values (8 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane < 8
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 8)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_16x16 =>
+               (if Lane < 8
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 8) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 18 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_16x16 =>
+                  (if Count < 16 and then Lane < 16 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_16x16 =>
+                  (if Count < 16 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
@@ -2582,6 +2851,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_16x16 => A_Lanes (15 - Lane)],
         "I16x16 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 16)) = Wide.Lane_Values_I16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 17)) = Wide.Lane_Values_I16x16'[others => 0],
         "I16x16 oversized slides");
@@ -2764,6 +3034,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -2939,6 +3211,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "U32x8 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_U32x8; Label_Text : String)
+      is
+         Left : constant Wide.U32x8 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.U32x8 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.U32x8;
+            Expected : Wide.Lane_Values_U32x8; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "U32x8 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_32x8 => Left_Values (7 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (4 + Lane / 2)
+                else Right_Values (4 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 4)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 4) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 10 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane < 8 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
@@ -3160,6 +3497,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "U32x8 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 8)) = Wide.Lane_Values_U32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 9)) = Wide.Lane_Values_U32x8'[others => 0],
         "U32x8 oversized slides");
@@ -3342,6 +3680,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -3534,6 +3874,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "I32x8 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_I32x8; Label_Text : String)
+      is
+         Left : constant Wide.I32x8 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.I32x8 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.I32x8;
+            Expected : Wide.Lane_Values_I32x8; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "I32x8 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_32x8 => Left_Values (7 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (4 + Lane / 2)
+                else Right_Values (4 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 4)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 4) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 10 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane < 8 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
@@ -3754,6 +4159,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (7 - Lane)],
         "I32x8 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 8)) = Wide.Lane_Values_I32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 9)) = Wide.Lane_Values_I32x8'[others => 0],
         "I32x8 oversized slides");
@@ -3936,6 +4342,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -4127,6 +4535,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "U64x4 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_U64x4; Label_Text : String)
+      is
+         Left : constant Wide.U64x4 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.U64x4 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.U64x4;
+            Expected : Wide.Lane_Values_U64x4; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "U64x4 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_64x4 => Left_Values (3 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (2 + Lane / 2)
+                else Right_Values (2 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 2)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 2) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 6 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane < 4 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
@@ -4348,6 +4821,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "U64x4 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 4)) = Wide.Lane_Values_U64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 5)) = Wide.Lane_Values_U64x4'[others => 0],
         "U64x4 oversized slides");
@@ -4530,6 +5004,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -4722,6 +5198,71 @@ procedure Wide_Tests is
          Check (Wide.To_Lanes (Scalar_Two) = Expected_Two and then Native.To_Lanes (Native_Two) = Expected_Two,
            "I64x4 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_I64x4; Label_Text : String)
+      is
+         Left : constant Wide.I64x4 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.I64x4 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.I64x4;
+            Expected : Wide.Lane_Values_I64x4; Operation : String)
+         is
+         begin
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "I64x4 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_64x4 => Left_Values (3 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (2 + Lane / 2)
+                else Right_Values (2 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 2)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 2) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 6 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane < 4 - Count
+                   then Left_Values (Lane + Count) else 0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
 
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
@@ -4942,6 +5483,7 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (3 - Lane)],
         "I64x4 reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, 4)) = Wide.Lane_Values_I64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, 5)) = Wide.Lane_Values_I64x4'[others => 0],
         "I64x4 oversized slides");
@@ -5124,6 +5666,8 @@ procedure Wide_Tests is
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -5343,6 +5887,76 @@ procedure Wide_Tests is
                 Value_To_Bits (Expected_Two (Lane))),
            "F32x8 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_F32x8; Label_Text : String)
+      is
+         Left : constant Wide.F32x8 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.F32x8 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.F32x8;
+            Expected : Wide.Lane_Values_F32x8; Operation : String)
+         is
+         begin
+            Check ((for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+                Value_To_Bits (Expected (Lane)))
+            and then (for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Expected (Lane))),
+              "F32x8 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_32x8 => Left_Values (7 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane mod 2 = 0
+                then Left_Values (4 + Lane / 2)
+                else Right_Values (4 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 4)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_32x8 =>
+               (if Lane < 4
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 4) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 10 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane < 8 - Count
+                   then Left_Values (Lane + Count) else 0.0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_32x8 =>
+                  (if Count < 8 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0.0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
       A_Lanes : constant Wide.Lane_Values_F32x8 := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
       A : constant Wide.F32x8 := Wide.From_Lanes (A_Lanes);
@@ -5685,6 +6299,7 @@ procedure Wide_Tests is
          end loop;
       end;
 
+      Check_Movements (Special_Lanes, A_Lanes, "fixed special bits");
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -5815,6 +6430,8 @@ procedure Wide_Tests is
               (R_Bit_Lanes, R_A_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "random special bits" & Iteration'Image);
+            Check_Movements
+              (R_Bit_Lanes, R_A_Lanes, "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
@@ -6017,6 +6634,76 @@ procedure Wide_Tests is
                 Value_To_Bits (Expected_Two (Lane))),
            "F64x4 independent two-source permutation " & Label_Text);
       end Check_Permutations;
+
+
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.Lane_Values_F64x4; Label_Text : String)
+      is
+         Left : constant Wide.F64x4 := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.F64x4 := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.F64x4;
+            Expected : Wide.Lane_Values_F64x4; Operation : String)
+         is
+         begin
+            Check ((for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+                Value_To_Bits (Expected (Lane)))
+            and then (for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Expected (Lane))),
+              "F64x4 independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.Lane_Index_64x4 => Left_Values (3 - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane mod 2 = 0
+                then Left_Values (2 + Lane / 2)
+                else Right_Values (2 + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - 2)))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.Lane_Index_64x4 =>
+               (if Lane < 2
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - 2) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. 6 loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane < 4 - Count
+                   then Left_Values (Lane + Count) else 0.0)],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.Lane_Index_64x4 =>
+                  (if Count < 4 and then Lane >= Count
+                   then Left_Values (Lane - Count) else 0.0)],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
 
       A_Lanes : constant Wide.Lane_Values_F64x4 := [1.0, 2.0, 3.0, 4.0];
       A : constant Wide.F64x4 := Wide.From_Lanes (A_Lanes);
@@ -6359,6 +7046,7 @@ procedure Wide_Tests is
          end loop;
       end;
 
+      Check_Movements (Special_Lanes, A_Lanes, "fixed special bits");
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -6489,6 +7177,8 @@ procedure Wide_Tests is
               (R_Bit_Lanes, R_A_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "random special bits" & Iteration'Image);
+            Check_Movements
+              (R_Bit_Lanes, R_A_Lanes, "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),

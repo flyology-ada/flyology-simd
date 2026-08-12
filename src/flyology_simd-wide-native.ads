@@ -213,7 +213,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U8x32) return U8x32 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : U8x32; Map : Lane_Map_8x32) return U8x32 with Inline_Always;
@@ -230,38 +230,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U8x32) return U8x32 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U8x32) return U8x32 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U8x32) return U8x32 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U8x32) return U8x32 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U8x32; Count : Natural) return U8x32 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : U8x32; Count : Natural) return U8x32 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -576,7 +576,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I8x32) return I8x32 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : I8x32; Map : Lane_Map_8x32) return I8x32 with Inline_Always;
@@ -593,38 +593,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I8x32) return I8x32 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I8x32) return I8x32 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I8x32) return I8x32 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I8x32) return I8x32 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -884,7 +884,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U16x16) return U16x16 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : U16x16; Map : Lane_Map_16x16) return U16x16 with Inline_Always;
@@ -901,38 +901,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x16) return U16x16 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U16x16) return U16x16 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U16x16) return U16x16 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U16x16) return U16x16 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U16x16; Count : Natural) return U16x16 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : U16x16; Count : Natural) return U16x16 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1247,7 +1247,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I16x16) return I16x16 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : I16x16; Map : Lane_Map_16x16) return I16x16 with Inline_Always;
@@ -1264,38 +1264,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I16x16) return I16x16 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I16x16) return I16x16 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I16x16) return I16x16 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I16x16) return I16x16 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1560,7 +1560,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U32x8) return U32x8 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : U32x8; Map : Lane_Map_32x8) return U32x8 with Inline_Always;
@@ -1577,38 +1577,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x8) return U32x8 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U32x8) return U32x8 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U32x8) return U32x8 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U32x8) return U32x8 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U32x8; Count : Natural) return U32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : U32x8; Count : Natural) return U32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1928,7 +1928,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I32x8) return I32x8 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : I32x8; Map : Lane_Map_32x8) return I32x8 with Inline_Always;
@@ -1945,38 +1945,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I32x8) return I32x8 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I32x8) return I32x8 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I32x8) return I32x8 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I32x8) return I32x8 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -2241,7 +2241,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U64x4) return U64x4 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : U64x4; Map : Lane_Map_64x4) return U64x4 with Inline_Always;
@@ -2258,38 +2258,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x4) return U64x4 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U64x4) return U64x4 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U64x4) return U64x4 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U64x4) return U64x4 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U64x4; Count : Natural) return U64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : U64x4; Count : Natural) return U64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -2609,7 +2609,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I64x4) return I64x4 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : I64x4; Map : Lane_Map_64x4) return I64x4 with Inline_Always;
@@ -2626,38 +2626,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : I64x4) return I64x4 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I64x4) return I64x4 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I64x4) return I64x4 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I64x4) return I64x4 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -2867,7 +2867,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : F32x8) return F32x8 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : F32x8; Map : Lane_Map_32x8) return F32x8 with Inline_Always;
@@ -2884,38 +2884,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F32x8) return F32x8 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : F32x8) return F32x8 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : F32x8) return F32x8 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : F32x8) return F32x8 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : F32x8; Count : Natural) return F32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : F32x8; Count : Natural) return F32x8 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -3125,7 +3125,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : F64x4) return F64x4 with Inline_Always;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Permute_Lanes (Value : F64x4; Map : Lane_Map_64x4) return F64x4 with Inline_Always;
@@ -3142,38 +3142,38 @@ is
    --  @param Map The map input.
    --  @return The operation result.
    function Interleave_Low (Left, Right : F64x4) return F64x4 with Inline_Always;
-   --  Apply Interleave_Low with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the low half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : F64x4) return F64x4 with Inline_Always;
-   --  Apply Interleave_High with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Alternate lanes from the high half of Left and Right, starting with Left.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : F64x4) return F64x4 with Inline_Always;
-   --  Apply Deinterleave_Even with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the even-index lanes of Left followed by the even-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : F64x4) return F64x4 with Inline_Always;
-   --  Apply Deinterleave_Odd with the documented lane mapping.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Return the odd-index lanes of Left followed by the odd-index lanes of Right.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one four-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses four vpshufb instructions, two vperm2i128 instructions, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : F64x4; Count : Natural) return F64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Slide_Lanes_Toward_High (Value : F64x4; Count : Natural) return F64x4 with Inline_Always;
    --  Move retained lanes and zero-fill vacated lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives a 32-byte index map and runs one two-register NEON tbl operation for each result half. The composed x86-64 backend calls the Wide scalar implementation. The optional AVX2 backend derives a 32-byte index map and uses two vpshufb instructions, one vperm2i128 instruction, mask selection, and vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.

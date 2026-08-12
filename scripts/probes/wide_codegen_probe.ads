@@ -94,4 +94,16 @@ package Wide_Codegen_Probe is
      (Left, Right : Flyology_SIMD.Wide.F64x4;
       Map : Flyology_SIMD.Wide.Two_Source_Lane_Map_64x4)
       return Flyology_SIMD.Wide.F64x4;
+   function U8_Reverse
+     (Value : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32;
+   function U16_Interleave_Low
+     (Left, Right : Flyology_SIMD.Wide.U16x16)
+      return Flyology_SIMD.Wide.U16x16;
+   function F32_Deinterleave_Odd
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
+   function F64_Slide_Low_One
+     (Value : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
 end Wide_Codegen_Probe;

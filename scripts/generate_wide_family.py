@@ -140,6 +140,31 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     """Describe the verified Wide.Native implementation class."""
     match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", declaration)
     operation = match.group(1) if match else ""
+    if operation in {
+        "Reverse_Lanes", "Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High",
+    }:
+        return (
+            "Cross-platform support: The AArch64 backend derives a 32-byte "
+            "index map and runs one two-register NEON tbl operation for each "
+            "result half. The composed x86-64 backend calls the Wide scalar "
+            "implementation. The optional AVX2 backend derives a 32-byte "
+            "index map and uses two vpshufb instructions, one vperm2i128 "
+            "instruction, mask selection, and vzeroupper. In a scalar build, "
+            "this overload calls the portable Wide implementation."
+        )
+    if operation in {
+        "Interleave_Low", "Interleave_High", "Deinterleave_Even",
+        "Deinterleave_Odd",
+    }:
+        return (
+            "Cross-platform support: The AArch64 backend derives a 32-byte "
+            "index map and runs one four-register NEON tbl operation for each "
+            "result half. The composed x86-64 backend calls the Wide scalar "
+            "implementation. The optional AVX2 backend derives a 32-byte "
+            "index map and uses four vpshufb instructions, two vperm2i128 "
+            "instructions, mask selection, and vzeroupper. In a scalar build, "
+            "this overload calls the portable Wide implementation."
+        )
     if summary.startswith("Select each result lane through"):
         return (
             "Cross-platform support: The AArch64 backend derives a 32-byte "
@@ -220,11 +245,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "AArch64 and x86-64 run the selected 128-bit operation on both "
             "private parts"
         )
-    elif operation in {
-        "Interleave_Low", "Interleave_High", "Deinterleave_Even",
-        "Deinterleave_Odd", "Slide_Lanes_Toward_Low",
-        "Slide_Lanes_Toward_High", "Is_Aligned_32",
-    }:
+    elif operation == "Is_Aligned_32":
         mechanism = "AArch64 and x86-64 use the same portable Ada implementation"
     elif operation in {"Load_Partial", "Store_Partial"}:
         mechanism = (
@@ -233,7 +254,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         )
     elif operation in {
         "Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max", "Reduce_Add",
-        "Reduce_Min_Number", "Reduce_Max_Number", "Reverse_Lanes",
+        "Reduce_Min_Number", "Reduce_Max_Number",
     }:
         mechanism = "AArch64 and x86-64 use portable Ada composition"
     else:
@@ -259,12 +280,11 @@ def wide_portable_support(summary: str, declaration: str) -> str:
     native = wide_native_support(summary, declaration).removeprefix(
         "Cross-platform support: "
     )
-    if summary.startswith("Select each result lane"):
-        native = native.replace(
-            "In a scalar build, this overload calls the portable Wide implementation.",
-            "In a scalar build, the matching Wide.Native overload calls the "
-            "portable Wide implementation.",
-        )
+    native = native.replace(
+        "In a scalar build, this overload calls the portable Wide implementation.",
+        "In a scalar build, the matching Wide.Native overload calls the "
+        "portable Wide implementation.",
+    )
     if native.startswith("The "):
         native = "the " + native.removeprefix("The ")
     return (
@@ -434,9 +454,23 @@ def declaration(f: Family, first_shape: bool) -> str:
         f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector};",
         doc("Select each result lane from one lane of either input.", ("Left", "Right", "Map")),
     ]
+    movement_docs = {
+        "Interleave_Low": (
+            "Alternate lanes from the low half of Left and Right, starting with Left."
+        ),
+        "Interleave_High": (
+            "Alternate lanes from the high half of Left and Right, starting with Left."
+        ),
+        "Deinterleave_Even": (
+            "Return the even-index lanes of Left followed by the even-index lanes of Right."
+        ),
+        "Deinterleave_Odd": (
+            "Return the odd-index lanes of Left followed by the odd-index lanes of Right."
+        ),
+    }
     for name in movement:
         out += [f"   function {name} (Left, Right : {f.vector}) return {f.vector};",
-                doc(f"Apply {name} with the documented lane mapping.", ("Left", "Right"))]
+                doc(movement_docs[name], ("Left", "Right"))]
     for name in ("Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High"):
         out += [f"   function {name} (Value : {f.vector}; Count : Natural) return {f.vector};",
                 doc("Move retained lanes and zero-fill vacated lanes.", ("Value", "Count"))]
@@ -826,17 +860,29 @@ def scalar_movement_body(f: Family, prefix: str) -> list[str]:
         f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (Permute_Mechanism.Permute_Lanes (Value, Map));",
         f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n     (Permute_Mechanism.Permute_Lanes (Left, Right, Map));",
     ]
-    return [
-        *compact,
-        *reductions,
+    movement = [
         f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, {total - 1} - Lane)]));",
-        *permutations,
         f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));",
         f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, {half} + Lane / 2) else Extract (Right, {half} + Lane / 2))]));",
         f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane < {half} then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - {half})))]));",
         f"   function Deinterleave_Odd (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane < {half} then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - {half}) + 1))]));",
         f"   function Slide_Lanes_Toward_Low (Value : {f.vector}; Count : Natural) return {f.vector} is\n     (if Count >= {total} then Zero else From_Lanes ([for Lane in {idx} => (if Lane + Count < {total} then Extract (Value, Lane + Count) else {zero})]));",
         f"   function Slide_Lanes_Toward_High (Value : {f.vector}; Count : Natural) return {f.vector} is\n     (if Count >= {total} then Zero else From_Lanes ([for Lane in {idx} => (if Lane >= Count then Extract (Value, Lane - Count) else {zero})]));",
+    ] if prefix == "Flyology_SIMD" else [
+        f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n     (Permute_Mechanism.Reverse_Lanes (Value));",
+        f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector} is\n     (Permute_Mechanism.Interleave_Low (Left, Right));",
+        f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector} is\n     (Permute_Mechanism.Interleave_High (Left, Right));",
+        f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector} is\n     (Permute_Mechanism.Deinterleave_Even (Left, Right));",
+        f"   function Deinterleave_Odd (Left, Right : {f.vector}) return {f.vector} is\n     (Permute_Mechanism.Deinterleave_Odd (Left, Right));",
+        f"   function Slide_Lanes_Toward_Low (Value : {f.vector}; Count : Natural) return {f.vector} is\n     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));",
+        f"   function Slide_Lanes_Toward_High (Value : {f.vector}; Count : Natural) return {f.vector} is\n     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));",
+    ]
+    return [
+        *compact,
+        *reductions,
+        movement[0],
+        *permutations,
+        *movement[1:],
     ]
 
 
@@ -1043,6 +1089,47 @@ def permute_spec_text() -> str:
             "   --  @param Right The right source lanes.\n"
             "   --  @param Map The reusable two-source lane map.\n"
             "   --  @return The selected lanes in result-lane order.",
+            f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Reverse logical lane order.\n"
+            "   --  @param Value The source lanes.\n"
+            "   --  @return The lanes in reverse order.",
+            f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Interleave the low halves of two inputs.\n"
+            "   --  @param Left The left source lanes.\n"
+            "   --  @param Right The right source lanes.\n"
+            "   --  @return The interleaved low halves.",
+            f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Interleave the high halves of two inputs.\n"
+            "   --  @param Left The left source lanes.\n"
+            "   --  @param Right The right source lanes.\n"
+            "   --  @return The interleaved high halves.",
+            f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Gather even lanes from two inputs.\n"
+            "   --  @param Left The left source lanes.\n"
+            "   --  @param Right The right source lanes.\n"
+            "   --  @return The even lanes of Left followed by those of Right.",
+            f"   function Deinterleave_Odd (Left, Right : {f.vector}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Gather odd lanes from two inputs.\n"
+            "   --  @param Left The left source lanes.\n"
+            "   --  @param Right The right source lanes.\n"
+            "   --  @return The odd lanes of Left followed by those of Right.",
+            f"   function Slide_Lanes_Toward_Low (Value : {f.vector}; Count : Natural) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Slide lanes toward lower indexes and zero-fill the high lanes.\n"
+            "   --  @param Value The source lanes.\n"
+            "   --  @param Count The lane displacement.\n"
+            "   --  @return The slid lanes, or zero when Count reaches or exceeds the width.",
+            f"   function Slide_Lanes_Toward_High (Value : {f.vector}; Count : Natural) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Slide lanes toward higher indexes and zero-fill the low lanes.\n"
+            "   --  @param Value The source lanes.\n"
+            "   --  @param Count The lane displacement.\n"
+            "   --  @return The slid lanes, or zero when Count reaches or exceeds the width.",
         ))
     return f"""private package Flyology_SIMD.Wide.Permute_Mechanism
   with Preelaborate
@@ -1062,11 +1149,118 @@ def permute_composed_body_text() -> str:
             "     (Flyology_SIMD.Wide.Permute_Lanes (Value, Map));",
             f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
             "     (Flyology_SIMD.Wide.Permute_Lanes (Left, Right, Map));",
+            f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Reverse_Lanes (Value));",
+            f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Interleave_Low (Left, Right));",
+            f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Interleave_High (Left, Right));",
+            f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Deinterleave_Even (Left, Right));",
+            f"   function Deinterleave_Odd (Left, Right : {f.vector}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Deinterleave_Odd (Left, Right));",
+            f"   function Slide_Lanes_Toward_Low (Value : {f.vector}; Count : Natural) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Slide_Lanes_Toward_Low (Value, Count));",
+            f"   function Slide_Lanes_Toward_High (Value : {f.vector}; Count : Natural) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Slide_Lanes_Toward_High (Value, Count));",
         ))
     return f"""package body Flyology_SIMD.Wide.Permute_Mechanism is
 {chr(10).join(bodies)}
 end Flyology_SIMD.Wide.Permute_Mechanism;
 """
+
+
+def movement_mechanism_bodies(
+    f: Family, one_permute: str, two_permute: str
+) -> list[str]:
+    """Generate fixed lane movements through the private byte-map leaves."""
+    lane_bytes = f.bits // 8
+    last = f.lanes - 1
+    half = f.half_lanes
+
+    def one_source(name: str, source_lane: str) -> str:
+        return (
+            f"   function {name} (Value : {f.vector}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"            Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"              U8 (({source_lane}) * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {one_permute} (Value, Indexes);\n"
+            f"   end {name};"
+        )
+
+    def two_source(name: str, lane: str, from_right: str) -> str:
+        return (
+            f"   function {name} (Left, Right : {f.vector}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"            Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"              (if {from_right} then U8 (32) else U8 (0))\n"
+            f"              + U8 (({lane}) * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {two_permute} (Left, Right, Indexes);\n"
+            f"   end {name};"
+        )
+
+    return [
+        one_source("Reverse_Lanes", f"{last} - Result_Lane"),
+        two_source("Interleave_Low", "Result_Lane / 2", "Result_Lane mod 2 = 1"),
+        two_source(
+            "Interleave_High", f"{half} + Result_Lane / 2",
+            "Result_Lane mod 2 = 1",
+        ),
+        two_source(
+            "Deinterleave_Even",
+            f"2 * (Result_Lane mod {half})",
+            f"Result_Lane >= {half}",
+        ),
+        two_source(
+            "Deinterleave_Odd",
+            f"2 * (Result_Lane mod {half}) + 1",
+            f"Result_Lane >= {half}",
+        ),
+        (
+            f"   function Slide_Lanes_Toward_Low (Value : {f.vector}; Count : Natural) return {f.vector} is\n"
+            "      Indexes : Byte_Map := [others => 32];\n"
+            "   begin\n"
+            f"      if Count < {f.lanes} then\n"
+            f"         for Result_Lane in {f.index} loop\n"
+            f"            if Result_Lane + Count < {f.lanes} then\n"
+            f"               for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"                  Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"                    U8 ((Result_Lane + Count) * {lane_bytes} + Byte);\n"
+            "               end loop;\n"
+            "            end if;\n"
+            "         end loop;\n"
+            "      end if;\n"
+            f"      return {one_permute} (Value, Indexes);\n"
+            "   end Slide_Lanes_Toward_Low;"
+        ),
+        (
+            f"   function Slide_Lanes_Toward_High (Value : {f.vector}; Count : Natural) return {f.vector} is\n"
+            "      Indexes : Byte_Map := [others => 32];\n"
+            "   begin\n"
+            f"      if Count < {f.lanes} then\n"
+            f"         for Result_Lane in {f.index} loop\n"
+            "            if Result_Lane >= Count then\n"
+            f"               for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"                  Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"                    U8 ((Result_Lane - Count) * {lane_bytes} + Byte);\n"
+            "               end loop;\n"
+            "            end if;\n"
+            "         end loop;\n"
+            "      end if;\n"
+            f"      return {one_permute} (Value, Indexes);\n"
+            "   end Slide_Lanes_Toward_High;"
+        ),
+    ]
 
 
 def permute_aarch64_body_text() -> str:
@@ -1098,6 +1292,7 @@ def permute_aarch64_body_text() -> str:
             f"      return {one_permute} (Value, Indexes);\n"
             "   end Permute_Lanes;"
         )
+        bodies.extend(movement_mechanism_bodies(f, one_permute, two_permute))
         bodies.append(
             f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
             "      Indexes : Byte_Map;\n"
@@ -1221,6 +1416,7 @@ def permute_avx2_body_text() -> str:
             f"      return {one_permute} (Value, Indexes);\n"
             "   end Permute_Lanes;"
         )
+        bodies.extend(movement_mechanism_bodies(f, one_permute, two_permute))
         bodies.append(
             f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
             "      Indexes : Byte_Map;\n"
@@ -1279,6 +1475,10 @@ package body Flyology_SIMD.Wide.Permute_Mechanism is
            "vpand %%ymm4, %%ymm2, %%ymm2" & ASCII.LF & ASCII.HT &
            "vpandn %%ymm3, %%ymm4, %%ymm3" & ASCII.LF & ASCII.HT &
            "vpor %%ymm3, %%ymm2, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%5), %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm1, %%ymm6, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm5, %%ymm6, %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm6, %%ymm2, %%ymm2" & ASCII.LF & ASCII.HT &
            "vmovdqu %%ymm2, (%0)" & ASCII.LF & ASCII.HT &
            "vzeroupper",
          Inputs =>
@@ -1286,8 +1486,9 @@ package body Flyology_SIMD.Wide.Permute_Mechanism is
             System.Address'Asm_Input ("r", Value'Address),
             System.Address'Asm_Input ("r", Map'Address),
             System.Address'Asm_Input ("r", Lane_Bias'Address),
-            System.Address'Asm_Input ("r", Sixteen'Address)],
-         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,ymm5,memory",
+            System.Address'Asm_Input ("r", Sixteen'Address),
+            System.Address'Asm_Input ("r", Thirty_Two'Address)],
+         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,ymm5,ymm6,memory",
          Volatile => True);
       return Result;
    end Permute_One_256;

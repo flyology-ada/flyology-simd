@@ -77,8 +77,10 @@ saturating, bitwise, minimum, and maximum operations. Equality, greater-than,
 and value selection use isolated 256-bit mechanisms. Less-than reverses the
 greater-than operands. `Less_Equal (Left, Right)` complements
 `Greater_Than (Left, Right)`. `Greater_Equal (Left, Right)` complements
-`Greater_Than (Right, Left)`. The AVX2 selection also implements the `U8x32`
-table lookup and both `Permute_Lanes` forms for all ten Wide value types.
+`Greater_Than (Right, Left)`. The lane-movement operations are `Reverse_Lanes`,
+both slide operations, both interleave operations, and both deinterleave
+operations. The AVX2 selection also implements these operations, the `U8x32`
+table lookup, and both `Permute_Lanes` overloads for all ten Wide value types.
 Before a target runs this build, CPUID must report the
 AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.
 Select the backend with:
@@ -157,13 +159,17 @@ The complete artifact is written to the ignored `build/site/` directory.
   and expansion mechanism. On AArch64, the mechanism derives a 32-byte index
   map from the mask. It runs one two-register `tbl` operation for each 128-bit
   result half. The x86-64 composed and AVX2 selections call the Wide scalar
-  implementation for these operations. Wide `Permute_Lanes` also uses a
-  target-selected mechanism. On AArch64, one-source maps use one two-register
-  `tbl` operation for each result half. Two-source maps use one four-register
-  `tbl` operation for each result half. The composed x86-64 backend calls the
-  Wide scalar implementation. The optional AVX2 permutation implementation
-  derives the same 32-byte map. It uses 256-bit byte shuffles and cross-half
-  selection for both map forms and all ten value types.
+  implementation for these operations. The lane-movement operations and both
+  `Permute_Lanes` overloads use one target-selected mechanism. Reverse, slides,
+  and the one-source `Permute_Lanes` overload use one
+  two-register `tbl` operation for each result half on AArch64. Interleave,
+  deinterleave, and the two-source `Permute_Lanes` overload use one
+  four-register `tbl` operation for each result half. The composed x86-64
+  backend calls the Wide scalar implementation. The optional AVX2
+  implementation derives a 32-byte index map for each operation. It uses
+  256-bit byte shuffles and cross-half selection for the
+  lane-movement operations, both `Permute_Lanes` overloads, and all ten value
+  types.
   On x86-64, the same build selection can use isolated
   AVX2-specific 256-bit implementations for the signed and unsigned byte
   operations listed above. AVX2 has no packed byte

@@ -174,6 +174,10 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u16_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_u16_permute_2.txt"
         extract_symbol 'wide_codegen_probe__f32_permute' "$temporary/wide-probe.txt" "$temporary/wide_f32_permute.txt"
         extract_symbol 'wide_codegen_probe__f64_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_f64_permute_2.txt"
+        extract_symbol 'wide_codegen_probe__u8_reverse' "$temporary/wide-probe.txt" "$temporary/wide_u8_reverse.txt"
+        extract_symbol 'wide_codegen_probe__u16_interleave_low' "$temporary/wide-probe.txt" "$temporary/wide_u16_interleave.txt"
+        extract_symbol 'wide_codegen_probe__f32_deinterleave_odd' "$temporary/wide-probe.txt" "$temporary/wide_f32_deinterleave.txt"
+        extract_symbol 'wide_codegen_probe__f64_slide_low_one' "$temporary/wide-probe.txt" "$temporary/wide_f64_slide.txt"
         for lane_kind in u8 i8; do
             for operation in equal less less_equal greater greater_equal select; do
                 extract_symbol "wide_codegen_probe__${lane_kind}_${operation}" \
@@ -196,6 +200,21 @@ case "$architecture" in
             forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__permute_lanes|flyology_simd__(__wide)?__(extract|from_lanes)' \
               "$temporary/${permute_probe}.txt" \
               "per-lane or dispatcher call in AArch64 ${permute_probe} caller"
+        done
+        for movement_probe in wide_u8_reverse wide_f64_slide; do
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+              "$temporary/${movement_probe}.txt" \
+              "two-register TBL operations in AArch64 ${movement_probe} caller"
+        done
+        for movement_probe in wide_u16_interleave wide_f32_deinterleave; do
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+              "$temporary/${movement_probe}.txt" \
+              "four-register TBL operations in AArch64 ${movement_probe} caller"
+        done
+        for movement_probe in wide_u8_reverse wide_u16_interleave wide_f32_deinterleave wide_f64_slide; do
+            forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__(reverse_lanes|interleave|deinterleave|slide_lanes)|flyology_simd__(__wide)?__(extract|from_lanes)' \
+              "$temporary/${movement_probe}.txt" \
+              "per-lane or dispatcher call in AArch64 ${movement_probe} caller"
         done
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two inlined NEON byte-add leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
@@ -412,6 +431,10 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u16_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_u16_permute_2.txt"
         extract_symbol 'wide_codegen_probe__f32_permute' "$temporary/wide-probe.txt" "$temporary/wide_f32_permute.txt"
         extract_symbol 'wide_codegen_probe__f64_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_f64_permute_2.txt"
+        extract_symbol 'wide_codegen_probe__u8_reverse' "$temporary/wide-probe.txt" "$temporary/wide_u8_reverse.txt"
+        extract_symbol 'wide_codegen_probe__u16_interleave_low' "$temporary/wide-probe.txt" "$temporary/wide_u16_interleave.txt"
+        extract_symbol 'wide_codegen_probe__f32_deinterleave_odd' "$temporary/wide-probe.txt" "$temporary/wide_f32_deinterleave.txt"
+        extract_symbol 'wide_codegen_probe__f64_slide_low_one' "$temporary/wide-probe.txt" "$temporary/wide_f64_slide.txt"
         for lane_kind in u8 i8; do
             for operation in equal less less_equal greater greater_equal select; do
                 extract_symbol "wide_codegen_probe__${lane_kind}_${operation}" \
@@ -442,6 +465,39 @@ case "$architecture" in
                 forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)|flyology_simd__wide__native__permute_lanes' \
                   "$temporary/${permute_probe}.txt" \
                   "scalar, per-lane, or public permutation helper in ${permute_probe} caller"
+            done
+            for movement_probe in wide_u8_reverse wide_f64_slide; do
+                require_count 'vpshufb' 2 "$temporary/${movement_probe}.txt" \
+                  "two AVX2 byte shuffles in one-source ${movement_probe} caller"
+                require_count 'vperm2i128' 1 "$temporary/${movement_probe}.txt" \
+                  "one AVX2 cross-half selection in one-source ${movement_probe} caller"
+                require_count 'vzeroupper' 1 "$temporary/${movement_probe}.txt" \
+                  "AVX2 boundary cleanup in one-source ${movement_probe} caller"
+                require_pattern 'vpcmpeqb' "$temporary/${movement_probe}.txt" \
+                  "AVX2 source-half mask in one-source ${movement_probe} caller"
+                require_pattern 'vpandn' "$temporary/${movement_probe}.txt" \
+                  "AVX2 complementary source selection in one-source ${movement_probe} caller"
+                require_pattern 'vpor' "$temporary/${movement_probe}.txt" \
+                  "AVX2 source merge in one-source ${movement_probe} caller"
+            done
+            for movement_probe in wide_u16_interleave wide_f32_deinterleave; do
+                require_count 'vpshufb' 4 "$temporary/${movement_probe}.txt" \
+                  "four AVX2 byte shuffles in two-source ${movement_probe} caller"
+                require_count 'vperm2i128' 2 "$temporary/${movement_probe}.txt" \
+                  "two AVX2 cross-half selections in two-source ${movement_probe} caller"
+                require_count 'vzeroupper' 1 "$temporary/${movement_probe}.txt" \
+                  "AVX2 boundary cleanup in two-source ${movement_probe} caller"
+                require_pattern 'vpcmpeqb' "$temporary/${movement_probe}.txt" \
+                  "AVX2 source masks in two-source ${movement_probe} caller"
+                require_pattern 'vpandn' "$temporary/${movement_probe}.txt" \
+                  "AVX2 complementary source selection in two-source ${movement_probe} caller"
+                require_pattern 'vpor' "$temporary/${movement_probe}.txt" \
+                  "AVX2 source merge in two-source ${movement_probe} caller"
+            done
+            for movement_probe in wide_u8_reverse wide_u16_interleave wide_f32_deinterleave wide_f64_slide; do
+                forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|reverse_lanes|interleave|deinterleave|slide_lanes)|flyology_simd__wide__native__' \
+                  "$temporary/${movement_probe}.txt" \
+                  "scalar, per-lane, or public movement helper in ${movement_probe} caller"
             done
         else
             require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two inlined SSE2 byte-add leaves in wide caller'

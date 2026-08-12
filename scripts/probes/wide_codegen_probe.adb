@@ -150,4 +150,21 @@ package body Wide_Codegen_Probe is
       Map : Flyology_SIMD.Wide.Two_Source_Lane_Map_64x4)
       return Flyology_SIMD.Wide.F64x4 is
      (Flyology_SIMD.Wide.Native.Permute_Lanes (Left, Right, Map));
+
+   function U8_Reverse
+     (Value : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32 is
+     (Flyology_SIMD.Wide.Native.Reverse_Lanes (Value));
+   function U16_Interleave_Low
+     (Left, Right : Flyology_SIMD.Wide.U16x16)
+      return Flyology_SIMD.Wide.U16x16 is
+     (Flyology_SIMD.Wide.Native.Interleave_Low (Left, Right));
+   function F32_Deinterleave_Odd
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8 is
+     (Flyology_SIMD.Wide.Native.Deinterleave_Odd (Left, Right));
+   function F64_Slide_Low_One
+     (Value : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4 is
+     (Flyology_SIMD.Wide.Native.Slide_Lanes_Toward_Low (Value, 1));
 end Wide_Codegen_Probe;

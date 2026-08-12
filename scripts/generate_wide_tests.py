@@ -281,6 +281,87 @@ def permutation_declarations(f: Family) -> str:
 '''
 
 
+def movement_declarations(f: Family) -> str:
+    """Independent lane-array oracle for every fixed Wide movement."""
+    if f.floating:
+        match = f'''(for all Lane in Wide.{f.index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Result, Lane)) =
+                Value_To_Bits (Expected (Lane)))
+            and then (for all Lane in Wide.{f.index} =>
+              Value_To_Bits (Native.Extract (Native_Result, Lane)) =
+                Value_To_Bits (Expected (Lane)))'''
+    else:
+        match = (
+            "Wide.To_Lanes (Scalar_Result) = Expected and then "
+            "Native.To_Lanes (Native_Result) = Expected"
+        )
+    return f'''
+      procedure Check_Movements
+        (Left_Values, Right_Values : Wide.{f.values}; Label_Text : String)
+      is
+         Left : constant Wide.{f.vector} := Wide.From_Lanes (Left_Values);
+         Right : constant Wide.{f.vector} := Wide.From_Lanes (Right_Values);
+         procedure Check_Result
+           (Scalar_Result, Native_Result : Wide.{f.vector};
+            Expected : Wide.{f.values}; Operation : String)
+         is
+         begin
+            Check ({match},
+              "{f.vector} independent movement " & Operation & " " & Label_Text);
+         end Check_Result;
+      begin
+         Check_Result
+           (Wide.Reverse_Lanes (Left), Native.Reverse_Lanes (Left),
+            [for Lane in Wide.{f.index} => Left_Values ({f.lanes - 1} - Lane)],
+            "reverse");
+         Check_Result
+           (Wide.Interleave_Low (Left, Right), Native.Interleave_Low (Left, Right),
+            [for Lane in Wide.{f.index} =>
+               (if Lane mod 2 = 0
+                then Left_Values (Lane / 2)
+                else Right_Values (Lane / 2))],
+            "interleave low");
+         Check_Result
+           (Wide.Interleave_High (Left, Right), Native.Interleave_High (Left, Right),
+            [for Lane in Wide.{f.index} =>
+               (if Lane mod 2 = 0
+                then Left_Values ({f.half_lanes} + Lane / 2)
+                else Right_Values ({f.half_lanes} + Lane / 2))],
+            "interleave high");
+         Check_Result
+           (Wide.Deinterleave_Even (Left, Right), Native.Deinterleave_Even (Left, Right),
+            [for Lane in Wide.{f.index} =>
+               (if Lane < {f.half_lanes}
+                then Left_Values (2 * Lane)
+                else Right_Values (2 * (Lane - {f.half_lanes})))],
+            "deinterleave even");
+         Check_Result
+           (Wide.Deinterleave_Odd (Left, Right), Native.Deinterleave_Odd (Left, Right),
+            [for Lane in Wide.{f.index} =>
+               (if Lane < {f.half_lanes}
+                then Left_Values (2 * Lane + 1)
+                else Right_Values (2 * (Lane - {f.half_lanes}) + 1))],
+            "deinterleave odd");
+         for Count in Natural range 0 .. {f.lanes + 2} loop
+            Check_Result
+              (Wide.Slide_Lanes_Toward_Low (Left, Count),
+               Native.Slide_Lanes_Toward_Low (Left, Count),
+               [for Lane in Wide.{f.index} =>
+                  (if Count < {f.lanes} and then Lane < {f.lanes} - Count
+                   then Left_Values (Lane + Count) else {('0.0' if f.floating else '0')})],
+               "slide low" & Count'Image);
+            Check_Result
+              (Wide.Slide_Lanes_Toward_High (Left, Count),
+               Native.Slide_Lanes_Toward_High (Left, Count),
+               [for Lane in Wide.{f.index} =>
+                  (if Count < {f.lanes} and then Lane >= Count
+                   then Left_Values (Lane - Count) else {('0.0' if f.floating else '0')})],
+               "slide high" & Count'Image);
+         end loop;
+      end Check_Movements;
+'''
+
+
 def root_half(source: Family, values: str, offset: int) -> str:
     return (
         f"{source.half}'(Flyology_SIMD.From_Lanes "
@@ -1070,6 +1151,7 @@ def integer_test(f: Family) -> str:
       end Random_Lanes;
 {compaction_declarations(f)}
 {permutation_declarations(f)}
+{movement_declarations(f)}
 {lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
@@ -1215,6 +1297,7 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Reverse_Lanes (A)) =
         [for Lane in Wide.{f.index} => A_Lanes ({f.lanes - 1} - Lane)],
         "{f.vector} reverse");
+      Check_Movements (A_Lanes, B_Lanes, "fixed lanes");
       Check (Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (A, {f.lanes})) = Wide.{f.values}'[others => 0]
         and then Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (A, {f.lanes + 1})) = Wide.{f.values}'[others => 0],
         "{f.vector} oversized slides");
@@ -1397,6 +1480,8 @@ def integer_test(f: Family) -> str:
               (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "randomized" & Iteration'Image);
+            Check_Movements
+              (R_A_Lanes, R_B_Lanes, "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1493,6 +1578,7 @@ def float_test(f: Family) -> str:
       end Random_Bit_Lanes;
 {compaction_declarations(f)}
 {permutation_declarations(f)}
+{movement_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.{f.vector} := Wide.Splat (2.0);
@@ -1674,6 +1760,7 @@ def float_test(f: Family) -> str:
          end loop;
       end;
 {bit_cast_tests(f, 'Specials', 'special ')}
+      Check_Movements (Special_Lanes, A_Lanes, "fixed special bits");
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -1804,6 +1891,8 @@ def float_test(f: Family) -> str:
               (R_Bit_Lanes, R_A_Lanes, R_One_Selectors, R_Two_Selectors,
                Expected_One, Expected_Two,
                "random special bits" & Iteration'Image);
+            Check_Movements
+              (R_Bit_Lanes, R_A_Lanes, "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),

@@ -146,7 +146,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U8x32) return U8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => Extract (Value, 31 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : U8x32; Map : Lane_Map_8x32) return U8x32 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -155,22 +155,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : U8x32) return U8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : U8x32) return U8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane mod 2 = 0 then Extract (Left, 16 + Lane / 2) else Extract (Right, 16 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : U8x32) return U8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane < 16 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 16)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : U8x32) return U8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane < 16 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 16) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : U8x32; Count : Natural) return U8x32 is
-     (if Count >= 32 then Zero else From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane + Count < 32 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : U8x32; Count : Natural) return U8x32 is
-     (if Count >= 32 then Zero else From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Mask_From_Bit_Mask (Bits : Mask_Bits_8x32) return Mask_8x32 is
      ((Low => Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Bits and Mask_Bits_8x32 (65535))),
@@ -368,7 +368,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I8x32) return I8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => Extract (Value, 31 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : I8x32; Map : Lane_Map_8x32) return I8x32 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -377,22 +377,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : I8x32) return I8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : I8x32) return I8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane mod 2 = 0 then Extract (Left, 16 + Lane / 2) else Extract (Right, 16 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : I8x32) return I8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane < 16 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 16)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : I8x32) return I8x32 is
-     (From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane < 16 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 16) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : I8x32; Count : Natural) return I8x32 is
-     (if Count >= 32 then Zero else From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane + Count < 32 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : I8x32; Count : Natural) return I8x32 is
-     (if Count >= 32 then Zero else From_Lanes ([for Lane in Lane_Index_8x32 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : I8_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);
@@ -566,7 +566,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U16x16) return U16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => Extract (Value, 15 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : U16x16; Map : Lane_Map_16x16) return U16x16 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -575,22 +575,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : U16x16) return U16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : U16x16) return U16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane mod 2 = 0 then Extract (Left, 8 + Lane / 2) else Extract (Right, 8 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : U16x16) return U16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane < 8 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 8)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : U16x16) return U16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane < 8 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 8) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : U16x16; Count : Natural) return U16x16 is
-     (if Count >= 16 then Zero else From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane + Count < 16 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : U16x16; Count : Natural) return U16x16 is
-     (if Count >= 16 then Zero else From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Mask_From_Bit_Mask (Bits : Mask_Bits_16x16) return Mask_16x16 is
      ((Low => Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Bits and Mask_Bits_16x16 (255))),
@@ -804,7 +804,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I16x16) return I16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => Extract (Value, 15 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : I16x16; Map : Lane_Map_16x16) return I16x16 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -813,22 +813,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : I16x16) return I16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : I16x16) return I16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane mod 2 = 0 then Extract (Left, 8 + Lane / 2) else Extract (Right, 8 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : I16x16) return I16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane < 8 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 8)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : I16x16) return I16x16 is
-     (From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane < 8 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 8) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : I16x16; Count : Natural) return I16x16 is
-     (if Count >= 16 then Zero else From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane + Count < 16 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : I16x16; Count : Natural) return I16x16 is
-     (if Count >= 16 then Zero else From_Lanes ([for Lane in Lane_Index_16x16 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : I16_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);
@@ -1005,7 +1005,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U32x8) return U32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => Extract (Value, 7 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : U32x8; Map : Lane_Map_32x8) return U32x8 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -1014,22 +1014,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : U32x8) return U32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : U32x8) return U32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, 4 + Lane / 2) else Extract (Right, 4 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : U32x8) return U32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 4)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : U32x8) return U32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 4) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : U32x8; Count : Natural) return U32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane + Count < 8 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : U32x8; Count : Natural) return U32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Mask_From_Bit_Mask (Bits : Mask_Bits_32x8) return Mask_32x8 is
      ((Low => Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits and Mask_Bits_32x8 (15)),
@@ -1246,7 +1246,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I32x8) return I32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => Extract (Value, 7 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : I32x8; Map : Lane_Map_32x8) return I32x8 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -1255,22 +1255,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : I32x8) return I32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : I32x8) return I32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, 4 + Lane / 2) else Extract (Right, 4 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : I32x8) return I32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 4)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : I32x8) return I32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 4) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : I32x8; Count : Natural) return I32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane + Count < 8 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : I32x8; Count : Natural) return I32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : I32_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);
@@ -1447,7 +1447,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U64x4) return U64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => Extract (Value, 3 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : U64x4; Map : Lane_Map_64x4) return U64x4 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -1456,22 +1456,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : U64x4) return U64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : U64x4) return U64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, 2 + Lane / 2) else Extract (Right, 2 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : U64x4) return U64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 2)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : U64x4) return U64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 2) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : U64x4; Count : Natural) return U64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane + Count < 4 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : U64x4; Count : Natural) return U64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Mask_From_Bit_Mask (Bits : Mask_Bits_64x4) return Mask_64x4 is
      ((Low => Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits and Mask_Bits_64x4 (3)),
@@ -1688,7 +1688,7 @@ package body Flyology_SIMD.Wide.Native is
    begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I64x4) return I64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => Extract (Value, 3 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : I64x4; Map : Lane_Map_64x4) return I64x4 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -1697,22 +1697,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : I64x4) return I64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : I64x4) return I64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, 2 + Lane / 2) else Extract (Right, 2 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : I64x4) return I64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 2)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : I64x4) return I64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 2) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : I64x4; Count : Natural) return I64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane + Count < 4 then Extract (Value, Lane + Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : I64x4; Count : Natural) return I64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane >= Count then Extract (Value, Lane - Count) else 0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : I64_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);
@@ -1863,7 +1863,7 @@ package body Flyology_SIMD.Wide.Native is
    end Reduce_Max_Number;
 
    function Reverse_Lanes (Value : F32x8) return F32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => Extract (Value, 7 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : F32x8; Map : Lane_Map_32x8) return F32x8 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -1872,22 +1872,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : F32x8) return F32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : F32x8) return F32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane mod 2 = 0 then Extract (Left, 4 + Lane / 2) else Extract (Right, 4 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : F32x8) return F32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 4)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : F32x8) return F32x8 is
-     (From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane < 4 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 4) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : F32x8; Count : Natural) return F32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane + Count < 8 then Extract (Value, Lane + Count) else 0.0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : F32x8; Count : Natural) return F32x8 is
-     (if Count >= 8 then Zero else From_Lanes ([for Lane in Lane_Index_32x8 => (if Lane >= Count then Extract (Value, Lane - Count) else 0.0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : F32_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);
@@ -2038,7 +2038,7 @@ package body Flyology_SIMD.Wide.Native is
    end Reduce_Max_Number;
 
    function Reverse_Lanes (Value : F64x4) return F64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => Extract (Value, 3 - Lane)]));
+     (Permute_Mechanism.Reverse_Lanes (Value));
 
    function Permute_Lanes (Value : F64x4; Map : Lane_Map_64x4) return F64x4 is
      (Permute_Mechanism.Permute_Lanes (Value, Map));
@@ -2047,22 +2047,22 @@ package body Flyology_SIMD.Wide.Native is
      (Permute_Mechanism.Permute_Lanes (Left, Right, Map));
 
    function Interleave_Low (Left, Right : F64x4) return F64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));
+     (Permute_Mechanism.Interleave_Low (Left, Right));
 
    function Interleave_High (Left, Right : F64x4) return F64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane mod 2 = 0 then Extract (Left, 2 + Lane / 2) else Extract (Right, 2 + Lane / 2))]));
+     (Permute_Mechanism.Interleave_High (Left, Right));
 
    function Deinterleave_Even (Left, Right : F64x4) return F64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - 2)))]));
+     (Permute_Mechanism.Deinterleave_Even (Left, Right));
 
    function Deinterleave_Odd (Left, Right : F64x4) return F64x4 is
-     (From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane < 2 then Extract (Left, 2 * Lane + 1) else Extract (Right, 2 * (Lane - 2) + 1))]));
+     (Permute_Mechanism.Deinterleave_Odd (Left, Right));
 
    function Slide_Lanes_Toward_Low (Value : F64x4; Count : Natural) return F64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane + Count < 4 then Extract (Value, Lane + Count) else 0.0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_Low (Value, Count));
 
    function Slide_Lanes_Toward_High (Value : F64x4; Count : Natural) return F64x4 is
-     (if Count >= 4 then Zero else From_Lanes ([for Lane in Lane_Index_64x4 => (if Lane >= Count then Extract (Value, Lane - Count) else 0.0)]));
+     (Permute_Mechanism.Slide_Lanes_Toward_High (Value, Count));
 
    function Is_Aligned_32 (Data : F64_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then System.Storage_Elements.To_Integer (Data (Start)'Address) mod 32 = 0);

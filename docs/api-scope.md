@@ -30,8 +30,10 @@ ABI promise, or a claim that one 256-bit instruction implements each operation.
 Wide `Table_Lookup` uses a target-selected lookup mechanism. Wide `Compress`
 and `Expand` use a target-selected compression and expansion mechanism. The optional x86-64 AVX2 Wide backend supplies isolated 256-bit
 implementations for selected `U8x32` and `I8x32` operations and for `U8x32`
-`Table_Lookup`. It also supplies both `Permute_Lanes` forms for all ten Wide
-value types.
+`Table_Lookup`. The lane-movement operations are `Reverse_Lanes`, both slide
+operations, both interleave operations, and both deinterleave operations. The
+optional AVX2 backend also supplies these operations and both
+`Permute_Lanes` overloads for all ten Wide value types.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -206,7 +208,7 @@ An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. Other Wide operations have no
 AVX2-specific 256-bit implementation or code-generation claim outside the
-documented byte, table-lookup, and permutation groups.
+documented byte, table-lookup, and lane-movement groups.
 
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
@@ -214,14 +216,18 @@ defines the result. AArch64 derives a 32-byte index map from the mask. It runs
 one two-register `tbl` operation for each 128-bit result half. The x86-64
 composed and AVX2 selections call the Wide scalar implementation.
 
-The target-selected permutation mechanism implements both Wide
-`Permute_Lanes` forms for all ten value types. The Wide scalar body defines the
-result. AArch64 derives one 32-byte index map from the lane map. One-source maps
-run one two-register `tbl` operation for each 128-bit result half. Two-source
-maps run one four-register `tbl` operation for each result half. The composed
-x86-64 backend calls the Wide scalar implementation. The optional AVX2
-permutation implementation derives the same 32-byte map. It uses 256-bit byte
-shuffles and cross-half selection for both map forms and all ten value types.
+The target-selected permutation mechanism implements Wide `Reverse_Lanes`,
+both interleave operations, both deinterleave operations, both lane-slide
+operations, and both `Permute_Lanes` overloads for all
+ten value types. The Wide scalar body defines each result. AArch64 derives one
+32-byte index map for each operation. Reverse, slides, and the one-source
+`Permute_Lanes` overload run one two-register `tbl` operation for each 128-bit
+result half. Interleave, deinterleave, and the two-source `Permute_Lanes`
+overload run one four-register `tbl` operation for each result half. The
+composed x86-64 backend calls the Wide scalar implementation. The optional
+AVX2 implementation derives a 32-byte index map for each operation. It uses
+256-bit byte shuffles and cross-half selection for the lane-movement operations
+and both `Permute_Lanes` overloads.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

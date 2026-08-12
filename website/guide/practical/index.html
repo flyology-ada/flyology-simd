@@ -78,18 +78,30 @@ weighted sum: 4.55000E+02</code></pre>
         </section>
         <section id="neighbors">
           <h2>Slide lanes to use neighboring values</h2>
-          <p>A three-point stencil combines each sample with its available left and right neighbors. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> supplies the selected target operations. Its <a data-api="Flyology_SIMD.Backends.Native.From_Lanes" data-api-signature="Lane_Values_F32x4"><code>From_Lanes</code></a> operation constructs the input.</p>
-          <pre><code class="language-ada">Samples : constant F32x4 := Native.From_Lanes ([1.0, 2.0, 3.0, 4.0]);
-Previous : constant F32x4 :=
-  Native.Slide_Lanes_Toward_High (Samples, 1);  --  [0, 1, 2, 3]
-Following : constant F32x4 :=
-  Native.Slide_Lanes_Toward_Low (Samples, 1);   --  [2, 3, 4, 0]
-Sums : constant F32x4 :=
+          <p>A three-point stencil combines each sample with its available left and right neighbors. This example keeps the <code>Wide</code> and <code>Native</code> aliases from the weighted sum. The <a data-api="Flyology_SIMD.Wide.Native.From_Lanes" data-api-signature="Lane_Values_F32x8"><code>From_Lanes</code></a> overload that returns <code>F32x8</code> constructs eight samples.</p>
+          <pre><code class="language-ada">Samples : constant Wide.F32x8 :=
+  Native.From_Lanes ([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+Previous : constant Wide.F32x8 :=
+  Native.Slide_Lanes_Toward_High (Samples, 1);
+--  [0, 1, 2, 3, 4, 5, 6, 7]
+Following : constant Wide.F32x8 :=
+  Native.Slide_Lanes_Toward_Low (Samples, 1);
+--  [2, 3, 4, 5, 6, 7, 8, 0]
+Sums : constant Wide.F32x8 :=
   Native.Add (Native.Add (Previous, Samples), Following);
 
---  Sums is [3, 6, 9, 7].</code></pre>
-          <p><a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High" data-api-signature="F32x4"><code>Slide_Lanes_Toward_High</code></a> inserts positive zero at lane 0. <a data-api="Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low" data-api-signature="F32x4"><code>Slide_Lanes_Toward_Low</code></a> inserts positive zero at lane 3. The two <a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Add</code></a> calls then combine each sample with those shifted neighbors.</p>
-          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> prints both intermediate vectors and the result. The <a href="../operations/#lane-movement">operation reference</a> defines zero, oversized, and edge-count behavior.</p>
+--  Sums is [3, 6, 9, 12, 15, 18, 21, 15].</code></pre>
+          <p><a data-api="Flyology_SIMD.Wide.Native.Slide_Lanes_Toward_High" data-api-signature="Value : F32x8; Count : Natural"><code>Slide_Lanes_Toward_High</code></a> inserts positive zero at lane 0 and moves <code>4.0</code> from lane 3 to lane 4. <a data-api="Flyology_SIMD.Wide.Native.Slide_Lanes_Toward_Low" data-api-signature="Value : F32x8; Count : Natural"><code>Slide_Lanes_Toward_Low</code></a> inserts positive zero at lane 7 and moves <code>5.0</code> from lane 4 to lane 3. Lanes 3 and 4 are in different private 128-bit parts, but this implementation boundary does not change the public lane rule. The two <a data-api="Flyology_SIMD.Wide.Native.Add" data-api-signature="F32x8"><code>Add</code></a> calls combine each sample with the shifted neighbors.</p>
+          <p>Build the examples, and then run the maintained stencil:</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/lane_slides</code></pre>
+          <pre><code class="language-text">toward high lanes 0..3: 0.00000E+00,  1.00000E+00,  2.00000E+00,  3.00000E+00
+toward high lanes 4..7: 4.00000E+00,  5.00000E+00,  6.00000E+00,  7.00000E+00
+toward low lanes 0..3: 2.00000E+00,  3.00000E+00,  4.00000E+00,  5.00000E+00
+toward low lanes 4..7: 6.00000E+00,  7.00000E+00,  8.00000E+00,  0.00000E+00
+sums lanes 0..3: 3.00000E+00,  6.00000E+00,  9.00000E+00,  1.20000E+01
+sums lanes 4..7: 1.50000E+01,  1.80000E+01,  2.10000E+01,  1.50000E+01</code></pre>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/lane_slides.adb"><code>lane_slides.adb</code> example</a> asserts and prints both intermediate vectors and the result. The <a href="../operations/#lane-movement">operation reference</a> defines zero, oversized, and edge-count behavior.</p>
         </section>
         <section id="permutations">
           <h2>Reuse a lane map to rotate points</h2>
