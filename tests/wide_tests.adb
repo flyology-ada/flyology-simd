@@ -90,6 +90,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_U8x32; Bits : Wide.Mask_Bits_8x32)
+         return Wide.Lane_Values_U8x32
+      is
+         Result : Wide.Lane_Values_U8x32 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_U8x32; Bits : Wide.Mask_Bits_8x32)
+         return Wide.Lane_Values_U8x32
+      is
+         Result : Wide.Lane_Values_U8x32 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_U8x32;
+         Bits : Wide.Mask_Bits_8x32;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_8x32 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.U8x32 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.U8x32 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_U8x32 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_U8x32 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_U8x32 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.U8x32 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.U8x32 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.U8x32 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.U8x32 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.U8x32 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.U8x32 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "U8x32 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "U8x32 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "U8x32 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       function Reference_Table_Lookup
         (Table, Indices : Wide.Lane_Values_U8x32)
          return Wide.Lane_Values_U8x32
@@ -319,6 +393,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_8x32 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U8x32 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_8x32'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_8x32 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_8x32 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 32 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_8x32 :=
+              (if Count = 32
+               then Wide.Mask_Bits_8x32'Last
+               else Wide.Mask_Bits_8x32 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_8x32'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_8x32 :=
+           Wide.Mask_Bits_8x32 (2 ** 16 - 1);
+         High_Half : constant Wide.Mask_Bits_8x32 :=
+           Wide.Mask_Bits_8x32'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_8x32 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_8x32 (1), 15)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_8x32 (1), 16);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_8x32 (1431655765),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_8x32 loop
          if Lane < 16 then
             Check (P (Lane) = A_Lanes (2 * Lane), "U8x32 compression prefix");
@@ -660,6 +778,9 @@ procedure Wide_Tests is
                  "U8x32 independent randomized selection" & Iteration'Image);
             end;
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U8x32 randomized shifts" & Iteration'Image);
@@ -767,6 +888,80 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
+      function Reference_Compress
+        (Values : Wide.Lane_Values_I8x32; Bits : Wide.Mask_Bits_8x32)
+         return Wide.Lane_Values_I8x32
+      is
+         Result : Wide.Lane_Values_I8x32 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_I8x32; Bits : Wide.Mask_Bits_8x32)
+         return Wide.Lane_Values_I8x32
+      is
+         Result : Wide.Lane_Values_I8x32 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_I8x32;
+         Bits : Wide.Mask_Bits_8x32;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_8x32 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.I8x32 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.I8x32 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_I8x32 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_I8x32 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_I8x32 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.I8x32 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.I8x32 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.I8x32 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.I8x32 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.I8x32 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.I8x32 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "I8x32 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "I8x32 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "I8x32 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
 
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
@@ -940,6 +1135,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_8x32 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I8x32 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_8x32'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_8x32 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_8x32 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 32 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_8x32 :=
+              (if Count = 32
+               then Wide.Mask_Bits_8x32'Last
+               else Wide.Mask_Bits_8x32 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_8x32'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_8x32 :=
+           Wide.Mask_Bits_8x32 (2 ** 16 - 1);
+         High_Half : constant Wide.Mask_Bits_8x32 :=
+           Wide.Mask_Bits_8x32'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_8x32 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_8x32 (1), 15)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_8x32 (1), 16);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_8x32 (1431655765),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_8x32 loop
          if Lane < 16 then
             Check (P (Lane) = A_Lanes (2 * Lane), "I8x32 compression prefix");
@@ -1280,6 +1519,9 @@ procedure Wide_Tests is
                  "I8x32 independent randomized selection" & Iteration'Image);
             end;
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I8x32 randomized shifts" & Iteration'Image);
@@ -1344,6 +1586,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_U16x16; Bits : Wide.Mask_Bits_16x16)
+         return Wide.Lane_Values_U16x16
+      is
+         Result : Wide.Lane_Values_U16x16 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_U16x16; Bits : Wide.Mask_Bits_16x16)
+         return Wide.Lane_Values_U16x16
+      is
+         Result : Wide.Lane_Values_U16x16 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_U16x16;
+         Bits : Wide.Mask_Bits_16x16;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_16x16 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.U16x16 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.U16x16 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_U16x16 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_U16x16 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_U16x16 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.U16x16 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.U16x16 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.U16x16 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.U16x16 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.U16x16 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.U16x16 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "U16x16 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "U16x16 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "U16x16 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
@@ -1404,6 +1720,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_16x16 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U16x16 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_16x16'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_16x16 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_16x16 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 16 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_16x16 :=
+              (if Count = 16
+               then Wide.Mask_Bits_16x16'Last
+               else Wide.Mask_Bits_16x16 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_16x16'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_16x16 :=
+           Wide.Mask_Bits_16x16 (2 ** 8 - 1);
+         High_Half : constant Wide.Mask_Bits_16x16 :=
+           Wide.Mask_Bits_16x16'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_16x16 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_16x16 (1), 7)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_16x16 (1), 8);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_16x16 (21845),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_16x16 loop
          if Lane < 8 then
             Check (P (Lane) = A_Lanes (2 * Lane), "U16x16 compression prefix");
@@ -1653,6 +2013,9 @@ procedure Wide_Tests is
               "U16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U16x16 randomized shifts" & Iteration'Image);
@@ -1718,6 +2081,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_I16x16; Bits : Wide.Mask_Bits_16x16)
+         return Wide.Lane_Values_I16x16
+      is
+         Result : Wide.Lane_Values_I16x16 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_I16x16; Bits : Wide.Mask_Bits_16x16)
+         return Wide.Lane_Values_I16x16
+      is
+         Result : Wide.Lane_Values_I16x16 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_I16x16;
+         Bits : Wide.Mask_Bits_16x16;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_16x16 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.I16x16 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.I16x16 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_I16x16 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_I16x16 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_I16x16 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.I16x16 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.I16x16 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.I16x16 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.I16x16 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.I16x16 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.I16x16 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "I16x16 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "I16x16 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "I16x16 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
@@ -1778,6 +2215,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_16x16 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I16x16 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_16x16'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_16x16 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_16x16 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 16 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_16x16 :=
+              (if Count = 16
+               then Wide.Mask_Bits_16x16'Last
+               else Wide.Mask_Bits_16x16 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_16x16'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_16x16 :=
+           Wide.Mask_Bits_16x16 (2 ** 8 - 1);
+         High_Half : constant Wide.Mask_Bits_16x16 :=
+           Wide.Mask_Bits_16x16'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_16x16 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_16x16 (1), 7)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_16x16 (1), 8);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_16x16 (21845),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_16x16 loop
          if Lane < 8 then
             Check (P (Lane) = A_Lanes (2 * Lane), "I16x16 compression prefix");
@@ -2026,6 +2507,9 @@ procedure Wide_Tests is
               "I16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I16x16 randomized shifts" & Iteration'Image);
@@ -2090,6 +2574,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_U32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_U32x8
+      is
+         Result : Wide.Lane_Values_U32x8 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_U32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_U32x8
+      is
+         Result : Wide.Lane_Values_U32x8 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_U32x8;
+         Bits : Wide.Mask_Bits_32x8;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.U32x8 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.U32x8 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_U32x8 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_U32x8 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_U32x8 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.U32x8 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.U32x8 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.U32x8 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.U32x8 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.U32x8 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.U32x8 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "U32x8 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "U32x8 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "U32x8 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
@@ -2150,6 +2708,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_32x8 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U32x8 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_32x8'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_32x8 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_32x8 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 8 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_32x8 :=
+              (if Count = 8
+               then Wide.Mask_Bits_32x8'Last
+               else Wide.Mask_Bits_32x8 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_32x8'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8 (2 ** 4 - 1);
+         High_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_32x8 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 3)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 4);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_32x8 (85),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_32x8 loop
          if Lane < 4 then
             Check (P (Lane) = A_Lanes (2 * Lane), "U32x8 compression prefix");
@@ -2415,6 +3017,9 @@ procedure Wide_Tests is
               "U32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U32x8 randomized shifts" & Iteration'Image);
@@ -2496,6 +3101,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_I32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_I32x8
+      is
+         Result : Wide.Lane_Values_I32x8 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_I32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_I32x8
+      is
+         Result : Wide.Lane_Values_I32x8 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_I32x8;
+         Bits : Wide.Mask_Bits_32x8;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.I32x8 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.I32x8 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_I32x8 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_I32x8 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_I32x8 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.I32x8 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.I32x8 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.I32x8 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.I32x8 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.I32x8 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.I32x8 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "I32x8 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "I32x8 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "I32x8 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
@@ -2556,6 +3235,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_32x8 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I32x8 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_32x8'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_32x8 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_32x8 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 8 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_32x8 :=
+              (if Count = 8
+               then Wide.Mask_Bits_32x8'Last
+               else Wide.Mask_Bits_32x8 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_32x8'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8 (2 ** 4 - 1);
+         High_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_32x8 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 3)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 4);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_32x8 (85),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_32x8 loop
          if Lane < 4 then
             Check (P (Lane) = A_Lanes (2 * Lane), "I32x8 compression prefix");
@@ -2820,6 +3543,9 @@ procedure Wide_Tests is
               "I32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I32x8 randomized shifts" & Iteration'Image);
@@ -2900,6 +3626,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_U64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_U64x4
+      is
+         Result : Wide.Lane_Values_U64x4 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_U64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_U64x4
+      is
+         Result : Wide.Lane_Values_U64x4 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_U64x4;
+         Bits : Wide.Mask_Bits_64x4;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.U64x4 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.U64x4 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_U64x4 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_U64x4 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_U64x4 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.U64x4 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.U64x4 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.U64x4 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.U64x4 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.U64x4 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.U64x4 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "U64x4 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "U64x4 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "U64x4 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
@@ -2960,6 +3760,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_64x4 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U64x4 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_64x4'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_64x4 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_64x4 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 4 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_64x4 :=
+              (if Count = 4
+               then Wide.Mask_Bits_64x4'Last
+               else Wide.Mask_Bits_64x4 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_64x4'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4 (2 ** 2 - 1);
+         High_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_64x4 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 1)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 2);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_64x4 (5),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_64x4 loop
          if Lane < 2 then
             Check (P (Lane) = A_Lanes (2 * Lane), "U64x4 compression prefix");
@@ -3225,6 +4069,9 @@ procedure Wide_Tests is
               "U64x4 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U64x4 randomized shifts" & Iteration'Image);
@@ -3306,6 +4153,80 @@ procedure Wide_Tests is
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
 
+      function Reference_Compress
+        (Values : Wide.Lane_Values_I64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_I64x4
+      is
+         Result : Wide.Lane_Values_I64x4 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_I64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_I64x4
+      is
+         Result : Wide.Lane_Values_I64x4 := [others => 0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_I64x4;
+         Bits : Wide.Mask_Bits_64x4;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.I64x4 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.I64x4 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_I64x4 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_I64x4 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_I64x4 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.I64x4 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.I64x4 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.I64x4 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.I64x4 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.I64x4 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.I64x4 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check (Wide.To_Lanes (Scalar_Packed) = Expected_Packed
+           and then Native.To_Lanes (Native_Packed) = Expected_Packed,
+           "I64x4 independent compression " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Direct) = Expected_Direct
+           and then Native.To_Lanes (Native_Direct) = Expected_Direct,
+           "I64x4 independent direct expansion " & Label_Text);
+         Check (Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip
+           and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
+           "I64x4 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
+
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
@@ -3366,6 +4287,50 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_64x4 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I64x4 selection");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_64x4'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_64x4 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_64x4 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 4 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_64x4 :=
+              (if Count = 4
+               then Wide.Mask_Bits_64x4'Last
+               else Wide.Mask_Bits_64x4 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_64x4'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4 (2 ** 2 - 1);
+         High_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_64x4 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 1)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 2);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_64x4 (5),
+            "fixed alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_64x4 loop
          if Lane < 2 then
             Check (P (Lane) = A_Lanes (2 * Lane), "I64x4 compression prefix");
@@ -3630,6 +4595,9 @@ procedure Wide_Tests is
               "I64x4 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I64x4 randomized shifts" & Iteration'Image);
@@ -3717,6 +4685,92 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
+      function Reference_Compress
+        (Values : Wide.Lane_Values_F32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_F32x8
+      is
+         Result : Wide.Lane_Values_F32x8 := [others => 0.0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_F32x8; Bits : Wide.Mask_Bits_32x8)
+         return Wide.Lane_Values_F32x8
+      is
+         Result : Wide.Lane_Values_F32x8 := [others => 0.0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_F32x8;
+         Bits : Wide.Mask_Bits_32x8;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.F32x8 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.F32x8 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_F32x8 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_F32x8 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_F32x8 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.F32x8 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.F32x8 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.F32x8 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.F32x8 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.F32x8 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.F32x8 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check ((for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Wide.Extract (Scalar_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane)))
+           and then (for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Native.Extract (Native_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane))),
+           "F32x8 independent compression " & Label_Text);
+         Check ((for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Wide.Extract (Scalar_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane)))
+           and then (for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Native.Extract (Native_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane))),
+           "F32x8 independent direct expansion " & Label_Text);
+         Check ((for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Wide.Extract (Scalar_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane)))
+           and then (for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Native.Extract (Native_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane))),
+           "F32x8 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
       A_Lanes : constant Wide.Lane_Values_F32x8 := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
       A : constant Wide.F32x8 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F32x8 := Wide.Splat (2.0);
@@ -3731,6 +4785,8 @@ procedure Wide_Tests is
         with Alignment => 32;
       Special_Lanes : constant Wide.Lane_Values_F32x8 := [Bits_To_Value (0), Bits_To_Value (16#8000_0000#), Bits_To_Value (16#7F80_0000#), Bits_To_Value (16#7FC1_2345#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (5), Bits_To_Value (6), Bits_To_Value (7)];
       Specials : constant Wide.F32x8 := Wide.From_Lanes (Special_Lanes);
+      Compaction_Extra_Lanes : constant Wide.Lane_Values_F32x8 :=
+        [Bits_To_Value (16#FF80_0000#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (1), Bits_To_Value (16#8000_0001#), Bits_To_Value (16#FF80_0000#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (1), Bits_To_Value (16#8000_0001#)];
       Order_Vector : constant Wide.F32x8 := Wide.From_Lanes ([2.0, 1.0, Bits_To_Value (16#7F81_2345#), 3.0, 3.0, 3.0, 3.0, 3.0]);
       Positive_Zero_First : constant Wide.F32x8 :=
         Wide.From_Lanes ([0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#)]);
@@ -3766,6 +4822,138 @@ procedure Wide_Tests is
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (Lane) * 2.0], "F32x8 multiply");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F32x8 ordered comparison");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_32x8'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_32x8 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_32x8 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 8 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_32x8 :=
+              (if Count = 8
+               then Wide.Mask_Bits_32x8'Last
+               else Wide.Mask_Bits_32x8 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_32x8'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8 (2 ** 4 - 1);
+         High_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_32x8 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 3)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 4);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_32x8 (85),
+            "fixed alternating mask");
+      end;
+
+
+      Check_Compaction (Special_Lanes, 0, "special-bit zero mask");
+      Check_Compaction
+        (Special_Lanes, Wide.Mask_Bits_32x8'Last, "special-bit all mask");
+      for Lane in Wide.Lane_Index_32x8 loop
+         Check_Compaction
+           (Special_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_32x8 (1), Lane),
+            "special-bit one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 8 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_32x8 :=
+              (if Count = 8
+               then Wide.Mask_Bits_32x8'Last
+               else Wide.Mask_Bits_32x8 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (Special_Lanes, Prefix_Bits, "special-bit prefix mask" & Count'Image);
+            Check_Compaction
+              (Special_Lanes, Wide.Mask_Bits_32x8'Last xor Prefix_Bits,
+               "special-bit suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8 (2 ** 4 - 1);
+         High_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_32x8 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 3)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 4);
+      begin
+         Check_Compaction (Special_Lanes, Low_Half, "special-bit low-half mask");
+         Check_Compaction (Special_Lanes, High_Half, "special-bit high-half mask");
+         Check_Compaction
+           (Special_Lanes, Across_Halves, "special-bit cross-half mask");
+         Check_Compaction
+           (Special_Lanes, Wide.Mask_Bits_32x8 (85),
+            "special-bit alternating mask");
+      end;
+
+
+      Check_Compaction (Compaction_Extra_Lanes, 0, "extra-special-bit zero mask");
+      Check_Compaction
+        (Compaction_Extra_Lanes, Wide.Mask_Bits_32x8'Last, "extra-special-bit all mask");
+      for Lane in Wide.Lane_Index_32x8 loop
+         Check_Compaction
+           (Compaction_Extra_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_32x8 (1), Lane),
+            "extra-special-bit one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 8 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_32x8 :=
+              (if Count = 8
+               then Wide.Mask_Bits_32x8'Last
+               else Wide.Mask_Bits_32x8 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (Compaction_Extra_Lanes, Prefix_Bits, "extra-special-bit prefix mask" & Count'Image);
+            Check_Compaction
+              (Compaction_Extra_Lanes, Wide.Mask_Bits_32x8'Last xor Prefix_Bits,
+               "extra-special-bit suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8 (2 ** 4 - 1);
+         High_Half : constant Wide.Mask_Bits_32x8 :=
+           Wide.Mask_Bits_32x8'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_32x8 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 3)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_32x8 (1), 4);
+      begin
+         Check_Compaction (Compaction_Extra_Lanes, Low_Half, "extra-special-bit low-half mask");
+         Check_Compaction (Compaction_Extra_Lanes, High_Half, "extra-special-bit high-half mask");
+         Check_Compaction
+           (Compaction_Extra_Lanes, Across_Halves, "extra-special-bit cross-half mask");
+         Check_Compaction
+           (Compaction_Extra_Lanes, Wide.Mask_Bits_32x8 (85),
+            "extra-special-bit alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_32x8 loop
          Check (Packed (Lane) = (if Lane < 4 then A_Lanes (2 * Lane) else 0.0),
            "F32x8 compression");
@@ -4026,6 +5214,9 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
               "F32x8 randomized extrema and comparisons" & Iteration'Image);
+            Check_Compaction
+              (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
+               "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -4103,6 +5294,92 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
+      function Reference_Compress
+        (Values : Wide.Lane_Values_F64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_F64x4
+      is
+         Result : Wide.Lane_Values_F64x4 := [others => 0.0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.Lane_Values_F64x4; Bits : Wide.Mask_Bits_64x4)
+         return Wide.Lane_Values_F64x4
+      is
+         Result : Wide.Lane_Values_F64x4 := [others => 0.0];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.Lane_Values_F64x4;
+         Bits : Wide.Mask_Bits_64x4;
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.F64x4 := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.F64x4 := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.Lane_Values_F64x4 :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.Lane_Values_F64x4 :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.Lane_Values_F64x4 :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.F64x4 :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.F64x4 :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.F64x4 :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.F64x4 :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.F64x4 :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.F64x4 :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check ((for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Wide.Extract (Scalar_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane)))
+           and then (for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Native.Extract (Native_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane))),
+           "F64x4 independent compression " & Label_Text);
+         Check ((for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Wide.Extract (Scalar_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane)))
+           and then (for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Native.Extract (Native_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane))),
+           "F64x4 independent direct expansion " & Label_Text);
+         Check ((for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Wide.Extract (Scalar_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane)))
+           and then (for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Native.Extract (Native_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane))),
+           "F64x4 compression expansion property " & Label_Text);
+      end Check_Compaction;
+
       A_Lanes : constant Wide.Lane_Values_F64x4 := [1.0, 2.0, 3.0, 4.0];
       A : constant Wide.F64x4 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F64x4 := Wide.Splat (2.0);
@@ -4117,6 +5394,8 @@ procedure Wide_Tests is
         with Alignment => 32;
       Special_Lanes : constant Wide.Lane_Values_F64x4 := [Bits_To_Value (0), Bits_To_Value (16#8000_0000_0000_0000#), Bits_To_Value (16#7FF0_0000_0000_0000#), Bits_To_Value (16#7FF8_1234_5678_9ABC#)];
       Specials : constant Wide.F64x4 := Wide.From_Lanes (Special_Lanes);
+      Compaction_Extra_Lanes : constant Wide.Lane_Values_F64x4 :=
+        [Bits_To_Value (16#FFF0_0000_0000_0000#), Bits_To_Value (16#7FF0_1234_5678_9ABC#), Bits_To_Value (1), Bits_To_Value (16#8000_0000_0000_0001#)];
       Order_Vector : constant Wide.F64x4 := Wide.From_Lanes ([2.0, 1.0, Bits_To_Value (16#7FF0_1234_5678_9ABC#), 3.0]);
       Positive_Zero_First : constant Wide.F64x4 :=
         Wide.From_Lanes ([0.0, Bits_To_Value (16#8000_0000_0000_0000#), 0.0, Bits_To_Value (16#8000_0000_0000_0000#)]);
@@ -4152,6 +5431,138 @@ procedure Wide_Tests is
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (Lane) * 2.0], "F64x4 multiply");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F64x4 ordered comparison");
+
+      Check_Compaction (A_Lanes, 0, "fixed zero mask");
+      Check_Compaction
+        (A_Lanes, Wide.Mask_Bits_64x4'Last, "fixed all mask");
+      for Lane in Wide.Lane_Index_64x4 loop
+         Check_Compaction
+           (A_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_64x4 (1), Lane),
+            "fixed one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 4 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_64x4 :=
+              (if Count = 4
+               then Wide.Mask_Bits_64x4'Last
+               else Wide.Mask_Bits_64x4 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (A_Lanes, Prefix_Bits, "fixed prefix mask" & Count'Image);
+            Check_Compaction
+              (A_Lanes, Wide.Mask_Bits_64x4'Last xor Prefix_Bits,
+               "fixed suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4 (2 ** 2 - 1);
+         High_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_64x4 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 1)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 2);
+      begin
+         Check_Compaction (A_Lanes, Low_Half, "fixed low-half mask");
+         Check_Compaction (A_Lanes, High_Half, "fixed high-half mask");
+         Check_Compaction
+           (A_Lanes, Across_Halves, "fixed cross-half mask");
+         Check_Compaction
+           (A_Lanes, Wide.Mask_Bits_64x4 (5),
+            "fixed alternating mask");
+      end;
+
+
+      Check_Compaction (Special_Lanes, 0, "special-bit zero mask");
+      Check_Compaction
+        (Special_Lanes, Wide.Mask_Bits_64x4'Last, "special-bit all mask");
+      for Lane in Wide.Lane_Index_64x4 loop
+         Check_Compaction
+           (Special_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_64x4 (1), Lane),
+            "special-bit one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 4 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_64x4 :=
+              (if Count = 4
+               then Wide.Mask_Bits_64x4'Last
+               else Wide.Mask_Bits_64x4 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (Special_Lanes, Prefix_Bits, "special-bit prefix mask" & Count'Image);
+            Check_Compaction
+              (Special_Lanes, Wide.Mask_Bits_64x4'Last xor Prefix_Bits,
+               "special-bit suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4 (2 ** 2 - 1);
+         High_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_64x4 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 1)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 2);
+      begin
+         Check_Compaction (Special_Lanes, Low_Half, "special-bit low-half mask");
+         Check_Compaction (Special_Lanes, High_Half, "special-bit high-half mask");
+         Check_Compaction
+           (Special_Lanes, Across_Halves, "special-bit cross-half mask");
+         Check_Compaction
+           (Special_Lanes, Wide.Mask_Bits_64x4 (5),
+            "special-bit alternating mask");
+      end;
+
+
+      Check_Compaction (Compaction_Extra_Lanes, 0, "extra-special-bit zero mask");
+      Check_Compaction
+        (Compaction_Extra_Lanes, Wide.Mask_Bits_64x4'Last, "extra-special-bit all mask");
+      for Lane in Wide.Lane_Index_64x4 loop
+         Check_Compaction
+           (Compaction_Extra_Lanes,
+            Interfaces.Shift_Left (Wide.Mask_Bits_64x4 (1), Lane),
+            "extra-special-bit one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. 4 loop
+         declare
+            Prefix_Bits : constant Wide.Mask_Bits_64x4 :=
+              (if Count = 4
+               then Wide.Mask_Bits_64x4'Last
+               else Wide.Mask_Bits_64x4 (2 ** Count - 1));
+         begin
+            Check_Compaction
+              (Compaction_Extra_Lanes, Prefix_Bits, "extra-special-bit prefix mask" & Count'Image);
+            Check_Compaction
+              (Compaction_Extra_Lanes, Wide.Mask_Bits_64x4'Last xor Prefix_Bits,
+               "extra-special-bit suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4 (2 ** 2 - 1);
+         High_Half : constant Wide.Mask_Bits_64x4 :=
+           Wide.Mask_Bits_64x4'Last xor Low_Half;
+         Across_Halves : constant Wide.Mask_Bits_64x4 :=
+           Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 1)
+           or Interfaces.Shift_Left
+             (Wide.Mask_Bits_64x4 (1), 2);
+      begin
+         Check_Compaction (Compaction_Extra_Lanes, Low_Half, "extra-special-bit low-half mask");
+         Check_Compaction (Compaction_Extra_Lanes, High_Half, "extra-special-bit high-half mask");
+         Check_Compaction
+           (Compaction_Extra_Lanes, Across_Halves, "extra-special-bit cross-half mask");
+         Check_Compaction
+           (Compaction_Extra_Lanes, Wide.Mask_Bits_64x4 (5),
+            "extra-special-bit alternating mask");
+      end;
+
       for Lane in Wide.Lane_Index_64x4 loop
          Check (Packed (Lane) = (if Lane < 2 then A_Lanes (2 * Lane) else 0.0),
            "F64x4 compression");
@@ -4412,6 +5823,9 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
               "F64x4 randomized extrema and comparisons" & Iteration'Image);
+            Check_Compaction
+              (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
+               "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))

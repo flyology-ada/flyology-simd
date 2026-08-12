@@ -23,12 +23,14 @@ value and mask types:
 | `U64x4`, `I64x4`, `F64x4` | 4 × 64-bit | `Mask_64x4` |
 
 The current implementation composes each Wide value from private 128-bit
-parts. `Flyology_SIMD.Wide.Native` applies selected 128-bit native operations
-to those parts. This mechanism is not a public representation, an ABI promise,
-or a claim that one 256-bit instruction implements each operation. The optional
-x86-64 AVX2 Wide backend supplies isolated 256-bit implementations for selected
-`U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`. All other Wide
-operations retain the documented composition model.
+parts. For operations without a separate Wide mechanism,
+`Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
+fixed-width Ada code on those parts. This mechanism is not a public representation, an
+ABI promise, or a claim that one 256-bit instruction implements each operation.
+Wide `Table_Lookup` uses a target-selected lookup mechanism. Wide `Compress`
+and `Expand` use a target-selected compression and expansion mechanism. The optional x86-64 AVX2 Wide backend supplies isolated 256-bit
+implementations for selected `U8x32` and `I8x32` operations and for `U8x32`
+`Table_Lookup`.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -167,7 +169,7 @@ mask/value conversions. Applications must call the explicit operations above.
 ## Initial 256-bit operation profile
 
 The Wide families supply zero, splat, lane construction and access, integer
-and floating arithmetic, comparisons, selection, stable compression and
+and floating arithmetic, comparisons, selection, compression and
 expansion, reductions, reverse, interleave and deinterleave, one-source lane
 maps, two-source lane maps, zero-filled lane slides, mask operations, typed
 memory operations, and same-shape bit casts.
@@ -203,6 +205,12 @@ An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. Other Wide operations have no
 AVX2-specific 256-bit implementation or code-generation claim.
+
+The target-selected compression and expansion mechanism implements Wide Native
+`Compress` and `Expand` for all ten value types. The Wide scalar body
+defines the result. AArch64 derives a 32-byte index map from the mask. It runs
+one two-register `tbl` operation for each 128-bit result half. The x86-64
+composed and AVX2 selections call the Wide scalar implementation.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

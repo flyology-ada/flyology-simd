@@ -36,7 +36,7 @@ lookup uses one-register `tbl`. The Wide 32-entry lookup uses two-register
 with a zero vector and an immediate byte offset. Reusable lane maps contain
 expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
-`Compress` and `Expand` construct a byte-index map from the mask and then use
+`Compress` and `Expand` derive an index map from the mask and then use
 `tbl` for every value family.
 `Multiply_Wrap`, `Select_Value`,
 `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
@@ -71,8 +71,11 @@ baseline-safe wrapper that rejects an unavailable backend before it enters that
 private object.
 
 Wide values have a private pair-of-128 implementation.
-`Flyology_SIMD.Wide.Native` composes selected 128-bit backend operations on
-the two parts except for selected x86-64 AVX2 byte operations. The AVX2
+For operations without a separate Wide mechanism,
+`Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
+fixed-width Ada code on the two parts. Wide `Table_Lookup` uses a target-selected
+lookup mechanism. Wide `Compress` and `Expand` use a target-selected compression
+and expansion mechanism. The AVX2
 selection implements 256-bit `U8x32` and `I8x32` wrapping arithmetic,
 saturating arithmetic, bitwise operations, minimum, maximum, comparison, and
 value selection. It also implements the 256-bit `U8x32` table lookup. No other
@@ -81,6 +84,14 @@ current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
 floating reduction order, signed zero, and special lane encodings.
+Wide `Compress` and `Expand` use the scalar Wide body as their semantic
+authority. On AArch64, Ada derives one 32-byte index map from the mask. An
+isolated assembly subprogram runs one two-register `tbl` operation for each
+128-bit result half. On x86-64, both the composed and AVX2 selections currently
+call the scalar implementation. Independent lane-array
+oracles cover zero, all, one-hot, prefix, suffix, half-boundary, alternating,
+and deterministic pseudorandom masks for all ten value types. Floating cases
+compare the bit patterns of moved lanes and positive-zero fill lanes.
 Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane
 maps use fixed-width scalar composition through selected lane access
 operations. The differential tests check the scalar and Native maps for all
@@ -98,7 +109,7 @@ conversion operations. The project does not claim a 256-bit instruction
 sequence.
 The default Wide 32-entry lookup uses composed target code. On AArch64, it
 applies one two-register `tbl` leaf to each private index part. On scalar and
-x86-64 targets, the composed selection uses the scalar authority. The optional
+x86-64 targets, the composed selection calls the scalar implementation. The optional
 x86-64 AVX2 selection uses one separately compiled 256-bit implementation
 subprogram. Tests compare
 fixed, all-index, and deterministic pseudorandom cases with an independent

@@ -78,6 +78,158 @@ def lane_values(scalar: str, lanes: int, variant: int = 0) -> str:
     return ", ".join(patterns[(lane + variant) % len(patterns)] for lane in range(lanes))
 
 
+def compaction_declarations(f: Family) -> str:
+    zero = "0.0" if f.floating else "0"
+    if f.floating:
+        scalar_packed_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane)))""".format(index=f.index)
+        native_packed_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_Packed, Lane)) =
+                Value_To_Bits (Expected_Packed (Lane)))""".format(index=f.index)
+        scalar_direct_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane)))""".format(index=f.index)
+        native_direct_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_Direct, Lane)) =
+                Value_To_Bits (Expected_Direct (Lane)))""".format(index=f.index)
+        scalar_round_trip_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane)))""".format(index=f.index)
+        native_round_trip_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_Round_Trip, Lane)) =
+                Value_To_Bits (Expected_Round_Trip (Lane)))""".format(index=f.index)
+    else:
+        scalar_packed_matches = "Wide.To_Lanes (Scalar_Packed) = Expected_Packed"
+        native_packed_matches = "Native.To_Lanes (Native_Packed) = Expected_Packed"
+        scalar_direct_matches = "Wide.To_Lanes (Scalar_Direct) = Expected_Direct"
+        native_direct_matches = "Native.To_Lanes (Native_Direct) = Expected_Direct"
+        scalar_round_trip_matches = "Wide.To_Lanes (Scalar_Round_Trip) = Expected_Round_Trip"
+        native_round_trip_matches = "Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip"
+
+    return f'''
+      function Reference_Compress
+        (Values : Wide.{f.values}; Bits : Wide.{f.mask_bits})
+         return Wide.{f.values}
+      is
+         Result : Wide.{f.values} := [others => {zero}];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Next_Lane) := Values (Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Compress;
+
+      function Reference_Expand
+        (Packed : Wide.{f.values}; Bits : Wide.{f.mask_bits})
+         return Wide.{f.values}
+      is
+         Result : Wide.{f.values} := [others => {zero}];
+         Next_Lane : Natural := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result (Lane) := Packed (Next_Lane);
+               Next_Lane := Next_Lane + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Expand;
+
+      procedure Check_Compaction
+        (Values : Wide.{f.values};
+         Bits : Wide.{f.mask_bits};
+         Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.{f.mask} :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.{f.mask} :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Scalar_Source : constant Wide.{f.vector} := Wide.From_Lanes (Values);
+         Native_Source : constant Wide.{f.vector} := Native.From_Lanes (Values);
+         Expected_Packed : constant Wide.{f.values} :=
+           Reference_Compress (Values, Bits);
+         Expected_Direct : constant Wide.{f.values} :=
+           Reference_Expand (Values, Bits);
+         Expected_Round_Trip : constant Wide.{f.values} :=
+           Reference_Expand (Expected_Packed, Bits);
+         Scalar_Packed : constant Wide.{f.vector} :=
+           Wide.Compress (Scalar_Source, Scalar_Mask);
+         Native_Packed : constant Wide.{f.vector} :=
+           Native.Compress (Native_Source, Native_Mask);
+         Scalar_Direct : constant Wide.{f.vector} :=
+           Wide.Expand (Scalar_Source, Scalar_Mask);
+         Native_Direct : constant Wide.{f.vector} :=
+           Native.Expand (Native_Source, Native_Mask);
+         Scalar_Round_Trip : constant Wide.{f.vector} :=
+           Wide.Expand (Scalar_Packed, Scalar_Mask);
+         Native_Round_Trip : constant Wide.{f.vector} :=
+           Native.Expand (Native_Packed, Native_Mask);
+      begin
+         Check ({scalar_packed_matches}
+           and then {native_packed_matches},
+           "{f.vector} independent compression " & Label_Text);
+         Check ({scalar_direct_matches}
+           and then {native_direct_matches},
+           "{f.vector} independent direct expansion " & Label_Text);
+         Check ({scalar_round_trip_matches}
+           and then {native_round_trip_matches},
+           "{f.vector} compression expansion property " & Label_Text);
+      end Check_Compaction;
+'''
+
+
+def compaction_fixed_tests(f: Family, values: str, label: str = "fixed") -> str:
+    return f'''
+      Check_Compaction ({values}, 0, "{label} zero mask");
+      Check_Compaction
+        ({values}, Wide.{f.mask_bits}'Last, "{label} all mask");
+      for Lane in Wide.{f.index} loop
+         Check_Compaction
+           ({values},
+            Interfaces.Shift_Left (Wide.{f.mask_bits} (1), Lane),
+            "{label} one-hot mask" & Lane'Image);
+      end loop;
+      for Count in Natural range 0 .. {f.lanes} loop
+         declare
+            Prefix_Bits : constant Wide.{f.mask_bits} :=
+              (if Count = {f.lanes}
+               then Wide.{f.mask_bits}'Last
+               else Wide.{f.mask_bits} (2 ** Count - 1));
+         begin
+            Check_Compaction
+              ({values}, Prefix_Bits, "{label} prefix mask" & Count'Image);
+            Check_Compaction
+              ({values}, Wide.{f.mask_bits}'Last xor Prefix_Bits,
+               "{label} suffix mask" & Count'Image);
+         end;
+      end loop;
+      declare
+         Low_Half : constant Wide.{f.mask_bits} :=
+           Wide.{f.mask_bits} (2 ** {f.half_lanes} - 1);
+         High_Half : constant Wide.{f.mask_bits} :=
+           Wide.{f.mask_bits}'Last xor Low_Half;
+         Across_Halves : constant Wide.{f.mask_bits} :=
+           Interfaces.Shift_Left
+             (Wide.{f.mask_bits} (1), {f.half_lanes - 1})
+           or Interfaces.Shift_Left
+             (Wide.{f.mask_bits} (1), {f.half_lanes});
+      begin
+         Check_Compaction ({values}, Low_Half, "{label} low-half mask");
+         Check_Compaction ({values}, High_Half, "{label} high-half mask");
+         Check_Compaction
+           ({values}, Across_Halves, "{label} cross-half mask");
+         Check_Compaction
+           ({values}, Wide.{f.mask_bits} ({sum(1 << i for i in range(0, f.lanes, 2))}),
+            "{label} alternating mask");
+      end;
+'''
+
+
 def root_half(source: Family, values: str, offset: int) -> str:
     return (
         f"{source.half}'(Flyology_SIMD.From_Lanes "
@@ -873,6 +1025,7 @@ def integer_test(f: Family) -> str:
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+{compaction_declarations(f)}
 {lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
@@ -934,6 +1087,7 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.{f.index} => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "{f.vector} selection");
+{compaction_fixed_tests(f, 'A_Lanes')}
       for Lane in Wide.{f.index} loop
          if Lane < {f.lanes // 2} then
             Check (P (Lane) = A_Lanes (2 * Lane), "{f.vector} compression prefix");
@@ -1167,6 +1321,9 @@ def integer_test(f: Family) -> str:
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
 {byte_predicate_randomized}
+            Check_Compaction
+              (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)){' and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift))' if f.signed else ''},
               "{f.vector} randomized shifts" & Iteration'Image);
@@ -1204,10 +1361,17 @@ def float_test(f: Family) -> str:
     inf_bits = "16#7F80_0000#" if f.bits == 32 else "16#7FF0_0000_0000_0000#"
     qnan_bits = "16#7FC1_2345#" if f.bits == 32 else "16#7FF8_1234_5678_9ABC#"
     snan_bits = "16#7F81_2345#" if f.bits == 32 else "16#7FF0_1234_5678_9ABC#"
+    negative_inf_bits = "16#FF80_0000#" if f.bits == 32 else "16#FFF0_0000_0000_0000#"
+    negative_subnormal_bits = "16#8000_0001#" if f.bits == 32 else "16#8000_0000_0000_0001#"
     special_bits = ["0", sign_bit, inf_bits, qnan_bits, snan_bits]
     while len(special_bits) < f.lanes:
         special_bits.append(str(len(special_bits)))
     special_values = ", ".join(f"Bits_To_Value ({value})" for value in special_bits[:f.lanes])
+    compaction_extra_bits = [negative_inf_bits, snan_bits, "1", negative_subnormal_bits]
+    compaction_extra_values = ", ".join(
+        f"Bits_To_Value ({compaction_extra_bits[lane % len(compaction_extra_bits)]})"
+        for lane in range(f.lanes)
+    )
     order_values = ["2.0", "1.0", f"Bits_To_Value ({snan_bits})", "3.0"]
     while len(order_values) < f.lanes:
         order_values.append("3.0")
@@ -1244,6 +1408,7 @@ def float_test(f: Family) -> str:
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+{compaction_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.{f.vector} := Wide.Splat (2.0);
@@ -1258,6 +1423,8 @@ def float_test(f: Family) -> str:
         with Alignment => 32;
       Special_Lanes : constant Wide.{f.values} := [{special_values}];
       Specials : constant Wide.{f.vector} := Wide.From_Lanes (Special_Lanes);
+      Compaction_Extra_Lanes : constant Wide.{f.values} :=
+        [{compaction_extra_values}];
       Order_Vector : constant Wide.{f.vector} := Wide.From_Lanes ([{order_lanes}]);
       Positive_Zero_First : constant Wide.{f.vector} :=
         Wide.From_Lanes ([{positive_zero_order}]);
@@ -1293,6 +1460,9 @@ def float_test(f: Family) -> str:
         [for Lane in Wide.{f.index} => A_Lanes (Lane) * 2.0], "{f.vector} multiply");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "{f.vector} ordered comparison");
+{compaction_fixed_tests(f, 'A_Lanes')}
+{compaction_fixed_tests(f, 'Special_Lanes', 'special-bit')}
+{compaction_fixed_tests(f, 'Compaction_Extra_Lanes', 'extra-special-bit')}
       for Lane in Wide.{f.index} loop
          Check (Packed (Lane) = (if Lane < {f.lanes // 2} then A_Lanes (2 * Lane) else 0.0),
            "{f.vector} compression");
@@ -1522,6 +1692,9 @@ def float_test(f: Family) -> str:
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
               "{f.vector} randomized extrema and comparisons" & Iteration'Image);
+            Check_Compaction
+              (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
+               "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))

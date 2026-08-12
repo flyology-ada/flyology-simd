@@ -24,6 +24,11 @@ SPEC = ROOT / "src" / "flyology_simd-wide.ads"
 BODY = ROOT / "src" / "flyology_simd-wide.adb"
 NATIVE_SPEC = ROOT / "src" / "flyology_simd-wide-native.ads"
 NATIVE_BODY = ROOT / "src" / "flyology_simd-wide-native.adb"
+COMPACT_SPEC = ROOT / "src" / "flyology_simd-wide-compact_mechanism.ads"
+COMPACT_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-compact_mechanism.adb"
+COMPACT_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-compact_mechanism.adb"
+COMPACT_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-compact_mechanism.adb"
+COMPACT_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-compact_mechanism.adb"
 
 
 @dataclass(frozen=True)
@@ -545,7 +550,7 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
     else:
         out.append(pair_function("Select_Value", f, f"Mask : {f.mask}; If_True, If_False : {f.vector}",
                                  "Mask.Low, If_True.Low, If_False.Low", "Mask.High, If_True.High, If_False.High", prefix=p))
-    out += scalar_movement_body(f)
+    out += scalar_movement_body(f, p)
     if first_shape:
         out += mask_body(f, p)
     out += memory_body(f, p)
@@ -611,7 +616,7 @@ def conversion_bodies(prefix: str = "Flyology_SIMD") -> str:
     return "\n\n".join(out)
 
 
-def scalar_movement_body(f: Family) -> list[str]:
+def scalar_movement_body(f: Family, prefix: str) -> list[str]:
     vals, idx, total, half = f.values, f.index, f.lanes, f.half_lanes
     zero = "0.0" if f.floating else "0"
     reductions = []
@@ -627,9 +632,15 @@ def scalar_movement_body(f: Family) -> list[str]:
             f"   function Reduce_Min (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));\n   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;",
             f"   function Reduce_Max (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));\n   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;",
         ]
-    return [
+    compact = [
         f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Compress;",
         f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Expand;",
+    ] if prefix == "Flyology_SIMD" else [
+        f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Compress (Value, Mask));",
+        f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Expand (Value, Mask));",
+    ]
+    return [
+        *compact,
         *reductions,
         f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, {total - 1} - Lane)]));",
         f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, Map.Selectors (Lane))]));",
@@ -772,11 +783,13 @@ def native_body_text() -> str:
     conversions = conversion_bodies("Flyology_SIMD.Backends.Native")
     return f"""with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
+with Flyology_SIMD.Wide.Compact_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
+   package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
@@ -788,6 +801,138 @@ package body Flyology_SIMD.Wide.Native is
 
 {conversions}
 end Flyology_SIMD.Wide.Native;
+"""
+
+
+def compact_spec_text() -> str:
+    declarations = []
+    for f in FAMILIES:
+        for operation, description in (
+            ("Compress", "Stably pack true-mask lanes and zero-fill the suffix."),
+            ("Expand", "Place packed lanes at true-mask positions and zero-fill false positions."),
+        ):
+            declarations.append(
+                f"   function {operation} (Value : {f.vector}; Mask : {f.mask}) return {f.vector}\n"
+                "     with Inline_Always;\n"
+                f"   --  {description}\n"
+                "   --  @param Value The input lanes.\n"
+                "   --  @param Mask The semantic selection mask.\n"
+                "   --  @return The moved lanes and defined zero fill."
+            )
+    return f"""private package Flyology_SIMD.Wide.Compact_Mechanism
+  with Preelaborate
+is
+   --  Target-selected mechanism for Wide stable mask movement.
+
+{chr(10).join(declarations)}
+end Flyology_SIMD.Wide.Compact_Mechanism;
+"""
+
+
+def compact_composed_body_text() -> str:
+    bodies = []
+    for f in FAMILIES:
+        for operation in ("Compress", "Expand"):
+            bodies.append(
+                f"   function {operation} (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
+                f"     (Flyology_SIMD.Wide.{operation} (Value, Mask));"
+            )
+    return f"""package body Flyology_SIMD.Wide.Compact_Mechanism is
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Compact_Mechanism;
+"""
+
+
+def compact_aarch64_body_text() -> str:
+    instantiations = []
+    bodies = []
+    for f in FAMILIES:
+        permute = f"Permute_{f.vector}"
+        instantiations.extend((
+            f"   function {permute} is new Permute_256 ({f.vector});",
+            f"   pragma Inline_Always ({permute});",
+        ))
+        lane_bytes = f.bits // 8
+        truth = (
+            f"(Bits and Interfaces.Shift_Left ({f.mask_bits}'(1), Lane)) /= 0"
+        )
+        bodies.append(
+            f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
+            "      Map : Byte_Map := [others => 32];\n"
+            f"      Bits : constant {f.mask_bits} := Flyology_SIMD.Wide.To_Bit_Mask (Mask);\n"
+            "      Result_Lane : Natural := 0;\n"
+            "   begin\n"
+            f"      for Lane in {f.index} loop\n"
+            f"         if {truth} then\n"
+            f"            for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"               Map (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"                 U8 (Lane * {lane_bytes} + Byte);\n"
+            "            end loop;\n"
+            "            Result_Lane := Result_Lane + 1;\n"
+            "         end if;\n"
+            "      end loop;\n"
+            f"      return {permute} (Value, Map);\n"
+            "   end Compress;"
+        )
+        bodies.append(
+            f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
+            "      Map : Byte_Map := [others => 32];\n"
+            f"      Bits : constant {f.mask_bits} := Flyology_SIMD.Wide.To_Bit_Mask (Mask);\n"
+            "      Source_Lane : Natural := 0;\n"
+            "   begin\n"
+            f"      for Lane in {f.index} loop\n"
+            f"         if {truth} then\n"
+            f"            for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"               Map (Lane * {lane_bytes} + Byte) :=\n"
+            f"                 U8 (Source_Lane * {lane_bytes} + Byte);\n"
+            "            end loop;\n"
+            "            Source_Lane := Source_Lane + 1;\n"
+            "         end if;\n"
+            "      end loop;\n"
+            f"      return {permute} (Value, Map);\n"
+            "   end Expand;"
+        )
+    return f"""with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Compact_Mechanism is
+   use System.Machine_Code;
+   use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+
+   type Byte_Map is array (Natural range 0 .. 31) of U8
+     with Component_Size => 8, Size => 256;
+
+   generic
+      type Vector_Type is private;
+   function Permute_256 (Value : Vector_Type; Map : Byte_Map) return Vector_Type;
+
+   function Permute_256 (Value : Vector_Type; Map : Byte_Map) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%2]" & ASCII.LF & ASCII.HT &
+           "tbl v3.16b, {{v0.16b, v1.16b}}, v2.16b" & ASCII.LF & ASCII.HT &
+           "str q3, [%0]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%2, #16]" & ASCII.LF & ASCII.HT &
+           "tbl v3.16b, {{v0.16b, v1.16b}}, v2.16b" & ASCII.LF & ASCII.HT &
+           "str q3, [%0, #16]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address),
+            System.Address'Asm_Input ("r", Map'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Permute_256;
+
+{chr(10).join(instantiations)}
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Compact_Mechanism;
 """
 
 
@@ -807,6 +952,11 @@ def main() -> None:
     outputs = {
         SPEC: spec_text(), BODY: body_text(),
         NATIVE_SPEC: native_spec_text(), NATIVE_BODY: native_body_text(),
+        COMPACT_SPEC: compact_spec_text(),
+        COMPACT_AARCH64: compact_aarch64_body_text(),
+        COMPACT_COMPOSED: compact_composed_body_text(),
+        COMPACT_AVX2: compact_composed_body_text(),
+        COMPACT_INVALID: compact_composed_body_text(),
     }
     for path, content in outputs.items():
         write_or_check(path, content, args.check)

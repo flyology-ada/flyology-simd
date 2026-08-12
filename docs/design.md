@@ -135,11 +135,14 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 
 `Flyology_SIMD.Wide` is the scalar authority for the initial 256-bit profile.
 Its private values currently contain two 128-bit parts.
-`Flyology_SIMD.Wide.Native` composes selected 128-bit native operations across
-those parts. This boundary does not expose the pair, promise a stable ABI, or
-promise one 256-bit instruction for every operation. The optional x86-64 AVX2
-Wide backend is the narrow exception. It supplies isolated 256-bit subprograms
-for selected `U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`.
+For operations without a separate Wide mechanism,
+`Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
+fixed-width Ada code across those parts. This boundary does not expose the pair,
+promise a stable ABI, or promise one 256-bit instruction for every operation.
+Wide `Table_Lookup` uses a target-selected lookup mechanism. Wide `Compress`
+and `Expand` use a target-selected compression and expansion mechanism. The optional
+x86-64 AVX2 Wide backend supplies isolated 256-bit subprograms for selected
+`U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`.
 Wide bit casts compose two same-shape 128-bit bit casts. Wide two-source lane
 maps use fixed-width Ada composition through the selected 128-bit lane access
 operations; they have no dedicated 256-bit instruction claim.
@@ -164,7 +167,7 @@ the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
 product to eight bits, and restores the original byte positions.
 With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, Wide Native table lookup also uses
 the target-selected mechanism. AArch64 applies one two-register `tbl` leaf to each
-16-lane index part. The x86-64 composed backend uses the scalar authority.
+16-lane index part. The x86-64 composed backend calls the scalar implementation.
 With `FLYOLOGY_SIMD_ARCH=x86_64`, `FLYOLOGY_SIMD_AVX2=enabled`, and
 `FLYOLOGY_SIMD_WIDE_BACKEND=avx2`, one separately compiled 256-bit AVX2
 subprogram implements the complete lookup. The build rejects other
@@ -177,11 +180,19 @@ Wide Native `Horizontal_Sum` adds the exact results from two selected 128-bit
 `Horizontal_Sum` operations. The public result is a `Natural` from 0 through
 8,160.
 
+The target-selected compression and expansion mechanism implements Wide Native
+`Compress` and `Expand` for all ten value types. The Wide scalar body
+remains the semantic authority. On AArch64, Ada code derives a 32-byte index
+map from the mask. One isolated assembly subprogram runs one two-register
+`tbl` operation for each 128-bit result half. An index of 32 produces the
+defined zero fill. The x86-64 composed and AVX2 selections currently call the
+Wide scalar implementation for these operations.
+
 The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON
-assembly leaves. The x86-64 SSE2 backend
+assembly subprograms. The x86-64 SSE2 backend
 uses immediate byte-shift leaves for lane slides and currently composes these
-conversion operations from the scalar authority.
+conversion operations with the scalar implementation.
 It also composes variable lane permutation, mask compression, and mask
 expansion because SSE2 has no indexed-byte table instruction.
 This preserves the contract but does not claim an SSE2 instruction sequence

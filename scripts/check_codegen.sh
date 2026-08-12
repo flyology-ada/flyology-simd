@@ -164,6 +164,10 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
         extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         extract_symbol 'wide_codegen_probe__u8_horizontal_sum' "$temporary/wide-probe.txt" "$temporary/wide_u8_horizontal_sum.txt"
+        extract_symbol 'wide_codegen_probe__u8_compress' "$temporary/wide-probe.txt" "$temporary/wide_u8_compress.txt"
+        extract_symbol 'wide_codegen_probe__u16_expand' "$temporary/wide-probe.txt" "$temporary/wide_u16_expand.txt"
+        extract_symbol 'wide_codegen_probe__f32_compress' "$temporary/wide-probe.txt" "$temporary/wide_f32_compress.txt"
+        extract_symbol 'wide_codegen_probe__f64_expand' "$temporary/wide-probe.txt" "$temporary/wide_f64_expand.txt"
         for lane_kind in u8 i8; do
             for operation in equal less less_equal greater greater_equal select; do
                 extract_symbol "wide_codegen_probe__${lane_kind}_${operation}" \
@@ -179,6 +183,14 @@ case "$architecture" in
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i32_to_f32.txt" 'two NEON I32-to-F32 conversion leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
+        for compact_probe in wide_u8_compress wide_u16_expand wide_f32_compress wide_f64_expand; do
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+              "$temporary/${compact_probe}.txt" \
+              "two-register TBL operations in AArch64 ${compact_probe} caller"
+            forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
+              "$temporary/${compact_probe}.txt" \
+              "per-lane or dispatcher call in AArch64 ${compact_probe} caller"
+        done
         require_count 'cmeq.*16b' 2 "$temporary/wide_u8_equal.txt" \
           'two NEON equality operations in the composed Wide U8 caller'
         forbid_pattern '(^|[[:space:]])bl[[:space:]]' "$temporary/wide_u8_equal.txt" \

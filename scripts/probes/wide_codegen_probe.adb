@@ -105,4 +105,29 @@ package body Wide_Codegen_Probe is
      (Flyology_SIMD.Wide.Native.Select_Value
         (Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits),
          If_True, If_False));
+
+   function U8_Compress
+     (Value : Flyology_SIMD.Wide.U8x32;
+      Bits : Flyology_SIMD.Wide.Mask_Bits_8x32)
+      return Flyology_SIMD.Wide.U8x32 is
+     (Flyology_SIMD.Wide.Native.Compress
+        (Value, Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits)));
+   function U16_Expand
+     (Value : Flyology_SIMD.Wide.U16x16;
+      Bits : Flyology_SIMD.Wide.Mask_Bits_16x16)
+      return Flyology_SIMD.Wide.U16x16 is
+     (Flyology_SIMD.Wide.Native.Expand
+        (Value, Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits)));
+   function F32_Compress
+     (Value : Flyology_SIMD.Wide.F32x8;
+      Bits : Flyology_SIMD.Wide.Mask_Bits_32x8)
+      return Flyology_SIMD.Wide.F32x8 is
+     (Flyology_SIMD.Wide.Native.Compress
+        (Value, Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits)));
+   function F64_Expand
+     (Value : Flyology_SIMD.Wide.F64x4;
+      Bits : Flyology_SIMD.Wide.Mask_Bits_64x4)
+      return Flyology_SIMD.Wide.F64x4 is
+     (Flyology_SIMD.Wide.Native.Expand
+        (Value, Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits)));
 end Wide_Codegen_Probe;

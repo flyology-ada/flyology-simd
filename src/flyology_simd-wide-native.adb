@@ -1,10 +1,12 @@
 with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
+with Flyology_SIMD.Wide.Compact_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
+   package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
@@ -124,24 +126,10 @@ package body Flyology_SIMD.Wide.Native is
         (To_Bit_Mask (Mask), If_True, If_False));
 
    function Compress (Value : U8x32; Mask : Mask_8x32) return U8x32 is
-      Result : Lane_Values_U8x32 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_8x32 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : U8x32; Mask : Mask_8x32) return U8x32 is
-      Result : Lane_Values_U8x32 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_8x32 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U8x32) return U8 is
       Pair : constant U8x16 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -360,24 +348,10 @@ package body Flyology_SIMD.Wide.Native is
         (To_Bit_Mask (Mask), If_True, If_False));
 
    function Compress (Value : I8x32; Mask : Mask_8x32) return I8x32 is
-      Result : Lane_Values_I8x32 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_8x32 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : I8x32; Mask : Mask_8x32) return I8x32 is
-      Result : Lane_Values_I8x32 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_8x32 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I8x32) return I8 is
       Pair : constant I8x16 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -572,24 +546,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : U16x16; Mask : Mask_16x16) return U16x16 is
-      Result : Lane_Values_U16x16 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_16x16 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : U16x16; Mask : Mask_16x16) return U16x16 is
-      Result : Lane_Values_U16x16 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_16x16 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U16x16) return U16 is
       Pair : constant U16x8 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -824,24 +784,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : I16x16; Mask : Mask_16x16) return I16x16 is
-      Result : Lane_Values_I16x16 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_16x16 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : I16x16; Mask : Mask_16x16) return I16x16 is
-      Result : Lane_Values_I16x16 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_16x16 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I16x16) return I16 is
       Pair : constant I16x8 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -1039,24 +985,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : U32x8; Mask : Mask_32x8) return U32x8 is
-      Result : Lane_Values_U32x8 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : U32x8; Mask : Mask_32x8) return U32x8 is
-      Result : Lane_Values_U32x8 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U32x8) return U32 is
       Pair : constant U32x4 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -1294,24 +1226,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : I32x8; Mask : Mask_32x8) return I32x8 is
-      Result : Lane_Values_I32x8 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : I32x8; Mask : Mask_32x8) return I32x8 is
-      Result : Lane_Values_I32x8 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I32x8) return I32 is
       Pair : constant I32x4 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -1509,24 +1427,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : U64x4; Mask : Mask_64x4) return U64x4 is
-      Result : Lane_Values_U64x4 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : U64x4; Mask : Mask_64x4) return U64x4 is
-      Result : Lane_Values_U64x4 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U64x4) return U64 is
       Pair : constant U64x2 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -1764,24 +1668,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : I64x4; Mask : Mask_64x4) return I64x4 is
-      Result : Lane_Values_I64x4 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : I64x4; Mask : Mask_64x4) return I64x4 is
-      Result : Lane_Values_I64x4 := [others => 0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I64x4) return I64 is
       Pair : constant I64x2 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
@@ -1943,24 +1833,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : F32x8; Mask : Mask_32x8) return F32x8 is
-      Result : Lane_Values_F32x8 := [others => 0.0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : F32x8; Mask : Mask_32x8) return F32x8 is
-      Result : Lane_Values_F32x8 := [others => 0.0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_32x8 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add (Value : F32x8) return F32 is
       Lanes : constant Lane_Values_F32x8 := To_Lanes (Value);
@@ -2132,24 +2008,10 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
 
    function Compress (Value : F64x4; Mask : Mask_64x4) return F64x4 is
-      Result : Lane_Values_F64x4 := [others => 0.0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Compress;
+     (Compact_Mechanism.Compress (Value, Mask));
 
    function Expand (Value : F64x4; Mask : Mask_64x4) return F64x4 is
-      Result : Lane_Values_F64x4 := [others => 0.0];
-      Next : Natural := 0;
-   begin
-      for Lane in Lane_Index_64x4 loop
-         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;
-      end loop;
-      return From_Lanes (Result);
-   end Expand;
+     (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add (Value : F64x4) return F64 is
       Lanes : constant Lane_Values_F64x4 := To_Lanes (Value);

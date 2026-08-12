@@ -29,7 +29,7 @@ finite `F32x4` to `F64x2` widening. It also has rounded `F64x2`-to-`F32x4`
 narrowing and explicit 32-bit and 64-bit numeric conversion between integer
 and floating lanes. Same-width signed/unsigned numeric conversion is available
 for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
-compression and expansion are available for all ten 128-bit value types.
+compression and expansion are available for all ten value types at both widths.
 The initial 256-bit profile supplies common arithmetic, comparison, mask,
 lane-movement, reduction, typed memory, bit-cast, widening, narrowing, and
 numeric conversion operations. Wide `U8x32` also supplies a 32-entry byte-table
@@ -150,11 +150,15 @@ The complete artifact is written to the ignored `build/site/` directory.
   representation.  The complete x86-64 family uses SSE2 leaves and documented
   scalar composition where SSE2 has no semantics-preserving instruction;
   optional AVX2 whole-buffer algorithms remain in separately compiled objects.
-  `Flyology_SIMD.Wide.Native` composes the selected 128-bit operations in
-  private pairs, including the Wide conversion operations. On x86-64, a
-  separate build selection can use isolated AVX2-specific 256-bit
-  implementations for the signed and unsigned byte operations listed above.
-  Other Wide operations retain 128-bit composition. AVX2 has no packed byte
+  For operations without a separate Wide mechanism,
+  `Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
+  fixed-width Ada code. Wide `Compress` and `Expand` use the target-selected compression
+  and expansion mechanism. On AArch64, the mechanism derives a 32-byte index
+  map from the mask. It runs one two-register `tbl` operation for each 128-bit
+  result half. The x86-64 composed and AVX2 selections call the Wide scalar
+  implementation for these operations. On x86-64, a separate build selection can use isolated
+  AVX2-specific 256-bit implementations for the signed and unsigned byte
+  operations listed above. AVX2 has no packed byte
   multiply instruction, so wrapping byte multiplication composes 16-bit word
   operations and keeps the low eight bits of each lane product.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
