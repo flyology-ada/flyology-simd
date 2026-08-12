@@ -197,7 +197,11 @@ reductions. The implementation splats each scalar result, combines the two
 vectors with selected 128-bit `Add_Wrap`, `Min`, or `Max`, and extracts lane 0.
 This grouping is valid because the three integer operations are associative.
 Floating reductions combine lanes in ascending lane order because rounding,
-NaN, and signed-zero results can depend on the order.
+NaN, and signed-zero results can depend on the order. They do not reduce the
+two private parts independently. On AArch64, a dedicated Advanced SIMD sequence
+performs scalar `fadd`, `fminnm`, or `fmaxnm` operations in ascending lane
+order. The x86-64 backend and scalar build use the portable Wide
+implementation.
 
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body

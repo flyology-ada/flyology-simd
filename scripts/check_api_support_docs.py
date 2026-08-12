@@ -109,6 +109,9 @@ def invalid_support(path: Path) -> list[str]:
             "function Reduce_Add_Wrap": "reduce each private part with the selected 128-bit Reduce_Add_Wrap operation",
             "function Reduce_Min": "reduce each private part with the selected 128-bit Reduce_Min operation",
             "function Reduce_Max": "reduce each private part with the selected 128-bit Reduce_Max operation",
+            "function Reduce_Add (": "dedicated ordered Advanced SIMD sequence that starts from positive zero",
+            "function Reduce_Min_Number": "scalar fminnm operations that visits lanes in ascending order",
+            "function Reduce_Max_Number": "scalar fmaxnm operations that visits lanes in ascending order",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
         }
@@ -147,6 +150,9 @@ def invalid_support(path: Path) -> list[str]:
                 "function Reduce_Add_Wrap": 8,
                 "function Reduce_Min": 8,
                 "function Reduce_Max": 8,
+                "function Reduce_Add (": 2,
+                "function Reduce_Min_Number": 2,
+                "function Reduce_Max_Number": 2,
             }.get(declaration, 10)
             if count != expected:
                 invalid.append(

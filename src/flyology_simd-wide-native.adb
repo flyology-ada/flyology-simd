@@ -1,6 +1,7 @@
 with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
+with Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with Flyology_SIMD.Wide.Permute_Mechanism;
 with System.Storage_Elements;
@@ -8,14 +9,13 @@ with System.Storage_Elements;
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
+   package Float_Reduce_Mechanism renames Flyology_SIMD.Wide.Float_Reduce_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    package Permute_Mechanism renames Flyology_SIMD.Wide.Permute_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
-   use type F32;
-   use type F64;
    function Make_Lane_Map (Selectors : Lane_Selectors_8x32) return Lane_Map_8x32 is
      ((Selectors => Selectors));
 
@@ -1841,26 +1841,13 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add (Value : F32x8) return F32 is
-      Lanes : constant Lane_Values_F32x8 := To_Lanes (Value);
-      Result : F32 := 0.0;
-   begin
-      for Lane in Lane_Index_32x8 loop Result := Result + Lanes (Lane); end loop;
-      return Result;
-   end Reduce_Add;
+     (Float_Reduce_Mechanism.Reduce_Add (Value));
 
    function Reduce_Min_Number (Value : F32x8) return F32 is
-      Result : F32 := Extract (Value, 0);
-   begin
-      for Lane in 1 .. 7 loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Min_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;
-      return Result;
-   end Reduce_Min_Number;
+     (Float_Reduce_Mechanism.Reduce_Min_Number (Value));
 
    function Reduce_Max_Number (Value : F32x8) return F32 is
-      Result : F32 := Extract (Value, 0);
-   begin
-      for Lane in 1 .. 7 loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Max_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;
-      return Result;
-   end Reduce_Max_Number;
+     (Float_Reduce_Mechanism.Reduce_Max_Number (Value));
 
    function Reverse_Lanes (Value : F32x8) return F32x8 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -2016,26 +2003,13 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add (Value : F64x4) return F64 is
-      Lanes : constant Lane_Values_F64x4 := To_Lanes (Value);
-      Result : F64 := 0.0;
-   begin
-      for Lane in Lane_Index_64x4 loop Result := Result + Lanes (Lane); end loop;
-      return Result;
-   end Reduce_Add;
+     (Float_Reduce_Mechanism.Reduce_Add (Value));
 
    function Reduce_Min_Number (Value : F64x4) return F64 is
-      Result : F64 := Extract (Value, 0);
-   begin
-      for Lane in 1 .. 3 loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Min_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;
-      return Result;
-   end Reduce_Min_Number;
+     (Float_Reduce_Mechanism.Reduce_Min_Number (Value));
 
    function Reduce_Max_Number (Value : F64x4) return F64 is
-      Result : F64 := Extract (Value, 0);
-   begin
-      for Lane in 1 .. 3 loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Max_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;
-      return Result;
-   end Reduce_Max_Number;
+     (Float_Reduce_Mechanism.Reduce_Max_Number (Value));
 
    function Reverse_Lanes (Value : F64x4) return F64x4 is
      (Permute_Mechanism.Reverse_Lanes (Value));

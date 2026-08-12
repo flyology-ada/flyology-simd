@@ -245,11 +245,14 @@ out-of-range lane: 0</code></pre>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
           <p><code>Min_Number</code> and <code>Max_Number</code> return the numeric input when only one quiet NaN is present. They select negative zero for a minimum and positive zero for a maximum. The <a href="../../api/">API reference</a> and semantic document give the full NaN rules.</p>
-          <p>Wide floating reductions do not use the integer grouping. <code>Reduce_Min_Number</code> and <code>Reduce_Max_Number</code> use lane 0 as the initial result. They combine each remaining lane with that result in ascending order. Each step applies the documented NaN and signed-zero rules on every backend.</p>
+          <p>The following example shows ordered reductions on 128-bit vectors:</p>
           <pre><code class="language-ada">Samples : constant F32x4 := From_Lanes ([4.5, -2.0, 7.25, 1.0]);
 Smallest : constant F32 := Reduce_Min_Number (Samples);  --  -2.0
 Largest  : constant F32 := Reduce_Max_Number (Samples);  --   7.25</code></pre>
-          <p>The ordinary values above make the result easy to check. See the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a> for NaN and signed-zero results.</p>
+          <p>These input values make the 128-bit results easy to check. See the <a href="https://github.com/flyology-ada/flyology-simd/blob/main/docs/semantics.md">semantic compatibility document</a> for NaN and signed-zero results.</p>
+          <p>Wide floating reductions use the same lane order. They do not use the integer grouping or reduce the private parts independently. <a data-api="Flyology_SIMD.Wide.Native"><code>Wide.Native.Reduce_Add</code>, <code>Reduce_Min_Number</code>, and <code>Reduce_Max_Number</code></a> combine lanes in ascending lane order. <code>Reduce_Add</code> starts from positive zero. The minimum-number and maximum-number reductions start from lane 0. Each step applies the documented NaN and signed-zero rules.</p>
+          <p>On AArch64, a dedicated Advanced SIMD sequence performs scalar <code>fadd</code>, <code>fminnm</code>, or <code>fmaxnm</code> operations in ascending lane order for the six <code>F32x8</code> and <code>F64x4</code> overloads. The x86-64 backend and scalar build use the portable Wide implementation.</p>
+          <p>For a complete Wide example, see the Chapter 2 <a href="../practical/#wide-dot">weighted sum</a>.</p>
         </section>
         <section id="lane-movement">
           <h2>Check lane movement semantics</h2>

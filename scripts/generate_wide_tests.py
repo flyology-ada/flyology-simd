@@ -1620,6 +1620,9 @@ def float_test(f: Family) -> str:
     inf_bits = "16#7F80_0000#" if f.bits == 32 else "16#7FF0_0000_0000_0000#"
     qnan_bits = "16#7FC1_2345#" if f.bits == 32 else "16#7FF8_1234_5678_9ABC#"
     snan_bits = "16#7F81_2345#" if f.bits == 32 else "16#7FF0_1234_5678_9ABC#"
+    exponent_mask = "16#7F80_0000#" if f.bits == 32 else "16#7FF0_0000_0000_0000#"
+    fraction_mask = "16#007F_FFFF#" if f.bits == 32 else "16#000F_FFFF_FFFF_FFFF#"
+    quiet_bit = "16#0040_0000#" if f.bits == 32 else "16#0008_0000_0000_0000#"
     negative_inf_bits = "16#FF80_0000#" if f.bits == 32 else "16#FFF0_0000_0000_0000#"
     negative_subnormal_bits = "16#8000_0001#" if f.bits == 32 else "16#8000_0000_0000_0001#"
     special_bits = ["0", sign_bit, inf_bits, qnan_bits, snan_bits]
@@ -1659,6 +1662,111 @@ def float_test(f: Family) -> str:
          end loop;
          return Result;
       end Random_Bit_Lanes;
+      function Is_NaN (Value : {f.scalar}) return Boolean is
+        ((Value_To_Bits (Value) and {exponent_mask}) = {exponent_mask}
+         and then (Value_To_Bits (Value) and {fraction_mask}) /= 0);
+      function Is_Signaling_NaN (Value : {f.scalar}) return Boolean is
+        (Is_NaN (Value)
+         and then (Value_To_Bits (Value) and {quiet_bit}) = 0);
+      function Quiet_NaN (Value : {f.scalar}) return {f.scalar} is
+        (Bits_To_Value (Value_To_Bits (Value) or {quiet_bit}));
+      function Reference_Min_Number
+        (Left, Right : {f.scalar}) return {f.scalar}
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and {sign_bit}) /= 0
+                    then Left else Right);
+         elsif Left < Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Min_Number;
+      function Reference_Max_Number
+        (Left, Right : {f.scalar}) return {f.scalar}
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and {sign_bit}) = 0
+                    then Left else Right);
+         elsif Left > Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Max_Number;
+      function Reference_Reduce_Add
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {f.scalar} := 0.0;
+      begin
+         for Lane in Wide.{f.index} loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add;
+      function Reference_Reduce_Min_Number
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {f.scalar} := Values (Values'First);
+      begin
+         for Lane in Wide.{f.index} range Values'First + 1 .. Values'Last loop
+            Result := Reference_Min_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Min_Number;
+      function Reference_Reduce_Max_Number
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {f.scalar} := Values (Values'First);
+      begin
+         for Lane in Wide.{f.index} range Values'First + 1 .. Values'Last loop
+            Result := Reference_Max_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Max_Number;
+      function Same_Reduction
+        (Actual, Expected : {f.scalar}) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+           and then (Value_To_Bits (Actual) and {quiet_bit}) /= 0
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Reductions
+        (Values : Wide.{f.values}; Context : String)
+      is
+         Value : constant Wide.{f.vector} := Wide.From_Lanes (Values);
+      begin
+         Check (Same_Reduction (Wide.Reduce_Add (Value),
+                                Reference_Reduce_Add (Values))
+           and then Same_Reduction (Native.Reduce_Add (Value),
+                                    Reference_Reduce_Add (Values))
+           and then Same_Reduction (Wide.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Native.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Wide.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values))
+           and then Same_Reduction (Native.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values)),
+           "{f.vector} independent reduction oracle " & Context);
+      end Check_Reductions;
 {compaction_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
@@ -1744,6 +1852,29 @@ def float_test(f: Family) -> str:
       Check (Value_To_Bits (Wide.Reduce_Add (Wide.Splat (Bits_To_Value ({sign_bit})))) = 0
         and then Value_To_Bits (Native.Reduce_Add (Native.Splat (Bits_To_Value ({sign_bit})))) = 0,
         "{f.vector} reduction positive-zero start");
+      Check (Same_Reduction (Wide.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes)),
+        "{f.vector} independent ordinary reduction oracle");
+      Check (Same_Reduction (Wide.Reduce_Add (Order_Vector),
+                              Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Add (Order_Vector),
+                                 Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector))),
+        "{f.vector} independent signaling-NaN reduction oracle");
+      Check_Reductions (Special_Lanes, "fixed IEEE categories");
+      Check_Reductions (Compaction_Extra_Lanes,
+                        "fixed signaling NaN and subnormal categories");
       for Count in Wide.{f.count} loop
          Data := [others => 0.0];
          Wide.Store_Partial (Data, Data'First, Count, A);
@@ -1995,10 +2126,20 @@ def float_test(f: Family) -> str:
             Check (Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "{f.vector} randomized slides" & Iteration'Image);
-            Check (Value_To_Bits (Native.Reduce_Add (R_A)) = Value_To_Bits (Wide.Reduce_Add (R_A))
-              and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
-              and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
-              "{f.vector} randomized reductions" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes)),
+              "{f.vector} randomized finite reduction oracle" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes)),
+              "{f.vector} randomized raw-bit reduction oracle" & Iteration'Image);
 {bit_cast_tests(f, 'R_Bits', 'randomized ')}
          end;
       end loop;

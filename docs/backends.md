@@ -169,11 +169,26 @@ All 24 Wide Native integer reductions use selected 128-bit operations. Each
 reduction reduces both private parts. The implementation splats each scalar
 result, combines the two vectors with selected `Add_Wrap`, `Min`, or `Max`, and
 extracts lane 0. This grouping is valid because the three integer operations
-are associative. Wide floating reductions combine lanes in ascending lane
-order. Independent lane oracles cover fixed inputs and 128 deterministic
-pseudorandom inputs for every integer family. Caller-level probes require two selected reductions, one
-selected combine operation, and one lane-zero extraction. They reject calls to
-the Wide and root scalar reductions.
+are associative.
+Independent lane oracles cover fixed inputs and 128 deterministic pseudorandom
+inputs for every integer family. Caller-level probes require two selected
+reductions, one selected combine operation, and one lane-zero extraction. They
+reject calls to the Wide and root scalar reductions.
+
+Wide floating reductions combine lanes in ascending lane order and do not
+reduce the two private parts independently. On AArch64, dedicated Advanced SIMD
+sequences implement all six `F32x8` and `F64x4` reductions. `Reduce_Add` starts
+from positive zero and performs scalar `fadd` operations in ascending lane
+order. The minimum-number and maximum-number reductions start from lane 0 and
+perform scalar `fminnm` or `fmaxnm` operations in ascending lane order. The
+x86-64 backend and scalar build use the portable Wide implementation.
+
+Independent floating lane oracles cover fixed cases, deterministic finite
+inputs, and deterministic raw floating encodings. Caller-level probes cover
+binary32 addition, binary32 minimum-number, and binary64 maximum-number. The
+AArch64 code-generation gate requires the scalar `fadd`, `fminnm`, or `fmaxnm`
+sequence in ascending lane order and rejects calls to the portable Wide
+reductions.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

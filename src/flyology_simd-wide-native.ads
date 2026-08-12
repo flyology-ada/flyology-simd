@@ -2852,17 +2852,17 @@ is
    --  @return The operation result.
    function Reduce_Add (Value : F32x8) return F32 with Inline_Always;
    --  Apply Reduce_Add in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence that starts from positive zero and visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F32x8) return F32 with Inline_Always;
    --  Apply Reduce_Min_Number in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence with scalar fminnm operations that visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F32x8) return F32 with Inline_Always;
    --  Apply Reduce_Max_Number in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence with scalar fmaxnm operations that visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : F32x8) return F32x8 with Inline_Always;
@@ -3110,17 +3110,17 @@ is
    --  @return The operation result.
    function Reduce_Add (Value : F64x4) return F64 with Inline_Always;
    --  Apply Reduce_Add in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence that starts from positive zero and visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F64x4) return F64 with Inline_Always;
    --  Apply Reduce_Min_Number in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence with scalar fminnm operations that visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F64x4) return F64 with Inline_Always;
    --  Apply Reduce_Max_Number in ascending lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated ordered Advanced SIMD sequence with scalar fmaxnm operations that visits lanes in ascending order. The x86-64 backend uses portable Ada composition. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : F64x4) return F64x4 with Inline_Always;

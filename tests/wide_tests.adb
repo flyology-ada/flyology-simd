@@ -6293,6 +6293,111 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Bit_Lanes;
+      function Is_NaN (Value : F32) return Boolean is
+        ((Value_To_Bits (Value) and 16#7F80_0000#) = 16#7F80_0000#
+         and then (Value_To_Bits (Value) and 16#007F_FFFF#) /= 0);
+      function Is_Signaling_NaN (Value : F32) return Boolean is
+        (Is_NaN (Value)
+         and then (Value_To_Bits (Value) and 16#0040_0000#) = 0);
+      function Quiet_NaN (Value : F32) return F32 is
+        (Bits_To_Value (Value_To_Bits (Value) or 16#0040_0000#));
+      function Reference_Min_Number
+        (Left, Right : F32) return F32
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and 16#8000_0000#) /= 0
+                    then Left else Right);
+         elsif Left < Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Min_Number;
+      function Reference_Max_Number
+        (Left, Right : F32) return F32
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and 16#8000_0000#) = 0
+                    then Left else Right);
+         elsif Left > Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Max_Number;
+      function Reference_Reduce_Add
+        (Values : Wide.Lane_Values_F32x8) return F32
+      is
+         Result : F32 := 0.0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add;
+      function Reference_Reduce_Min_Number
+        (Values : Wide.Lane_Values_F32x8) return F32
+      is
+         Result : F32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 range Values'First + 1 .. Values'Last loop
+            Result := Reference_Min_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Min_Number;
+      function Reference_Reduce_Max_Number
+        (Values : Wide.Lane_Values_F32x8) return F32
+      is
+         Result : F32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 range Values'First + 1 .. Values'Last loop
+            Result := Reference_Max_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Max_Number;
+      function Same_Reduction
+        (Actual, Expected : F32) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+           and then (Value_To_Bits (Actual) and 16#0040_0000#) /= 0
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Reductions
+        (Values : Wide.Lane_Values_F32x8; Context : String)
+      is
+         Value : constant Wide.F32x8 := Wide.From_Lanes (Values);
+      begin
+         Check (Same_Reduction (Wide.Reduce_Add (Value),
+                                Reference_Reduce_Add (Values))
+           and then Same_Reduction (Native.Reduce_Add (Value),
+                                    Reference_Reduce_Add (Values))
+           and then Same_Reduction (Wide.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Native.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Wide.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values))
+           and then Same_Reduction (Native.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values)),
+           "F32x8 independent reduction oracle " & Context);
+      end Check_Reductions;
 
       function Reference_Compress
         (Values : Wide.Lane_Values_F32x8; Bits : Wide.Mask_Bits_32x8)
@@ -6697,6 +6802,29 @@ procedure Wide_Tests is
       Check (Value_To_Bits (Wide.Reduce_Add (Wide.Splat (Bits_To_Value (16#8000_0000#)))) = 0
         and then Value_To_Bits (Native.Reduce_Add (Native.Splat (Bits_To_Value (16#8000_0000#)))) = 0,
         "F32x8 reduction positive-zero start");
+      Check (Same_Reduction (Wide.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes)),
+        "F32x8 independent ordinary reduction oracle");
+      Check (Same_Reduction (Wide.Reduce_Add (Order_Vector),
+                              Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Add (Order_Vector),
+                                 Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector))),
+        "F32x8 independent signaling-NaN reduction oracle");
+      Check_Reductions (Special_Lanes, "fixed IEEE categories");
+      Check_Reductions (Compaction_Extra_Lanes,
+                        "fixed signaling NaN and subnormal categories");
       for Count in Wide.Lane_Count_32x8 loop
          Data := [others => 0.0];
          Wide.Store_Partial (Data, Data'First, Count, A);
@@ -6979,10 +7107,20 @@ procedure Wide_Tests is
             Check (Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "F32x8 randomized slides" & Iteration'Image);
-            Check (Value_To_Bits (Native.Reduce_Add (R_A)) = Value_To_Bits (Wide.Reduce_Add (R_A))
-              and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
-              and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
-              "F32x8 randomized reductions" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes)),
+              "F32x8 randomized finite reduction oracle" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes)),
+              "F32x8 randomized raw-bit reduction oracle" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (R_Bits);
          Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (R_Bits);
@@ -7040,6 +7178,111 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Bit_Lanes;
+      function Is_NaN (Value : F64) return Boolean is
+        ((Value_To_Bits (Value) and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+         and then (Value_To_Bits (Value) and 16#000F_FFFF_FFFF_FFFF#) /= 0);
+      function Is_Signaling_NaN (Value : F64) return Boolean is
+        (Is_NaN (Value)
+         and then (Value_To_Bits (Value) and 16#0008_0000_0000_0000#) = 0);
+      function Quiet_NaN (Value : F64) return F64 is
+        (Bits_To_Value (Value_To_Bits (Value) or 16#0008_0000_0000_0000#));
+      function Reference_Min_Number
+        (Left, Right : F64) return F64
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and 16#8000_0000_0000_0000#) /= 0
+                    then Left else Right);
+         elsif Left < Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Min_Number;
+      function Reference_Max_Number
+        (Left, Right : F64) return F64
+      is
+      begin
+         if Is_Signaling_NaN (Left) then
+            return Quiet_NaN (Left);
+         elsif Is_Signaling_NaN (Right) then
+            return Quiet_NaN (Right);
+         elsif Is_NaN (Left) then
+            return Right;
+         elsif Is_NaN (Right) then
+            return Left;
+         elsif Left = 0.0 and then Right = 0.0 then
+            return (if (Value_To_Bits (Left) and 16#8000_0000_0000_0000#) = 0
+                    then Left else Right);
+         elsif Left > Right then
+            return Left;
+         else
+            return Right;
+         end if;
+      end Reference_Max_Number;
+      function Reference_Reduce_Add
+        (Values : Wide.Lane_Values_F64x4) return F64
+      is
+         Result : F64 := 0.0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add;
+      function Reference_Reduce_Min_Number
+        (Values : Wide.Lane_Values_F64x4) return F64
+      is
+         Result : F64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 range Values'First + 1 .. Values'Last loop
+            Result := Reference_Min_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Min_Number;
+      function Reference_Reduce_Max_Number
+        (Values : Wide.Lane_Values_F64x4) return F64
+      is
+         Result : F64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 range Values'First + 1 .. Values'Last loop
+            Result := Reference_Max_Number (Result, Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Reduce_Max_Number;
+      function Same_Reduction
+        (Actual, Expected : F64) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+           and then (Value_To_Bits (Actual) and 16#0008_0000_0000_0000#) /= 0
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Reductions
+        (Values : Wide.Lane_Values_F64x4; Context : String)
+      is
+         Value : constant Wide.F64x4 := Wide.From_Lanes (Values);
+      begin
+         Check (Same_Reduction (Wide.Reduce_Add (Value),
+                                Reference_Reduce_Add (Values))
+           and then Same_Reduction (Native.Reduce_Add (Value),
+                                    Reference_Reduce_Add (Values))
+           and then Same_Reduction (Wide.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Native.Reduce_Min_Number (Value),
+                                    Reference_Reduce_Min_Number (Values))
+           and then Same_Reduction (Wide.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values))
+           and then Same_Reduction (Native.Reduce_Max_Number (Value),
+                                    Reference_Reduce_Max_Number (Values)),
+           "F64x4 independent reduction oracle " & Context);
+      end Check_Reductions;
 
       function Reference_Compress
         (Values : Wide.Lane_Values_F64x4; Bits : Wide.Mask_Bits_64x4)
@@ -7444,6 +7687,29 @@ procedure Wide_Tests is
       Check (Value_To_Bits (Wide.Reduce_Add (Wide.Splat (Bits_To_Value (16#8000_0000_0000_0000#)))) = 0
         and then Value_To_Bits (Native.Reduce_Add (Native.Splat (Bits_To_Value (16#8000_0000_0000_0000#)))) = 0,
         "F64x4 reduction positive-zero start");
+      Check (Same_Reduction (Wide.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Add (A), Reference_Reduce_Add (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Min_Number (A), Reference_Reduce_Min_Number (A_Lanes))
+        and then Same_Reduction (Wide.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes))
+        and then Same_Reduction (Native.Reduce_Max_Number (A), Reference_Reduce_Max_Number (A_Lanes)),
+        "F64x4 independent ordinary reduction oracle");
+      Check (Same_Reduction (Wide.Reduce_Add (Order_Vector),
+                              Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Add (Order_Vector),
+                                 Reference_Reduce_Add (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Min_Number (Order_Vector),
+                                 Reference_Reduce_Min_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Wide.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector)))
+        and then Same_Reduction (Native.Reduce_Max_Number (Order_Vector),
+                                 Reference_Reduce_Max_Number (Wide.To_Lanes (Order_Vector))),
+        "F64x4 independent signaling-NaN reduction oracle");
+      Check_Reductions (Special_Lanes, "fixed IEEE categories");
+      Check_Reductions (Compaction_Extra_Lanes,
+                        "fixed signaling NaN and subnormal categories");
       for Count in Wide.Lane_Count_64x4 loop
          Data := [others => 0.0];
          Wide.Store_Partial (Data, Data'First, Count, A);
@@ -7726,10 +7992,20 @@ procedure Wide_Tests is
             Check (Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "F64x4 randomized slides" & Iteration'Image);
-            Check (Value_To_Bits (Native.Reduce_Add (R_A)) = Value_To_Bits (Wide.Reduce_Add (R_A))
-              and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
-              and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),
-              "F64x4 randomized reductions" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_A), Reference_Reduce_Add (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_A), Reference_Reduce_Min_Number (R_A_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_A), Reference_Reduce_Max_Number (R_A_Lanes)),
+              "F64x4 randomized finite reduction oracle" & Iteration'Image);
+            Check (Same_Reduction (Wide.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Add (R_Bits), Reference_Reduce_Add (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Min_Number (R_Bits), Reference_Reduce_Min_Number (R_Bit_Lanes))
+              and then Same_Reduction (Wide.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes))
+              and then Same_Reduction (Native.Reduce_Max_Number (R_Bits), Reference_Reduce_Max_Number (R_Bit_Lanes)),
+              "F64x4 randomized raw-bit reduction oracle" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (R_Bits);
          Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (R_Bits);

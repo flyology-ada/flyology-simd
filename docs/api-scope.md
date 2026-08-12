@@ -250,8 +250,8 @@ splats each scalar result, combines the two vectors with selected 128-bit
 `Add_Wrap`, `Min`, or `Max`, and extracts lane 0. These integer operations are
 associative, so this grouping preserves the portable Wide result. Floating
 reductions do not use this grouping. They combine lanes in ascending lane
-order. Their NaN rules, signed-zero rules, and rounding points remain
-observable parts of the contract.
+order and do not reduce the two private parts independently. Their NaN rules,
+signed-zero rules, and rounding points remain observable parts of the contract.
 
 ## Floating-point contract
 

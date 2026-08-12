@@ -34,6 +34,11 @@ PERMUTE_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-permut
 PERMUTE_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-permute_mechanism.adb"
 PERMUTE_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-permute_mechanism.adb"
 PERMUTE_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-permute_mechanism.adb"
+FLOAT_REDUCE_SPEC = ROOT / "src" / "flyology_simd-wide-float_reduce_mechanism.ads"
+FLOAT_REDUCE_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-float_reduce_mechanism.adb"
+FLOAT_REDUCE_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-float_reduce_mechanism.adb"
+FLOAT_REDUCE_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_reduce_mechanism.adb"
+FLOAT_REDUCE_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_reduce_mechanism.adb"
 
 
 @dataclass(frozen=True)
@@ -266,7 +271,19 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     elif operation in {
         "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
     }:
-        mechanism = "AArch64 and x86-64 use portable Ada composition"
+        if operation == "Reduce_Add":
+            mechanism = (
+                "AArch64 uses a dedicated ordered Advanced SIMD sequence "
+                "that starts from positive zero and visits lanes in ascending "
+                "order; x86-64 uses portable Ada composition"
+            )
+        else:
+            instruction = "fminnm" if operation == "Reduce_Min_Number" else "fmaxnm"
+            mechanism = (
+                "AArch64 uses a dedicated ordered Advanced SIMD sequence with "
+                f"scalar {instruction} operations that visits lanes in ascending "
+                "order; x86-64 uses portable Ada composition"
+            )
     else:
         mechanism = "AArch64 and x86-64 use portable Ada code"
     if "; x86-64 " in mechanism:
@@ -845,11 +862,15 @@ def scalar_movement_body(f: Family, prefix: str) -> list[str]:
     zero = "0.0" if f.floating else "0"
     reductions = []
     if f.floating:
-        reductions = [
+        reductions = ([
             f"   function Reduce_Add (Value : {f.vector}) return {f.scalar} is\n      Lanes : constant {vals} := To_Lanes (Value);\n      Result : {f.scalar} := 0.0;\n   begin\n      for Lane in {f.index} loop Result := Result + Lanes (Lane); end loop;\n      return Result;\n   end Reduce_Add;",
             f"   function Reduce_Min_Number (Value : {f.vector}) return {f.scalar} is\n      Result : {f.scalar} := Extract (Value, 0);\n   begin\n      for Lane in 1 .. {total - 1} loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Min_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;\n      return Result;\n   end Reduce_Min_Number;",
             f"   function Reduce_Max_Number (Value : {f.vector}) return {f.scalar} is\n      Result : {f.scalar} := Extract (Value, 0);\n   begin\n      for Lane in 1 .. {total - 1} loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Max_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;\n      return Result;\n   end Reduce_Max_Number;",
-        ]
+        ] if prefix == "Flyology_SIMD" else [
+            f"   function Reduce_Add (Value : {f.vector}) return {f.scalar} is\n     (Float_Reduce_Mechanism.Reduce_Add (Value));",
+            f"   function Reduce_Min_Number (Value : {f.vector}) return {f.scalar} is\n     (Float_Reduce_Mechanism.Reduce_Min_Number (Value));",
+            f"   function Reduce_Max_Number (Value : {f.vector}) return {f.scalar} is\n     (Float_Reduce_Mechanism.Reduce_Max_Number (Value));",
+        ])
     else:
         reduction_prefix = (
             "Flyology_SIMD" if prefix == "Flyology_SIMD"
@@ -1039,6 +1060,7 @@ def native_body_text() -> str:
     return f"""with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
+with Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with Flyology_SIMD.Wide.Permute_Mechanism;
 with System.Storage_Elements;
@@ -1046,14 +1068,13 @@ with System.Storage_Elements;
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
+   package Float_Reduce_Mechanism renames Flyology_SIMD.Wide.Float_Reduce_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    package Permute_Mechanism renames Flyology_SIMD.Wide.Permute_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
-   use type F32;
-   use type F64;
 {chr(10).join(body_list)}
 
 {conversions}
@@ -1083,6 +1104,232 @@ is
 
 {chr(10).join(declarations)}
 end Flyology_SIMD.Wide.Compact_Mechanism;
+"""
+
+
+def float_reduce_spec_text() -> str:
+    return """private package Flyology_SIMD.Wide.Float_Reduce_Mechanism
+  with Preelaborate
+is
+   --  Target-selected ordered Wide floating-point reductions.
+
+   function Reduce_Add (Value : F32x8) return F32
+     with Inline_Always;
+   --  Add lanes from lane zero through lane seven, starting from positive zero.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 sum.
+   function Reduce_Min_Number (Value : F32x8) return F32
+     with Inline_Always;
+   --  Apply Min_Number from lane zero through lane seven.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 minimum-number result.
+   function Reduce_Max_Number (Value : F32x8) return F32
+     with Inline_Always;
+   --  Apply Max_Number from lane zero through lane seven.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 maximum-number result.
+
+   function Reduce_Add (Value : F64x4) return F64
+     with Inline_Always;
+   --  Add lanes from lane zero through lane three, starting from positive zero.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 sum.
+   function Reduce_Min_Number (Value : F64x4) return F64
+     with Inline_Always;
+   --  Apply Min_Number from lane zero through lane three.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 minimum-number result.
+   function Reduce_Max_Number (Value : F64x4) return F64
+     with Inline_Always;
+   --  Apply Max_Number from lane zero through lane three.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 maximum-number result.
+end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+"""
+
+
+def float_reduce_composed_body_text() -> str:
+    return """package body Flyology_SIMD.Wide.Float_Reduce_Mechanism is
+   function Reduce_Add (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Max_Number (Value));
+   function Reduce_Add (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Max_Number (Value));
+end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+"""
+
+
+def float_reduce_aarch64_body_text() -> str:
+    return """with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Float_Reduce_Mechanism is
+   use System.Machine_Code;
+
+   function Reduce_Add (Value : F32x8) return F32 is
+      Result : F32;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov s2, wzr" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s0" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[1]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[2]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[3]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s1" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[1]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[2]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[3]" & ASCII.LF & ASCII.HT &
+           "fadd s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "str s2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Add;
+
+   function Reduce_Min_Number (Value : F32x8) return F32 is
+      Result : F32;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov s2, s0" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[1]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[2]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[3]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s1" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[1]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[2]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[3]" & ASCII.LF & ASCII.HT &
+           "fminnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "str s2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Min_Number;
+
+   function Reduce_Max_Number (Value : F32x8) return F32 is
+      Result : F32;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov s2, s0" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[1]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[2]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v0.s[3]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s1" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[1]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[2]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "dup v3.4s, v1.s[3]" & ASCII.LF & ASCII.HT &
+           "fmaxnm s2, s2, s3" & ASCII.LF & ASCII.HT &
+           "str s2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Max_Number;
+
+   function Reduce_Add (Value : F64x4) return F64 is
+      Result : F64;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov d2, xzr" & ASCII.LF & ASCII.HT &
+           "fadd d2, d2, d0" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v0.d[1]" & ASCII.LF & ASCII.HT &
+           "fadd d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "fadd d2, d2, d1" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v1.d[1]" & ASCII.LF & ASCII.HT &
+           "fadd d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "str d2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Add;
+
+   function Reduce_Min_Number (Value : F64x4) return F64 is
+      Result : F64;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov d2, d0" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v0.d[1]" & ASCII.LF & ASCII.HT &
+           "fminnm d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "fminnm d2, d2, d1" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v1.d[1]" & ASCII.LF & ASCII.HT &
+           "fminnm d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "str d2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Min_Number;
+
+   function Reduce_Max_Number (Value : F64x4) return F64 is
+      Result : F64;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "fmov d2, d0" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v0.d[1]" & ASCII.LF & ASCII.HT &
+           "fmaxnm d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "fmaxnm d2, d2, d1" & ASCII.LF & ASCII.HT &
+           "dup v3.2d, v1.d[1]" & ASCII.LF & ASCII.HT &
+           "fmaxnm d2, d2, d3" & ASCII.LF & ASCII.HT &
+           "str d2, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Reduce_Max_Number;
+end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 """
 
 
@@ -1698,6 +1945,11 @@ def main() -> None:
         COMPACT_COMPOSED: compact_composed_body_text(),
         COMPACT_AVX2: compact_composed_body_text(),
         COMPACT_INVALID: compact_composed_body_text(),
+        FLOAT_REDUCE_SPEC: float_reduce_spec_text(),
+        FLOAT_REDUCE_AARCH64: float_reduce_aarch64_body_text(),
+        FLOAT_REDUCE_COMPOSED: float_reduce_composed_body_text(),
+        FLOAT_REDUCE_AVX2: float_reduce_composed_body_text(),
+        FLOAT_REDUCE_INVALID: float_reduce_composed_body_text(),
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),

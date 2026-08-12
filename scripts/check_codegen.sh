@@ -26,6 +26,7 @@ slide_probe_object="$probe_root/slide_codegen_probe.o"
 permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
+wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -45,6 +46,7 @@ disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
 disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
+disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -57,6 +59,7 @@ disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
+nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -152,6 +155,30 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        extract_symbol 'wide_float_reduction_codegen_probe__f32_reduce_add' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f32-reduce-add.txt"
+        extract_symbol 'wide_float_reduction_codegen_probe__f32_reduce_min_number' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f32-reduce-min.txt"
+        extract_symbol 'wide_float_reduction_codegen_probe__f64_reduce_max_number' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f64-reduce-max.txt"
+        require_count 'fadd[[:space:]]+s' 8 "$temporary/wide-f32-reduce-add.txt" \
+          'eight ordered scalar F32 additions in the Wide reduction caller'
+        require_count 'fminnm[[:space:]]+s' 7 "$temporary/wide-f32-reduce-min.txt" \
+          'seven ordered scalar F32 minimum-number steps in the Wide reduction caller'
+        require_count 'fmaxnm[[:space:]]+d' 3 "$temporary/wide-f64-reduce-max.txt" \
+          'three ordered scalar F64 maximum-number steps in the Wide reduction caller'
+        for floating_reduction_probe in \
+          wide-f32-reduce-add wide-f32-reduce-min wide-f64-reduce-max; do
+            require_count 'ldr[[:space:]]+q' 2 \
+              "$temporary/${floating_reduction_probe}.txt" \
+              "two Wide input-half loads in ${floating_reduction_probe}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__(wide__)?reduce_' \
+              "$temporary/${floating_reduction_probe}.txt" \
+              "out-of-line or portable reduction in ${floating_reduction_probe}"
+        done
         require_pattern 'cmeq' "$temporary/native.txt" 'NEON byte comparison'
         require_pattern 'add.*16b' "$temporary/native.txt" 'NEON wrapping byte add'
         require_pattern 'sub.*16b' "$temporary/native.txt" 'NEON wrapping byte subtract'
@@ -398,6 +425,18 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        require_pattern 'flyology_simd__wide__reduce_add' \
+          "$temporary/wide-float-reduction-undefined.txt" \
+          'portable ordered F32 addition reduction on x86-64'
+        require_pattern 'flyology_simd__wide__reduce_min_number' \
+          "$temporary/wide-float-reduction-undefined.txt" \
+          'portable ordered F32 minimum-number reduction on x86-64'
+        require_pattern 'flyology_simd__wide__reduce_max_number' \
+          "$temporary/wide-float-reduction-undefined.txt" \
+          'portable ordered F64 maximum-number reduction on x86-64'
+        forbid_pattern 'flyology_simd__wide__native__reduce_' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          'Wide.Native floating-reduction dispatcher retained on x86-64'
         : >"$temporary/baseline.txt"
         for object in "$object_root"/*.o; do
             case "$object" in
