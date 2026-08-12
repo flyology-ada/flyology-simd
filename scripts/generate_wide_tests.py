@@ -554,6 +554,9 @@ def integer_test(f: Family) -> str:
 '''
     byte_oracle_checks = ""
     byte_boundary_checks = ""
+    byte_predicate_declarations = ""
+    byte_predicate_checks = ""
+    byte_predicate_randomized = ""
     if f.bits == 8:
         if f.signed:
             wrap = lambda operator: (
@@ -581,6 +584,158 @@ def integer_test(f: Family) -> str:
             )
             bit = lambda operator: f"R_A_Lanes (Lane) {operator} R_B_Lanes (Lane)"
             complement = "not R_A_Lanes (Lane)"
+        byte_predicate_declarations = f'''
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.{f.values}; Kind : Comparison_Kind)
+         return Wide.{f.mask_bits}
+      is
+         Result : Wide.{f.mask_bits} := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.{f.mask_bits} (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.{f.mask_bits}; If_True, If_False : Wide.{f.values})
+         return Wide.{f.values}
+      is
+        ([for Lane in Wide.{f.index} =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+'''
+        pair_value = (
+            f"Bits_To_Value (U8 (Pair / 256))"
+            if f.signed else "U8 (Pair / 256)"
+        )
+        right_value = (
+            f"Bits_To_Value (U8 (Pair mod 256))"
+            if f.signed else "U8 (Pair mod 256)"
+        )
+        byte_predicate_checks = f'''
+      --  Cover all 65,536 ordered byte pairs. Each batch places 32
+      --  consecutive pairs in distinct lanes and checks every relation
+      --  against this independent lane oracle.
+      for Batch in Natural range 0 .. 2_047 loop
+         declare
+            Left_Lanes : constant Wide.{f.values} :=
+              [for Lane in Wide.{f.index} =>
+                 (declare
+                    Pair : constant Natural := Batch * 32 + Lane;
+                  begin {pair_value})];
+            Right_Lanes : constant Wide.{f.values} :=
+              [for Lane in Wide.{f.index} =>
+                 (declare
+                    Pair : constant Natural := Batch * 32 + Lane;
+                  begin {right_value})];
+            Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Lanes);
+            Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Lanes);
+            Equal_Bits : constant Wide.{f.mask_bits} :=
+              Reference_Comparison (Left_Lanes, Right_Lanes, Is_Equal);
+            Less_Bits : constant Wide.{f.mask_bits} :=
+              Reference_Comparison (Left_Lanes, Right_Lanes, Is_Less);
+            Less_Equal_Bits : constant Wide.{f.mask_bits} :=
+              Reference_Comparison (Left_Lanes, Right_Lanes, Is_Less_Equal);
+            Greater_Bits : constant Wide.{f.mask_bits} :=
+              Reference_Comparison (Left_Lanes, Right_Lanes, Is_Greater);
+            Greater_Equal_Bits : constant Wide.{f.mask_bits} :=
+              Reference_Comparison (Left_Lanes, Right_Lanes, Is_Greater_Equal);
+         begin
+            Check (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+              and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits,
+              "{f.vector} exhaustive equality" & Batch'Image);
+            Check (Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+              and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+              and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+              and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits,
+              "{f.vector} exhaustive less comparisons" & Batch'Image);
+            Check (Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+              and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+              and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+              and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+              "{f.vector} exhaustive greater comparisons" & Batch'Image);
+         end;
+      end loop;
+      for Lane in Wide.{f.index} loop
+         declare
+            Bits : constant Wide.{f.mask_bits} := Interfaces.Shift_Left
+              (Wide.{f.mask_bits} (1), Lane);
+            Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Bits);
+            Expected : constant Wide.{f.values} :=
+              Reference_Select (Bits, A_Lanes, B_Lanes);
+         begin
+            Check (Wide.To_Lanes (Wide.Select_Value (Mask, A, B)) = Expected
+              and then Native.To_Lanes (Native.Select_Value (Mask, A, B)) = Expected,
+              "{f.vector} individual selection mask" & Lane'Image);
+         end;
+      end loop;
+      declare
+         Selection_Patterns : constant array (Natural range 0 .. 5) of
+           Wide.{f.mask_bits} :=
+             [0, Wide.{f.mask_bits}'Last, 16#0000_FFFF#, 16#FFFF_0000#,
+              16#AAAA_AAAA#, 16#5555_5555#];
+      begin
+         for Pattern of Selection_Patterns loop
+            declare
+               Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Pattern);
+               Expected : constant Wide.{f.values} :=
+                 Reference_Select (Pattern, A_Lanes, B_Lanes);
+            begin
+               Check (Wide.To_Lanes (Wide.Select_Value (Mask, A, B)) = Expected
+                 and then Native.To_Lanes (Native.Select_Value (Mask, A, B)) = Expected,
+                 "{f.vector} fixed selection mask" & Pattern'Image);
+            end;
+         end loop;
+      end;
+'''
+        byte_predicate_randomized = f'''
+            declare
+               R_A_Lanes : constant Wide.{f.values} := Wide.To_Lanes (R_A);
+               R_B_Lanes : constant Wide.{f.values} := Wide.To_Lanes (R_B);
+               R_Bits : constant Wide.{f.mask_bits} := Wide.To_Bit_Mask (R_Mask);
+               Select_Expected : constant Wide.{f.values} :=
+                 Reference_Select (R_Bits, R_A_Lanes, R_B_Lanes);
+            begin
+               Check (Wide.To_Bit_Mask (Wide.Equal (R_A, R_B)) =
+                 Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Equal)
+                 and then Native.To_Bit_Mask (Native.Equal (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Equal)
+                 and then Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Less)
+                 and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Less),
+                 "{f.vector} independent randomized strict predicates" & Iteration'Image);
+               Check (Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B)) =
+                 Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Less_Equal)
+                 and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Less_Equal)
+                 and then Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Greater)
+                 and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Greater)
+                 and then Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Greater_Equal)
+                 and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) =
+                   Reference_Comparison (R_A_Lanes, R_B_Lanes, Is_Greater_Equal),
+                 "{f.vector} independent randomized inclusive predicates" & Iteration'Image);
+               Check (Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B)) = Select_Expected
+                 and then Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Select_Expected,
+                 "{f.vector} independent randomized selection" & Iteration'Image);
+            end;
+'''
         byte_oracle_checks = f'''
             declare
                R_A_Lanes : constant Wide.{f.values} := Wide.To_Lanes (R_A);
@@ -701,6 +856,7 @@ def integer_test(f: Family) -> str:
    procedure Test_{f.vector} is
 {('      function Bits_To_Value is new Ada.Unchecked_Conversion (' + unsigned + ', ' + f.scalar + ');') if f.signed else ''}
 {('      function Value_To_Bits is new Ada.Unchecked_Conversion (' + f.scalar + ', ' + unsigned + ');') if f.signed else ''}
+{byte_predicate_declarations}
       function Random_Lanes return Wide.{f.values} is
          Result : Wide.{f.values};
       begin
@@ -768,6 +924,7 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
 {byte_boundary_checks}
+{byte_predicate_checks}
 {lookup_checks}
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, {f.bits})) = Wide.{f.values}'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, {f.bits + 7})) = Wide.{f.values}'[others => 0],
@@ -1009,6 +1166,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
+{byte_predicate_randomized}
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)){' and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift))' if f.signed else ''},
               "{f.vector} randomized shifts" & Iteration'Image);

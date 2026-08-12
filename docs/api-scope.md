@@ -182,10 +182,16 @@ operation does not mask or reduce an index before the lookup.
 
 The public operation semantics do not change with the selected mechanism.
 `FLYOLOGY_SIMD_WIDE_BACKEND=composed` is the default. The `avx2` value selects
-256-bit implementations for the `U8x32` and `I8x32` `Add_Wrap`,
+256-bit mechanisms for the `U8x32` and `I8x32` `Add_Wrap`,
 `Subtract_Wrap`, `Multiply_Wrap`, `Add_Saturate`, `Subtract_Saturate`,
-`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, and `Max`
-overloads. It also selects the 256-bit `U8x32` lookup implementation.
+`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, `Max`,
+`Equal`, `Less_Than`, `Less_Equal`, `Greater_Than`, `Greater_Equal`, and
+`Select_Value` overloads. It also selects the 256-bit `U8x32` lookup
+implementation. Equality, greater-than, and selection have isolated 256-bit
+subprograms. Less-than reverses the greater-than operands. The inclusive
+comparisons use exact complements: `Less_Equal (Left, Right)` complements
+`Greater_Than (Left, Right)`, and `Greater_Equal (Left, Right)` complements
+`Greater_Than (Right, Left)`.
 With `FLYOLOGY_SIMD_ARCH=x86_64` and `FLYOLOGY_SIMD_AVX2=enabled`, the value
 `avx2` selects these implementations at compile time. The build rejects other
 configurations that select this backend. The library performs no runtime

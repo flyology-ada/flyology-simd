@@ -74,9 +74,9 @@ Wide values have a private pair-of-128 implementation.
 `Flyology_SIMD.Wide.Native` composes selected 128-bit backend operations on
 the two parts except for selected x86-64 AVX2 byte operations. The AVX2
 selection implements 256-bit `U8x32` and `I8x32` wrapping arithmetic,
-saturating arithmetic, bitwise operations, minimum, and maximum. It also
-implements the 256-bit `U8x32` table lookup. No other Wide operation has a
-256-bit instruction claim. The
+saturating arithmetic, bitwise operations, minimum, maximum, comparison, and
+value selection. It also implements the 256-bit `U8x32` table lookup. No other
+Wide operation has a 256-bit instruction claim. The
 current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
@@ -116,6 +116,16 @@ independent lane result. Code-generation checks inspect all 22 overloads and
 require `vzeroupper` in each subprogram. Wrapping byte multiplication uses
 `vpmullw` plus word masks and shifts because AVX2 has no packed byte multiply
 instruction.
+
+For both signed and unsigned bytes, separate exhaustive tests cover all 65,536
+ordered byte pairs for equality and the four ordered comparisons. Individual
+lane masks, fixed masks, and deterministic pseudorandom masks check value
+selection with an independent lane oracle. The AVX2 code-generation gate
+requires `vpcmpeqb` and `vpmovmskb` for equality, `vpcmpgtb` and
+`vpmovmskb` for ordering, and mask expansion plus Boolean selection
+instructions for `Select_Value`. Less-than reverses the greater-than operands.
+`Less_Equal (Left, Right)` complements `Greater_Than (Left, Right)`.
+`Greater_Equal (Left, Right)` complements `Greater_Than (Right, Left)`.
 
 `FLYOLOGY_SIMD_WIDE_BACKEND` accepts `composed`, the default, or `avx2`.
 The `avx2` value selects the optional Wide mechanism subprograms only with

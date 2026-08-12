@@ -111,4 +111,82 @@ is
    --  @param Left The left operands.
    --  @param Right The right operands.
    --  @return The corresponding maxima.
+
+   function Equal (Left, Right : U8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding unsigned lanes for equality.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when lane n is equal.
+   function Equal (Left, Right : I8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding signed lanes for equality.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when lane n is equal.
+   function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding unsigned lanes using unsigned ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) < Right (n).
+   function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding signed lanes using signed ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) < Right (n).
+   function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding unsigned lanes using unsigned ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) <= Right (n).
+   function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding signed lanes using signed ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) <= Right (n).
+   function Greater_Than (Left, Right : U8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding unsigned lanes using unsigned ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) > Right (n).
+   function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding signed lanes using signed ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) > Right (n).
+   function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding unsigned lanes using unsigned ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) >= Right (n).
+   function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32
+     with Inline_Always;
+   --  Compare corresponding signed lanes using signed ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return A compact mask with bit n set exactly when Left (n) >= Right (n).
+
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32
+     with Inline_Always;
+   --  Select unsigned lanes from If_True where bit n is set, else If_False.
+   --  @param Bits The compact semantic selection mask.
+   --  @param If_True The lanes selected by set bits.
+   --  @param If_False The lanes selected by clear bits.
+   --  @return The selected lanes.
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32
+     with Inline_Always;
+   --  Select signed lanes from If_True where bit n is set, else If_False.
+   --  @param Bits The compact semantic selection mask.
+   --  @param If_True The lanes selected by set bits.
+   --  @param If_False The lanes selected by clear bits.
+   --  @return The selected lanes.
 end Flyology_SIMD.Wide.Byte_Mechanism;

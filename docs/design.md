@@ -152,8 +152,13 @@ With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, the signed and unsigned Wide byte
 operations use the selected 128-bit operations on each private part. AArch64
 uses the same composition. With the AVX2 selection, `Add_Wrap`,
 `Subtract_Wrap`, `Multiply_Wrap`, `Add_Saturate`, `Subtract_Saturate`,
-`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, and `Max`
-use isolated 256-bit subprograms for `U8x32` and `I8x32`.
+`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, `Max`,
+`Equal`, the four ordered comparisons, and `Select_Value` use isolated
+256-bit mechanisms for `U8x32` and `I8x32`. Equality and greater-than have
+dedicated comparison subprograms. Less-than swaps the greater-than operands.
+`Less_Equal (Left, Right)` complements `Greater_Than (Left, Right)`.
+`Greater_Equal (Left, Right)` complements `Greater_Than (Right, Left)`.
+`Select_Value` expands the compact mask and selects one value in each lane.
 AVX2 has no packed byte multiplication instruction. `Multiply_Wrap` separates
 the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
 product to eight bits, and restores the original byte positions.

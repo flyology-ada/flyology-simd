@@ -529,9 +529,22 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
             out.append(pair_function(name, f, f"Value : {f.vector}; Count : Natural", "Value.Low, Count", "Value.High, Count", prefix=p))
     comparisons = ("Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal") + (("Unordered",) if f.floating else ())
     for name in comparisons:
-        out.append(pair_function(name, f, f"Left, Right : {f.vector}", "Left.Low, Right.Low", "Left.High, Right.High", result=f.mask, prefix=p))
-    out.append(pair_function("Select_Value", f, f"Mask : {f.mask}; If_True, If_False : {f.vector}",
-                             "Mask.Low, If_True.Low, If_False.Low", "Mask.High, If_True.High, If_False.High", prefix=p))
+        if p != "Flyology_SIMD" and f.vector in ("U8x32", "I8x32"):
+            out.append(
+                f"   function {name} (Left, Right : {f.vector}) return {f.mask} is\n"
+                f"     (Mask_From_Bit_Mask (Byte_Mechanism.{name} (Left, Right)));"
+            )
+        else:
+            out.append(pair_function(name, f, f"Left, Right : {f.vector}", "Left.Low, Right.Low", "Left.High, Right.High", result=f.mask, prefix=p))
+    if p != "Flyology_SIMD" and f.vector in ("U8x32", "I8x32"):
+        out.append(
+            f"   function Select_Value (Mask : {f.mask}; If_True, If_False : {f.vector}) return {f.vector} is\n"
+            "     (Byte_Mechanism.Select_Value\n"
+            "        (To_Bit_Mask (Mask), If_True, If_False));"
+        )
+    else:
+        out.append(pair_function("Select_Value", f, f"Mask : {f.mask}; If_True, If_False : {f.vector}",
+                                 "Mask.Low, If_True.Low, If_False.Low", "Mask.High, If_True.High, If_False.High", prefix=p))
     out += scalar_movement_body(f)
     if first_shape:
         out += mask_body(f, p)

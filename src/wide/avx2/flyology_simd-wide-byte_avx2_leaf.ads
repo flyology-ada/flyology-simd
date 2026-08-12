@@ -111,4 +111,40 @@ is
    --  @param Left The left operands.
    --  @param Right The right operands.
    --  @return The corresponding maxima.
+
+   function Equal (Left, Right : U8x32) return Mask_Bits_8x32;
+   --  Compare unsigned byte lanes for equality and extract compact truths.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return Bit n is set exactly when lane n is equal.
+   function Equal (Left, Right : I8x32) return Mask_Bits_8x32;
+   --  Compare signed byte lanes for equality and extract compact truths.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return Bit n is set exactly when lane n is equal.
+   function Greater_Than (Left, Right : U8x32) return Mask_Bits_8x32;
+   --  Compare unsigned byte lanes after the sign-bit ordering transform.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return Bit n is set exactly when Left (n) is greater than Right (n).
+   function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32;
+   --  Compare signed byte lanes in their native signed ordering.
+   --  @param Left The left operands.
+   --  @param Right The right operands.
+   --  @return Bit n is set exactly when Left (n) is greater than Right (n).
+
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32;
+   --  Expand compact truths and select corresponding unsigned lanes.
+   --  @param Bits The compact semantic selection mask.
+   --  @param If_True The lanes selected by set bits.
+   --  @param If_False The lanes selected by clear bits.
+   --  @return The selected lanes.
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32;
+   --  Expand compact truths and select corresponding signed lanes.
+   --  @param Bits The compact semantic selection mask.
+   --  @param If_True The lanes selected by set bits.
+   --  @param If_False The lanes selected by clear bits.
+   --  @return The selected lanes.
 end Flyology_SIMD.Wide.Byte_AVX2_Leaf;

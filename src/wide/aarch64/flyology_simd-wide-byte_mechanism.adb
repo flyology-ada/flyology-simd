@@ -1,7 +1,9 @@
 with Flyology_SIMD.Backends.Native;
+with Interfaces;
 
 package body Flyology_SIMD.Wide.Byte_Mechanism is
    package Native renames Flyology_SIMD.Backends.Native;
+   use type Interfaces.Unsigned_32;
 
    function Add_Wrap (Left, Right : U8x32) return U8x32 is
      ((Native.Add_Wrap (Left.Low, Right.Low),
@@ -63,4 +65,61 @@ package body Flyology_SIMD.Wide.Byte_Mechanism is
      ((Native.Max (Left.Low, Right.Low), Native.Max (Left.High, Right.High)));
    function Max (Left, Right : I8x32) return I8x32 is
      ((Native.Max (Left.Low, Right.Low), Native.Max (Left.High, Right.High)));
+
+   function Combine
+     (Low, High : Interfaces.Unsigned_16) return Mask_Bits_8x32 is
+     (Mask_Bits_8x32 (Low) or
+      Interfaces.Shift_Left (Mask_Bits_8x32 (High), 16));
+
+   function Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Equal (Left.High, Right.High))));
+   function Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Equal (Left.High, Right.High))));
+   function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Less_Than (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Less_Than (Left.High, Right.High))));
+   function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Less_Than (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Less_Than (Left.High, Right.High))));
+   function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Less_Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Less_Equal (Left.High, Right.High))));
+   function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Less_Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Less_Equal (Left.High, Right.High))));
+   function Greater_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Greater_Than (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Greater_Than (Left.High, Right.High))));
+   function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Greater_Than (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Greater_Than (Left.High, Right.High))));
+   function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Greater_Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Greater_Equal (Left.High, Right.High))));
+   function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Combine (Native.To_Bit_Mask (Native.Greater_Equal (Left.Low, Right.Low)),
+       Native.To_Bit_Mask (Native.Greater_Equal (Left.High, Right.High))));
+
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32 is
+     ((Native.Select_Value
+         (Native.Mask_From_Bit_Mask
+            (Interfaces.Unsigned_16 (Bits and 16#FFFF#)),
+          If_True.Low, If_False.Low),
+       Native.Select_Value
+         (Native.Mask_From_Bit_Mask
+            (Interfaces.Unsigned_16 (Interfaces.Shift_Right (Bits, 16))),
+          If_True.High, If_False.High)));
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32 is
+     ((Native.Select_Value
+         (Native.Mask_From_Bit_Mask
+            (Interfaces.Unsigned_16 (Bits and 16#FFFF#)),
+          If_True.Low, If_False.Low),
+       Native.Select_Value
+         (Native.Mask_From_Bit_Mask
+            (Interfaces.Unsigned_16 (Interfaces.Shift_Right (Bits, 16))),
+          If_True.High, If_False.High)));
 end Flyology_SIMD.Wide.Byte_Mechanism;

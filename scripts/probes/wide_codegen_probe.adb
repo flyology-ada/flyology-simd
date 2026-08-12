@@ -39,4 +39,70 @@ package body Wide_Codegen_Probe is
    function U8_Horizontal_Sum
      (Value : Flyology_SIMD.Wide.U8x32) return Natural is
      (Flyology_SIMD.Wide.Native.Horizontal_Sum (Value));
+
+   function U8_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Equal (Left, Right)));
+   function U8_Less
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Less_Than (Left, Right)));
+   function U8_Less_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Less_Equal (Left, Right)));
+   function U8_Greater
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Greater_Than (Left, Right)));
+   function U8_Greater_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Greater_Equal (Left, Right)));
+   function U8_Select
+     (Bits : Flyology_SIMD.Wide.Mask_Bits_8x32;
+      If_True, If_False : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32 is
+     (Flyology_SIMD.Wide.Native.Select_Value
+        (Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits),
+         If_True, If_False));
+
+   function I8_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Equal (Left, Right)));
+   function I8_Less
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Less_Than (Left, Right)));
+   function I8_Less_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Less_Equal (Left, Right)));
+   function I8_Greater
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Greater_Than (Left, Right)));
+   function I8_Greater_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32 is
+     (Flyology_SIMD.Wide.Native.To_Bit_Mask
+        (Flyology_SIMD.Wide.Native.Greater_Equal (Left, Right)));
+   function I8_Select
+     (Bits : Flyology_SIMD.Wide.Mask_Bits_8x32;
+      If_True, If_False : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.I8x32 is
+     (Flyology_SIMD.Wide.Native.Select_Value
+        (Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits),
+         If_True, If_False));
 end Wide_Codegen_Probe;

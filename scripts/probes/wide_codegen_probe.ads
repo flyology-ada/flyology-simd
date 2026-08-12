@@ -24,4 +24,42 @@ package Wide_Codegen_Probe is
       return Flyology_SIMD.Wide.U8x32;
    function U8_Horizontal_Sum
      (Value : Flyology_SIMD.Wide.U8x32) return Natural;
+   function U8_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function U8_Less
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function U8_Less_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function U8_Greater
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function U8_Greater_Equal
+     (Left, Right : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function U8_Select
+     (Bits : Flyology_SIMD.Wide.Mask_Bits_8x32;
+      If_True, If_False : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32;
+   function I8_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function I8_Less
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function I8_Less_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function I8_Greater
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function I8_Greater_Equal
+     (Left, Right : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.Mask_Bits_8x32;
+   function I8_Select
+     (Bits : Flyology_SIMD.Wide.Mask_Bits_8x32;
+      If_True, If_False : Flyology_SIMD.Wide.I8x32)
+      return Flyology_SIMD.Wide.I8x32;
 end Wide_Codegen_Probe;

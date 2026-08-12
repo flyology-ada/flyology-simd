@@ -1,7 +1,9 @@
 with Flyology_SIMD.Wide.Byte_AVX2_Leaf;
+with Interfaces;
 
 package body Flyology_SIMD.Wide.Byte_Mechanism is
    package Leaf renames Flyology_SIMD.Wide.Byte_AVX2_Leaf;
+   use type Interfaces.Unsigned_32;
 
    function Add_Wrap (Left, Right : U8x32) return U8x32 is
      (Leaf.Add_Wrap (Left, Right));
@@ -47,4 +49,31 @@ package body Flyology_SIMD.Wide.Byte_Mechanism is
      (Leaf.Max (Left, Right));
    function Max (Left, Right : I8x32) return I8x32 is
      (Leaf.Max (Left, Right));
+
+   function Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Leaf.Equal (Left, Right));
+   function Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Leaf.Equal (Left, Right));
+   function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Leaf.Greater_Than (Left => Right, Right => Left));
+   function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Leaf.Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (not Leaf.Greater_Than (Left, Right));
+   function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (not Leaf.Greater_Than (Left, Right));
+   function Greater_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (Leaf.Greater_Than (Left, Right));
+   function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (Leaf.Greater_Than (Left, Right));
+   function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
+     (not Leaf.Greater_Than (Left => Right, Right => Left));
+   function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
+     (not Leaf.Greater_Than (Left => Right, Right => Left));
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32 is
+     (Leaf.Select_Value (Bits, If_True, If_False));
+   function Select_Value
+     (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32 is
+     (Leaf.Select_Value (Bits, If_True, If_False));
 end Flyology_SIMD.Wide.Byte_Mechanism;

@@ -73,8 +73,12 @@ alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
 
 The Wide backend defaults to portable composition. The optional AVX2 selection
 uses isolated 256-bit implementations for `U8x32` and `I8x32` wrapping,
-saturating, bitwise, minimum, and maximum operations. It also implements the
-`U8x32` table lookup. Before a target runs this build, CPUID must report the
+saturating, bitwise, minimum, and maximum operations. Equality, greater-than,
+and value selection use isolated 256-bit mechanisms. Less-than reverses the
+greater-than operands. `Less_Equal (Left, Right)` complements
+`Greater_Than (Left, Right)`. `Greater_Equal (Left, Right)` complements
+`Greater_Than (Right, Left)`. The AVX2 selection also implements the `U8x32`
+table lookup. Before a target runs this build, CPUID must report the
 AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.
 Select the backend with:
 
@@ -107,6 +111,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/conversions
 ./bin/table_lookup
 ./bin/wide_table_lookup
+./bin/wide_digit_classifier
 ./bin/lane_slides
 ./bin/permute_points
 ./bin/cross_block_differences

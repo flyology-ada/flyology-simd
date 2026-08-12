@@ -28,6 +28,7 @@ project Examples is
       "conversions.adb",
       "table_lookup.adb",
       "wide_table_lookup.adb",
+      "wide_digit_classifier.adb",
       "lane_slides.adb",
       "permute_points.adb",
       "cross_block_differences.adb",

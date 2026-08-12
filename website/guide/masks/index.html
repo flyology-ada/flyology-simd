@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Use comparison masks, selection, stable mask compression and expansion, compact masks, and mask reductions in Flyology SIMD."><title>Masks and selection · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/masks/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Use comparison masks, byte classification, selection, stable mask compression and expansion, compact masks, and mask reductions in Flyology SIMD."><title>Masks and selection · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/masks/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>3. Masks and selection</li></ol><h1>Keep one Boolean result for each lane</h1></div><p class="doc-hero-copy">Chapter 3 uses floating comparison masks for selection and stable mask compression and expansion. It then uses byte masks for compact position bits.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#compare">Compare lanes</a></li><li><a href="#select">Select values</a></li><li><a href="#compact">Compress selected values</a></li><li><a href="#combine">Combine masks</a></li><li><a href="#bytes">Extract byte-mask bits</a></li><li><a href="#positions">Find positions</a></li></ul></aside>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>3. Masks and selection</li></ol><h1>Keep one Boolean result for each lane</h1></div><p class="doc-hero-copy">Chapter 3 combines Wide byte comparisons in a classifier. It then uses floating masks for stable compression and byte masks for compact position bits.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#compare">Compare lanes</a></li><li><a href="#select">Select values</a></li><li><a href="#classify">Classify 32 bytes</a></li><li><a href="#compact">Compress selected values</a></li><li><a href="#combine">Combine masks</a></li><li><a href="#bytes">Extract byte-mask bits</a></li><li><a href="#positions">Find positions</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">A vector comparison returns a mask, not one Boolean. Each mask lane records the result for the corresponding value lane.</p>
         <section id="compare">
@@ -29,6 +29,41 @@ Negative : constant Mask_32x4 :=
 --  Magnitudes = [1.0, 2.0, 3.0, 4.0]</code></pre>
           <p>Mask values and value vectors are different private types. The API does not convert between them implicitly.</p>
         </section>
+        <section id="classify">
+          <h2>Classify 32 bytes with two comparisons</h2>
+          <p>An ASCII decimal digit is a byte from <code>'0'</code> through <code>'9'</code>, inclusive. The maintained example converts the 32-character text <code>"sensor 17: row 204, sample 0091."</code> to a <a data-api="Flyology_SIMD.Byte_Array"><code>Byte_Array</code></a> named <code>Data</code>. Its helper converts each character position to a <a data-api="Flyology_SIMD.U8"><code>U8</code></a>. The example renames <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> as <code>Wide</code> and <a data-api="Flyology_SIMD.Wide.Native"><code>Flyology_SIMD.Wide.Native</code></a> as <code>Native</code>. It uses the private <a data-api="Flyology_SIMD.Wide.U8x32"><code>U8x32</code></a> and <a data-api="Flyology_SIMD.Wide.Mask_8x32"><code>Mask_8x32</code></a> types.</p>
+          <p><a data-api="Flyology_SIMD.Wide.Native.Load_Unaligned" data-api-signature="Data : Byte_Array; Start : Natural) return U8x32"><code>Wide.Native.Load_Unaligned</code></a> reads all 32 bytes. The exact <a data-api="Flyology_SIMD.Wide.Native.Greater_Equal" data-api-signature="Left, Right : U8x32) return Mask_8x32"><code>Greater_Equal</code></a> and <a data-api="Flyology_SIMD.Wide.Native.Less_Equal" data-api-signature="Left, Right : U8x32) return Mask_8x32"><code>Less_Equal</code></a> overloads compare unsigned byte lanes. <a data-api="Flyology_SIMD.Wide.Native.Splat" data-api-signature="Value : U8) return U8x32"><code>Splat</code></a> repeats each boundary.</p>
+          <pre><code class="language-ada">use Flyology_SIMD;
+package Wide renames Flyology_SIMD.Wide;
+package Native renames Flyology_SIMD.Wide.Native;
+
+Values : constant Wide.U8x32 :=
+  Native.Load_Unaligned (Data, Data'First);
+At_Least_Zero : constant Wide.Mask_8x32 :=
+  Native.Greater_Equal
+    (Values, Native.Splat (U8 (Character'Pos ('0'))));
+At_Most_Nine : constant Wide.Mask_8x32 :=
+  Native.Less_Equal
+    (Values, Native.Splat (U8 (Character'Pos ('9'))));
+Is_Digit : constant Wide.Mask_8x32 :=
+  Native.Mask_And (At_Least_Zero, At_Most_Nine);
+Filtered : constant Wide.U8x32 :=
+  Native.Select_Value
+    (Is_Digit,
+     Values,
+     Native.Splat (U8 (Character'Pos ('.'))));
+Digit_Count : constant Wide.Lane_Count_8x32 :=
+  Native.Population_Count (Is_Digit);</code></pre>
+          <p><a data-api="Flyology_SIMD.Wide.Native.Mask_And" data-api-signature="Left, Right : Mask_8x32) return Mask_8x32"><code>Mask_And</code></a> is true only where both range checks are true. <a data-api="Flyology_SIMD.Wide.Native.Select_Value" data-api-signature="Mask : Mask_8x32; If_True, If_False : U8x32) return U8x32"><code>Select_Value</code></a> keeps each digit and puts a period in each other lane. <a data-api="Flyology_SIMD.Wide.Native.Population_Count" data-api-signature="Mask : Mask_8x32) return Lane_Count_8x32"><code>Population_Count</code></a> returns the number of digit lanes as a <a data-api="Flyology_SIMD.Wide.Lane_Count_8x32"><code>Lane_Count_8x32</code></a>.</p>
+          <p>Build the maintained examples from the repository root, and then run the classifier:</p>
+          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
+./bin/wide_digit_classifier</code></pre>
+          <p>The program prints:</p>
+          <pre><code class="language-text">input : sensor 17: row 204, sample 0091.
+digits: .......17......204.........0091.
+count : 9</code></pre>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_digit_classifier.adb"><code>wide_digit_classifier.adb</code> source</a> converts the filtered vector to characters and asserts the count before it prints the result. The same program and result apply to the composed backend and the optional statically selected AVX2 backend.</p>
+        </section>
         <section id="compact">
           <h2>Compress selected measurements</h2>
           <p>Stable mask compression keeps selected values in their source order. The maintained example uses <a data-api="Flyology_SIMD.Backends.Native"><code>Flyology_SIMD.Backends.Native</code></a>. Its <a data-api="Flyology_SIMD.Backends.Native.From_Lanes" data-api-signature="Lane_Values_F32x4"><code>From_Lanes</code></a> overload constructs four measurements. <a data-api="Flyology_SIMD.Backends.Native.Greater_Than" data-api-signature="F32x4"><code>Greater_Than</code></a> compares them with the <a data-api="Flyology_SIMD.Backends.Native.Zero" data-api-signature="return F32x4"><code>F32x4 Zero</code></a> value.</p>
@@ -43,9 +78,8 @@ Kept_Count : constant Lane_Count_32x4 :=
           <p>The mask is <code>[false, true, false, true]</code>. <a data-api="Flyology_SIMD.Backends.Native.Compress" data-api-signature="F32x4"><code>Compress</code></a> visits source lanes in order. It packs the two true-mask values into lanes 0 and 1, and then fills lanes 2 and 3 with positive zero. The packed result is <code>[3.0, 4.5, 0.0, 0.0]</code>. <a data-api="Flyology_SIMD.Backends.Native.Population_Count" data-api-signature="Mask_32x4"><code>Population_Count</code></a> returns a <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a>. This value is the meaningful packed-prefix length, which is 2 here.</p>
           <p><a data-api="Flyology_SIMD.Backends.Native.Expand" data-api-signature="F32x4"><code>Expand</code></a> consumes packed lanes from lane 0. It places lanes 0 and 1 into the two true-mask positions. It fills false positions with positive zero, so the result is <code>[0.0, 3.0, 0.0, 4.5]</code>.</p>
           <p><code>Expand (Compress (Samples, Keep), Keep)</code> restores only the selected values. It cannot recover the two values that compression discarded. Both operations preserve all bits of each moved lane, including floating NaN payloads, infinities, and signed zeros. If <code>Samples</code> contains a NaN, the ordered comparison does not select that lane.</p>
-          <p>Build all maintained examples from the repository root, and then run this example:</p>
-          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
-./bin/compact_measurements</code></pre>
+          <p>Use the same examples build, and then run this program:</p>
+          <pre><code class="language-shell">./bin/compact_measurements</code></pre>
           <p>The program prints:</p>
           <pre><code class="language-text">packed  : 3.00000E+00 4.50000E+00 0.00000E+00 0.00000E+00
 expanded: 0.00000E+00 3.00000E+00 0.00000E+00 4.50000E+00</code></pre>

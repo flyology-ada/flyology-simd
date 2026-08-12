@@ -105,28 +105,23 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Shift_Right_Logical (Value.High, Count)));
 
    function Equal (Left, Right : U8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Equal (Left, Right)));
 
    function Less_Than (Left, Right : U8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Less_Than (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Less_Than (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Less_Than (Left, Right)));
 
    function Less_Equal (Left, Right : U8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Less_Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Less_Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Less_Equal (Left, Right)));
 
    function Greater_Than (Left, Right : U8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Greater_Than (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Greater_Than (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Greater_Than (Left, Right)));
 
    function Greater_Equal (Left, Right : U8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Greater_Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Greater_Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Greater_Equal (Left, Right)));
 
    function Select_Value (Mask : Mask_8x32; If_True, If_False : U8x32) return U8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Select_Value (Mask.Low, If_True.Low, If_False.Low),
-       High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
+     (Byte_Mechanism.Select_Value
+        (To_Bit_Mask (Mask), If_True, If_False));
 
    function Compress (Value : U8x32; Mask : Mask_8x32) return U8x32 is
       Result : Lane_Values_U8x32 := [others => 0];
@@ -346,28 +341,23 @@ package body Flyology_SIMD.Wide.Native is
        High => Flyology_SIMD.Backends.Native.Shift_Right_Arithmetic (Value.High, Count)));
 
    function Equal (Left, Right : I8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Equal (Left, Right)));
 
    function Less_Than (Left, Right : I8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Less_Than (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Less_Than (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Less_Than (Left, Right)));
 
    function Less_Equal (Left, Right : I8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Less_Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Less_Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Less_Equal (Left, Right)));
 
    function Greater_Than (Left, Right : I8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Greater_Than (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Greater_Than (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Greater_Than (Left, Right)));
 
    function Greater_Equal (Left, Right : I8x32) return Mask_8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Greater_Equal (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Greater_Equal (Left.High, Right.High)));
+     (Mask_From_Bit_Mask (Byte_Mechanism.Greater_Equal (Left, Right)));
 
    function Select_Value (Mask : Mask_8x32; If_True, If_False : I8x32) return I8x32 is
-     ((Low => Flyology_SIMD.Backends.Native.Select_Value (Mask.Low, If_True.Low, If_False.Low),
-       High => Flyology_SIMD.Backends.Native.Select_Value (Mask.High, If_True.High, If_False.High)));
+     (Byte_Mechanism.Select_Value
+        (To_Bit_Mask (Mask), If_True, If_False));
 
    function Compress (Value : I8x32; Mask : Mask_8x32) return I8x32 is
       Result : Lane_Values_I8x32 := [others => 0];
