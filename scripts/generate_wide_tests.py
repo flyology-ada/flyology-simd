@@ -504,6 +504,16 @@ def integer_test(f: Family) -> str:
          34, 253, 3, 28, 19, 12, 35, 252,
          4, 27, 20, 11, 36, 251, 5, 26];
       Mixed_Indices : constant Wide.U8x32 := Wide.From_Lanes (Mixed_Index_Lanes);
+      function Reference_Horizontal_Sum
+        (Values : Wide.Lane_Values_U8x32) return Natural
+      is
+         Result : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Result := Result + Natural (Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Horizontal_Sum;
 '''
         lookup_checks = '''
       Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Mixed_Indices)) =
@@ -524,6 +534,11 @@ def integer_test(f: Family) -> str:
               "U8x32 exhaustive unsigned lookup indexes" & Batch'Image);
          end;
       end loop;
+      Check (Wide.Horizontal_Sum (Wide.Splat (255)) = 8_160
+        and then Native.Horizontal_Sum (Native.Splat (255)) = 8_160
+        and then Wide.Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes)
+        and then Native.Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes),
+        "U8x32 exact horizontal sum");
 '''
         lookup_randomized = '''
             Check (Wide.To_Lanes (Wide.Table_Lookup (R_A, R_B)) =
@@ -531,6 +546,11 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Table_Lookup (R_A, R_B)) =
                 Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B)),
               "U8x32 randomized 32-entry table lookup" & Iteration'Image);
+            Check (Wide.Horizontal_Sum (R_A) =
+              Reference_Horizontal_Sum (Wide.To_Lanes (R_A))
+              and then Native.Horizontal_Sum (R_A) =
+                Reference_Horizontal_Sum (Wide.To_Lanes (R_A)),
+              "U8x32 randomized exact horizontal sum" & Iteration'Image);
 '''
     return f"""
    procedure Test_{f.vector} is

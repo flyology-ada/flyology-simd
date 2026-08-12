@@ -201,6 +201,10 @@ is
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
+   function Horizontal_Sum (Value : U8x32) return Natural with Post => Horizontal_Sum'Result <= 32 * 255;
+   --  Return the exact sum of all 32 unsigned byte lanes as Natural.
+   --  @param Value The value input.
+   --  @return The operation result.
    function Reduce_Add_Wrap (Value : U8x32) return U8;
    --  Apply Reduce_Add_Wrap in ascending lane order.
    --  @param Value The value input.

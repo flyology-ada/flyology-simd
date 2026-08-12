@@ -125,6 +125,7 @@ OPERATION_DOCS = {
     "Min": "Return the smaller integer in each lane.",
     "Max": "Return the larger integer in each lane.",
     "Horizontal_Sum": "Return the exact sum of all unsigned byte lanes as Natural.",
+    "Has_Extent": "Return true when Count byte elements fit in Data starting at Start. A zero Count requires no valid address.",
     "Min_Number": "Return the floating number minimum with the documented NaN and signed-zero rules.",
     "Max_Number": "Return the floating number maximum with the documented NaN and signed-zero rules.",
     "Reduce_Add_Wrap": "Add all integer lanes modulo the lane width in ascending lane order.",

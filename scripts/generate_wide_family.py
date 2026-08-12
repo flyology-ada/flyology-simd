@@ -230,6 +230,12 @@ def declaration(f: Family, first_shape: bool) -> str:
         f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector};",
         doc("Place consecutive low input lanes into true-mask positions and zero-fill false positions.", ("Value", "Mask")),
     ]
+    if f.vector == "U8x32":
+        out += [
+            "   function Horizontal_Sum (Value : U8x32) return Natural"
+            " with Post => Horizontal_Sum'Result <= 32 * 255;",
+            doc("Return the exact sum of all 32 unsigned byte lanes as Natural.", ("Value",)),
+        ]
     reductions = (("Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number") if f.floating
                   else ("Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"))
     for name in reductions:
@@ -487,6 +493,16 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
                 "       High => Lookup_Mechanism.Table_Lookup_32 "
                 "(Table.Low, Table.High, Indices.High)));"
             )
+        out.append(
+            "   function Horizontal_Sum (Value : U8x32) return Natural is\n"
+            "      --  Each exact half sum is at most 16 * 255, so their sum\n"
+            "      --  is at most 8_160 and cannot overflow Natural.\n"
+            "      pragma Suppress (Overflow_Check);\n"
+            "   begin\n"
+            f"      return {p}.Horizontal_Sum (Value.Low) + "
+            f"{p}.Horizontal_Sum (Value.High);\n"
+            "   end Horizontal_Sum;"
+        )
     for target_name in BIT_CAST_TARGETS[f.vector]:
         target = BY_VECTOR[target_name]
         out.append(
@@ -695,7 +711,7 @@ def native_declaration(f: Family, first_shape: bool) -> str:
             continue
         skip_doc = False
         if (line.startswith("   function ") or line.startswith("   procedure ")) and line.endswith(";"):
-            if " with Pre => " in line:
+            if " with " in line:
                 line = line[:-1] + ", Inline_Always;"
             else:
                 line = line[:-1] + " with Inline_Always;"

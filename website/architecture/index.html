@@ -91,12 +91,13 @@
           </table>
           <p>The root scalar body is the semantic reference for the complete 128-bit family. The Wide body is the scalar authority for its initial profile. Differential tests compare every current Wide Native operation group with that authority.</p>
           <p>Wide values currently contain two private 128-bit parts. This mechanism is not a public representation or ABI. <code>Wide.Native</code> does not yet contain an AVX2-specific 256-bit primitive implementation, and the project makes no 256-bit instruction-sequence claim.</p>
-          <p><code>Wide.Native</code> uses four composition forms:</p>
+          <p><code>Wide.Native</code> uses five composition forms:</p>
           <ul>
             <li>Bit casts apply the selected 128-bit bit cast to each private part.</li>
             <li>Two-source lane maps use fixed-width Ada composition and lane-access operations from the selected 128-bit backend.</li>
             <li>Conversions compose selected 128-bit operations. Widening applies <a data-api="Flyology_SIMD.Backends.Native"><code>Widen_Low</code> and <code>Widen_High</code></a> to the selected private part. Narrowing converts both private parts of each input. Same-width numeric conversions apply one operation to each private part.</li>
             <li>The 32-entry <a data-api="Flyology_SIMD.Wide.Native.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Table_Lookup</code></a> applies one target-selected lookup to each 16-lane index part. Both lookups select from the complete 32-byte table.</li>
+            <li>The <a data-api="Flyology_SIMD.Wide.Native.Horizontal_Sum" data-api-signature="Value : U8x32) return Natural"><code>Horizontal_Sum</code></a> operation computes the exact byte sum by adding two target-selected 128-bit exact byte-sum results.</li>
           </ul>
           <p>The scalar and Native tests compare these mechanisms with the Wide scalar authority.</p>
         </section>

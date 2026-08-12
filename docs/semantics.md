@@ -145,9 +145,12 @@ reduction, compression, slide, lane-map, bit-cast, and memory rules to its
 rounding, saturation, and exceptional-input rules above. Wide widening selects
 half of one Wide source. Wide narrowing concatenates two complete Wide sources,
 with `Low` before `High`. Same-width conversions preserve lane positions. The
-private
-pair-of-128 implementation is not a caller ABI or a single-instruction
-promise.
+Wide `U8x32` `Horizontal_Sum` returns the exact mathematical sum of all 32
+lanes as `Natural`, in the range 0 through 8,160. `Reduce_Add_Wrap` returns the
+same sum modulo 256 as `U8`.
+
+The private pair-of-128 implementation is not a caller ABI or a
+single-instruction promise.
 
 ## Memory
 

@@ -341,7 +341,7 @@ is
 
    function Has_Extent
      (Data : Byte_Array; Start : Natural; Count : Natural) return Boolean;
-   --  Perform the documented portable operation.
+   --  Return true when Count byte elements fit in Data starting at Start. A zero Count requires no valid address.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.

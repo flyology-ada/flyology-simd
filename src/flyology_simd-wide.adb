@@ -57,6 +57,14 @@ package body Flyology_SIMD.Wide is
       return From_Lanes (Result);
    end Table_Lookup;
 
+   function Horizontal_Sum (Value : U8x32) return Natural is
+      --  Each exact half sum is at most 16 * 255, so their sum
+      --  is at most 8_160 and cannot overflow Natural.
+      pragma Suppress (Overflow_Check);
+   begin
+      return Flyology_SIMD.Horizontal_Sum (Value.Low) + Flyology_SIMD.Horizontal_Sum (Value.High);
+   end Horizontal_Sum;
+
    function Bit_Cast (Value : U8x32) return I8x32 is
      ((Low => Flyology_SIMD.Bit_Cast (Value.Low), High => Flyology_SIMD.Bit_Cast (Value.High)));
 

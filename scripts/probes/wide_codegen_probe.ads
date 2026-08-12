@@ -22,4 +22,6 @@ package Wide_Codegen_Probe is
    function U8_Table_Lookup
      (Table, Indices : Flyology_SIMD.Wide.U8x32)
       return Flyology_SIMD.Wide.U8x32;
+   function U8_Horizontal_Sum
+     (Value : Flyology_SIMD.Wide.U8x32) return Natural;
 end Wide_Codegen_Probe;

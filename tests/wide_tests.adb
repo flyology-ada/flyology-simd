@@ -79,6 +79,16 @@ procedure Wide_Tests is
          34, 253, 3, 28, 19, 12, 35, 252,
          4, 27, 20, 11, 36, 251, 5, 26];
       Mixed_Indices : constant Wide.U8x32 := Wide.From_Lanes (Mixed_Index_Lanes);
+      function Reference_Horizontal_Sum
+        (Values : Wide.Lane_Values_U8x32) return Natural
+      is
+         Result : Natural := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Result := Result + Natural (Values (Lane));
+         end loop;
+         return Result;
+      end Reference_Horizontal_Sum;
 
       A_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
       B_Lanes : constant Wide.Lane_Values_U8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
@@ -145,6 +155,11 @@ procedure Wide_Tests is
               "U8x32 exhaustive unsigned lookup indexes" & Batch'Image);
          end;
       end loop;
+      Check (Wide.Horizontal_Sum (Wide.Splat (255)) = 8_160
+        and then Native.Horizontal_Sum (Native.Splat (255)) = 8_160
+        and then Wide.Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes)
+        and then Native.Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes),
+        "U8x32 exact horizontal sum");
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 8)) = Wide.Lane_Values_U8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 15)) = Wide.Lane_Values_U8x32'[others => 0],
@@ -421,6 +436,11 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Table_Lookup (R_A, R_B)) =
                 Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B)),
               "U8x32 randomized 32-entry table lookup" & Iteration'Image);
+            Check (Wide.Horizontal_Sum (R_A) =
+              Reference_Horizontal_Sum (Wide.To_Lanes (R_A))
+              and then Native.Horizontal_Sum (R_A) =
+                Reference_Horizontal_Sum (Wide.To_Lanes (R_A)),
+              "U8x32 randomized exact horizontal sum" & Iteration'Image);
 
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)

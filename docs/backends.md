@@ -97,6 +97,11 @@ x86-64 targets, it is exact scalar composition. Tests compare fixed,
 exhaustive-index, and deterministic pseudorandom cases with an independent lane
 oracle. Caller-level checks require two target-selected operations, and the
 AArch64 leaf check requires two-register `tbl`.
+The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
+Fixed-vector and deterministic pseudorandom tests compare scalar and Native
+results with an independent lane oracle. AArch64 and x86-64 caller-level
+code-generation checks require two calls to the target-selected 128-bit
+`Horizontal_Sum` operation.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

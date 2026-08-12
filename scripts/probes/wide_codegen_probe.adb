@@ -35,4 +35,8 @@ package body Wide_Codegen_Probe is
      (Table, Indices : Flyology_SIMD.Wide.U8x32)
       return Flyology_SIMD.Wide.U8x32 is
      (Flyology_SIMD.Wide.Native.Table_Lookup (Table, Indices));
+
+   function U8_Horizontal_Sum
+     (Value : Flyology_SIMD.Wide.U8x32) return Natural is
+     (Flyology_SIMD.Wide.Native.Horizontal_Sum (Value));
 end Wide_Codegen_Probe;

@@ -116,6 +116,7 @@
               <tr><td>Width changes</td><td><a data-api="Flyology_SIMD.Wide"><code>Widen_Low</code> and <code>Widen_High</code></a> between adjacent integer types with the same signedness and from <code>F32x8</code> to <code>F64x4</code>; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Truncate</code></a> between adjacent integer types with the same signedness; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Saturate</code></a> for same-signedness and signed-to-unsigned integer narrowing; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Round</code></a> from two <code>F64x4</code> inputs to <code>F32x8</code></td></tr>
               <tr><td>Numeric-domain changes</td><td><a data-api="Flyology_SIMD.Wide"><code>Convert_Round</code></a> from <code>I32x8</code> or <code>U32x8</code> to <code>F32x8</code> and from <code>I64x4</code> or <code>U64x4</code> to <code>F64x4</code>; <a data-api="Flyology_SIMD.Wide"><code>Convert_Truncate_Saturate</code></a> in the reverse directions; <a data-api="Flyology_SIMD.Wide"><code>Convert_Saturate</code></a> between signed and unsigned integer types at all four lane widths</td></tr>
               <tr><td>Byte-table lookup</td><td>32-entry <a data-api="Flyology_SIMD.Wide.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Table_Lookup</code></a> for <code>U8x32</code></td></tr>
+              <tr><td>Exact byte sum</td><td><a data-api="Flyology_SIMD.Wide.Horizontal_Sum" data-api-signature="Value : U8x32) return Natural"><code>Horizontal_Sum</code></a> for <code>U8x32</code>, with a <code>Natural</code> result from 0 through 8,160</td></tr>
               <tr><td>Integer types</td><td>Wrapping and saturating arithmetic; bitwise operations; shifts; ordered comparisons; minimum; maximum; add, minimum, and maximum reductions</td></tr>
               <tr><td>Floating types</td><td>Arithmetic; ordered and unordered comparisons; number minimum and maximum; add, number-minimum, and number-maximum reductions</td></tr>
             </tbody>
@@ -172,7 +173,15 @@
               <tr><td>32-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Wide.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Wide.Table_Lookup</code></a></td><td><code>U8x32</code></td></tr>
             </tbody>
           </table>
-          <p><code>Horizontal_Sum</code> remains as a byte-specific convenience. It returns the exact sum as <code>Natural</code>. For <code>U8x16</code>, <code>Reduce_Add_Wrap</code> returns the sum modulo 256.</p>
+          <p><a data-api="Flyology_SIMD.Reverse_Bytes"><code>Reverse_Bytes</code></a> is the 128-bit <code>U8x16</code> compatibility name for <code>Reverse_Lanes</code>. Wide types use <a data-api="Flyology_SIMD.Wide"><code>Wide.Reverse_Lanes</code></a>; the absence of a Wide <code>Reverse_Bytes</code> alias is not a missing primitive.</p>
+          <p>The root <a data-api="Flyology_SIMD.Horizontal_Sum" data-api-signature="Value : U8x16) return Natural"><code>Horizontal_Sum</code></a> overload returns the exact sum of 16 unsigned byte lanes. The Wide overload returns the exact sum of 32 unsigned byte lanes. <a data-api="Flyology_SIMD.Wide.Reduce_Add_Wrap" data-api-signature="Value : U8x32) return U8"><code>Wide.Reduce_Add_Wrap</code></a> returns the sum modulo 256 as <a data-api="Flyology_SIMD.U8"><code>U8</code></a> instead:</p>
+          <pre><code class="language-ada">package Wide renames Flyology_SIMD.Wide;
+
+Bytes   : constant Wide.U8x32 := Wide.Splat (255);
+Exact   : constant Natural := Wide.Horizontal_Sum (Bytes);   --  8_160
+Wrapped : constant Flyology_SIMD.U8 :=
+  Wide.Reduce_Add_Wrap (Bytes);                              --  224</code></pre>
+          <p>The exact result cannot overflow its documented range. The wrapping result is useful only when modulo-256 arithmetic is intended.</p>
           <p>A logical shift returns zero in each lane when its count is equal to or greater than the lane width. An arithmetic right shift returns the sign fill for those counts.</p>
           <p>For each result lane, the <code>U8x16</code> overload reads the unsigned value from the index lane at the same position. A value from 0 through 15 selects the table lane whose lane index equals that value. A larger value produces zero. The operation does not reduce the index modulo 16.</p>
           <pre><code class="language-ada">Hex_Digits : constant U8x16 := From_Lanes
@@ -268,9 +277,8 @@ end if;</code></pre>
         <section id="memory">
           <h2>Use typed arrays for memory operations</h2>
           <p>Each family has <a data-api="Flyology_SIMD"><code>Load</code>, <code>Store</code>, aligned variants, unaligned variants, and safe partial variants</a>. Full operations require one complete vector of valid elements.</p>
-          <p><a data-api="Flyology_SIMD"><code>Has_Extent</code></a> is a byte-family helper. It reports whether <code>Count</code> byte elements fit from <code>Start</code>. <a data-api="Flyology_SIMD"><code>Is_Aligned_16</code></a> reports whether that byte element address is 16-byte aligned.</p>
+          <p><a data-api="Flyology_SIMD.Has_Extent"><code>Has_Extent</code></a> is a root-package <code>Byte_Array</code> contract helper. It reports whether <code>Count</code> byte elements fit from <code>Start</code>. When <code>Count</code> is zero, <code>Start</code> does not have to identify an element. This helper is not a missing Wide vector primitive. <a data-api="Flyology_SIMD.Is_Aligned_16" data-api-signature="Byte_Array"><code>Is_Aligned_16</code></a> reports whether that byte element address is 16-byte aligned.</p>
           <p>A partial load reads exactly <code>Count</code> elements and fills the remaining lanes with zero. A partial store writes exactly <code>Count</code> elements. A count of zero touches no element.</p>
-          <p><code>Reverse_Bytes</code> is the byte-specific compatibility name for <code>Reverse_Lanes</code>. <code>Horizontal_Sum</code> is the byte-specific exact-sum convenience operation.</p>
           <p>See the <a href="../memory/">memory guide</a> for a complete tail loop.</p>
         </section>
         <section id="not-implemented">

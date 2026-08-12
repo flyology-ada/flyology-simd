@@ -33,7 +33,8 @@ compression and expansion are available for all ten 128-bit value types.
 The initial 256-bit profile supplies common arithmetic, comparison, mask,
 lane-movement, reduction, typed memory, bit-cast, widening, narrowing, and
 numeric conversion operations. Wide `U8x32` also supplies a 32-entry byte-table
-lookup. See the
+lookup and an exact byte sum with a `Natural` result from 0 through
+8,160. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 

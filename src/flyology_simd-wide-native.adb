@@ -51,6 +51,14 @@ package body Flyology_SIMD.Wide.Native is
      ((Low => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.Low),
        High => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.High)));
 
+   function Horizontal_Sum (Value : U8x32) return Natural is
+      --  Each exact half sum is at most 16 * 255, so their sum
+      --  is at most 8_160 and cannot overflow Natural.
+      pragma Suppress (Overflow_Check);
+   begin
+      return Flyology_SIMD.Backends.Native.Horizontal_Sum (Value.Low) + Flyology_SIMD.Backends.Native.Horizontal_Sum (Value.High);
+   end Horizontal_Sum;
+
    function Bit_Cast (Value : U8x32) return I8x32 is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));
 

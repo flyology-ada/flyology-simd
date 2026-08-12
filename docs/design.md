@@ -49,7 +49,8 @@ The `U8x16` and Wide `U8x32` families include 16-entry and 32-entry table
 lookups. The public zero result for an out-of-range index is independent of a
 target instruction's behavior.
 The initial Wide profile includes two-source lane maps, lane-preserving bit
-casts, widening, narrowing, numeric conversion, and 32-entry byte-table lookup.
+casts, widening, narrowing, numeric conversion, 32-entry byte-table lookup,
+and an exact `U8x32` byte sum.
 
 ## Normative semantics
 
@@ -146,6 +147,9 @@ of each Wide input. Same-width numeric conversions apply one 128-bit operation
 to each private part.
 Wide Native table lookup applies one target-selected 32-entry lookup to each
 16-lane index part. Both operations select from the complete 32-byte table.
+Wide Native `Horizontal_Sum` adds the exact results from two selected 128-bit
+`Horizontal_Sum` operations. The public result is a `Natural` from 0 through
+8,160.
 
 The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON

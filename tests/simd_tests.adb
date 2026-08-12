@@ -428,7 +428,18 @@ procedure SIMD_Tests is
       Misaligned_Value : U8x16;
       for Misaligned_Value'Address use Private_Storage (1)'Address;
       Aligned_Start : Natural := 0;
+      High_Data : constant Byte_Array (Natural'Last - 3 .. Natural'Last) :=
+        [others => 0];
    begin
+      Check (Has_Extent (Data, Natural'Last, 0)
+        and then Has_Extent (Data, Data'First, Data'Length)
+        and then Has_Extent (Data, Data'Last, 1)
+        and then not Has_Extent (Data, Data'Last, 2)
+        and then not Has_Extent (Data, Data'Last + 1, 1)
+        and then Has_Extent (High_Data, High_Data'First, High_Data'Length)
+        and then Has_Extent (High_Data, High_Data'Last, 1)
+        and then not Has_Extent (High_Data, High_Data'Last, 2),
+        "byte extent boundaries");
       while not Is_Aligned_16 (Data, Aligned_Start) loop
          Aligned_Start := Aligned_Start + 1;
       end loop;
