@@ -34,6 +34,7 @@ case "$documentation_output" in
 esac
 
 cd "$project_root"
+python3 "$project_root/scripts/check_api_support_docs.py"
 "$alr" build -- -XFLYOLOGY_SIMD_ARCH=scalar
 rm -rf "$documentation_output"
 node "$website_kit/scripts/render-gnatdoc-theme.mjs" \

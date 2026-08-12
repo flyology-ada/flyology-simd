@@ -212,6 +212,13 @@ defines the result. AArch64 derives a 32-byte index map from the mask. It runs
 one two-register `tbl` operation for each 128-bit result half. The x86-64
 composed and AVX2 selections call the Wide scalar implementation.
 
+The target-selected permutation mechanism implements both Wide
+`Permute_Lanes` forms for all ten value types. The Wide scalar body defines the
+result. AArch64 derives one 32-byte index map from the lane map. One-source maps
+run one two-register `tbl` operation for each 128-bit result half. Two-source
+maps run one four-register `tbl` operation for each result half. The x86-64
+composed and AVX2 selections call the Wide scalar implementation.
+
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.
 Selectors can repeat, and a default-initialized map selects `Left` lane 0.

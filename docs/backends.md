@@ -92,10 +92,14 @@ call the scalar implementation. Independent lane-array
 oracles cover zero, all, one-hot, prefix, suffix, half-boundary, alternating,
 and deterministic pseudorandom masks for all ten value types. Floating cases
 compare the bit patterns of moved lanes and positive-zero fill lanes.
-Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane
-maps use fixed-width scalar composition through selected lane access
-operations. The differential tests check the scalar and Native maps for all
-ten value types and check floating special encodings bit for bit.
+Wide bit casts compose two selected 128-bit bit casts. Wide one-source and
+two-source lane maps use a target-selected permutation mechanism. On AArch64,
+the mechanism derives a 32-byte index map from the lane map. It runs one
+two-register `tbl` operation for each one-source result half and one
+four-register `tbl` operation for each two-source result half. The x86-64
+composed and AVX2 selections call the Wide scalar implementation.
+Independent lane-array oracles check scalar and Native results for all ten
+value types. Floating cases compare raw lane encodings bit for bit.
 Wide conversion operations compose the corresponding selected 128-bit
 operations. For each of the 46 Wide conversion overloads, tests use fixed
 vectors and 32 deterministic pseudorandom inputs. They compare scalar and

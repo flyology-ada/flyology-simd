@@ -69,7 +69,7 @@ def contract() -> str:
         ]
     )
     result = emit_conversion_spec() + "\n" + byte_operations + "\n" + operations
-    return re.sub(
+    return strip_generated_docs(re.sub(
         r"(function (?:Slide_Lanes_Toward_(?:Low|High) "
         r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+|"
         r"(?:Compress|Expand) \(Value : [A-Za-z0-9_]+; Mask : Mask_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+|"
@@ -77,7 +77,7 @@ def contract() -> str:
         r"Permute_Lanes \(Left, Right : [A-Za-z0-9_]+; Map : Two_Source_Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+));",
         r"\1 with Inline_Always;",
         result,
-    )
+    ))
 
 
 def scalar_contract(native_spec: str) -> str:
@@ -132,7 +132,8 @@ def scalar_contract(native_spec: str) -> str:
         "  with Preelaborate\n"
         "is\n"
         + "\n".join(declarations)
-        + "\nend Flyology_SIMD.Backends.Scalar;\n"
+        + "\nend Flyology_SIMD.Backends.Scalar;\n",
+        support="scalar",
     )
 
 
@@ -2015,7 +2016,8 @@ def test_program() -> str:
 def main() -> None:
     text = strip_generated_docs(SPEC.read_text())
     native_spec = document_spec(
-        replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract())
+        replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract()),
+        support="native",
     )
     SPEC.write_text(native_spec)
     SCALAR_SPEC.write_text(scalar_contract(native_spec))

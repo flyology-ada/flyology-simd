@@ -156,7 +156,11 @@ The complete artifact is written to the ignored `build/site/` directory.
   and expansion mechanism. On AArch64, the mechanism derives a 32-byte index
   map from the mask. It runs one two-register `tbl` operation for each 128-bit
   result half. The x86-64 composed and AVX2 selections call the Wide scalar
-  implementation for these operations. On x86-64, a separate build selection can use isolated
+  implementation for these operations. Wide `Permute_Lanes` also uses a
+  target-selected mechanism. On AArch64, one-source maps use one two-register
+  `tbl` operation for each result half. Two-source maps use one four-register
+  `tbl` operation for each result half. The x86-64 selections call the Wide
+  scalar implementation. On x86-64, a separate build selection can use isolated
   AVX2-specific 256-bit implementations for the signed and unsigned byte
   operations listed above. AVX2 has no packed byte
   multiply instruction, so wrapping byte multiplication composes 16-bit word

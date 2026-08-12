@@ -242,6 +242,96 @@ TWO_SOURCE_PERMUTE_DOC = (
     "two-source lane map. Moved lanes keep their complete bit encoding."
 )
 
+PORTABLE_SUPPORT_DOC = (
+    "Cross-platform support: portable scalar semantics are available on every "
+    "supported GNAT target. Use the matching Backends.Native overload for "
+    "statically selected target lowering."
+)
+
+PORTABLE_SHARED_SUPPORT_DOC = (
+    "Cross-platform support: this fixed-width Ada operation is available on "
+    "every supported GNAT target and has no separate Backends.Native overload."
+)
+
+SCALAR_SUPPORT_DOC = (
+    "Cross-platform support: this scalar implementation is available on every "
+    "supported GNAT target."
+)
+
+NATIVE_SUPPORT_DOC = ""
+
+LEGACY_NATIVE_SUPPORT_DOC = (
+    "Cross-platform support: build-time selection provides AArch64 NEON, "
+    "x86-64 SSE2, or scalar lowering. A target backend can use scalar "
+    "composition when no matching SIMD instruction exists."
+)
+
+LEGACY_NATIVE_SUPPORT_PREFIXES = (
+    "Cross-platform support: AArch64 uses ",
+    "Cross-platform support: AArch64, x86-64, and scalar builds use ",
+    "Cross-platform support: this overload provides portable scalar semantics ",
+)
+
+
+def native_support_doc(name: str, declaration: str) -> str:
+    """Describe the verified implementation class of one exact overload."""
+    fixed_ada = {
+        "Zero", "Splat", "From_Lanes", "To_Lanes", "Extract", "Replace",
+        "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
+        "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
+        "None_True", "Population_Count", "First_True", "Last_True",
+        "Is_Aligned_16", "Load_Partial", "Store_Partial", "Has_Extent",
+        "Bit_Cast",
+    }
+    aarch_scalar = (
+        (name == "Multiply_Wrap" and "64x2" in declaration)
+        or (name in {"Select_Value", "Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"}
+            and "64x2" in declaration)
+        or (name in {"Select_Value", "Reduce_Add", "Unordered"}
+            and ("F32x4" in declaration or "F64x2" in declaration))
+    )
+    x86_scalar = (
+        name in {
+            "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
+            "Bit_Cast", "Widen_Low", "Widen_High", "Narrow_Truncate",
+            "Narrow_Saturate", "Narrow_Round", "Convert_Round",
+            "Convert_Truncate_Saturate", "Convert_Saturate",
+            "Reduce_Min", "Reduce_Max", "Min_Number", "Max_Number",
+            "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
+        }
+        or (name in {"Add_Saturate", "Subtract_Saturate"}
+            and ("32x4" in declaration or "64x2" in declaration))
+        or (name == "Reduce_Add_Wrap" and "8x16" not in declaration)
+    )
+    if name in fixed_ada:
+        return (
+            "Cross-platform support: The AArch64, x86-64, and scalar backends use "
+            "the same fixed-width Ada implementation."
+        )
+    aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
+    x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
+
+def portable_support_doc(name: str, declaration: str) -> str:
+    """Describe portable availability and the matching Native lowering."""
+    no_native = name in {
+        "Make_Lane_Map", "Select_Left_Lane", "Select_Right_Lane",
+        "Make_Two_Source_Lane_Map", "Has_Extent",
+    } or (name == "Is_Aligned_16" and "Byte_Array" in declaration)
+    if no_native:
+        return PORTABLE_SHARED_SUPPORT_DOC
+    native = native_support_doc(name, declaration).removeprefix("Cross-platform support: ")
+    native = native[0].lower() + native[1:]
+    return (
+        "Cross-platform support: This overload uses the portable scalar "
+        "implementation on every supported GNAT target. For the matching "
+        f"Native overload, {native}"
+    )
+
 PARAM_DOCS = {
     "Value": "The input value.",
     "Values": "Lane values in logical lane order.",
@@ -290,7 +380,7 @@ def _parameter_names(declaration: str) -> list[str]:
     return names
 
 
-def document_spec(text: str) -> str:
+def document_spec(text: str, support: str = "portable") -> str:
     """Attach synchronized GNATdoc comments to generated public declarations."""
     lines = text.splitlines()
     documented: list[str] = []
@@ -321,7 +411,9 @@ def document_spec(text: str) -> str:
         documented.extend(declaration)
         kind, name = match.groups()
         has_trailing_doc = (
-            index + 1 < len(lines) and lines[index + 1].startswith("   --")
+            index + 1 < len(lines)
+            and lines[index + 1].startswith("   --")
+            and "GENERATED" not in lines[index + 1]
         )
         if not has_trailing_doc:
             if kind in ("type", "subtype"):
@@ -368,6 +460,12 @@ def document_spec(text: str) -> str:
                         )
                 else:
                     documented.append(f"   --  {summary}")
+                support_doc = {
+                    "portable": portable_support_doc(name, declaration_text),
+                    "scalar": SCALAR_SUPPORT_DOC,
+                    "native": native_support_doc(name, declaration_text),
+                }[support]
+                documented.append(f"   --  {support_doc}")
                 if name.startswith("Slide_Lanes_") and (
                     "F32x4" in declaration_text or "F64x2" in declaration_text
                 ):
@@ -424,6 +522,17 @@ def strip_generated_docs(text: str) -> str:
     for line in text.splitlines():
         stripped = line.removeprefix("   --  ")
         if stripped.startswith("@param ") or stripped.startswith("@return "):
+            continue
+        if stripped in (
+            PORTABLE_SUPPORT_DOC, PORTABLE_SHARED_SUPPORT_DOC, SCALAR_SUPPORT_DOC,
+            LEGACY_NATIVE_SUPPORT_DOC,
+        ) or stripped.startswith(
+            "Cross-platform support: The AArch64 backend uses "
+        ) or stripped.startswith(
+            "Cross-platform support: The AArch64, x86-64, and scalar backends use "
+        ) or stripped.startswith(
+            "Cross-platform support: This overload uses the portable scalar implementation "
+        ) or any(stripped.startswith(prefix) for prefix in LEGACY_NATIVE_SUPPORT_PREFIXES):
             continue
         if stripped.startswith("Public lane, array, vector, or mask type "):
             continue

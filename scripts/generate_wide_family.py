@@ -29,6 +29,11 @@ COMPACT_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-compac
 COMPACT_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-compact_mechanism.adb"
 COMPACT_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-compact_mechanism.adb"
 COMPACT_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-compact_mechanism.adb"
+PERMUTE_SPEC = ROOT / "src" / "flyology_simd-wide-permute_mechanism.ads"
+PERMUTE_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-permute_mechanism.adb"
+PERMUTE_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-permute_mechanism.adb"
+PERMUTE_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-permute_mechanism.adb"
+PERMUTE_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-permute_mechanism.adb"
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,135 @@ BIT_CAST_TARGETS = {
     "F64x4": ("U64x4", "I64x4"),
 }
 
+WIDE_PORTABLE_SUPPORT = (
+    "Cross-platform support: portable scalar semantics are available on every "
+    "supported GNAT target. Use the matching Wide.Native overload for "
+    "statically selected target lowering."
+)
+
+WIDE_NATIVE_SUPPORT = ""
+
+
+def wide_native_support(summary: str, declaration: str = "") -> str:
+    """Describe the verified Wide.Native implementation class."""
+    match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", declaration)
+    operation = match.group(1) if match else ""
+    if summary.startswith("Select each result lane through"):
+        mechanism = (
+            "AArch64 uses two-register NEON tbl for each result half; "
+            "x86-64 uses the Wide scalar implementation"
+        )
+    elif summary.startswith("Select each result lane from one lane of either"):
+        mechanism = (
+            "AArch64 uses four-register NEON tbl for each result half; "
+            "x86-64 uses the Wide scalar implementation"
+        )
+    elif summary.startswith("Stably pack") or summary.startswith("Place consecutive"):
+        mechanism = (
+            "AArch64 derives a byte map and uses two-register NEON tbl for each "
+            "result half; x86-64 uses the Wide scalar implementation"
+        )
+    elif summary.startswith("Select each result byte"):
+        mechanism = (
+            "AArch64 uses two-register NEON tbl for each result half; the "
+            "x86-64 composed selection calls the Wide scalar implementation, "
+            "and the optional AVX2 selection uses a dedicated U8x32 implementation"
+        )
+    elif operation in {
+            "Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate",
+            "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor",
+            "Min", "Max", "Equal", "Less_Than", "Less_Equal",
+            "Greater_Than", "Greater_Equal",
+        } or operation in {"Bitwise_Not", "Select_Value"}:
+        byte_shape = "U8x32" in declaration or "I8x32" in declaration
+        mechanism = (
+            "AArch64 runs the selected 128-bit operation on both private "
+            "parts; x86-64 does the same by default, and the optional AVX2 "
+            "build uses a dedicated 256-bit implementation"
+            if byte_shape else
+            "AArch64 and x86-64 run the selected 128-bit operation on both "
+            "private parts"
+        )
+    elif operation in {
+        "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
+        "Unordered", "Bit_Cast", "Load", "Store",
+        "Load_Unaligned", "Store_Unaligned", "Load_Aligned", "Store_Aligned",
+        "Horizontal_Sum", "Widen_Low", "Widen_High", "Narrow_Truncate",
+        "Narrow_Saturate", "Narrow_Round", "Convert_Round",
+        "Convert_Truncate_Saturate", "Convert_Saturate",
+    }:
+        mechanism = (
+            "AArch64 and x86-64 run the selected 128-bit operation on both "
+            "private parts"
+        )
+    elif operation in {
+        "Zero", "Splat", "From_Lanes", "To_Lanes",
+        "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
+        "Mask_Xor", "Mask_Not", "Any_True", "All_True",
+        "None_True", "Population_Count", "First_True", "Last_True",
+    }:
+        mechanism = (
+            "AArch64 and x86-64 call the selected 128-bit operation on each "
+            "private part and combine the results in Ada"
+        )
+    elif operation in {"Extract", "Replace", "Test"}:
+        mechanism = (
+            "AArch64 and x86-64 call the selected 128-bit operation only on "
+            "the private part that contains the requested lane"
+        )
+    elif operation in {
+        "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
+    }:
+        mechanism = (
+            "AArch64 and x86-64 run the selected 128-bit operation on both "
+            "private parts"
+        )
+    elif operation in {
+        "Interleave_Low", "Interleave_High", "Deinterleave_Even",
+        "Deinterleave_Odd", "Slide_Lanes_Toward_Low",
+        "Slide_Lanes_Toward_High", "Is_Aligned_32",
+    }:
+        mechanism = "AArch64 and x86-64 use the same portable Ada implementation"
+    elif operation in {"Load_Partial", "Store_Partial"}:
+        mechanism = (
+            "AArch64 and x86-64 conditionally compose selected 128-bit full "
+            "and partial memory operations"
+        )
+    elif operation in {
+        "Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max", "Reduce_Add",
+        "Reduce_Min_Number", "Reduce_Max_Number", "Reverse_Lanes",
+    }:
+        mechanism = "AArch64 and x86-64 use portable Ada composition"
+    else:
+        mechanism = "AArch64 and x86-64 use portable Ada code"
+    if "; x86-64 " in mechanism:
+        aarch, x86 = mechanism.split("; x86-64 ", 1)
+        mechanism_text = (
+            f"The AArch64 backend {aarch.removeprefix('AArch64 ')}. "
+            f"The x86-64 backend {x86}. "
+        )
+    elif mechanism.startswith("AArch64 and x86-64 "):
+        action = mechanism.removeprefix("AArch64 and x86-64 ")
+        mechanism_text = f"The AArch64 and x86-64 backends {action}. "
+    else:
+        mechanism_text = mechanism + ". "
+    return (
+        "Cross-platform support: " + mechanism_text
+        + "A scalar build uses the portable Wide implementation."
+    )
+
+
+def wide_portable_support(summary: str, declaration: str) -> str:
+    native = wide_native_support(summary, declaration).removeprefix(
+        "Cross-platform support: "
+    )
+    native = native[0].lower() + native[1:]
+    return (
+        "Cross-platform support: This overload uses the portable scalar Wide "
+        "implementation on every supported GNAT target. For the matching "
+        f"Wide.Native overload, {native}"
+    )
+
 
 def mask_storage(family: Family) -> str:
     if family.lanes == 32:
@@ -137,12 +271,41 @@ def half_mask_storage(family: Family) -> str:
     return "Interfaces.Unsigned_8"
 
 
-def doc(summary: str, params: tuple[str, ...] = (), returns: bool = True) -> str:
-    lines = [f"   --  {summary}"]
+def doc(
+    summary: str,
+    params: tuple[str, ...] = (),
+    returns: bool = True,
+    support: str = "portable",
+    declaration: str = "",
+) -> str:
+    support_doc = (
+        wide_native_support(summary, declaration)
+        if support == "native"
+        else wide_portable_support(summary, declaration)
+    )
+    lines = [f"   --  {summary}", f"   --  {support_doc}"]
     for param in params:
         lines.append(f"   --  @param {param} The {param.lower().replace('_', ' ')} input.")
     if returns:
         lines.append("   --  @return The operation result.")
+    return "\n".join(lines)
+
+
+def contextualize_support(text: str) -> str:
+    """Bind generated support text to the exact declaration and summary."""
+    lines = text.splitlines()
+    declaration_line = ""
+    summary = ""
+    for index, line in enumerate(lines):
+        if line.startswith("   function ") or line.startswith("   procedure "):
+            declaration_line = line
+            summary = ""
+        elif line.startswith("   --  ") and not line.startswith("   --  @"):
+            content = line.removeprefix("   --  ")
+            if content.startswith("Cross-platform support:"):
+                lines[index] = f"   --  {wide_portable_support(summary, declaration_line)}"
+            elif not summary:
+                summary = content
     return "\n".join(lines)
 
 
@@ -304,7 +467,7 @@ def declaration(f: Family, first_shape: bool) -> str:
         f"   procedure Store_Partial (Data : in out {f.array}; Start : Natural; Count : {f.count}; Value : {f.vector}) with Pre => {partial};",
         doc("Write exactly Count elements and leave all others unchanged.", ("Data", "Start", "Count", "Value"), False),
     ]
-    return "\n".join(out)
+    return contextualize_support("\n".join(out))
 
 
 def conversion_declarations(native: bool = False) -> str:
@@ -313,7 +476,7 @@ def conversion_declarations(native: bool = False) -> str:
     def add(line: str, summary: str, params: tuple[str, ...]) -> None:
         if native:
             line = line[:-1] + " with Inline_Always;"
-        out.extend((line, doc(summary, params)))
+        out.extend((line, doc(summary, params, support="native" if native else "portable", declaration=line)))
 
     for source, _, target, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
         source_wide = BY_HALF[source].vector
@@ -639,12 +802,18 @@ def scalar_movement_body(f: Family, prefix: str) -> list[str]:
         f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Compress (Value, Mask));",
         f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Expand (Value, Mask));",
     ]
+    permutations = [
+        f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, Map.Selectors (Lane))]));",
+        f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract ((if Map.Selectors (Lane).From_Right then Right else Left), Map.Selectors (Lane).Lane)]));",
+    ] if prefix == "Flyology_SIMD" else [
+        f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (Permute_Mechanism.Permute_Lanes (Value, Map));",
+        f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n     (Permute_Mechanism.Permute_Lanes (Left, Right, Map));",
+    ]
     return [
         *compact,
         *reductions,
         f"   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, {total - 1} - Lane)]));",
-        f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract (Value, Map.Selectors (Lane))]));",
-        f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => Extract ((if Map.Selectors (Lane).From_Right then Right else Left), Map.Selectors (Lane).Lane)]));",
+        *permutations,
         f"   function Interleave_Low (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, Lane / 2) else Extract (Right, Lane / 2))]));",
         f"   function Interleave_High (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane mod 2 = 0 then Extract (Left, {half} + Lane / 2) else Extract (Right, {half} + Lane / 2))]));",
         f"   function Deinterleave_Even (Left, Right : {f.vector}) return {f.vector} is\n     (From_Lanes ([for Lane in {idx} => (if Lane < {half} then Extract (Left, 2 * Lane) else Extract (Right, 2 * (Lane - {half})))]));",
@@ -748,6 +917,15 @@ def native_declaration(f: Family, first_shape: bool) -> str:
                 line = line[:-1] + ", Inline_Always;"
             else:
                 line = line[:-1] + " with Inline_Always;"
+        if line.startswith(
+            "   --  Cross-platform support: This overload uses the portable scalar Wide implementation"
+        ) and result:
+            summary = result[-1].removeprefix("   --  ")
+            declaration_line = next(
+                (item for item in reversed(result) if item.startswith("   function ") or item.startswith("   procedure ")),
+                "",
+            )
+            line = f"   --  {wide_native_support(summary, declaration_line)}"
         result.append(line)
     return "\n".join(result)
 
@@ -785,12 +963,14 @@ def native_body_text() -> str:
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
+with Flyology_SIMD.Wide.Permute_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
+   package Permute_Mechanism renames Flyology_SIMD.Wide.Permute_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
@@ -826,6 +1006,172 @@ is
 
 {chr(10).join(declarations)}
 end Flyology_SIMD.Wide.Compact_Mechanism;
+"""
+
+
+def permute_spec_text() -> str:
+    declarations = []
+    for f in FAMILIES:
+        declarations.extend((
+            f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Select each result lane from one source through Map.\n"
+            "   --  @param Value The source lanes.\n"
+            "   --  @param Map The reusable one-source lane map.\n"
+            "   --  @return The selected lanes in result-lane order.",
+            f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector}\n"
+            "     with Inline_Always;\n"
+            "   --  Select each result lane from Left or Right through Map.\n"
+            "   --  @param Left The left source lanes.\n"
+            "   --  @param Right The right source lanes.\n"
+            "   --  @param Map The reusable two-source lane map.\n"
+            "   --  @return The selected lanes in result-lane order.",
+        ))
+    return f"""private package Flyology_SIMD.Wide.Permute_Mechanism
+  with Preelaborate
+is
+   --  Target-selected mechanism for reusable Wide lane maps.
+
+{chr(10).join(declarations)}
+end Flyology_SIMD.Wide.Permute_Mechanism;
+"""
+
+
+def permute_composed_body_text() -> str:
+    bodies = []
+    for f in FAMILIES:
+        bodies.extend((
+            f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Permute_Lanes (Value, Map));",
+            f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
+            "     (Flyology_SIMD.Wide.Permute_Lanes (Left, Right, Map));",
+        ))
+    return f"""package body Flyology_SIMD.Wide.Permute_Mechanism is
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Permute_Mechanism;
+"""
+
+
+def permute_aarch64_body_text() -> str:
+    one_instantiations = []
+    two_instantiations = []
+    bodies = []
+    for f in FAMILIES:
+        one_permute = f"Permute_One_{f.vector}"
+        two_permute = f"Permute_Two_{f.vector}"
+        one_instantiations.extend((
+            f"   function {one_permute} is new Permute_One_256 ({f.vector});",
+            f"   pragma Inline_Always ({one_permute});",
+        ))
+        two_instantiations.extend((
+            f"   function {two_permute} is new Permute_Two_256 ({f.vector});",
+            f"   pragma Inline_Always ({two_permute});",
+        ))
+        lane_bytes = f.bits // 8
+        bodies.append(
+            f"   function Permute_Lanes (Value : {f.vector}; Map : {f.lane_map}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            f"            Indexes (Result_Lane * {lane_bytes} + Byte) :=\n"
+            f"              U8 (Map.Selectors (Result_Lane) * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {one_permute} (Value, Indexes);\n"
+            "   end Permute_Lanes;"
+        )
+        bodies.append(
+            f"   function Permute_Lanes (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector} is\n"
+            "      Indexes : Byte_Map;\n"
+            "   begin\n"
+            f"      for Result_Lane in {f.index} loop\n"
+            f"         for Byte in Natural range 0 .. {lane_bytes - 1} loop\n"
+            "            Indexes (Result_Lane * " + str(lane_bytes) + " + Byte) :=\n"
+            "              (if Map.Selectors (Result_Lane).From_Right\n"
+            "               then U8 (32)\n"
+            "               else U8 (0))\n"
+            f"              + U8 (Map.Selectors (Result_Lane).Lane * {lane_bytes} + Byte);\n"
+            "         end loop;\n"
+            "      end loop;\n"
+            f"      return {two_permute} (Left, Right, Indexes);\n"
+            "   end Permute_Lanes;"
+        )
+    return f"""with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Permute_Mechanism is
+   use System.Machine_Code;
+   use type Interfaces.Unsigned_8;
+
+   type Byte_Map is array (Natural range 0 .. 31) of U8
+     with Component_Size => 8, Size => 256;
+
+   generic
+      type Vector_Type is private;
+   function Permute_One_256
+     (Value : Vector_Type; Map : Byte_Map) return Vector_Type;
+
+   function Permute_One_256
+     (Value : Vector_Type; Map : Byte_Map) return Vector_Type
+   is
+      Result : Vector_Type;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%2]" & ASCII.LF & ASCII.HT &
+           "tbl v3.16b, {{v0.16b, v1.16b}}, v2.16b" & ASCII.LF & ASCII.HT &
+           "str q3, [%0]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%2, #16]" & ASCII.LF & ASCII.HT &
+           "tbl v3.16b, {{v0.16b, v1.16b}}, v2.16b" & ASCII.LF & ASCII.HT &
+           "str q3, [%0, #16]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address),
+            System.Address'Asm_Input ("r", Map'Address)],
+         Clobber => "v0,v1,v2,v3,memory",
+         Volatile => True);
+      return Result;
+   end Permute_One_256;
+
+   generic
+      type Vector_Type is private;
+   function Permute_Two_256
+     (Left, Right : Vector_Type; Map : Byte_Map) return Vector_Type;
+
+   function Permute_Two_256
+     (Left, Right : Vector_Type; Map : Byte_Map) return Vector_Type
+   is
+      Result : Vector_Type;
+   begin
+      Asm
+        (Template =>
+           "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "ldr q1, [%1, #16]" & ASCII.LF & ASCII.HT &
+           "ldr q2, [%2]" & ASCII.LF & ASCII.HT &
+           "ldr q3, [%2, #16]" & ASCII.LF & ASCII.HT &
+           "ldr q4, [%3]" & ASCII.LF & ASCII.HT &
+           "tbl v5.16b, {{v0.16b, v1.16b, v2.16b, v3.16b}}, v4.16b" & ASCII.LF & ASCII.HT &
+           "str q5, [%0]" & ASCII.LF & ASCII.HT &
+           "ldr q4, [%3, #16]" & ASCII.LF & ASCII.HT &
+           "tbl v5.16b, {{v0.16b, v1.16b, v2.16b, v3.16b}}, v4.16b" & ASCII.LF & ASCII.HT &
+           "str q5, [%0, #16]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Left'Address),
+            System.Address'Asm_Input ("r", Right'Address),
+            System.Address'Asm_Input ("r", Map'Address)],
+         Clobber => "v0,v1,v2,v3,v4,v5,memory",
+         Volatile => True);
+      return Result;
+   end Permute_Two_256;
+
+{chr(10).join(one_instantiations)}
+{chr(10).join(two_instantiations)}
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Permute_Mechanism;
 """
 
 
@@ -957,6 +1303,11 @@ def main() -> None:
         COMPACT_COMPOSED: compact_composed_body_text(),
         COMPACT_AVX2: compact_composed_body_text(),
         COMPACT_INVALID: compact_composed_body_text(),
+        PERMUTE_SPEC: permute_spec_text(),
+        PERMUTE_AARCH64: permute_aarch64_body_text(),
+        PERMUTE_COMPOSED: permute_composed_body_text(),
+        PERMUTE_AVX2: permute_composed_body_text(),
+        PERMUTE_INVALID: permute_composed_body_text(),
     }
     for path, content in outputs.items():
         write_or_check(path, content, args.check)

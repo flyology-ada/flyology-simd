@@ -168,12 +168,32 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u16_expand' "$temporary/wide-probe.txt" "$temporary/wide_u16_expand.txt"
         extract_symbol 'wide_codegen_probe__f32_compress' "$temporary/wide-probe.txt" "$temporary/wide_f32_compress.txt"
         extract_symbol 'wide_codegen_probe__f64_expand' "$temporary/wide-probe.txt" "$temporary/wide_f64_expand.txt"
+        extract_symbol 'wide_codegen_probe__u8_permute' "$temporary/wide-probe.txt" "$temporary/wide_u8_permute.txt"
+        extract_symbol 'wide_codegen_probe__u16_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_u16_permute_2.txt"
+        extract_symbol 'wide_codegen_probe__f32_permute' "$temporary/wide-probe.txt" "$temporary/wide_f32_permute.txt"
+        extract_symbol 'wide_codegen_probe__f64_permute_2' "$temporary/wide-probe.txt" "$temporary/wide_f64_permute_2.txt"
         for lane_kind in u8 i8; do
             for operation in equal less less_equal greater greater_equal select; do
                 extract_symbol "wide_codegen_probe__${lane_kind}_${operation}" \
                   "$temporary/wide-probe.txt" \
                   "$temporary/wide_${lane_kind}_${operation}.txt"
             done
+        done
+        for permute_probe in wide_u8_permute wide_f32_permute; do
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+              "$temporary/${permute_probe}.txt" \
+              "two-register TBL operations in AArch64 ${permute_probe} caller"
+            forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__permute_lanes|flyology_simd__(__wide)?__(extract|from_lanes)' \
+              "$temporary/${permute_probe}.txt" \
+              "per-lane or dispatcher call in AArch64 ${permute_probe} caller"
+        done
+        for permute_probe in wide_u16_permute_2 wide_f64_permute_2; do
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+              "$temporary/${permute_probe}.txt" \
+              "four-register TBL operations in AArch64 ${permute_probe} caller"
+            forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__permute_lanes|flyology_simd__(__wide)?__(extract|from_lanes)' \
+              "$temporary/${permute_probe}.txt" \
+              "per-lane or dispatcher call in AArch64 ${permute_probe} caller"
         done
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two inlined NEON byte-add leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'

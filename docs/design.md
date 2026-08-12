@@ -144,8 +144,11 @@ and `Expand` use a target-selected compression and expansion mechanism. The opti
 x86-64 AVX2 Wide backend supplies isolated 256-bit subprograms for selected
 `U8x32` and `I8x32` operations and for `U8x32` `Table_Lookup`.
 Wide bit casts compose two same-shape 128-bit bit casts. Wide two-source lane
-maps use fixed-width Ada composition through the selected 128-bit lane access
-operations; they have no dedicated 256-bit instruction claim.
+maps and one-source lane maps use a target-selected permutation mechanism. On
+AArch64, the mechanism derives a 32-byte index map from the lane map. It runs
+one two-register `tbl` operation for each one-source result half and one
+four-register `tbl` operation for each two-source result half. The x86-64
+composed and AVX2 selections call the Wide scalar implementation.
 Wide conversion operations compose the corresponding 128-bit conversion
 operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
 operations to the selected private part. Narrowing converts both private parts
@@ -188,13 +191,13 @@ map from the mask. One isolated assembly subprogram runs one two-register
 defined zero fill. The x86-64 composed and AVX2 selections currently call the
 Wide scalar implementation for these operations.
 
-The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
+The AArch64 backend lowers 128-bit and Wide lane permutation, lane slides, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON
 assembly subprograms. The x86-64 SSE2 backend
 uses immediate byte-shift leaves for lane slides and currently composes these
 conversion operations with the scalar implementation.
-It also composes variable lane permutation, mask compression, and mask
-expansion because SSE2 has no indexed-byte table instruction.
+It also composes 128-bit and Wide variable lane permutation, mask compression,
+and mask expansion because SSE2 has no indexed-byte table instruction.
 This preserves the contract but does not claim an SSE2 instruction sequence
 for those operations.
 

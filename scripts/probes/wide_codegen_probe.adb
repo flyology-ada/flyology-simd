@@ -130,4 +130,24 @@ package body Wide_Codegen_Probe is
       return Flyology_SIMD.Wide.F64x4 is
      (Flyology_SIMD.Wide.Native.Expand
         (Value, Flyology_SIMD.Wide.Native.Mask_From_Bit_Mask (Bits)));
+   function U8_Permute
+     (Value : Flyology_SIMD.Wide.U8x32;
+      Map : Flyology_SIMD.Wide.Lane_Map_8x32)
+      return Flyology_SIMD.Wide.U8x32 is
+     (Flyology_SIMD.Wide.Native.Permute_Lanes (Value, Map));
+   function U16_Permute_2
+     (Left, Right : Flyology_SIMD.Wide.U16x16;
+      Map : Flyology_SIMD.Wide.Two_Source_Lane_Map_16x16)
+      return Flyology_SIMD.Wide.U16x16 is
+     (Flyology_SIMD.Wide.Native.Permute_Lanes (Left, Right, Map));
+   function F32_Permute
+     (Value : Flyology_SIMD.Wide.F32x8;
+      Map : Flyology_SIMD.Wide.Lane_Map_32x8)
+      return Flyology_SIMD.Wide.F32x8 is
+     (Flyology_SIMD.Wide.Native.Permute_Lanes (Value, Map));
+   function F64_Permute_2
+     (Left, Right : Flyology_SIMD.Wide.F64x4;
+      Map : Flyology_SIMD.Wide.Two_Source_Lane_Map_64x4)
+      return Flyology_SIMD.Wide.F64x4 is
+     (Flyology_SIMD.Wide.Native.Permute_Lanes (Left, Right, Map));
 end Wide_Codegen_Probe;

@@ -230,6 +230,57 @@ def compaction_fixed_tests(f: Family, values: str, label: str = "fixed") -> str:
 '''
 
 
+def permutation_declarations(f: Family) -> str:
+    if f.floating:
+        scalar_one_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_One, Lane)) =
+                Value_To_Bits (Expected_One (Lane)))""".format(index=f.index)
+        native_one_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_One, Lane)) =
+                Value_To_Bits (Expected_One (Lane)))""".format(index=f.index)
+        scalar_two_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Two, Lane)) =
+                Value_To_Bits (Expected_Two (Lane)))""".format(index=f.index)
+        native_two_matches = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_Two, Lane)) =
+                Value_To_Bits (Expected_Two (Lane)))""".format(index=f.index)
+    else:
+        scalar_one_matches = "Wide.To_Lanes (Scalar_One) = Expected_One"
+        native_one_matches = "Native.To_Lanes (Native_One) = Expected_One"
+        scalar_two_matches = "Wide.To_Lanes (Scalar_Two) = Expected_Two"
+        native_two_matches = "Native.To_Lanes (Native_Two) = Expected_Two"
+
+    return f'''
+      procedure Check_Permutations
+        (Left_Values, Right_Values : Wide.{f.values};
+         One_Selectors : Wide.{f.selectors};
+         Two_Selectors : Wide.{f.two_selectors};
+         Expected_One, Expected_Two : Wide.{f.values};
+         Label_Text : String)
+      is
+         Scalar_Left : constant Wide.{f.vector} := Wide.From_Lanes (Left_Values);
+         Scalar_Right : constant Wide.{f.vector} := Wide.From_Lanes (Right_Values);
+         Native_Left : constant Wide.{f.vector} := Native.From_Lanes (Left_Values);
+         Native_Right : constant Wide.{f.vector} := Native.From_Lanes (Right_Values);
+         Scalar_One : constant Wide.{f.vector} := Wide.Permute_Lanes
+           (Scalar_Left, Wide.Make_Lane_Map (One_Selectors));
+         Native_One : constant Wide.{f.vector} := Native.Permute_Lanes
+           (Native_Left, Native.Make_Lane_Map (One_Selectors));
+         Scalar_Two : constant Wide.{f.vector} := Wide.Permute_Lanes
+           (Scalar_Left, Scalar_Right,
+            Wide.Make_Two_Source_Lane_Map (Two_Selectors));
+         Native_Two : constant Wide.{f.vector} := Native.Permute_Lanes
+           (Native_Left, Native_Right,
+            Native.Make_Two_Source_Lane_Map (Two_Selectors));
+      begin
+         Check ({scalar_one_matches} and then {native_one_matches},
+           "{f.vector} independent one-source permutation " & Label_Text);
+         Check ({scalar_two_matches} and then {native_two_matches},
+           "{f.vector} independent two-source permutation " & Label_Text);
+      end Check_Permutations;
+'''
+
+
 def root_half(source: Family, values: str, offset: int) -> str:
     return (
         f"{source.half}'(Flyology_SIMD.From_Lanes "
@@ -1017,15 +1068,8 @@ def integer_test(f: Family) -> str:
          end loop;
          return Result;
       end Random_Lanes;
-      function Random_Map return Wide.{f.lane_map} is
-         Selectors : Wide.{f.selectors};
-      begin
-         for Lane in Wide.{f.index} loop
-            Selectors (Lane) := Wide.{f.index} (Next_U64 mod {f.lanes});
-         end loop;
-         return Wide.Make_Lane_Map (Selectors);
-      end Random_Map;
 {compaction_declarations(f)}
+{permutation_declarations(f)}
 {lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
@@ -1109,6 +1153,14 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) =
         [for Lane in Wide.{f.index} => A_Lanes ({f.lanes - 1} - Lane)],
         "{f.vector} lane map");
+      Check_Permutations
+        (A_Lanes, B_Lanes, Map_Selectors, Two_Selectors,
+         [for Lane in Wide.{f.index} => A_Lanes ({f.lanes - 1} - Lane)],
+         [for Lane in Wide.{f.index} =>
+            (if Lane mod 2 = 0
+             then A_Lanes ((Lane * 3 + 1) mod {f.lanes})
+             else B_Lanes ((Lane * 3 + 1) mod {f.lanes}))],
+         "fixed mixed map");
       declare
          Scalar_Map : constant Wide.{f.two_map} :=
            Wide.Make_Two_Source_Lane_Map (Two_Selectors);
@@ -1127,6 +1179,23 @@ def integer_test(f: Family) -> str:
               and then Native.Extract (Native_Result, Lane) = Wide.Extract (Scalar_Result, Lane),
               "{f.vector} two-source lane map" & Lane'Image);
          end loop;
+      end;
+      declare
+         Identity : constant Wide.{f.selectors} :=
+           [for Lane in Wide.{f.index} => Lane];
+         Broadcast : constant Wide.{f.selectors} := [others => {f.half_lanes}];
+         All_Left : constant Wide.{f.two_selectors} :=
+           [for Lane in Wide.{f.index} => Wide.Select_Left_Lane (Lane)];
+         All_Right : constant Wide.{f.two_selectors} :=
+           [for Lane in Wide.{f.index} => Wide.Select_Right_Lane (Lane)];
+      begin
+         Check_Permutations
+           (A_Lanes, B_Lanes, Identity, All_Left,
+            A_Lanes, A_Lanes, "fixed identity and all-left map");
+         Check_Permutations
+           (A_Lanes, B_Lanes, Broadcast, All_Right,
+            [others => A_Lanes ({f.half_lanes})], B_Lanes,
+            "fixed broadcast and all-right map");
       end;
       declare
          Scalar_Default_Map : Wide.{f.two_map};
@@ -1291,21 +1360,43 @@ def integer_test(f: Family) -> str:
       end loop;
       for Iteration in 1 .. 128 loop
          declare
-            R_A : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
-            R_B : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
-            R_Map : constant Wide.{f.lane_map} := Random_Map;
+            R_A_Lanes : constant Wide.{f.values} := Random_Lanes;
+            R_B_Lanes : constant Wide.{f.values} := Random_Lanes;
+            R_A : constant Wide.{f.vector} := Wide.From_Lanes (R_A_Lanes);
+            R_B : constant Wide.{f.vector} := Wide.From_Lanes (R_B_Lanes);
+            R_One_Selectors : Wide.{f.selectors};
             R_Two_Selectors : Wide.{f.two_selectors};
+            Expected_One : Wide.{f.values};
+            Expected_Two : Wide.{f.values};
             R_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask
               ({f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
             Shift : constant Natural := Natural (Next_U64 mod {f.bits + 3});
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
             for Lane in Wide.{f.index} loop
-               R_Two_Selectors (Lane) :=
-                 (if Next_U64 mod 2 = 0
-                  then Wide.Select_Left_Lane (Wide.{f.index} (Next_U64 mod {f.lanes}))
-                  else Wide.Select_Right_Lane (Wide.{f.index} (Next_U64 mod {f.lanes})));
+               declare
+                  One_Lane : constant Wide.{f.index} :=
+                    Wide.{f.index} (Next_U64 mod {f.lanes});
+                  Two_Lane : constant Wide.{f.index} :=
+                    Wide.{f.index} (Next_U64 mod {f.lanes});
+                  From_Right : constant Boolean := Next_U64 mod 2 = 1;
+               begin
+                  R_One_Selectors (Lane) := One_Lane;
+                  Expected_One (Lane) := R_A_Lanes (One_Lane);
+                  R_Two_Selectors (Lane) :=
+                    (if From_Right
+                     then Wide.Select_Right_Lane (Two_Lane)
+                     else Wide.Select_Left_Lane (Two_Lane));
+                  Expected_Two (Lane) :=
+                    (if From_Right
+                     then R_B_Lanes (Two_Lane)
+                     else R_A_Lanes (Two_Lane));
+               end;
             end loop;
+            Check_Permutations
+              (R_A_Lanes, R_B_Lanes, R_One_Selectors, R_Two_Selectors,
+               Expected_One, Expected_Two,
+               "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Add_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract_Wrap (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply_Wrap (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply_Wrap (R_A, R_B))
@@ -1336,7 +1427,7 @@ def integer_test(f: Family) -> str:
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
-              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
+              and then Native.To_Lanes (Native.Permute_Lanes (R_A, Native.Make_Lane_Map (R_One_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, Wide.Make_Lane_Map (R_One_Selectors)))
               and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
@@ -1400,15 +1491,8 @@ def float_test(f: Family) -> str:
          end loop;
          return Result;
       end Random_Bit_Lanes;
-      function Random_Map return Wide.{f.lane_map} is
-         Selectors : Wide.{f.selectors};
-      begin
-         for Lane in Wide.{f.index} loop
-            Selectors (Lane) := Wide.{f.index} (Next_U64 mod {f.lanes});
-         end loop;
-         return Wide.Make_Lane_Map (Selectors);
-      end Random_Map;
 {compaction_declarations(f)}
+{permutation_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.{f.vector} := Wide.Splat (2.0);
@@ -1560,6 +1644,20 @@ def float_test(f: Family) -> str:
          end loop;
       end;
       declare
+         Expected_One : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              Special_Lanes ({f.lanes - 1} - Lane)];
+         Expected_Two : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              (if Lane mod 2 = 0
+               then Special_Lanes ((Lane * 3 + 1) mod {f.lanes})
+               else A_Lanes ((Lane * 3 + 1) mod {f.lanes}))];
+      begin
+         Check_Permutations
+           (Special_Lanes, A_Lanes, Map_Selectors, Two_Selectors,
+            Expected_One, Expected_Two, "fixed special-bit maps");
+      end;
+      declare
          Scalar_Default_Map : Wide.{f.two_map};
          Native_Default_Map : Wide.{f.two_map};
          Scalar_Default : constant Wide.{f.vector} :=
@@ -1668,21 +1766,44 @@ def float_test(f: Family) -> str:
       end loop;
       for Iteration in 1 .. 128 loop
          declare
-            R_A : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
-            R_B : constant Wide.{f.vector} := Wide.From_Lanes (Random_Lanes);
-            R_Bits : constant Wide.{f.vector} := Wide.From_Lanes (Random_Bit_Lanes);
-            R_Map : constant Wide.{f.lane_map} := Random_Map;
+            R_A_Lanes : constant Wide.{f.values} := Random_Lanes;
+            R_B_Lanes : constant Wide.{f.values} := Random_Lanes;
+            R_Bit_Lanes : constant Wide.{f.values} := Random_Bit_Lanes;
+            R_A : constant Wide.{f.vector} := Wide.From_Lanes (R_A_Lanes);
+            R_B : constant Wide.{f.vector} := Wide.From_Lanes (R_B_Lanes);
+            R_Bits : constant Wide.{f.vector} := Wide.From_Lanes (R_Bit_Lanes);
+            R_One_Selectors : Wide.{f.selectors};
             R_Two_Selectors : Wide.{f.two_selectors};
+            Expected_One : Wide.{f.values};
+            Expected_Two : Wide.{f.values};
             R_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask
               ({f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
             for Lane in Wide.{f.index} loop
-               R_Two_Selectors (Lane) :=
-                 (if Next_U64 mod 2 = 0
-                  then Wide.Select_Left_Lane (Wide.{f.index} (Next_U64 mod {f.lanes}))
-                  else Wide.Select_Right_Lane (Wide.{f.index} (Next_U64 mod {f.lanes})));
+               declare
+                  One_Lane : constant Wide.{f.index} :=
+                    Wide.{f.index} (Next_U64 mod {f.lanes});
+                  Two_Lane : constant Wide.{f.index} :=
+                    Wide.{f.index} (Next_U64 mod {f.lanes});
+                  From_Right : constant Boolean := Next_U64 mod 2 = 1;
+               begin
+                  R_One_Selectors (Lane) := One_Lane;
+                  Expected_One (Lane) := R_Bit_Lanes (One_Lane);
+                  R_Two_Selectors (Lane) :=
+                    (if From_Right
+                     then Wide.Select_Right_Lane (Two_Lane)
+                     else Wide.Select_Left_Lane (Two_Lane));
+                  Expected_Two (Lane) :=
+                    (if From_Right
+                     then R_A_Lanes (Two_Lane)
+                     else R_Bit_Lanes (Two_Lane));
+               end;
             end loop;
+            Check_Permutations
+              (R_Bit_Lanes, R_A_Lanes, R_One_Selectors, R_Two_Selectors,
+               Expected_One, Expected_Two,
+               "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Add (R_A, R_B)) = Wide.To_Lanes (Wide.Add (R_A, R_B))
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
@@ -1697,12 +1818,11 @@ def float_test(f: Family) -> str:
                "random special bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
-              and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
-              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_Map)) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_Map))
-              and then Native.To_Lanes (Native.Permute_Lanes (R_A, R_B, Native.Make_Two_Source_Lane_Map (R_Two_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (R_A, R_B, Wide.Make_Two_Source_Lane_Map (R_Two_Selectors)))
-              and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
+              and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask)),
+              "{f.vector} randomized selection and compaction" & Iteration'Image);
+            Check (Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
-              "{f.vector} randomized selection and movement" & Iteration'Image);
+              "{f.vector} randomized slides" & Iteration'Image);
             Check (Value_To_Bits (Native.Reduce_Add (R_A)) = Value_To_Bits (Wide.Reduce_Add (R_A))
               and then Value_To_Bits (Native.Reduce_Min_Number (R_A)) = Value_To_Bits (Wide.Reduce_Min_Number (R_A))
               and then Value_To_Bits (Native.Reduce_Max_Number (R_A)) = Value_To_Bits (Wide.Reduce_Max_Number (R_A)),

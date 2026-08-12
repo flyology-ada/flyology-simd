@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Apply 128-bit arithmetic, reductions, lane slides, and one-source and two-source lane maps. See a 256-bit weighted-sum example.">
+  <meta name="description" content="Apply vector arithmetic, reductions, lane slides, and Wide one-source and two-source lane maps.">
   <title>Arithmetic and lane movement · Flyology SIMD</title>
   <link rel="canonical" href="https://simd.flyology.org/guide/practical/">
   <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script>
@@ -74,7 +74,7 @@ Result : constant F32 := Native.Reduce_Add (Products);</code></pre>
 ./bin/wide_dot_product</code></pre>
           <pre><code class="language-text">products: 2.00000E+00 6.00000E+00 1.50000E+01 2.80000E+01 5.50000E+01 7.80000E+01 1.19000E+02 1.52000E+02
 weighted sum: 4.55000E+02</code></pre>
-          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_dot_product.adb">Open the maintained Wide example.</a> The current implementation stores each Wide value as two private 128-bit parts. <code>Wide.Native</code> applies the selected 128-bit operation to each part. This mechanism is not a public representation, an ABI, or a claim that one AVX2 instruction performs the operation.</p>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_dot_product.adb">Open the maintained Wide example.</a> The current implementation stores each Wide value as two private 128-bit parts. The two-part representation is private and does not define an ABI. The load, multiply, and reduction operations in this example compose selected 128-bit operations. This composition does not claim that one 256-bit instruction performs each operation.</p>
         </section>
         <section id="neighbors">
           <h2>Slide lanes to use neighboring values</h2>
@@ -94,60 +94,79 @@ Sums : constant F32x4 :=
         <section id="permutations">
           <h2>Reuse a lane map to rotate points</h2>
           <p>A lane slide moves all retained lanes by the same offset and fills the vacated lanes with zero. A reusable lane map selects each result lane independently from one source vector.</p>
-          <p>Store two planar points as <code>[x0, y0, x1, y1]</code>. A 90-degree counterclockwise rotation maps each point <code>(x, y)</code> to <code>(-y, x)</code>. The rotation first swaps each pair of coordinates and then applies the signs.</p>
-          <p>A <a data-api="Flyology_SIMD.Lane_Selectors_32x4"><code>Lane_Selectors_32x4</code></a> value gives one source-lane index for each result lane. <a data-api="Flyology_SIMD.Make_Lane_Map" data-api-signature="Lane_Selectors_32x4"><code>Make_Lane_Map</code></a> constructs a reusable <a data-api="Flyology_SIMD.Lane_Map_32x4"><code>Lane_Map_32x4</code></a> from those strongly typed selectors.</p>
-          <pre><code class="language-ada">Swap_XY : constant Lane_Map_32x4 :=
-  Make_Lane_Map ([1, 0, 3, 2]);
+          <p>Store four planar points as <code>[x0, y0, ..., x3, y3]</code>. A 90-degree counterclockwise rotation maps each point <code>(x, y)</code> to <code>(-y, x)</code>. The rotation first swaps each coordinate pair and then applies alternating signs.</p>
+          <p>A <a data-api="Flyology_SIMD.Wide.Lane_Selectors_32x8"><code>Lane_Selectors_32x8</code></a> value gives one source-lane index for each result lane. <a data-api="Flyology_SIMD.Wide.Make_Lane_Map" data-api-signature="Lane_Selectors_32x8"><code>Wide.Make_Lane_Map</code></a> constructs a reusable <a data-api="Flyology_SIMD.Wide.Lane_Map_32x8"><code>Lane_Map_32x8</code></a>.</p>
+          <p>The <a data-api="Flyology_SIMD.Wide.Native.From_Lanes" data-api-signature="Lane_Values_F32x8"><code>Wide.Native.From_Lanes</code></a> overload constructs each eight-lane input:</p>
+          <pre><code class="language-ada">package Wide renames Flyology_SIMD.Wide;
+package Native renames Flyology_SIMD.Wide.Native;
 
-Points : constant F32x4 :=
-  Native.From_Lanes ([2.0, 5.0, -3.0, 4.0]);
-Signs : constant F32x4 :=
-  Native.From_Lanes ([-1.0, 1.0, -1.0, 1.0]);
+Swap_XY : constant Wide.Lane_Map_32x8 :=
+  Wide.Make_Lane_Map ([1, 0, 3, 2, 5, 4, 7, 6]);
 
-Rotated : constant F32x4 :=
-  Native.Multiply
-    (Native.Permute_Lanes (Points, Swap_XY), Signs);
+Points : constant Wide.F32x8 :=
+  Native.From_Lanes
+    ([2.0, 5.0, -3.0, 4.0, 0.0, -2.0, 7.0, 1.0]);
+Signs : constant Wide.F32x8 :=
+  Native.From_Lanes
+    ([-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0]);
 
---  The permutation is [5, 2, 4, -3].
---  Rotated is [-5, 2, -4, -3].</code></pre>
-          <p>Selector 1 supplies result lane 0, selector 0 supplies result lane 1, and the next two selectors do the same for the second point. The <a data-api="Flyology_SIMD.Backends.Native.Permute_Lanes" data-api-signature="Value : F32x4; Map : Lane_Map_32x4"><code>Backends.Native.Permute_Lanes</code></a> call therefore returns <code>[5.0, 2.0, 4.0, -3.0]</code>. <a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Backends.Native.Multiply</code></a> applies the signs and returns the two rotated points.</p>
-          <p>A repeated selector broadcasts one source lane to several result lanes. <code>Permute_Lanes</code> preserves each selected lane's complete bit pattern; it does not perform numeric conversion. The same 32x4 map can be reused with signed, unsigned, or floating 32-bit vectors.</p>
+Swapped : constant Wide.F32x8 :=
+  Native.Permute_Lanes (Points, Swap_XY);
+Rotated : constant Wide.F32x8 :=
+  Native.Multiply (Swapped, Signs);
+
+--  The permutation is [5, 2, 4, -3, -2, 0, 1, 7].
+--  Rotated is [-5, 2, -4, -3, 2, 0, -1, 7].</code></pre>
+          <p>Selectors 1 and 0 supply the first result pair. Each later selector pair performs the same swap. The <a data-api="Flyology_SIMD.Wide.Native.Permute_Lanes" data-api-signature="Value : F32x8; Map : Lane_Map_32x8"><code>Wide.Native.Permute_Lanes</code></a> call returns all four swapped points. <a data-api="Flyology_SIMD.Wide.Native.Multiply" data-api-signature="F32x8"><code>Wide.Native.Multiply</code></a> applies the signs and returns all four rotated points.</p>
+          <p>A repeated selector broadcasts one source lane to several result lanes. <code>Permute_Lanes</code> preserves each selected lane's complete bit pattern; it does not perform numeric conversion. The same 32x8 map can be reused with signed, unsigned, or floating 32-bit vectors.</p>
           <p>This overload of <code>Permute_Lanes</code> reads one source vector. The next example uses a separate overload when the result needs lanes from two vectors.</p>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/permute_points</code></pre>
-          <pre><code class="language-text">rotated points: [-5.00000E+00, 2.00000E+00] [-4.00000E+00,-3.00000E+00]</code></pre>
-          <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/permute_points.adb">maintained point-rotation example</a> creates the map once and uses the native backend for both operations.</p>
+          <pre><code class="language-text">rotated points:
+  point 0: x=-5.00000E+00, y= 2.00000E+00
+  point 1: x=-4.00000E+00, y=-3.00000E+00
+  point 2: x= 2.00000E+00, y= 0.00000E+00
+  point 3: x=-1.00000E+00, y= 7.00000E+00</code></pre>
+          <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/permute_points.adb">maintained point-rotation example</a> creates the map once and asserts both the swapped lanes and rotated points.</p>
         </section>
         <section id="two-source">
           <h2>Select successors across a block boundary</h2>
-          <p>A first difference subtracts each sample from its successor. Two adjacent vectors hold the consecutive square numbers <code>[1, 4, 9, 16]</code> and <code>[25, 36, 49, 64]</code>. The successor for left lane 3 is in right lane 0.</p>
-          <p><a data-api="Flyology_SIMD.Select_Left_Lane" data-api-signature="Lane_Index_32x4"><code>Select_Left_Lane</code></a> and <a data-api="Flyology_SIMD.Select_Right_Lane" data-api-signature="Lane_Index_32x4"><code>Select_Right_Lane</code></a> return the private <a data-api="Flyology_SIMD.Two_Source_Lane_Selector_32x4"><code>Two_Source_Lane_Selector_32x4</code></a> type. The type records which source to use and the lane index. <a data-api="Flyology_SIMD.Make_Two_Source_Lane_Map" data-api-signature="Two_Source_Lane_Selectors_32x4"><code>Make_Two_Source_Lane_Map</code></a> stores one such selector for each result lane in a reusable <a data-api="Flyology_SIMD.Two_Source_Lane_Map_32x4"><code>Two_Source_Lane_Map_32x4</code></a>.</p>
-          <pre><code class="language-ada">Successor_Map : constant Two_Source_Lane_Map_32x4 :=
-  Make_Two_Source_Lane_Map
-    ([Select_Left_Lane (1), Select_Left_Lane (2),
-      Select_Left_Lane (3), Select_Right_Lane (0)]);
+          <p>A first difference subtracts each sample from its successor. This example uses the same <code>Wide</code> and <code>Native</code> aliases as the point rotation. Two adjacent <code>F32x8</code> values hold sixteen consecutive square numbers. The successor for left lane 7 is in right lane 0.</p>
+          <p><a data-api="Flyology_SIMD.Wide.Select_Left_Lane" data-api-signature="Lane_Index_32x8"><code>Wide.Select_Left_Lane</code></a> and <a data-api="Flyology_SIMD.Wide.Select_Right_Lane" data-api-signature="Lane_Index_32x8"><code>Wide.Select_Right_Lane</code></a> return the private <a data-api="Flyology_SIMD.Wide.Two_Source_Lane_Selector_32x8"><code>Two_Source_Lane_Selector_32x8</code></a> type. Each selector records a source and a lane index. <a data-api="Flyology_SIMD.Wide.Make_Two_Source_Lane_Map" data-api-signature="Two_Source_Lane_Selectors_32x8"><code>Wide.Make_Two_Source_Lane_Map</code></a> stores eight selectors in a reusable <a data-api="Flyology_SIMD.Wide.Two_Source_Lane_Map_32x8"><code>Two_Source_Lane_Map_32x8</code></a>.</p>
+          <pre><code class="language-ada">Successor_Map : constant Wide.Two_Source_Lane_Map_32x8 :=
+  Wide.Make_Two_Source_Lane_Map
+    ([Wide.Select_Left_Lane (1), Wide.Select_Left_Lane (2),
+      Wide.Select_Left_Lane (3), Wide.Select_Left_Lane (4),
+      Wide.Select_Left_Lane (5), Wide.Select_Left_Lane (6),
+      Wide.Select_Left_Lane (7), Wide.Select_Right_Lane (0)]);
 
-Left  : constant F32x4 :=
-  Native.From_Lanes ([1.0, 4.0, 9.0, 16.0]);
-Right : constant F32x4 :=
-  Native.From_Lanes ([25.0, 36.0, 49.0, 64.0]);
+Left : constant Wide.F32x8 :=
+  Native.From_Lanes
+    ([1.0, 4.0, 9.0, 16.0, 25.0, 36.0, 49.0, 64.0]);
+Right : constant Wide.F32x8 :=
+  Native.From_Lanes
+    ([81.0, 100.0, 121.0, 144.0,
+      169.0, 196.0, 225.0, 256.0]);
 
-Successors : constant F32x4 :=
+Successors : constant Wide.F32x8 :=
   Native.Permute_Lanes (Left, Right, Successor_Map);
-Differences : constant F32x4 :=
+Differences : constant Wide.F32x8 :=
   Native.Subtract (Successors, Left);
 
---  Successors is [4, 9, 16, 25].
---  Differences is [3, 5, 7, 9].</code></pre>
-          <p>The three-argument <a data-api="Flyology_SIMD.Backends.Native.Permute_Lanes" data-api-signature="Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4"><code>Backends.Native.Permute_Lanes</code></a> overload forms one continuous successor window. <a data-api="Flyology_SIMD.Backends.Native.Subtract" data-api-signature="F32x4"><code>Backends.Native.Subtract</code></a> then calculates four first differences, including the difference across the vector boundary.</p>
+--  Successors is [4, 9, 16, 25, 36, 49, 64, 81].
+--  Differences is [3, 5, 7, 9, 11, 13, 15, 17].</code></pre>
+          <p>The three-argument <a data-api="Flyology_SIMD.Wide.Native.Permute_Lanes" data-api-signature="Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8"><code>Wide.Native.Permute_Lanes</code></a> overload forms one continuous successor window. <a data-api="Flyology_SIMD.Wide.Native.Subtract" data-api-signature="F32x8"><code>Wide.Native.Subtract</code></a> then calculates eight first differences, including the difference across the vector boundary.</p>
           <p>Selectors can repeat a lane from either source. Repetition broadcasts that lane to multiple result positions. The operation preserves each selected lane's complete bit pattern and does not perform numeric conversion. A default-initialized two-source map selects left lane 0 for every result lane.</p>
           <p>Use a slide when every retained lane moves by the same offset and zero fills the edge. Use a one-source map for arbitrary selection within one vector. Use a two-source map when one result combines lanes from two vectors.</p>
-          <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
-./bin/cross_block_differences</code></pre>
-          <pre><code class="language-text">successors : 4.00000E+00 9.00000E+00 1.60000E+01 2.50000E+01
-differences: 3.00000E+00 5.00000E+00 7.00000E+00 9.00000E+00</code></pre>
+          <p>The same examples build contains the cross-block program. Run:</p>
+          <pre><code class="language-shell">./bin/cross_block_differences</code></pre>
+          <pre><code class="language-text">successors:
+  lanes 0..3: 4.00000E+00, 9.00000E+00, 1.60000E+01, 2.50000E+01
+  lanes 4..7: 3.60000E+01, 4.90000E+01, 6.40000E+01, 8.10000E+01
+differences:
+  lanes 0..3: 3.00000E+00, 5.00000E+00, 7.00000E+00, 9.00000E+00
+  lanes 4..7: 1.10000E+01, 1.30000E+01, 1.50000E+01, 1.70000E+01</code></pre>
           <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/cross_block_differences.adb">maintained cross-block example</a> asserts the intermediate and final vectors before it prints them.</p>
-          <p>The <a data-api="Flyology_SIMD.Wide"><code>Flyology_SIMD.Wide</code></a> package uses the same selector rule for its 256-bit values. A <a data-api="Flyology_SIMD.Wide.Two_Source_Lane_Map_32x8"><code>Two_Source_Lane_Map_32x8</code></a> selects eight 32-bit result lanes. The three-argument <a data-api="Flyology_SIMD.Wide.Native.Permute_Lanes" data-api-signature="Left, Right : F32x8; Map : Two_Source_Lane_Map_32x8"><code>Wide.Native.Permute_Lanes</code></a> overload applies that map to two <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a> values. Thus, the cross-block window pattern also applies to eight-lane blocks.</p>
         </section>
         <section id="integers">
           <h2>Choose wrapping or saturating integer arithmetic</h2>
