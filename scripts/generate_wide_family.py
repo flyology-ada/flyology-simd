@@ -7,6 +7,17 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from generate_full_family import (
+    FLOAT_NARROWINGS,
+    FLOAT_TO_INTEGER_CONVERSIONS,
+    FLOAT_WIDENINGS,
+    INTEGER_TO_FLOAT_CONVERSIONS,
+    NARROWINGS,
+    SIGNED_TO_UNSIGNED_NARROWINGS,
+    SIGNED_UNSIGNED_CONVERSIONS,
+    WIDENINGS,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "src" / "flyology_simd-wide.ads"
@@ -93,6 +104,7 @@ FAMILIES = [
 ]
 
 BY_VECTOR = {family.vector: family for family in FAMILIES}
+BY_HALF = {family.half: family for family in FAMILIES}
 
 BIT_CAST_TARGETS = {
     "U8x32": ("I8x32",), "I8x32": ("U8x32",),
@@ -275,6 +287,87 @@ def declaration(f: Family, first_shape: bool) -> str:
     return "\n".join(out)
 
 
+def conversion_declarations(native: bool = False) -> str:
+    out: list[str] = []
+
+    def add(line: str, summary: str, params: tuple[str, ...]) -> None:
+        if native:
+            line = line[:-1] + " with Inline_Always;"
+        out.extend((line, doc(summary, params)))
+
+    for source, _, target, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        for name, half in (("Widen_Low", "low"), ("Widen_High", "high")):
+            summary = (
+                f"Widen the {half} binary32 source half to binary64 and preserve lane order. "
+                "Finite values convert exactly. Signed zero and infinity are preserved. "
+                "A NaN produces a NaN with unspecified payload and signaling state."
+                if source.startswith("F") else
+                f"Widen the {half} integer source half exactly, preserve signedness, and preserve lane order."
+            )
+            add(
+                f"   function {name} (Value : {source_wide}) return {target_wide};",
+                summary,
+                ("Value",),
+            )
+
+    for source, _, target, *_ in NARROWINGS:
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        add(
+            f"   function Narrow_Truncate (Low, High : {source_wide}) return {target_wide};",
+            "Keep the low bits of every source lane and concatenate Low before High.",
+            ("Low", "High"),
+        )
+        add(
+            f"   function Narrow_Saturate (Low, High : {source_wide}) return {target_wide};",
+            "Clamp every source lane to the result range and concatenate Low before High.",
+            ("Low", "High"),
+        )
+
+    for source, _, target, *_ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        add(
+            f"   function Narrow_Saturate (Low, High : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
+            "Clamp signed lanes to the unsigned result range and concatenate Low before High.",
+            ("Low", "High"),
+        )
+
+    for source, _, target, *_ in FLOAT_NARROWINGS:
+        add(
+            f"   function Narrow_Round (Low, High : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
+            "With the default round-to-nearest, ties-to-even environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not modify the floating-point control register.",
+            ("Low", "High"),
+        )
+
+    for source, _, target, *_ in INTEGER_TO_FLOAT_CONVERSIONS:
+        add(
+            f"   function Convert_Round (Value : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
+            "With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.",
+            ("Value",),
+        )
+
+    for source, _, target, *_ in FLOAT_TO_INTEGER_CONVERSIONS:
+        add(
+            f"   function Convert_Truncate_Saturate (Value : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
+            "Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.",
+            ("Value",),
+        )
+
+    for source, _, target, _, _, _, source_signed in SIGNED_UNSIGNED_CONVERSIONS:
+        summary = (
+            "Convert signed lanes to unsigned, clamp negative values to zero, and preserve other values."
+            if source_signed else
+            "Convert unsigned lanes to signed, clamp values above the signed maximum, and preserve other values."
+        )
+        add(
+            f"   function Convert_Saturate (Value : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
+            summary,
+            ("Value",),
+        )
+    return "\n".join(out)
+
+
 def spec_text() -> str:
     seen_shapes: set[tuple[int, int]] = set()
     declarations_list = []
@@ -283,6 +376,7 @@ def spec_text() -> str:
         declarations_list.append(declaration(f, shape not in seen_shapes))
         seen_shapes.add(shape)
     declarations = "\n\n".join(declarations_list)
+    conversions = conversion_declarations()
     vector_types = "\n".join(
         f"   type {family.vector} is private;\n"
         f"   --  A private 256-bit vector containing {family.lanes} {family.scalar} lanes."
@@ -313,6 +407,8 @@ is
 {vector_types}
 
 {declarations}
+
+{conversions}
 
 private
 {chr(10).join(reps)}
@@ -382,6 +478,65 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
     if first_shape:
         out += mask_body(f, p)
     out += memory_body(f, p)
+    return "\n\n".join(out)
+
+
+def conversion_bodies(prefix: str = "Flyology_SIMD") -> str:
+    out: list[str] = []
+
+    for source, _, target, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
+        source_wide = BY_HALF[source]
+        target_wide = BY_HALF[target]
+        out.extend((
+            f"   function Widen_Low (Value : {source_wide.vector}) return {target_wide.vector} is\n"
+            f"     ((Low => {prefix}.Widen_Low (Value.Low),\n"
+            f"       High => {prefix}.Widen_High (Value.Low)));",
+            f"   function Widen_High (Value : {source_wide.vector}) return {target_wide.vector} is\n"
+            f"     ((Low => {prefix}.Widen_Low (Value.High),\n"
+            f"       High => {prefix}.Widen_High (Value.High)));",
+        ))
+
+    for source, _, target, *_ in NARROWINGS:
+        source_wide = BY_HALF[source]
+        target_wide = BY_HALF[target]
+        for name in ("Narrow_Truncate", "Narrow_Saturate"):
+            out.append(
+                f"   function {name} (Low, High : {source_wide.vector}) return {target_wide.vector} is\n"
+                f"     ((Low => {prefix}.{name} (Low.Low, Low.High),\n"
+                f"       High => {prefix}.{name} (High.Low, High.High)));"
+            )
+
+    for source, _, target, *_ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        source_wide = BY_HALF[source]
+        target_wide = BY_HALF[target]
+        out.append(
+            f"   function Narrow_Saturate (Low, High : {source_wide.vector}) return {target_wide.vector} is\n"
+            f"     ((Low => {prefix}.Narrow_Saturate (Low.Low, Low.High),\n"
+            f"       High => {prefix}.Narrow_Saturate (High.Low, High.High)));"
+        )
+
+    for source, _, target, *_ in FLOAT_NARROWINGS:
+        source_wide = BY_HALF[source]
+        target_wide = BY_HALF[target]
+        out.append(
+            f"   function Narrow_Round (Low, High : {source_wide.vector}) return {target_wide.vector} is\n"
+            f"     ((Low => {prefix}.Narrow_Round (Low.Low, Low.High),\n"
+            f"       High => {prefix}.Narrow_Round (High.Low, High.High)));"
+        )
+
+    for operation, conversions in (
+        ("Convert_Round", INTEGER_TO_FLOAT_CONVERSIONS),
+        ("Convert_Truncate_Saturate", FLOAT_TO_INTEGER_CONVERSIONS),
+        ("Convert_Saturate", SIGNED_UNSIGNED_CONVERSIONS),
+    ):
+        for source, _, target, *_ in conversions:
+            source_wide = BY_HALF[source]
+            target_wide = BY_HALF[target]
+            out.append(
+                f"   function {operation} (Value : {source_wide.vector}) return {target_wide.vector} is\n"
+                f"     ((Low => {prefix}.{operation} (Value.Low),\n"
+                f"       High => {prefix}.{operation} (Value.High)));"
+            )
     return "\n\n".join(out)
 
 
@@ -477,6 +632,7 @@ def body_text() -> str:
         body_list.append(family_body(f, shape not in seen_shapes))
         seen_shapes.add(shape)
     bodies = "\n\n".join(body_list)
+    conversions = conversion_bodies()
     return f"""with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide is
@@ -487,6 +643,8 @@ package body Flyology_SIMD.Wide is
    use type F32;
    use type F64;
 {bodies}
+
+{conversions}
 end Flyology_SIMD.Wide;
 """
 
@@ -519,11 +677,14 @@ def native_spec_text() -> str:
         shape = (f.bits, f.lanes)
         declarations.append(native_declaration(f, shape not in seen_shapes))
         seen_shapes.add(shape)
+    conversions = conversion_declarations(native=True)
     return f"""--  Statically selected 256-bit composition through the native 128-bit backend.
 package Flyology_SIMD.Wide.Native
   with Preelaborate
 is
 {chr(10).join(declarations)}
+
+{conversions}
 end Flyology_SIMD.Wide.Native;
 """
 
@@ -537,6 +698,7 @@ def native_body_text() -> str:
             family_body(f, shape not in seen_shapes, "Flyology_SIMD.Backends.Native")
         )
         seen_shapes.add(shape)
+    conversions = conversion_bodies("Flyology_SIMD.Backends.Native")
     return f"""with Flyology_SIMD.Backends.Native;
 with System.Storage_Elements;
 
@@ -548,6 +710,8 @@ package body Flyology_SIMD.Wide.Native is
    use type F32;
    use type F64;
 {chr(10).join(body_list)}
+
+{conversions}
 end Flyology_SIMD.Wide.Native;
 """
 

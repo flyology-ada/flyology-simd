@@ -1,6 +1,6 @@
 # Flyology SIMD design
 
-Status: experimental v0.1 design, 2026-08-11.
+Status: experimental v0.1 design, 2026-08-12.
 
 ## Goals and portability
 
@@ -47,8 +47,8 @@ expansion. These operations retain fixed-width results and do not allocate a
 variable-length container.
 The byte family includes a 16-entry table lookup. The public zero result for
 an out-of-range index is independent of a target instruction's behavior.
-The initial Wide profile includes two-source lane maps and lane-preserving bit
-casts. It omits width-changing and numeric conversions and table lookup.
+The initial Wide profile includes two-source lane maps, lane-preserving bit
+casts, widening, narrowing, and numeric conversion. It omits table lookup.
 
 ## Normative semantics
 
@@ -130,6 +130,11 @@ claim an AVX2-specific 256-bit leaf or instruction sequence.
 Wide bit casts compose two same-shape 128-bit bit casts. Wide two-source lane
 maps use fixed-width Ada composition through the selected 128-bit lane access
 operations; they have no dedicated 256-bit instruction claim.
+Wide conversion operations compose the corresponding 128-bit conversion
+operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
+operations to the selected private part. Narrowing converts both private parts
+of each Wide input. Same-width numeric conversions apply one 128-bit operation
+to each private part.
 
 The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON

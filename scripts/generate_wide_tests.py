@@ -4,9 +4,20 @@
 from pathlib import Path
 
 from generate_wide_family import BIT_CAST_TARGETS, FAMILIES, ROOT, Family
+from generate_full_family import (
+    FLOAT_NARROWINGS,
+    FLOAT_TO_INTEGER_CONVERSIONS,
+    FLOAT_WIDENINGS,
+    INTEGER_TO_FLOAT_CONVERSIONS,
+    NARROWINGS,
+    SIGNED_TO_UNSIGNED_NARROWINGS,
+    SIGNED_UNSIGNED_CONVERSIONS,
+    WIDENINGS,
+)
 
 
 TEST = ROOT / "tests" / "wide_tests.adb"
+BY_HALF = {family.half: family for family in FAMILIES}
 
 
 def bit_expression(f: Family, expression: str) -> str:
@@ -49,6 +60,401 @@ def bit_cast_tests(f: Family, source: str, label: str) -> str:
       end;
 ''')
     return "".join(blocks)
+
+
+def lane_values(scalar: str, lanes: int, variant: int = 0) -> str:
+    patterns = {
+        "U8": ("0", "1", "127", "128", "254", "255"),
+        "I8": ("I8'First", "-127", "-1", "0", "1", "126", "I8'Last"),
+        "U16": ("0", "1", "255", "256", "32_767", "32_768", "U16'Last"),
+        "I16": ("I16'First", "-32_767", "-129", "-1", "0", "127", "128", "I16'Last"),
+        "U32": ("0", "1", "65_535", "65_536", "2_147_483_647", "2_147_483_648", "U32'Last"),
+        "I32": ("I32'First", "-2_147_483_647", "-65_537", "-1", "0", "65_535", "65_536", "I32'Last"),
+        "U64": ("0", "1", "4_294_967_295", "4_294_967_296", "9_223_372_036_854_775_807", "9_223_372_036_854_775_808", "U64'Last"),
+        "I64": ("I64'First", "-9_223_372_036_854_775_807", "-4_294_967_297", "-1", "0", "4_294_967_295", "4_294_967_296", "I64'Last"),
+        "F32": ("-F32'Last", "-16_777_217.0", "-2.75", "-0.5", "0.0", "1.5", "16_777_217.0", "F32'Last"),
+        "F64": ("-F64'Last", "-9_007_199_254_740_993.0", "-2.75", "-0.5", "0.0", "1.5", "9_007_199_254_740_993.0", "F64'Last"),
+    }[scalar]
+    return ", ".join(patterns[(lane + variant) % len(patterns)] for lane in range(lanes))
+
+
+def root_half(source: Family, values: str, offset: int) -> str:
+    return (
+        f"{source.half}'(Flyology_SIMD.From_Lanes "
+        f"([for Lane in 0 .. {source.half_lanes - 1} => {values} (Lane + {offset})])"
+        f")"
+    )
+
+
+def assembled_expected(target: Family, low: str, high: str) -> str:
+    return (
+        f"[for Lane in Wide.{target.index} =>\n"
+        f"              (if Lane < {target.half_lanes}\n"
+        f"               then Flyology_SIMD.Extract ({low}, Lane)\n"
+        f"               else Flyology_SIMD.Extract ({high}, Lane - {target.half_lanes}))]"
+    )
+
+
+def random_conversion_helpers() -> str:
+    out: list[str] = []
+    for family in FAMILIES:
+        unsigned = f"U{family.bits}"
+        conversion = ""
+        if family.signed:
+            conversion = (
+                f"      function Bits_To_{family.scalar} is new Ada.Unchecked_Conversion "
+                f"({unsigned}, {family.scalar});\n"
+            )
+            raw = "Next_U64" if family.bits == 64 else f"{unsigned} (Next_U64 mod 2 ** {family.bits})"
+            value = f"Bits_To_{family.scalar} ({raw})"
+        elif family.floating:
+            value = (
+                f"{family.scalar} (Integer (Next_U64 mod 2_000_001) - 1_000_000) / 128.0"
+            )
+        else:
+            value = "Next_U64" if family.bits == 64 else f"{unsigned} (Next_U64 mod 2 ** {family.bits})"
+        out.append(
+            f"{conversion}      function Random_{family.values} return Wide.{family.values} is\n"
+            f"         Result : Wide.{family.values};\n"
+            f"      begin\n"
+            f"         for Lane in Wide.{family.index} loop\n"
+            f"            Result (Lane) := {value};\n"
+            f"         end loop;\n"
+            f"         return Result;\n"
+            f"      end Random_{family.values};"
+        )
+    return "\n".join(out)
+
+
+def conversion_tests() -> str:
+    blocks: list[str] = []
+
+    for source_half, _, target_half, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
+        source = BY_HALF[source_half]
+        target = BY_HALF[target_half]
+        values = lane_values(source.scalar, source.lanes)
+        for operation, offset in (("Widen_Low", 0), ("Widen_High", source.half_lanes)):
+            root_source = root_half(source, "Source_Lanes", offset)
+            blocks.append(f'''      declare
+         Source_Lanes : constant Wide.{source.values} := [{values}];
+         Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+         Root_Source : constant {source.half} := {root_source};
+         Expected_Low : constant {target.half} := Flyology_SIMD.Widen_Low (Root_Source);
+         Expected_High : constant {target.half} := Flyology_SIMD.Widen_High (Root_Source);
+         Expected : constant Wide.{target.values} :=
+           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+      begin
+         Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
+           and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+           "wide {operation} {source.vector} to {target.vector}");
+      end;
+      for Iteration in 1 .. 32 loop
+         declare
+            Source_Lanes : constant Wide.{source.values} := Random_{source.values};
+            Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+            Root_Source : constant {source.half} := {root_source};
+            Expected_Low : constant {target.half} := Flyology_SIMD.Widen_Low (Root_Source);
+            Expected_High : constant {target.half} := Flyology_SIMD.Widen_High (Root_Source);
+            Expected : constant Wide.{target.values} :=
+              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         begin
+            Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
+              and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+              "wide randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
+         end;
+      end loop;
+''')
+
+    narrowing_groups = [
+        ("Narrow_Truncate", item) for item in NARROWINGS
+    ] + [
+        ("Narrow_Saturate", item) for item in NARROWINGS
+    ] + [
+        ("Narrow_Saturate", item) for item in SIGNED_TO_UNSIGNED_NARROWINGS
+    ] + [
+        ("Narrow_Round", item) for item in FLOAT_NARROWINGS
+    ]
+    for operation, (source_half, _, target_half, *_) in narrowing_groups:
+        source = BY_HALF[source_half]
+        target = BY_HALF[target_half]
+        low_values = lane_values(source.scalar, source.lanes)
+        high_values = lane_values(source.scalar, source.lanes, 3)
+        blocks.append(f'''      declare
+         Low_Lanes : constant Wide.{source.values} := [{low_values}];
+         High_Lanes : constant Wide.{source.values} := [{high_values}];
+         Low_Value : constant Wide.{source.vector} := Wide.From_Lanes (Low_Lanes);
+         High_Value : constant Wide.{source.vector} := Wide.From_Lanes (High_Lanes);
+         Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
+           ({root_half(source, 'Low_Lanes', 0)}, {root_half(source, 'Low_Lanes', source.half_lanes)});
+         Expected_High : constant {target.half} := Flyology_SIMD.{operation}
+           ({root_half(source, 'High_Lanes', 0)}, {root_half(source, 'High_Lanes', source.half_lanes)});
+         Expected : constant Wide.{target.values} :=
+           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+      begin
+         Check (Wide.To_Lanes (Wide.{operation} (Low_Value, High_Value)) = Expected
+           and then Native.To_Lanes (Native.{operation} (Low_Value, High_Value)) = Expected,
+           "wide {operation} {source.vector} to {target.vector}");
+      end;
+      for Iteration in 1 .. 32 loop
+         declare
+            Low_Lanes : constant Wide.{source.values} := Random_{source.values};
+            High_Lanes : constant Wide.{source.values} := Random_{source.values};
+            Low_Value : constant Wide.{source.vector} := Wide.From_Lanes (Low_Lanes);
+            High_Value : constant Wide.{source.vector} := Wide.From_Lanes (High_Lanes);
+            Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
+              ({root_half(source, 'Low_Lanes', 0)}, {root_half(source, 'Low_Lanes', source.half_lanes)});
+            Expected_High : constant {target.half} := Flyology_SIMD.{operation}
+              ({root_half(source, 'High_Lanes', 0)}, {root_half(source, 'High_Lanes', source.half_lanes)});
+            Expected : constant Wide.{target.values} :=
+              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         begin
+            Check (Wide.To_Lanes (Wide.{operation} (Low_Value, High_Value)) = Expected
+              and then Native.To_Lanes (Native.{operation} (Low_Value, High_Value)) = Expected,
+              "wide randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
+         end;
+      end loop;
+''')
+
+    conversion_groups = (
+        [("Convert_Round", item) for item in INTEGER_TO_FLOAT_CONVERSIONS]
+        + [("Convert_Truncate_Saturate", item) for item in FLOAT_TO_INTEGER_CONVERSIONS]
+        + [("Convert_Saturate", item) for item in SIGNED_UNSIGNED_CONVERSIONS]
+    )
+    for operation, (source_half, _, target_half, *_) in conversion_groups:
+        source = BY_HALF[source_half]
+        target = BY_HALF[target_half]
+        values = lane_values(source.scalar, source.lanes)
+        blocks.append(f'''      declare
+         Source_Lanes : constant Wide.{source.values} := [{values}];
+         Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+         Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
+           ({root_half(source, 'Source_Lanes', 0)});
+         Expected_High : constant {target.half} := Flyology_SIMD.{operation}
+           ({root_half(source, 'Source_Lanes', source.half_lanes)});
+         Expected : constant Wide.{target.values} :=
+           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+      begin
+         Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
+           and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+           "wide {operation} {source.vector} to {target.vector}");
+      end;
+      for Iteration in 1 .. 32 loop
+         declare
+            Source_Lanes : constant Wide.{source.values} := Random_{source.values};
+            Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+            Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
+              ({root_half(source, 'Source_Lanes', 0)});
+            Expected_High : constant {target.half} := Flyology_SIMD.{operation}
+              ({root_half(source, 'Source_Lanes', source.half_lanes)});
+            Expected : constant Wide.{target.values} :=
+              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         begin
+            Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
+              and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+              "wide randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
+         end;
+      end loop;
+''')
+
+    blocks.append('''      declare
+         function F32_Of_Bits is new Ada.Unchecked_Conversion (U32, F32);
+         function F64_Of_Bits is new Ada.Unchecked_Conversion (U64, F64);
+         function F32_To_Bits is new Ada.Unchecked_Conversion (F32, U32);
+         function F64_To_Bits is new Ada.Unchecked_Conversion (F64, U64);
+         function Is_F64_NaN (Value : F64) return Boolean is
+           ((F64_To_Bits (Value) and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+            and then (F64_To_Bits (Value) and 16#000F_FFFF_FFFF_FFFF#) /= 0);
+         F32_Edges : constant Wide.F32x8 := Wide.From_Lanes
+           ([F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#),
+             F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
+             F32_Of_Bits (16#0000_0001#), F32_Of_Bits (16#7FC0_0001#),
+             F32_Of_Bits (16#7F80_0001#), F32_Of_Bits (16#7F7F_FFFF#)]);
+         F64_Edges : constant Wide.F64x4 := Wide.From_Lanes
+           ([F64_Of_Bits (16#0000_0000_0000_0000#),
+             F64_Of_Bits (16#8000_0000_0000_0000#),
+             F64_Of_Bits (16#7FF0_0000_0000_0000#),
+             F64_Of_Bits (16#FFF0_0000_0000_0000#)]);
+         F64_NaN_And_Subnormal : constant Wide.F64x4 := Wide.From_Lanes
+           ([F64_Of_Bits (16#7FF8_0000_0000_0001#),
+             F64_Of_Bits (16#7FF0_0000_0000_0001#),
+             F64_Of_Bits (16#3690_0000_0000_0001#),
+             F64_Of_Bits (16#B690_0000_0000_0001#)]);
+         F64_Rounding_And_Overflow : constant Wide.F64x4 := Wide.From_Lanes
+           ([F64_Of_Bits (16#3FF0_0000_1000_0000#),
+             F64_Of_Bits (16#3FF0_0000_1000_0001#),
+             F64_Of_Bits (16#47EF_FFFF_F000_0000#),
+             F64_Of_Bits (16#C7EF_FFFF_F000_0000#)]);
+         F32_Integer_Bounds : constant Wide.F32x8 := Wide.From_Lanes
+           ([F32_Of_Bits (16#4EFF_FFFF#), F32_Of_Bits (16#4F00_0000#),
+             F32_Of_Bits (16#CEFF_FFFF#), F32_Of_Bits (16#CF00_0000#),
+             F32_Of_Bits (16#4F7F_FFFF#), F32_Of_Bits (16#4F80_0000#),
+             1.75, -1.75]);
+         F64_Integer_Bounds : constant Wide.F64x4 := Wide.From_Lanes
+           ([F64_Of_Bits (16#43DF_FFFF_FFFF_FFFF#),
+             F64_Of_Bits (16#43E0_0000_0000_0000#),
+             F64_Of_Bits (16#C3DF_FFFF_FFFF_FFFF#),
+             F64_Of_Bits (16#C3E0_0000_0000_0000#)]);
+         F64_Unsigned_Bounds : constant Wide.F64x4 := Wide.From_Lanes
+           ([F64_Of_Bits (16#43EF_FFFF_FFFF_FFFF#),
+             F64_Of_Bits (16#43F0_0000_0000_0000#), -1.75, 1.75]);
+         I32_Round_Edges : constant Wide.I32x8 := Wide.From_Lanes
+           ([0, 1, 16_777_216, 16_777_217,
+             I32'First, -16_777_217, -1, I32'Last]);
+         U32_Round_Edges : constant Wide.U32x8 := Wide.From_Lanes
+           ([0, 16_777_216, 16_777_217, U32'Last,
+             16_777_219, 16_777_220, 2_147_483_648, 1]);
+         I64_Round_Edges : constant Wide.I64x4 := Wide.From_Lanes
+           ([0, 9_007_199_254_740_993, I64'First, I64'Last]);
+         U64_Round_Edges : constant Wide.U64x4 := Wide.From_Lanes
+           ([9_007_199_254_740_992, 9_007_199_254_740_993,
+             9_007_199_254_740_995, U64'Last]);
+         Widened_Low : constant Wide.F64x4 := Wide.Widen_Low (F32_Edges);
+         Native_Widened_Low : constant Wide.F64x4 := Native.Widen_Low (F32_Edges);
+         Widened_High : constant Wide.F64x4 := Wide.Widen_High (F32_Edges);
+         Native_Widened_High : constant Wide.F64x4 := Native.Widen_High (F32_Edges);
+         Narrowed_Edges : constant Wide.F32x8 :=
+           Wide.Narrow_Round (F64_Edges, F64_NaN_And_Subnormal);
+         Native_Narrowed_Edges : constant Wide.F32x8 :=
+           Native.Narrow_Round (F64_Edges, F64_NaN_And_Subnormal);
+         Narrowed_Rounding : constant Wide.F32x8 :=
+           Wide.Narrow_Round (F64_Rounding_And_Overflow, F64_Rounding_And_Overflow);
+         Native_Narrowed_Rounding : constant Wide.F32x8 :=
+           Native.Narrow_Round (F64_Rounding_And_Overflow, F64_Rounding_And_Overflow);
+         F32_To_I32 : constant Wide.I32x8 :=
+           Wide.Convert_Truncate_Saturate (F32_Edges);
+         Native_F32_To_I32 : constant Wide.I32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Edges);
+         F32_To_U32 : constant Wide.U32x8 :=
+           Wide.Convert_Truncate_Saturate (F32_Edges);
+         Native_F32_To_U32 : constant Wide.U32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Edges);
+         F32_Bounds_To_I32 : constant Wide.I32x8 :=
+           Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         F32_Bounds_To_U32 : constant Wide.U32x8 :=
+           Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         F64_Bounds_To_I64 : constant Wide.I64x4 :=
+           Wide.Convert_Truncate_Saturate (F64_Integer_Bounds);
+         F64_Bounds_To_U64 : constant Wide.U64x4 :=
+           Wide.Convert_Truncate_Saturate (F64_Unsigned_Bounds);
+         F64_Edges_To_I64 : constant Wide.I64x4 :=
+           Wide.Convert_Truncate_Saturate (F64_Edges);
+         F64_Edges_To_U64 : constant Wide.U64x4 :=
+           Wide.Convert_Truncate_Saturate (F64_Edges);
+         I32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (I32_Round_Edges);
+         Native_I32_Rounded : constant Wide.F32x8 := Native.Convert_Round (I32_Round_Edges);
+         U32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (U32_Round_Edges);
+         Native_U32_Rounded : constant Wide.F32x8 := Native.Convert_Round (U32_Round_Edges);
+         I64_Rounded : constant Wide.F64x4 := Wide.Convert_Round (I64_Round_Edges);
+         Native_I64_Rounded : constant Wide.F64x4 := Native.Convert_Round (I64_Round_Edges);
+         U64_Rounded : constant Wide.F64x4 := Wide.Convert_Round (U64_Round_Edges);
+         Native_U64_Rounded : constant Wide.F64x4 := Native.Convert_Round (U64_Round_Edges);
+         Expected_I32_Rounded : constant Wide.Lane_Values_U32x8 :=
+           [16#0000_0000#, 16#3F80_0000#, 16#4B80_0000#, 16#4B80_0000#,
+            16#CF00_0000#, 16#CB80_0000#, 16#BF80_0000#, 16#4F00_0000#];
+         Expected_U32_Rounded : constant Wide.Lane_Values_U32x8 :=
+           [16#0000_0000#, 16#4B80_0000#, 16#4B80_0000#, 16#4F80_0000#,
+            16#4B80_0002#, 16#4B80_0002#, 16#4F00_0000#, 16#3F80_0000#];
+         Expected_I64_Rounded : constant Wide.Lane_Values_U64x4 :=
+           [16#0000_0000_0000_0000#, 16#4340_0000_0000_0000#,
+            16#C3E0_0000_0000_0000#, 16#43E0_0000_0000_0000#];
+         Expected_U64_Rounded : constant Wide.Lane_Values_U64x4 :=
+           [16#4340_0000_0000_0000#, 16#4340_0000_0000_0000#,
+            16#4340_0000_0000_0002#, 16#43F0_0000_0000_0000#];
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (F64_To_Bits (Wide.Extract (Widened_Low, Lane)) =
+              F64_To_Bits (Wide.Extract (Native_Widened_Low, Lane)),
+              "wide F32 low widening special edge" & Lane'Image);
+            Check (F64_To_Bits (Wide.Extract (Widened_Low, Lane)) =
+              (case Lane is
+                 when 0 => 16#0000_0000_0000_0000#,
+                 when 1 => 16#8000_0000_0000_0000#,
+                 when 2 => 16#7FF0_0000_0000_0000#,
+                 when 3 => 16#FFF0_0000_0000_0000#),
+              "wide F32 low widening exact category" & Lane'Image);
+            if Lane = 1 or else Lane = 2 then
+               Check (Is_F64_NaN (Wide.Extract (Widened_High, Lane))
+                 and then Is_F64_NaN (Wide.Extract (Native_Widened_High, Lane)),
+                 "wide F32 high widening NaN edge" & Lane'Image);
+            else
+               Check (F64_To_Bits (Wide.Extract (Widened_High, Lane)) =
+                 F64_To_Bits (Wide.Extract (Native_Widened_High, Lane)),
+                 "wide F32 high widening finite edge" & Lane'Image);
+            end if;
+         end loop;
+         for Lane in Wide.Lane_Index_32x8 loop
+            if Lane = 4 or else Lane = 5 then
+               Check ((F32_To_Bits (Wide.Extract (Narrowed_Edges, Lane)) and 16#7F80_0000#) = 16#7F80_0000#
+                 and then (F32_To_Bits (Wide.Extract (Narrowed_Edges, Lane)) and 16#007F_FFFF#) /= 0
+                 and then (F32_To_Bits (Wide.Extract (Native_Narrowed_Edges, Lane)) and 16#7F80_0000#) = 16#7F80_0000#
+                 and then (F32_To_Bits (Wide.Extract (Native_Narrowed_Edges, Lane)) and 16#007F_FFFF#) /= 0,
+                 "wide F64 narrowing NaN edge" & Lane'Image);
+            else
+               Check (F32_To_Bits (Wide.Extract (Narrowed_Edges, Lane)) =
+                 F32_To_Bits (Wide.Extract (Native_Narrowed_Edges, Lane)),
+                 "wide F64 narrowing special edge" & Lane'Image);
+            end if;
+            Check (F32_To_Bits (Wide.Extract (Narrowed_Rounding, Lane)) =
+              F32_To_Bits (Wide.Extract (Native_Narrowed_Rounding, Lane)),
+              "wide F64 narrowing rounding edge" & Lane'Image);
+            Check (Wide.Extract (F32_To_I32, Lane) = Wide.Extract (Native_F32_To_I32, Lane)
+              and then Wide.Extract (F32_To_U32, Lane) = Wide.Extract (Native_F32_To_U32, Lane),
+              "wide F32 integer conversion edge" & Lane'Image);
+            Check (F32_To_Bits (Wide.Extract (I32_Rounded, Lane)) = Expected_I32_Rounded (Lane)
+              and then F32_To_Bits (Wide.Extract (Native_I32_Rounded, Lane)) = Expected_I32_Rounded (Lane),
+              "wide I32 to F32 literal rounding edge" & Lane'Image);
+            Check (F32_To_Bits (Wide.Extract (U32_Rounded, Lane)) = Expected_U32_Rounded (Lane)
+              and then F32_To_Bits (Wide.Extract (Native_U32_Rounded, Lane)) = Expected_U32_Rounded (Lane),
+              "wide U32 to F32 literal rounding edge" & Lane'Image);
+         end loop;
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (F64_To_Bits (Wide.Extract (I64_Rounded, Lane)) = Expected_I64_Rounded (Lane)
+              and then F64_To_Bits (Wide.Extract (Native_I64_Rounded, Lane)) = Expected_I64_Rounded (Lane),
+              "wide I64 to F64 literal rounding edge" & Lane'Image);
+            Check (F64_To_Bits (Wide.Extract (U64_Rounded, Lane)) = Expected_U64_Rounded (Lane)
+              and then F64_To_Bits (Wide.Extract (Native_U64_Rounded, Lane)) = Expected_U64_Rounded (Lane),
+              "wide U64 to F64 literal rounding edge" & Lane'Image);
+         end loop;
+         Check (Wide.To_Lanes (F32_To_I32) =
+           [0, 0, I32'Last, I32'First, 0, 0, 0, I32'Last],
+           "wide F32 to I32 explicit edge results");
+         Check (Wide.To_Lanes (F32_To_U32) =
+           [0, 0, U32'Last, 0, 0, 0, 0, U32'Last],
+           "wide F32 to U32 explicit edge results");
+         Check (Wide.To_Lanes (F32_Bounds_To_I32) =
+           [2_147_483_520, I32'Last, -2_147_483_520, I32'First,
+            I32'Last, I32'Last, 1, -1],
+           "wide F32 to I32 boundary results");
+         Check (Wide.To_Lanes (F32_Bounds_To_U32) =
+           [2_147_483_520, 2_147_483_648, 0, 0,
+            4_294_967_040, U32'Last, 1, 0],
+           "wide F32 to U32 boundary results");
+         Check (Wide.To_Lanes (F64_Bounds_To_I64) =
+           [9_223_372_036_854_774_784, I64'Last,
+            -9_223_372_036_854_774_784, I64'First],
+           "wide F64 to I64 boundary results");
+         Check (Wide.To_Lanes (F64_Bounds_To_U64) =
+           [18_446_744_073_709_549_568, U64'Last, 0, 1],
+           "wide F64 to U64 boundary results");
+         Check (Wide.To_Lanes (F64_Edges_To_I64) = [0, 0, I64'Last, I64'First]
+           and then Wide.To_Lanes (F64_Edges_To_U64) = [0, 0, U64'Last, 0],
+           "wide F64 infinity and signed-zero integer results");
+         Check (Wide.To_Lanes (Narrowed_Rounding) =
+           [F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#),
+            F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
+            F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#),
+            F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#)],
+           "wide F64 narrowing tie and overflow results");
+      end;
+''')
+
+    return (
+        "   procedure Test_Wide_Conversions is\n"
+        + random_conversion_helpers()
+        + "\n   begin\n"
+        + "".join(blocks)
+        + "   end Test_Wide_Conversions;\n"
+    )
 
 
 def integer_test(f: Family) -> str:
@@ -736,7 +1142,8 @@ def float_test(f: Family) -> str:
 
 def source() -> str:
     procedures = "\n".join(float_test(f) if f.floating else integer_test(f) for f in FAMILIES)
-    calls = "\n".join(f"   Test_{f.vector};" for f in FAMILIES)
+    procedures += "\n" + conversion_tests()
+    calls = "\n".join(f"   Test_{f.vector};" for f in FAMILIES) + "\n   Test_Wide_Conversions;"
     return f"""with Ada.Text_IO;
 with Ada.Unchecked_Conversion;
 with Interfaces;

@@ -135,8 +135,11 @@ becomes that maximum. All other values are preserved.
 
 The Wide package applies the same lane, arithmetic, mask, floating-point,
 reduction, compression, slide, lane-map, bit-cast, and memory rules to its
-256-bit types. Its initial profile does not include width-changing or numeric
-conversions or `Table_Lookup`. The private
+256-bit types. It also applies the widening, narrowing, numeric conversion,
+rounding, saturation, and exceptional-input rules above. Wide widening selects
+half of one Wide source. Wide narrowing concatenates two complete Wide sources,
+with `Low` before `High`. Same-width conversions preserve lane positions. The
+initial profile does not include `Table_Lookup`. The private
 pair-of-128 implementation is not a caller ABI or a single-instruction
 promise.
 

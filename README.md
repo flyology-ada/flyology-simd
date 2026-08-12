@@ -30,7 +30,8 @@ and floating lanes. Same-width signed/unsigned numeric conversion is available
 for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
 compression and expansion are available for all ten 128-bit value types.
 The initial 256-bit profile supplies common arithmetic, comparison, mask,
-lane-movement, reduction, typed memory, and same-shape bit-cast operations. See the
+lane-movement, reduction, typed memory, bit-cast, widening, narrowing, and
+numeric conversion operations. It does not yet supply `Table_Lookup`. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -122,7 +123,8 @@ The complete artifact is written to the ignored `build/site/` directory.
   scalar composition where SSE2 has no semantics-preserving instruction;
   optional AVX2 whole-buffer algorithms remain in separately compiled objects.
   `Flyology_SIMD.Wide.Native` composes the selected 128-bit operations in
-  private pairs. It does not currently claim an AVX2-specific 256-bit leaf.
+  private pairs, including the Wide conversion operations. It does not
+  currently claim an AVX2-specific 256-bit leaf.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.

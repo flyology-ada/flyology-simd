@@ -79,6 +79,18 @@ Wide bit casts compose two selected 128-bit bit casts. Wide two-source lane
 maps use fixed-width scalar composition through selected lane access
 operations. The differential tests check the scalar and Native maps for all
 ten value types and check floating special encodings bit for bit.
+Wide conversion operations compose the corresponding selected 128-bit
+operations. For each of the 46 Wide conversion overloads, tests use fixed
+vectors and 32 deterministic pseudorandom inputs. They compare scalar and
+Native results with results from the 128-bit authority. Direct floating-point
+edge
+cases cover signed zeros,
+infinities, quiet and signaling NaNs, subnormals, halfway rounding, overflow,
+and explicit floating-to-integer outcomes in both private parts. Caller-level
+code-generation probes require two
+selected 128-bit calls for representative widening, narrowing, and numeric
+conversion operations. The project does not claim a 256-bit instruction
+sequence.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

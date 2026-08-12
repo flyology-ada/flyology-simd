@@ -2791,6 +2791,207 @@ is
    --  @param Count The count input.
    --  @param Value The value input.
 
+   function Widen_Low (Value : U8x32) return U16x16;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : U8x32) return U16x16;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : I8x32) return I16x16;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : I8x32) return I16x16;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : U16x16) return U32x8;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : U16x16) return U32x8;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : I16x16) return I32x8;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : I16x16) return I32x8;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : U32x8) return U64x4;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : U32x8) return U64x4;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : I32x8) return I64x4;
+   --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : I32x8) return I64x4;
+   --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_Low (Value : F32x8) return F64x4;
+   --  Widen the low binary32 source half to binary64 and preserve lane order. Finite values convert exactly. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Widen_High (Value : F32x8) return F64x4;
+   --  Widen the high binary32 source half to binary64 and preserve lane order. Finite values convert exactly. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : U16x16) return U8x32;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : U16x16) return U8x32;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : I16x16) return I8x32;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I16x16) return I8x32;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : U32x8) return U16x16;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : U32x8) return U16x16;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : I32x8) return I16x16;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I32x8) return I16x16;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : U64x4) return U32x8;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : U64x4) return U32x8;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Truncate (Low, High : I64x4) return I32x8;
+   --  Keep the low bits of every source lane and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I64x4) return I32x8;
+   --  Clamp every source lane to the result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I16x16) return U8x32;
+   --  Clamp signed lanes to the unsigned result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I32x8) return U16x16;
+   --  Clamp signed lanes to the unsigned result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Saturate (Low, High : I64x4) return U32x8;
+   --  Clamp signed lanes to the unsigned result range and concatenate Low before High.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Narrow_Round (Low, High : F64x4) return F32x8;
+   --  With the default round-to-nearest, ties-to-even environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not modify the floating-point control register.
+   --  @param Low The low input.
+   --  @param High The high input.
+   --  @return The operation result.
+   function Convert_Round (Value : I32x8) return F32x8;
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Round (Value : U32x8) return F32x8;
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Round (Value : I64x4) return F64x4;
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Round (Value : U64x4) return F64x4;
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F32x8) return I32x8;
+   --  Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F32x8) return U32x8;
+   --  Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F64x4) return I64x4;
+   --  Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Truncate_Saturate (Value : F64x4) return U64x4;
+   --  Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I8x32) return U8x32;
+   --  Convert signed lanes to unsigned, clamp negative values to zero, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U8x32) return I8x32;
+   --  Convert unsigned lanes to signed, clamp values above the signed maximum, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I16x16) return U16x16;
+   --  Convert signed lanes to unsigned, clamp negative values to zero, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U16x16) return I16x16;
+   --  Convert unsigned lanes to signed, clamp values above the signed maximum, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I32x8) return U32x8;
+   --  Convert signed lanes to unsigned, clamp negative values to zero, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U32x8) return I32x8;
+   --  Convert unsigned lanes to signed, clamp values above the signed maximum, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : I64x4) return U64x4;
+   --  Convert signed lanes to unsigned, clamp negative values to zero, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+   function Convert_Saturate (Value : U64x4) return I64x4;
+   --  Convert unsigned lanes to signed, clamp values above the signed maximum, and preserve other values.
+   --  @param Value The value input.
+   --  @return The operation result.
+
 private
    type U8x32 is record
       Low, High : U8x16;

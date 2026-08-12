@@ -1,6 +1,6 @@
 # Full-family API scope
 
-Status: experimental API record, updated 2026-08-11.
+Status: experimental API record, updated 2026-08-12.
 
 The current release implements the complete 128-bit type family and an initial
 256-bit profile. The 128-bit family is:
@@ -170,12 +170,14 @@ maps, two-source lane maps, zero-filled lane slides, mask operations, typed
 memory operations, and same-shape bit casts.
 Wide integer families also supply wrapping and saturating arithmetic, bitwise
 operations, shifts, minimum, and maximum.
+The Wide package supplies 46 conversion overloads. They cover each widening,
+narrowing, and numeric conversion shape from the 128-bit profile at 256-bit
+width.
 
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. The initial Wide profile does
-not include width-changing or numeric conversions or `Table_Lookup`. It also
-has no AVX2-specific 256-bit leaf or
+not include `Table_Lookup`. It also has no AVX2-specific 256-bit leaf or
 code-generation claim.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
@@ -184,6 +186,14 @@ Selectors can repeat, and a default-initialized map selects `Left` lane 0.
 Wide `Bit_Cast` connects every signed, unsigned, and floating type with the
 same lane shape. It preserves each lane's complete bits and position and does
 not perform numeric conversion.
+
+Wide widening selects half of one Wide source. For example, `Widen_Low` on
+`F32x8` converts source lanes 0 through 3 to `F64x4`, and `Widen_High` converts
+source lanes 4 through 7. Wide narrowing concatenates two complete sources:
+`Low` supplies the low result half, and `High` supplies the high result half.
+The rounding, saturation, exceptional-input, and floating-environment rules
+are the same as the corresponding 128-bit operations. Same-width Wide numeric
+conversions preserve lane positions.
 
 ## Floating-point contract
 

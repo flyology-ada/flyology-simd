@@ -2254,4 +2254,188 @@ package body Flyology_SIMD.Wide.Native is
       if Count <= 2 then Flyology_SIMD.Backends.Native.Store_Partial (Data, Start, Count, Value.Low);
       else Flyology_SIMD.Backends.Native.Store (Data, Start, Value.Low); Flyology_SIMD.Backends.Native.Store_Partial (Data, Start + 2, Count - 2, Value.High); end if;
    end Store_Partial;
+
+   function Widen_Low (Value : U8x32) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : U8x32) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : I8x32) return I16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : I8x32) return I16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : U16x16) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : U16x16) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : I16x16) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : I16x16) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : U32x8) return U64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : U32x8) return U64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : I32x8) return I64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : I32x8) return I64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Widen_Low (Value : F32x8) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.Low)));
+
+   function Widen_High (Value : F32x8) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Widen_Low (Value.High),
+       High => Flyology_SIMD.Backends.Native.Widen_High (Value.High)));
+
+   function Narrow_Truncate (Low, High : U16x16) return U8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : U16x16) return U8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Truncate (Low, High : I16x16) return I8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I16x16) return I8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Truncate (Low, High : U32x8) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : U32x8) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Truncate (Low, High : I32x8) return I16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I32x8) return I16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Truncate (Low, High : U64x4) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : U64x4) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Truncate (Low, High : I64x4) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Truncate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Truncate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I64x4) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I16x16) return U8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I32x8) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Saturate (Low, High : I64x4) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Saturate (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Saturate (High.Low, High.High)));
+
+   function Narrow_Round (Low, High : F64x4) return F32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Narrow_Round (Low.Low, Low.High),
+       High => Flyology_SIMD.Backends.Native.Narrow_Round (High.Low, High.High)));
+
+   function Convert_Round (Value : I32x8) return F32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Round (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Round (Value.High)));
+
+   function Convert_Round (Value : U32x8) return F32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Round (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Round (Value.High)));
+
+   function Convert_Round (Value : I64x4) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Round (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Round (Value.High)));
+
+   function Convert_Round (Value : U64x4) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Round (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Round (Value.High)));
+
+   function Convert_Truncate_Saturate (Value : F32x8) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.High)));
+
+   function Convert_Truncate_Saturate (Value : F32x8) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.High)));
+
+   function Convert_Truncate_Saturate (Value : F64x4) return I64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.High)));
+
+   function Convert_Truncate_Saturate (Value : F64x4) return U64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Truncate_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : I8x32) return U8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : U8x32) return I8x32 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : I16x16) return U16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : U16x16) return I16x16 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : I32x8) return U32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : U32x8) return I32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : I64x4) return U64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
+
+   function Convert_Saturate (Value : U64x4) return I64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.Low),
+       High => Flyology_SIMD.Backends.Native.Convert_Saturate (Value.High)));
 end Flyology_SIMD.Wide.Native;
