@@ -37,6 +37,12 @@ same position. A value from 0 through 15 selects the table lane whose lane
 index equals that value. A larger value produces zero. The operation does not
 mask or reduce an index before the lookup.
 
+The Wide `Table_Lookup` overload accepts one `U8x32` table and one `U8x32`
+index vector. An unsigned index from 0 through 31 selects the table lane with
+that index. A larger index produces zero. Each result lane uses the index lane
+at the same position. The operation does not mask or reduce an index before the
+lookup.
+
 `Make_Lane_Map` accepts one strongly typed source-lane selector for every
 result lane. Each selector is in range by construction. Selectors can repeat a
 source lane and do not need to form a one-to-one permutation. `Permute_Lanes`
@@ -139,7 +145,7 @@ reduction, compression, slide, lane-map, bit-cast, and memory rules to its
 rounding, saturation, and exceptional-input rules above. Wide widening selects
 half of one Wide source. Wide narrowing concatenates two complete Wide sources,
 with `Low` before `High`. Same-width conversions preserve lane positions. The
-initial profile does not include `Table_Lookup`. The private
+private
 pair-of-128 implementation is not a caller ABI or a single-instruction
 promise.
 

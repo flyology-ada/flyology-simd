@@ -14,8 +14,9 @@ The current v0.1 surface contains all ten private 128-bit value types. The
 counts and masks. Integer operations name wrapping and saturation explicitly.
 Floating operations follow documented NaN and signed-zero rules without
 fast-math. Mask values support Boolean combination, reduction, and first/last
-true-lane queries. `Table_Lookup` performs a 16-entry byte lookup with a
-defined zero result for an out-of-range index. Each value family at both
+true-lane queries. `Table_Lookup` performs a 16-entry lookup for `U8x16` and a
+32-entry lookup for Wide `U8x32`. For each result lane, an index above the
+applicable table range produces zero in that lane. Each value family at both
 widths supports reusable, strongly typed lane maps that reorder or broadcast
 lanes from one source vector, or select lanes from two source vectors. Every family
 has zero-filled lane slides in both index directions. Every family also has
@@ -31,7 +32,8 @@ for all four supported integer lane widths: 8, 16, 32, and 64 bits. Mask
 compression and expansion are available for all ten 128-bit value types.
 The initial 256-bit profile supplies common arithmetic, comparison, mask,
 lane-movement, reduction, typed memory, bit-cast, widening, narrowing, and
-numeric conversion operations. It does not yet supply `Table_Lookup`. See the
+numeric conversion operations. Wide `U8x32` also supplies a 32-entry byte-table
+lookup. See the
 [operation matrix](https://simd.flyology.org/guide/operations/) before you
 select the crate for an algorithm.
 
@@ -84,6 +86,7 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/dot_product
 ./bin/conversions
 ./bin/table_lookup
+./bin/wide_table_lookup
 ./bin/lane_slides
 ./bin/permute_points
 ./bin/cross_block_differences

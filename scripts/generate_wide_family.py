@@ -196,6 +196,15 @@ def declaration(f: Family, first_shape: bool) -> str:
         f"   function Replace (Value : {f.vector}; Lane : {f.index}; With_Value : {f.scalar}) return {f.vector};",
         doc("Return a copy with one lane replaced.", ("Value", "Lane", "With_Value")),
     ]
+    if f.vector == "U8x32":
+        out += [
+            "   function Table_Lookup (Table, Indices : U8x32) return U8x32;",
+            doc(
+                "Select each result byte from the corresponding unsigned index. "
+                "Indexes from 0 through 31 select that table lane; larger indexes produce zero.",
+                ("Table", "Indices"),
+            ),
+        ]
     for target in BIT_CAST_TARGETS[f.vector]:
         out += [
             f"   function Bit_Cast (Value : {f.vector}) return {target};",
@@ -454,6 +463,30 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
         f"      then (Low => {p}.Replace (Value.Low, Lane, With_Value), High => Value.High)\n"
         f"      else (Low => Value.Low, High => {p}.Replace (Value.High, Lane - {f.half_lanes}, With_Value)));",
     ]
+    if f.vector == "U8x32":
+        if p == "Flyology_SIMD":
+            out.append(
+                "   function Table_Lookup (Table, Indices : U8x32) return U8x32 is\n"
+                "      Table_Lanes : constant Lane_Values_U8x32 := To_Lanes (Table);\n"
+                "      Index_Lanes : constant Lane_Values_U8x32 := To_Lanes (Indices);\n"
+                "      Result : Lane_Values_U8x32 := [others => 0];\n"
+                "   begin\n"
+                "      for Lane in Lane_Index_8x32 loop\n"
+                "         if Index_Lanes (Lane) <= 31 then\n"
+                "            Result (Lane) := Table_Lanes (Natural (Index_Lanes (Lane)));\n"
+                "         end if;\n"
+                "      end loop;\n"
+                "      return From_Lanes (Result);\n"
+                "   end Table_Lookup;"
+            )
+        else:
+            out.append(
+                "   function Table_Lookup (Table, Indices : U8x32) return U8x32 is\n"
+                "     ((Low => Lookup_Mechanism.Table_Lookup_32 "
+                "(Table.Low, Table.High, Indices.Low),\n"
+                "       High => Lookup_Mechanism.Table_Lookup_32 "
+                "(Table.Low, Table.High, Indices.High)));"
+            )
     for target_name in BIT_CAST_TARGETS[f.vector]:
         target = BY_VECTOR[target_name]
         out.append(
@@ -700,9 +733,11 @@ def native_body_text() -> str:
         seen_shapes.add(shape)
     conversions = conversion_bodies("Flyology_SIMD.Backends.Native")
     return f"""with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
+   package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;

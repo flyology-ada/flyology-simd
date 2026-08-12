@@ -43,7 +43,7 @@ arithmetic, bitwise operations, shifts, minimum, maximum, and
 add/minimum/maximum reductions. Floating families supply arithmetic, number
 minimum and maximum, and add/minimum/maximum reductions.
 
-The byte family also supplies `Table_Lookup`. For each result lane, the
+The `U8x16` family supplies a 16-entry `Table_Lookup`. For each result lane, the
 operation reads the unsigned value from the index lane at the same position. A
 value from 0 through 15 selects the table lane whose lane index equals that
 value. A larger value produces zero. The operation does not reduce an index
@@ -173,12 +173,14 @@ operations, shifts, minimum, and maximum.
 The Wide package supplies 46 conversion overloads. They cover each widening,
 narrowing, and numeric conversion shape from the 128-bit profile at 256-bit
 width.
+Wide `U8x32` also supplies a 32-entry `Table_Lookup`. An index from 0 through
+31 selects the table lane with that index. A larger index produces zero. The
+operation does not mask or reduce an index before the lookup.
 
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
-aligned operation requires 32-byte alignment. The initial Wide profile does
-not include `Table_Lookup`. It also has no AVX2-specific 256-bit leaf or
-code-generation claim.
+aligned operation requires 32-byte alignment. The initial Wide profile has no
+AVX2-specific 256-bit leaf or code-generation claim.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

@@ -87,6 +87,11 @@ is
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
    --  @return The operation result.
+   function Table_Lookup (Table, Indices : U8x32) return U8x32;
+   --  Select each result byte from the corresponding unsigned index. Indexes from 0 through 31 select that table lane; larger indexes produce zero.
+   --  @param Table The table input.
+   --  @param Indices The indices input.
+   --  @return The operation result.
    function Bit_Cast (Value : U8x32) return I8x32;
    --  Reinterpret every lane bit pattern without changing lane position.
    --  @param Value The value input.

@@ -20,6 +20,7 @@ feature_object="obj/$architecture/$avx2/flyology_simd-features.o"
 slide_probe_object="obj/codegen-probes/$architecture/$avx2/slide_codegen_probe.o"
 permute_probe_object="obj/codegen-probes/$architecture/$avx2/permute_codegen_probe.o"
 wide_probe_object="obj/codegen-probes/$architecture/$avx2/wide_codegen_probe.o"
+wide_lookup_object="obj/$architecture/$avx2/flyology_simd-wide-lookup_mechanism.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -35,6 +36,7 @@ disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
+disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 
 require_pattern() {
@@ -132,21 +134,26 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u8_widen_low' "$temporary/wide-probe.txt" "$temporary/wide_u8_widen.txt"
         extract_symbol 'wide_codegen_probe__u16_narrow_saturate' "$temporary/wide-probe.txt" "$temporary/wide_u16_narrow.txt"
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
+        extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two NEON byte-add leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_to_u32.txt" 'two NEON F32-to-U32 bit-cast leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_widen.txt" 'two NEON byte-widen leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u16_narrow.txt" 'two NEON U16-narrow leaves in wide caller'
         require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i32_to_f32.txt" 'two NEON I32-to-F32 conversion leaves in wide caller'
+        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_table_lookup.txt" 'two 16-lane table-lookup leaves in wide caller'
+        extract_symbol 'table_lookup_32' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
+        require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
         require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
-        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round)' 7 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
-        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
-        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
+        require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
+        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 8 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
+        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
         extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
         extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"
@@ -293,21 +300,24 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u8_widen_low' "$temporary/wide-probe.txt" "$temporary/wide_u8_widen.txt"
         extract_symbol 'wide_codegen_probe__u16_narrow_saturate' "$temporary/wide-probe.txt" "$temporary/wide_u16_narrow.txt"
         extract_symbol 'wide_codegen_probe__i32_to_f32' "$temporary/wide-probe.txt" "$temporary/wide_i32_to_f32.txt"
+        extract_symbol 'wide_codegen_probe__u8_table_lookup' "$temporary/wide-probe.txt" "$temporary/wide_u8_table_lookup.txt"
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two SSE2 byte-add leaves in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_multiply.txt" 'two SSE F32-multiply leaves in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_to_u32.txt" 'two SSE F32-to-U32 bit-cast leaves in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_widen.txt" 'two selected byte-widen operations in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u16_narrow.txt" 'two selected U16-narrow operations in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
+        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_table_lookup.txt" 'two target-selected table-lookup operations in wide caller'
         require_pattern 'flyology_simd__backends__native__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__multiply' "$temporary/wide-undefined.txt" 'wide F32 multiplication calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
-        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round)' 7 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
-        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
-        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
+        require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
+        require_count 'flyology_simd__backends__native__(add_wrap|multiply|bit_cast|widen_low|widen_high|narrow_saturate|convert_round)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 8 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
+        forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
         require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
         require_pattern 'movdqu' "$temporary/algorithm.txt" 'inlined vector load in representative loop'

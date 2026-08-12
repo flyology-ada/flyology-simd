@@ -56,6 +56,30 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
+      function Reference_Table_Lookup
+        (Table, Indices : Wide.Lane_Values_U8x32)
+         return Wide.Lane_Values_U8x32
+      is
+         Result : Wide.Lane_Values_U8x32 := [others => 0];
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Indices (Lane) <= 31 then
+               Result (Lane) := Table (Natural (Indices (Lane)));
+            end if;
+         end loop;
+         return Result;
+      end Reference_Table_Lookup;
+      Lookup_Table_Lanes : constant Wide.Lane_Values_U8x32 :=
+        [for Lane in Wide.Lane_Index_8x32 => U8 ((Lane * 7 + 3) mod 256)];
+      Lookup_Table : constant Wide.U8x32 := Wide.From_Lanes (Lookup_Table_Lanes);
+      Mixed_Index_Lanes : constant Wide.Lane_Values_U8x32 :=
+        [0, 31, 16, 15, 32, 255, 1, 30,
+         17, 14, 33, 254, 2, 29, 18, 13,
+         34, 253, 3, 28, 19, 12, 35, 252,
+         4, 27, 20, 11, 36, 251, 5, 26];
+      Mixed_Indices : constant Wide.U8x32 := Wide.From_Lanes (Mixed_Index_Lanes);
+
       A_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
       B_Lanes : constant Wide.Lane_Values_U8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#)];
@@ -102,6 +126,26 @@ procedure Wide_Tests is
         "U8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U8x32 double complement");
+
+      Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Mixed_Indices)) =
+        Reference_Table_Lookup (Lookup_Table_Lanes, Mixed_Index_Lanes)
+        and then Native.To_Lanes (Native.Table_Lookup (Lookup_Table, Mixed_Indices)) =
+          Reference_Table_Lookup (Lookup_Table_Lanes, Mixed_Index_Lanes),
+        "U8x32 fixed 32-entry table lookup");
+      for Batch in Natural range 0 .. 7 loop
+         declare
+            Index_Lanes : constant Wide.Lane_Values_U8x32 :=
+              [for Lane in Wide.Lane_Index_8x32 => U8 (Batch * 32 + Lane)];
+            Index_Vector : constant Wide.U8x32 := Wide.From_Lanes (Index_Lanes);
+            Expected : constant Wide.Lane_Values_U8x32 :=
+              Reference_Table_Lookup (Lookup_Table_Lanes, Index_Lanes);
+         begin
+            Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Index_Vector)) = Expected
+              and then Native.To_Lanes (Native.Table_Lookup (Lookup_Table, Index_Vector)) = Expected,
+              "U8x32 exhaustive unsigned lookup indexes" & Batch'Image);
+         end;
+      end loop;
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 8)) = Wide.Lane_Values_U8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 15)) = Wide.Lane_Values_U8x32'[others => 0],
         "U8x32 oversized shifts");
@@ -371,6 +415,13 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U8x32 randomized selection and movement" & Iteration'Image);
+
+            Check (Wide.To_Lanes (Wide.Table_Lookup (R_A, R_B)) =
+              Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B))
+              and then Native.To_Lanes (Native.Table_Lookup (R_A, R_B)) =
+                Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B)),
+              "U8x32 randomized 32-entry table lookup" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -416,6 +467,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#))];
@@ -462,6 +514,7 @@ procedure Wide_Tests is
         "I8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I8x32 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 8)) = Wide.Lane_Values_I8x32'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 15)) = Wide.Lane_Values_I8x32'[others => 0],
         "I8x32 oversized shifts");
@@ -730,6 +783,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I8x32 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -774,6 +828,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
@@ -820,6 +875,7 @@ procedure Wide_Tests is
         "U16x16 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U16x16 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_U16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 23)) = Wide.Lane_Values_U16x16'[others => 0],
         "U16x16 oversized shifts");
@@ -1089,6 +1145,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U16x16 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -1134,6 +1191,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
@@ -1180,6 +1238,7 @@ procedure Wide_Tests is
         "I16x16 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I16x16 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_I16x16'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 23)) = Wide.Lane_Values_I16x16'[others => 0],
         "I16x16 oversized shifts");
@@ -1448,6 +1507,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I16x16 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -1492,6 +1552,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
@@ -1538,6 +1599,7 @@ procedure Wide_Tests is
         "U32x8 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U32x8 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_U32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 39)) = Wide.Lane_Values_U32x8'[others => 0],
         "U32x8 oversized shifts");
@@ -1823,6 +1885,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U32x8 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -1884,6 +1947,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
@@ -1930,6 +1994,7 @@ procedure Wide_Tests is
         "I32x8 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I32x8 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_I32x8'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 39)) = Wide.Lane_Values_I32x8'[others => 0],
         "I32x8 oversized shifts");
@@ -2214,6 +2279,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I32x8 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -2274,6 +2340,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
@@ -2320,6 +2387,7 @@ procedure Wide_Tests is
         "U64x4 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U64x4 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_U64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 71)) = Wide.Lane_Values_U64x4'[others => 0],
         "U64x4 oversized shifts");
@@ -2605,6 +2673,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U64x4 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
@@ -2666,6 +2735,7 @@ procedure Wide_Tests is
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
@@ -2712,6 +2782,7 @@ procedure Wide_Tests is
         "I64x4 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I64x4 double complement");
+
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_I64x4'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, 71)) = Wide.Lane_Values_I64x4'[others => 0],
         "I64x4 oversized shifts");
@@ -2996,6 +3067,7 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I64x4 randomized selection and movement" & Iteration'Image);
+
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),

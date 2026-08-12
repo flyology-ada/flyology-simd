@@ -1,7 +1,9 @@
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Wide.Lookup_Mechanism;
 with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide.Native is
+   package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    use type System.Storage_Elements.Integer_Address;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
@@ -44,6 +46,10 @@ package body Flyology_SIMD.Wide.Native is
      (if Lane < 16
       then (Low => Flyology_SIMD.Backends.Native.Replace (Value.Low, Lane, With_Value), High => Value.High)
       else (Low => Value.Low, High => Flyology_SIMD.Backends.Native.Replace (Value.High, Lane - 16, With_Value)));
+
+   function Table_Lookup (Table, Indices : U8x32) return U8x32 is
+     ((Low => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.Low),
+       High => Lookup_Mechanism.Table_Lookup_32 (Table.Low, Table.High, Indices.High)));
 
    function Bit_Cast (Value : U8x32) return I8x32 is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));

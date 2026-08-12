@@ -477,6 +477,61 @@ def integer_test(f: Family) -> str:
         bits = f"{unsigned} (16#{edge_patterns[lane % len(edge_patterns)]:0{f.bits // 4}X}#)"
         edge_values.append(f"Bits_To_Value ({bits})" if f.signed else bits)
     bit_lanes = ", ".join(edge_values)
+    lookup_declarations = ""
+    lookup_checks = ""
+    lookup_randomized = ""
+    if f.vector == "U8x32":
+        lookup_declarations = '''
+      function Reference_Table_Lookup
+        (Table, Indices : Wide.Lane_Values_U8x32)
+         return Wide.Lane_Values_U8x32
+      is
+         Result : Wide.Lane_Values_U8x32 := [others => 0];
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Indices (Lane) <= 31 then
+               Result (Lane) := Table (Natural (Indices (Lane)));
+            end if;
+         end loop;
+         return Result;
+      end Reference_Table_Lookup;
+      Lookup_Table_Lanes : constant Wide.Lane_Values_U8x32 :=
+        [for Lane in Wide.Lane_Index_8x32 => U8 ((Lane * 7 + 3) mod 256)];
+      Lookup_Table : constant Wide.U8x32 := Wide.From_Lanes (Lookup_Table_Lanes);
+      Mixed_Index_Lanes : constant Wide.Lane_Values_U8x32 :=
+        [0, 31, 16, 15, 32, 255, 1, 30,
+         17, 14, 33, 254, 2, 29, 18, 13,
+         34, 253, 3, 28, 19, 12, 35, 252,
+         4, 27, 20, 11, 36, 251, 5, 26];
+      Mixed_Indices : constant Wide.U8x32 := Wide.From_Lanes (Mixed_Index_Lanes);
+'''
+        lookup_checks = '''
+      Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Mixed_Indices)) =
+        Reference_Table_Lookup (Lookup_Table_Lanes, Mixed_Index_Lanes)
+        and then Native.To_Lanes (Native.Table_Lookup (Lookup_Table, Mixed_Indices)) =
+          Reference_Table_Lookup (Lookup_Table_Lanes, Mixed_Index_Lanes),
+        "U8x32 fixed 32-entry table lookup");
+      for Batch in Natural range 0 .. 7 loop
+         declare
+            Index_Lanes : constant Wide.Lane_Values_U8x32 :=
+              [for Lane in Wide.Lane_Index_8x32 => U8 (Batch * 32 + Lane)];
+            Index_Vector : constant Wide.U8x32 := Wide.From_Lanes (Index_Lanes);
+            Expected : constant Wide.Lane_Values_U8x32 :=
+              Reference_Table_Lookup (Lookup_Table_Lanes, Index_Lanes);
+         begin
+            Check (Wide.To_Lanes (Wide.Table_Lookup (Lookup_Table, Index_Vector)) = Expected
+              and then Native.To_Lanes (Native.Table_Lookup (Lookup_Table, Index_Vector)) = Expected,
+              "U8x32 exhaustive unsigned lookup indexes" & Batch'Image);
+         end;
+      end loop;
+'''
+        lookup_randomized = '''
+            Check (Wide.To_Lanes (Wide.Table_Lookup (R_A, R_B)) =
+              Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B))
+              and then Native.To_Lanes (Native.Table_Lookup (R_A, R_B)) =
+                Reference_Table_Lookup (Wide.To_Lanes (R_A), Wide.To_Lanes (R_B)),
+              "U8x32 randomized 32-entry table lookup" & Iteration'Image);
+'''
     return f"""
    procedure Test_{f.vector} is
 {('      function Bits_To_Value is new Ada.Unchecked_Conversion (' + unsigned + ', ' + f.scalar + ');') if f.signed else ''}
@@ -497,6 +552,7 @@ def integer_test(f: Family) -> str:
          end loop;
          return Wide.Make_Lane_Map (Selectors);
       end Random_Map;
+{lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
       Bit_Lanes : constant Wide.{f.values} := [{bit_lanes}];
@@ -543,6 +599,7 @@ def integer_test(f: Family) -> str:
         "{f.vector} complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
+{lookup_checks}
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, {f.bits})) = Wide.{f.values}'[others => 0]
         and then Wide.To_Lanes (Wide.Shift_Right_Logical (A, {f.bits + 7})) = Wide.{f.values}'[others => 0],
         "{f.vector} oversized shifts");
@@ -796,6 +853,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_Low (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_Low (R_A, Slide))
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "{f.vector} randomized selection and movement" & Iteration'Image);
+{lookup_randomized}
             Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
               and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
               and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),

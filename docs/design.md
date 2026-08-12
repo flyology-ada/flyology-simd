@@ -45,10 +45,11 @@ directions with explicit saturation semantics.
 All ten value families provide stable mask compression and
 expansion. These operations retain fixed-width results and do not allocate a
 variable-length container.
-The byte family includes a 16-entry table lookup. The public zero result for
-an out-of-range index is independent of a target instruction's behavior.
+The `U8x16` and Wide `U8x32` families include 16-entry and 32-entry table
+lookups. The public zero result for an out-of-range index is independent of a
+target instruction's behavior.
 The initial Wide profile includes two-source lane maps, lane-preserving bit
-casts, widening, narrowing, and numeric conversion. It omits table lookup.
+casts, widening, narrowing, numeric conversion, and 32-entry byte-table lookup.
 
 ## Normative semantics
 
@@ -76,8 +77,9 @@ instruction-specific result.
   the remaining result lanes. `Expand` consumes packed low lanes into true
   mask positions and zero-fills false positions. Moved lane bits do not
   change. Floating fill lanes contain positive zero.
-- `Table_Lookup` uses each unsigned byte index independently. Indexes from 0
-  through 15 select table lanes. Larger indexes return zero.
+- `Table_Lookup` uses each unsigned byte index independently. For `U8x16`,
+  indexes from 0 through 15 select table lanes. For Wide `U8x32`, indexes from
+  0 through 31 select table lanes. Larger indexes return zero.
 - `Make_Lane_Map` accepts only valid lane indexes. `Permute_Lanes` reads one
   source vector through that reusable map. Repeated selectors broadcast a
   source lane. Floating lane encodings remain unchanged.
@@ -135,6 +137,8 @@ operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
 operations to the selected private part. Narrowing converts both private parts
 of each Wide input. Same-width numeric conversions apply one 128-bit operation
 to each private part.
+Wide Native table lookup applies one target-selected 32-entry lookup to each
+16-lane index part. Both operations select from the complete 32-byte table.
 
 The AArch64 backend lowers lane permutation, lane slides, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON

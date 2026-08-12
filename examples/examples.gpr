@@ -23,6 +23,7 @@ project Examples is
       "dot_product.adb",
       "conversions.adb",
       "table_lookup.adb",
+      "wide_table_lookup.adb",
       "lane_slides.adb",
       "permute_points.adb",
       "cross_block_differences.adb",

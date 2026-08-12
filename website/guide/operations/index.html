@@ -115,9 +115,9 @@
               <tr><td>Bit reinterpretation</td><td><a data-api="Flyology_SIMD.Wide"><code>Bit_Cast</code></a> between signed, unsigned, and floating types that have the same lane width and lane count</td></tr>
               <tr><td>Width changes</td><td><a data-api="Flyology_SIMD.Wide"><code>Widen_Low</code> and <code>Widen_High</code></a> between adjacent integer types with the same signedness and from <code>F32x8</code> to <code>F64x4</code>; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Truncate</code></a> between adjacent integer types with the same signedness; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Saturate</code></a> for same-signedness and signed-to-unsigned integer narrowing; <a data-api="Flyology_SIMD.Wide"><code>Narrow_Round</code></a> from two <code>F64x4</code> inputs to <code>F32x8</code></td></tr>
               <tr><td>Numeric-domain changes</td><td><a data-api="Flyology_SIMD.Wide"><code>Convert_Round</code></a> from <code>I32x8</code> or <code>U32x8</code> to <code>F32x8</code> and from <code>I64x4</code> or <code>U64x4</code> to <code>F64x4</code>; <a data-api="Flyology_SIMD.Wide"><code>Convert_Truncate_Saturate</code></a> in the reverse directions; <a data-api="Flyology_SIMD.Wide"><code>Convert_Saturate</code></a> between signed and unsigned integer types at all four lane widths</td></tr>
+              <tr><td>Byte-table lookup</td><td>32-entry <a data-api="Flyology_SIMD.Wide.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Table_Lookup</code></a> for <code>U8x32</code></td></tr>
               <tr><td>Integer types</td><td>Wrapping and saturating arithmetic; bitwise operations; shifts; ordered comparisons; minimum; maximum; add, minimum, and maximum reductions</td></tr>
               <tr><td>Floating types</td><td>Arithmetic; ordered and unordered comparisons; number minimum and maximum; add, number-minimum, and number-maximum reductions</td></tr>
-              <tr><td>Not in the profile</td><td><code>Table_Lookup</code></td></tr>
             </tbody>
           </table>
           <p>An operation with the same name as a 128-bit operation has the same lane semantics. Wide two-source maps can select and repeat lanes from either input. Wide bit casts preserve every lane bit and position between signed, unsigned, and floating types that have the same lane width and lane count. Wide conversions use the same rounding, saturation, exceptional-input, and lane-order rules as the corresponding 128-bit operations.</p>
@@ -169,11 +169,12 @@
               <tr><td>Lane slides</td><td><a data-api="Flyology_SIMD"><code>Slide_Lanes_Toward_Low</code>, <code>Slide_Lanes_Toward_High</code></a></td><td>All integer types</td></tr>
               <tr><td>Mask compression and expansion</td><td><a data-api="Flyology_SIMD"><code>Compress</code>, <code>Expand</code></a></td><td>All integer types</td></tr>
               <tr><td>16-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Table_Lookup"><code>Table_Lookup</code></a></td><td><code>U8x16</code></td></tr>
+              <tr><td>32-entry byte-table lookup</td><td><a data-api="Flyology_SIMD.Wide.Table_Lookup" data-api-signature="Table, Indices : U8x32) return U8x32"><code>Wide.Table_Lookup</code></a></td><td><code>U8x32</code></td></tr>
             </tbody>
           </table>
           <p><code>Horizontal_Sum</code> remains as a byte-specific convenience. It returns the exact sum as <code>Natural</code>. For <code>U8x16</code>, <code>Reduce_Add_Wrap</code> returns the sum modulo 256.</p>
           <p>A logical shift returns zero in each lane when its count is equal to or greater than the lane width. An arithmetic right shift returns the sign fill for those counts.</p>
-          <p>For each result lane, <code>Table_Lookup</code> reads the unsigned value from the index lane at the same position. A value from 0 through 15 selects the table lane whose lane index equals that value. A larger value produces zero. The operation does not reduce the index modulo 16.</p>
+          <p>For each result lane, the <code>U8x16</code> overload reads the unsigned value from the index lane at the same position. A value from 0 through 15 selects the table lane whose lane index equals that value. A larger value produces zero. The operation does not reduce the index modulo 16.</p>
           <pre><code class="language-ada">Hex_Digits : constant U8x16 := From_Lanes
   ([Character'Pos ('0'), Character'Pos ('1'), Character'Pos ('2'),
     Character'Pos ('3'), Character'Pos ('4'), Character'Pos ('5'),
@@ -188,6 +189,11 @@ Encoded : constant U8x16 := Table_Lookup (Hex_Digits, Indices);
 --  Encoded lanes 0 .. 14 contain ASCII 0 through E.
 --  Encoded lane 15 is zero because index 255 is out of range.</code></pre>
           <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/table_lookup.adb"><code>table_lookup.adb</code> example</a> maps all 16 hexadecimal digits and then checks an out-of-range index.</p>
+          <h3>Use a 32-entry table for five-bit values</h3>
+          <p>The Wide overload uses a 32-byte table. Indexes from 0 through 31 select table lanes, and larger indexes produce zero. Each result lane uses the index at the same lane position.</p>
+          <p>The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_table_lookup.adb"><code>wide_table_lookup.adb</code> example</a> maps 32 five-bit digit values through a Base32 alphabet. The first 12 index lanes select <code>FLYOLOGYSIMD</code>. Lanes 12 through 31 select <code>A</code> through <code>T</code>. A second lookup replaces index lane 31 with 32, so result lane 31 is zero. The example demonstrates the lookup step only; it is not a complete Base32 encoder.</p>
+          <pre><code>Base32 digits: FLYOLOGYSIMDABCDEFGHIJKLMNOPQRST
+out-of-range lane: 0</code></pre>
         </section>
         <section id="floats">
           <h2>Floating-point operation coverage</h2>

@@ -29,8 +29,9 @@ widening uses `fcvtl`, floating narrowing uses `fcvtn`, integer-to-floating
 conversion uses `scvtf` and `ucvtf`, and floating-to-integer conversion uses
 `fcvtzs` and `fcvtzu`. Same-width signed/unsigned conversion uses signed
 maximum and unsigned minimum instructions for 8-, 16-, and 32-bit lanes. The
-64-bit conversions use comparisons and bit selection. Byte-table lookup uses
-`tbl`, including its zero result for indexes above 15. Lane slides use `ext`
+64-bit conversions use comparisons and bit selection. The 16-entry byte-table
+lookup uses one-register `tbl`. The Wide 32-entry lookup uses two-register
+`tbl`. Both forms produce zero for an out-of-range index. Lane slides use `ext`
 with a zero vector and an immediate byte offset. Reusable lane maps contain
 expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
@@ -83,14 +84,19 @@ Wide conversion operations compose the corresponding selected 128-bit
 operations. For each of the 46 Wide conversion overloads, tests use fixed
 vectors and 32 deterministic pseudorandom inputs. They compare scalar and
 Native results with results from the 128-bit authority. Direct floating-point
-edge
-cases cover signed zeros,
+edge cases cover signed zeros,
 infinities, quiet and signaling NaNs, subnormals, halfway rounding, overflow,
 and explicit floating-to-integer outcomes in both private parts. Caller-level
-code-generation probes require two
-selected 128-bit calls for representative widening, narrowing, and numeric
+code-generation probes require two selected 128-bit calls for representative
+widening, narrowing, and numeric
 conversion operations. The project does not claim a 256-bit instruction
 sequence.
+Wide 32-entry lookup applies one target-selected lookup to each private index
+part. On AArch64, that mechanism is a two-register `tbl` leaf. On scalar and
+x86-64 targets, it is exact scalar composition. Tests compare fixed,
+exhaustive-index, and deterministic pseudorandom cases with an independent lane
+oracle. Caller-level checks require two target-selected operations, and the
+AArch64 leaf check requires two-register `tbl`.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

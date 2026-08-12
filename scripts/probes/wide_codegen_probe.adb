@@ -30,4 +30,9 @@ package body Wide_Codegen_Probe is
      (Value : Flyology_SIMD.Wide.I32x8)
       return Flyology_SIMD.Wide.F32x8 is
      (Flyology_SIMD.Wide.Native.Convert_Round (Value));
+
+   function U8_Table_Lookup
+     (Table, Indices : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32 is
+     (Flyology_SIMD.Wide.Native.Table_Lookup (Table, Indices));
 end Wide_Codegen_Probe;

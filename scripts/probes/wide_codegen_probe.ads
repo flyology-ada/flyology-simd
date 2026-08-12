@@ -19,4 +19,7 @@ package Wide_Codegen_Probe is
    function I32_To_F32
      (Value : Flyology_SIMD.Wide.I32x8)
       return Flyology_SIMD.Wide.F32x8;
+   function U8_Table_Lookup
+     (Table, Indices : Flyology_SIMD.Wide.U8x32)
+      return Flyology_SIMD.Wide.U8x32;
 end Wide_Codegen_Probe;

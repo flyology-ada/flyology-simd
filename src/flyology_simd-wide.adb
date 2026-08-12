@@ -44,6 +44,19 @@ package body Flyology_SIMD.Wide is
       then (Low => Flyology_SIMD.Replace (Value.Low, Lane, With_Value), High => Value.High)
       else (Low => Value.Low, High => Flyology_SIMD.Replace (Value.High, Lane - 16, With_Value)));
 
+   function Table_Lookup (Table, Indices : U8x32) return U8x32 is
+      Table_Lanes : constant Lane_Values_U8x32 := To_Lanes (Table);
+      Index_Lanes : constant Lane_Values_U8x32 := To_Lanes (Indices);
+      Result : Lane_Values_U8x32 := [others => 0];
+   begin
+      for Lane in Lane_Index_8x32 loop
+         if Index_Lanes (Lane) <= 31 then
+            Result (Lane) := Table_Lanes (Natural (Index_Lanes (Lane)));
+         end if;
+      end loop;
+      return From_Lanes (Result);
+   end Table_Lookup;
+
    function Bit_Cast (Value : U8x32) return I8x32 is
      ((Low => Flyology_SIMD.Bit_Cast (Value.Low), High => Flyology_SIMD.Bit_Cast (Value.High)));
 
