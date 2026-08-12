@@ -112,8 +112,15 @@ instruction-specific result.
 
 The public value representation is an implementation detail shared by child
 units. The root `Flyology_SIMD` body is the full-family scalar authority and
-uses simple lane code. `Flyology_SIMD.Backends.Scalar` currently exposes the
-byte operations required by the generic byte algorithms.
+uses simple lane code. `Flyology_SIMD.Backends.Scalar` exposes the same
+primitive subprogram declarations as `Flyology_SIMD.Backends.Native`. Its
+declarations rename the corresponding subprograms in `Flyology_SIMD`, so a
+generic algorithm can choose either backend without changing its formal
+operation profile. The contract-parity check compares the 588 declarations in
+`Flyology_SIMD.Backends.Scalar` with the matching 588 declarations in
+`Flyology_SIMD.Backends.Native`. It fails if an overload exists in only one
+backend package.
+
 `Flyology_SIMD.Backends.Native` has the full current operation profile and is
 selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
 

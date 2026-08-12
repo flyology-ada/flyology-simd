@@ -1,12 +1,14 @@
 with Ada.Text_IO;
 with Flyology_SIMD;
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Backends.Scalar;
 
 procedure Dot_Product is
    use Ada.Text_IO;
    use Flyology_SIMD;
    use type Flyology_SIMD.F32;
    package Native renames Flyology_SIMD.Backends.Native;
+   package Scalar_Backend renames Flyology_SIMD.Backends.Scalar;
 
    generic
       with function Vector_Zero return F32x4;
@@ -50,11 +52,11 @@ procedure Dot_Product is
    end Generic_Dot_Product;
 
    function Scalar_Dot_Product is new Generic_Dot_Product
-     (Vector_Zero         => Flyology_SIMD.Zero,
-      Vector_Load_Partial => Flyology_SIMD.Load_Partial,
-      Vector_Multiply     => Flyology_SIMD.Multiply,
-      Vector_Add          => Flyology_SIMD.Add,
-      Vector_Reduce_Add   => Flyology_SIMD.Reduce_Add);
+     (Vector_Zero         => Scalar_Backend.Zero,
+      Vector_Load_Partial => Scalar_Backend.Load_Partial,
+      Vector_Multiply     => Scalar_Backend.Multiply,
+      Vector_Add          => Scalar_Backend.Add,
+      Vector_Reduce_Add   => Scalar_Backend.Reduce_Add);
 
    function Native_Dot_Product is new Generic_Dot_Product
      (Vector_Zero         => Native.Zero,

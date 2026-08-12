@@ -134,7 +134,7 @@ is
    --  @return The operation result.
    function Horizontal_Sum (Value : U8x16) return Natural
      with Post => Horizontal_Sum'Result <= 16 * 255;
-   --  Perform the documented portable operation.
+   --  Return the exact sum of all unsigned byte lanes as Natural.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U8x16) return U8;
@@ -151,7 +151,7 @@ is
    --  @return The operation result.
 
    function Reverse_Bytes (Value : U8x16) return U8x16;
-   --  Perform the documented portable operation.
+   --  Reverse logical byte-lane order. This is the compatibility name for Reverse_Lanes.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : U8x16) return U8x16;

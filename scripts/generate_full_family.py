@@ -124,6 +124,7 @@ OPERATION_DOCS = {
     ),
     "Min": "Return the smaller integer in each lane.",
     "Max": "Return the larger integer in each lane.",
+    "Horizontal_Sum": "Return the exact sum of all unsigned byte lanes as Natural.",
     "Min_Number": "Return the floating number minimum with the documented NaN and signed-zero rules.",
     "Max_Number": "Return the floating number maximum with the documented NaN and signed-zero rules.",
     "Reduce_Add_Wrap": "Add all integer lanes modulo the lane width in ascending lane order.",
@@ -133,6 +134,7 @@ OPERATION_DOCS = {
     "Reduce_Min_Number": "Apply Min_Number to all floating lanes in ascending lane order.",
     "Reduce_Max_Number": "Apply Max_Number to all floating lanes in ascending lane order.",
     "Reverse_Lanes": "Reverse logical lane order.",
+    "Reverse_Bytes": "Reverse logical byte-lane order. This is the compatibility name for Reverse_Lanes.",
     "Make_Lane_Map": (
         "Build a reusable lane map. For each result lane, the selector gives "
         "the source lane. Selectors can repeat source lanes. A default-initialized "

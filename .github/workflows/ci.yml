@@ -36,6 +36,7 @@ jobs:
           python3 scripts/generate_conversion_tests.py
           python3 scripts/generate_wide_family.py
           python3 scripts/generate_wide_tests.py
+          python3 scripts/check_backend_contracts.py
           git diff --exit-code
       - name: Build debug library
         if: ${{ !matrix.release }}

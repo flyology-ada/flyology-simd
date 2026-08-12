@@ -80,6 +80,62 @@ def contract() -> str:
     )
 
 
+def scalar_contract(native_spec: str) -> str:
+    """Generate a scalar package with the exact Native subprogram surface."""
+    body_start = native_spec.index("\nis\n") + len("\nis\n")
+    body_end = native_spec.rindex("\nend Flyology_SIMD.Backends.Native;")
+    lines = native_spec[body_start:body_end].splitlines()
+    declarations: list[str] = []
+    index = 0
+    while index < len(lines):
+        if not re.match(r"   (function|procedure)\s+", lines[index]):
+            index += 1
+            continue
+        declaration = [lines[index]]
+        depth = 0
+        complete = False
+        while not complete:
+            for character in declaration[-1]:
+                if character == "(":
+                    depth += 1
+                elif character == ")":
+                    depth -= 1
+                elif character == ";" and depth == 0:
+                    complete = True
+                    break
+            if complete:
+                break
+            index += 1
+            declaration.append(lines[index])
+        text = "\n".join(declaration)
+        text = re.sub(
+            r"\s+with\s+(?:Pre|Post)\s*=>.*?;\s*$|"
+            r"\s+with\s+Inline_Always\s*;\s*$",
+            ";",
+            text,
+            flags=re.S,
+        )
+        match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", text)
+        assert match is not None
+        name = match.group(1)
+        declarations.append(
+            text.rstrip()[:-1]
+            + f"\n     renames Flyology_SIMD.{name};"
+        )
+        index += 1
+
+    return document_spec(
+        "with Interfaces;\n\n"
+        "--  Authoritative scalar implementation of the complete primitive "
+        "operation contract.\n"
+        "package Flyology_SIMD.Backends.Scalar\n"
+        "  with Preelaborate\n"
+        "is\n"
+        + "\n".join(declarations)
+        + "\nend Flyology_SIMD.Backends.Scalar;\n"
+    )
+
+
 def call(name: str, result: str, args: str, params: str) -> str:
     return (
         f"   function {name} ({params}) return {result} is\n"
@@ -1958,8 +2014,11 @@ def test_program() -> str:
 
 def main() -> None:
     text = strip_generated_docs(SPEC.read_text())
-    SPEC.write_text(document_spec(replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract())))
-    SCALAR_SPEC.write_text(document_spec(strip_generated_docs(SCALAR_SPEC.read_text())))
+    native_spec = document_spec(
+        replace_block(text, "GENERATED FULL-FAMILY BACKEND CONTRACT", contract())
+    )
+    SPEC.write_text(native_spec)
+    SCALAR_SPEC.write_text(scalar_contract(native_spec))
     text = NEON.read_text()
     NEON.write_text(replace_block(text, "GENERATED FULL-FAMILY NEON BODIES", neon_body()))
     text = X86.read_text().replace(

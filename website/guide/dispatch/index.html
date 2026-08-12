@@ -27,15 +27,32 @@ function Generic_Dot_Product (Left, Right : F32_Array) return F32;</code></pre>
         </section>
         <section id="dot">
           <h2>Instantiate scalar and native dot products</h2>
-          <p>The root <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> primitive bodies are the scalar reference. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> provides the body selected for the build target.</p>
-          <p>The scalar instance passes <a data-api="Flyology_SIMD.Zero" data-api-signature="return F32x4"><code>Zero</code></a>, <a data-api="Flyology_SIMD.Load_Partial" data-api-signature="F32_Array"><code>Load_Partial</code></a>, <a data-api="Flyology_SIMD.Multiply" data-api-signature="F32x4"><code>Multiply</code></a>, <a data-api="Flyology_SIMD.Add" data-api-signature="F32x4"><code>Add</code></a>, and <a data-api="Flyology_SIMD.Reduce_Add" data-api-signature="F32x4"><code>Reduce_Add</code></a>.</p>
-          <p>The native instance passes the corresponding <a data-api="Flyology_SIMD.Backends.Native.Zero" data-api-signature="return F32x4"><code>Native.Zero</code></a>, <a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="F32_Array"><code>Native.Load_Partial</code></a>, <a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Native.Multiply</code></a>, <a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Native.Add</code></a>, and <a data-api="Flyology_SIMD.Backends.Native.Reduce_Add" data-api-signature="F32x4"><code>Native.Reduce_Add</code></a>.</p>
-          <pre><code class="language-ada">function Scalar_Dot_Product is new Generic_Dot_Product
-  (Vector_Zero          =&gt; Flyology_SIMD.Zero,
-   Vector_Load_Partial =&gt; Flyology_SIMD.Load_Partial,
-   Vector_Multiply     =&gt; Flyology_SIMD.Multiply,
-   Vector_Add          =&gt; Flyology_SIMD.Add,
-   Vector_Reduce_Add   =&gt; Flyology_SIMD.Reduce_Add);
+          <p>The root <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> primitive bodies are the scalar reference. <a data-api="Flyology_SIMD.Backends.Scalar"><code>Backends.Scalar</code></a> exposes that complete primitive contract for generic composition. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> exposes the matching contract with the body selected for the build target.</p>
+          <p>The example renames <code>Backends.Scalar</code> as <code>Scalar_Backend</code> and <code>Backends.Native</code> as <code>Native</code>. The scalar instance passes these <code>F32x4</code> overloads:</p>
+          <ul>
+            <li><a data-api="Flyology_SIMD.Backends.Scalar.Zero" data-api-signature="return F32x4"><code>Scalar_Backend.Zero</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Scalar.Load_Partial" data-api-signature="F32_Array"><code>Scalar_Backend.Load_Partial</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Scalar.Multiply" data-api-signature="F32x4"><code>Scalar_Backend.Multiply</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Scalar.Add" data-api-signature="F32x4"><code>Scalar_Backend.Add</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Scalar.Reduce_Add" data-api-signature="F32x4"><code>Scalar_Backend.Reduce_Add</code></a></li>
+          </ul>
+          <p>The native instance passes the corresponding <code>F32x4</code> overloads:</p>
+          <ul>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Zero" data-api-signature="return F32x4"><code>Native.Zero</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="F32_Array"><code>Native.Load_Partial</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Native.Multiply</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Native.Add</code></a></li>
+            <li><a data-api="Flyology_SIMD.Backends.Native.Reduce_Add" data-api-signature="F32x4"><code>Native.Reduce_Add</code></a></li>
+          </ul>
+          <pre><code class="language-ada">package Scalar_Backend renames Flyology_SIMD.Backends.Scalar;
+package Native renames Flyology_SIMD.Backends.Native;
+
+function Scalar_Dot_Product is new Generic_Dot_Product
+  (Vector_Zero          =&gt; Scalar_Backend.Zero,
+   Vector_Load_Partial =&gt; Scalar_Backend.Load_Partial,
+   Vector_Multiply     =&gt; Scalar_Backend.Multiply,
+   Vector_Add          =&gt; Scalar_Backend.Add,
+   Vector_Reduce_Add   =&gt; Scalar_Backend.Reduce_Add);
 
 function Native_Dot_Product is new Generic_Dot_Product
   (Vector_Zero          =&gt; Native.Zero,
@@ -44,6 +61,7 @@ function Native_Dot_Product is new Generic_Dot_Product
    Vector_Add          =&gt; Native.Add,
    Vector_Reduce_Add   =&gt; Native.Reduce_Add);</code></pre>
           <p>These instances provide compile-time composition. Static composition does not by itself promise that GNAT inlines every primitive call.</p>
+          <p>The maintained <code>dot_product.adb</code> example runs the ordinary Ada loop, the scalar-backend instance, and the native-backend instance. All three return <code>70.0</code> for its fixed inputs.</p>
         </section>
         <section id="build">
           <h2>Let Alire select a native host backend</h2>
