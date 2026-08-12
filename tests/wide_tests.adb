@@ -82,6 +82,44 @@ procedure Wide_Tests is
          return Result;
       end Random_Lanes;
 
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_U8x32) return U8
+      is
+         Result : U8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_U8x32) return U8
+      is
+         Result : U8 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_U8x32) return U8
+      is
+         Result : U8 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
+
       function Reference_Compress
         (Values : Wide.Lane_Values_U8x32; Bits : Wide.Mask_Bits_8x32)
          return Wide.Lane_Values_U8x32
@@ -286,6 +324,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
       B_Lanes : constant Wide.Lane_Values_U8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#), U8 (16#00#), U8 (16#80#), U8 (16#FF#), U8 (16#AA#)];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_U8x32 :=
+        [U8'First, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, U8'Last, U8'First, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, U8'Last];
       A : constant Wide.U8x32 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U8x32 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.U8x32 := Wide.From_Lanes (Bit_Lanes);
@@ -677,10 +717,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765))),
          Native.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765)))) = E,
         "U8x32 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "U8x32 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "U8x32 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.U8x32 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = U8'First
+           and then Native.Reduce_Min (Edge_Value) = U8'First
+           and then Wide.Reduce_Max (Edge_Value) = U8'Last
+           and then Native.Reduce_Max (Edge_Value) = U8'Last,
+           "U8x32 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -946,10 +1003,19 @@ procedure Wide_Tests is
                 Reference_Horizontal_Sum (Wide.To_Lanes (R_A)),
               "U8x32 randomized exact horizontal sum" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "U8x32 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "U8x32 independent randomized reductions" & Iteration'Image);
       declare
          function Target_To_Bits is new Ada.Unchecked_Conversion (I8, U8);
          Scalar_Cast : constant Wide.I8x32 := Wide.Bit_Cast (R_A);
@@ -1016,6 +1082,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_I8x32) return I8
+      is
+         Result : U8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Result := Result + Value_To_Bits (Values (Lane));
+         end loop;
+         return Bits_To_Value (Result);
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_I8x32) return I8
+      is
+         Result : I8 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_I8x32) return I8
+      is
+         Result : I8 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_I8x32; Bits : Wide.Mask_Bits_8x32)
@@ -1188,6 +1292,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#))];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_I8x32 :=
+        [I8'First, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, I8'Last, I8'First, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, I8'Last];
       A : constant Wide.I8x32 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I8x32 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.I8x32 := Wide.From_Lanes (Bit_Lanes);
@@ -1554,10 +1660,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765))),
          Native.Mask_From_Bit_Mask (Mask_Bits_8x32 (1431655765)))) = E,
         "I8x32 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "I8x32 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "I8x32 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.I8x32 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = I8'First
+           and then Native.Reduce_Min (Edge_Value) = I8'First
+           and then Wide.Reduce_Max (Edge_Value) = I8'Last
+           and then Native.Reduce_Max (Edge_Value) = I8'Last,
+           "I8x32 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -1812,10 +1935,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I8x32 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "I8x32 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "I8x32 independent randomized reductions" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U8x32 := Wide.Bit_Cast (R_A);
          Native_Cast : constant Wide.U8x32 := Native.Bit_Cast (R_A);
@@ -1849,6 +1981,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_U16x16) return U16
+      is
+         Result : U16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_U16x16) return U16
+      is
+         Result : U16 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_U16x16) return U16
+      is
+         Result : U16 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_U16x16; Bits : Wide.Mask_Bits_16x16)
@@ -2021,6 +2191,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_U16x16 :=
+        [U16'First, 1, 1, 1, 1, 1, 1, U16'Last, U16'First, 1, 1, 1, 1, 1, 1, U16'Last];
       A : constant Wide.U16x16 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U16x16 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.U16x16 := Wide.From_Lanes (Bit_Lanes);
@@ -2276,10 +2448,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845))),
          Native.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845)))) = E,
         "U16x16 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "U16x16 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "U16x16 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.U16x16 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = U16'First
+           and then Native.Reduce_Min (Edge_Value) = U16'First
+           and then Wide.Reduce_Max (Edge_Value) = U16'Last
+           and then Native.Reduce_Max (Edge_Value) = U16'Last,
+           "U16x16 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -2442,10 +2631,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U16x16 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "U16x16 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "U16x16 independent randomized reductions" & Iteration'Image);
       declare
          function Target_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
          Scalar_Cast : constant Wide.I16x16 := Wide.Bit_Cast (R_A);
@@ -2480,6 +2678,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_I16x16) return I16
+      is
+         Result : U16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Result := Result + Value_To_Bits (Values (Lane));
+         end loop;
+         return Bits_To_Value (Result);
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_I16x16) return I16
+      is
+         Result : I16 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_I16x16) return I16
+      is
+         Result : I16 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_I16x16; Bits : Wide.Mask_Bits_16x16)
@@ -2652,6 +2888,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_I16x16 :=
+        [I16'First, 1, -1, 1, -1, 1, -1, I16'Last, I16'First, 1, -1, 1, -1, 1, -1, I16'Last];
       A : constant Wide.I16x16 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I16x16 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.I16x16 := Wide.From_Lanes (Bit_Lanes);
@@ -2906,10 +3144,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845))),
          Native.Mask_From_Bit_Mask (Mask_Bits_16x16 (21845)))) = E,
         "I16x16 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "I16x16 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "I16x16 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.I16x16 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = I16'First
+           and then Native.Reduce_Min (Edge_Value) = I16'First
+           and then Wide.Reduce_Max (Edge_Value) = I16'Last
+           and then Native.Reduce_Max (Edge_Value) = I16'Last,
+           "I16x16 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -3072,10 +3327,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I16x16 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "I16x16 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "I16x16 independent randomized reductions" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U16x16 := Wide.Bit_Cast (R_A);
          Native_Cast : constant Wide.U16x16 := Native.Bit_Cast (R_A);
@@ -3109,6 +3373,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_U32x8) return U32
+      is
+         Result : U32 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_U32x8) return U32
+      is
+         Result : U32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_U32x8) return U32
+      is
+         Result : U32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_U32x8; Bits : Wide.Mask_Bits_32x8)
@@ -3281,6 +3583,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_U32x8 :=
+        [U32'First, 1, 1, U32'Last, U32'First, 1, 1, U32'Last];
       A : constant Wide.U32x8 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U32x8 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.U32x8 := Wide.From_Lanes (Bit_Lanes);
@@ -3552,10 +3856,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_32x8 (85))),
          Native.Mask_From_Bit_Mask (Mask_Bits_32x8 (85)))) = E,
         "U32x8 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "U32x8 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "U32x8 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.U32x8 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = U32'First
+           and then Native.Reduce_Min (Edge_Value) = U32'First
+           and then Wide.Reduce_Max (Edge_Value) = U32'Last
+           and then Native.Reduce_Max (Edge_Value) = U32'Last,
+           "U32x8 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -3718,10 +4039,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U32x8 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "U32x8 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "U32x8 independent randomized reductions" & Iteration'Image);
       declare
          function Target_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
          Scalar_Cast : constant Wide.I32x8 := Wide.Bit_Cast (R_A);
@@ -3772,6 +4102,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_I32x8) return I32
+      is
+         Result : U32 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Result := Result + Value_To_Bits (Values (Lane));
+         end loop;
+         return Bits_To_Value (Result);
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_I32x8) return I32
+      is
+         Result : I32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_I32x8) return I32
+      is
+         Result : I32 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_I32x8; Bits : Wide.Mask_Bits_32x8)
@@ -3944,6 +4312,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_I32x8 :=
+        [I32'First, 1, -1, I32'Last, I32'First, 1, -1, I32'Last];
       A : constant Wide.I32x8 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I32x8 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.I32x8 := Wide.From_Lanes (Bit_Lanes);
@@ -4214,10 +4584,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_32x8 (85))),
          Native.Mask_From_Bit_Mask (Mask_Bits_32x8 (85)))) = E,
         "I32x8 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "I32x8 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "I32x8 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.I32x8 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = I32'First
+           and then Native.Reduce_Min (Edge_Value) = I32'First
+           and then Wide.Reduce_Max (Edge_Value) = I32'Last
+           and then Native.Reduce_Max (Edge_Value) = I32'Last,
+           "I32x8 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -4380,10 +4767,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I32x8 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "I32x8 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "I32x8 independent randomized reductions" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U32x8 := Wide.Bit_Cast (R_A);
          Native_Cast : constant Wide.U32x8 := Native.Bit_Cast (R_A);
@@ -4433,6 +4829,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_U64x4) return U64
+      is
+         Result : U64 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Result := Result + Values (Lane);
+         end loop;
+         return Result;
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_U64x4) return U64
+      is
+         Result : U64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_U64x4) return U64
+      is
+         Result : U64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_U64x4; Bits : Wide.Mask_Bits_64x4)
@@ -4605,6 +5039,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_U64x4 :=
+        [U64'First, U64'Last, U64'First, U64'Last];
       A : constant Wide.U64x4 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.U64x4 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.U64x4 := Wide.From_Lanes (Bit_Lanes);
@@ -4876,10 +5312,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_64x4 (5))),
          Native.Mask_From_Bit_Mask (Mask_Bits_64x4 (5)))) = E,
         "U64x4 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "U64x4 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "U64x4 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.U64x4 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = U64'First
+           and then Native.Reduce_Min (Edge_Value) = U64'First
+           and then Wide.Reduce_Max (Edge_Value) = U64'Last
+           and then Native.Reduce_Max (Edge_Value) = U64'Last,
+           "U64x4 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -5042,10 +5495,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "U64x4 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "U64x4 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "U64x4 independent randomized reductions" & Iteration'Image);
       declare
          function Target_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
          Scalar_Cast : constant Wide.I64x4 := Wide.Bit_Cast (R_A);
@@ -5096,6 +5558,44 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lanes;
+
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.Lane_Values_I64x4) return I64
+      is
+         Result : U64 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Result := Result + Value_To_Bits (Values (Lane));
+         end loop;
+         return Bits_To_Value (Result);
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.Lane_Values_I64x4) return I64
+      is
+         Result : I64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.Lane_Values_I64x4) return I64
+      is
+         Result : I64 := Values (Values'First);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+
 
       function Reference_Compress
         (Values : Wide.Lane_Values_I64x4; Bits : Wide.Mask_Bits_64x4)
@@ -5268,6 +5768,8 @@ procedure Wide_Tests is
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
+      Reduction_Edge_Lanes : constant Wide.Lane_Values_I64x4 :=
+        [I64'First, I64'Last, I64'First, I64'Last];
       A : constant Wide.I64x4 := Wide.From_Lanes (A_Lanes);
       B : constant Wide.I64x4 := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.I64x4 := Wide.From_Lanes (Bit_Lanes);
@@ -5538,10 +6040,27 @@ procedure Wide_Tests is
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask (Mask_Bits_64x4 (5))),
          Native.Mask_From_Bit_Mask (Mask_Bits_64x4 (5)))) = E,
         "I64x4 native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "I64x4 native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "I64x4 independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.I64x4 :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = I64'First
+           and then Native.Reduce_Min (Edge_Value) = I64'First
+           and then Wide.Reduce_Max (Edge_Value) = I64'Last
+           and then Native.Reduce_Max (Edge_Value) = I64'Last,
+           "I64x4 independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -5704,10 +6223,19 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "I64x4 randomized selection and movement" & Iteration'Image);
 
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "I64x4 randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "I64x4 independent randomized reductions" & Iteration'Image);
       declare
          Scalar_Cast : constant Wide.U64x4 := Wide.Bit_Cast (R_A);
          Native_Cast : constant Wide.U64x4 := Native.Bit_Cast (R_A);

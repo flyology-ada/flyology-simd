@@ -2387,17 +2387,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U64x2) return U64;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : U64x2) return U64;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : U64x2) return U64;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : U64x2) return U64x2;
@@ -2686,17 +2686,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I64x2) return I64;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : I64x2) return I64;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : I64x2) return I64;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : I64x2) return I64x2;

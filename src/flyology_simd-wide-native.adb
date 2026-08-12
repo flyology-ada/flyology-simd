@@ -134,16 +134,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U8x32) return U8 is
-      Pair : constant U8x16 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant U8x16 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : U8x32) return U8 is
-      Pair : constant U8x16 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant U8x16 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : U8x32) return U8 is
-      Pair : constant U8x16 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant U8x16 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U8x32) return U8x32 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -356,16 +356,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I8x32) return I8 is
-      Pair : constant I8x16 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant I8x16 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : I8x32) return I8 is
-      Pair : constant I8x16 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant I8x16 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : I8x32) return I8 is
-      Pair : constant I8x16 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant I8x16 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I8x32) return I8x32 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -554,16 +554,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U16x16) return U16 is
-      Pair : constant U16x8 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant U16x8 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : U16x16) return U16 is
-      Pair : constant U16x8 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant U16x8 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : U16x16) return U16 is
-      Pair : constant U16x8 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant U16x8 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U16x16) return U16x16 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -792,16 +792,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I16x16) return I16 is
-      Pair : constant I16x8 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant I16x8 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : I16x16) return I16 is
-      Pair : constant I16x8 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant I16x8 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : I16x16) return I16 is
-      Pair : constant I16x8 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant I16x8 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I16x16) return I16x16 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -993,16 +993,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U32x8) return U32 is
-      Pair : constant U32x4 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant U32x4 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : U32x8) return U32 is
-      Pair : constant U32x4 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant U32x4 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : U32x8) return U32 is
-      Pair : constant U32x4 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant U32x4 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U32x8) return U32x8 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -1234,16 +1234,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I32x8) return I32 is
-      Pair : constant I32x4 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant I32x4 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : I32x8) return I32 is
-      Pair : constant I32x4 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant I32x4 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : I32x8) return I32 is
-      Pair : constant I32x4 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant I32x4 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I32x8) return I32x8 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -1435,16 +1435,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : U64x4) return U64 is
-      Pair : constant U64x2 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant U64x2 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : U64x4) return U64 is
-      Pair : constant U64x2 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant U64x2 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : U64x4) return U64 is
-      Pair : constant U64x2 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant U64x2 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : U64x4) return U64x4 is
      (Permute_Mechanism.Reverse_Lanes (Value));
@@ -1676,16 +1676,16 @@ package body Flyology_SIMD.Wide.Native is
      (Compact_Mechanism.Expand (Value, Mask));
 
    function Reduce_Add_Wrap (Value : I64x4) return I64 is
-      Pair : constant I64x2 := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;
+      Pair : constant I64x2 := Flyology_SIMD.Backends.Native.Add_Wrap (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Add_Wrap;
 
    function Reduce_Min (Value : I64x4) return I64 is
-      Pair : constant I64x2 := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;
+      Pair : constant I64x2 := Flyology_SIMD.Backends.Native.Min (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Min (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Min;
 
    function Reduce_Max (Value : I64x4) return I64 is
-      Pair : constant I64x2 := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));
-   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;
+      Pair : constant I64x2 := Flyology_SIMD.Backends.Native.Max (Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.Low)), Flyology_SIMD.Backends.Native.Splat (Flyology_SIMD.Backends.Native.Reduce_Max (Value.High)));
+   begin return Flyology_SIMD.Backends.Native.Extract (Pair, 0); end Reduce_Max;
 
    function Reverse_Lanes (Value : I64x4) return I64x4 is
      (Permute_Mechanism.Reverse_Lanes (Value));

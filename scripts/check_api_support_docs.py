@@ -106,6 +106,9 @@ def invalid_support(path: Path) -> list[str]:
             "function Extract": "only on the private part that contains the requested lane",
             "function Replace": "only on the private part that contains the requested lane",
             "function Test": "only on the private part that contains the requested lane",
+            "function Reduce_Add_Wrap": "reduce each private part with the selected 128-bit Reduce_Add_Wrap operation",
+            "function Reduce_Min": "reduce each private part with the selected 128-bit Reduce_Min operation",
+            "function Reduce_Max": "reduce each private part with the selected 128-bit Reduce_Max operation",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
         }
@@ -141,6 +144,9 @@ def invalid_support(path: Path) -> list[str]:
                 "function Table_Lookup": 1,
                 "function Permute_Lanes": 20,
                 "function Test": 4,
+                "function Reduce_Add_Wrap": 8,
+                "function Reduce_Min": 8,
+                "function Reduce_Max": 8,
             }.get(declaration, 10)
             if count != expected:
                 invalid.append(

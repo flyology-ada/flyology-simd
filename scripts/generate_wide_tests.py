@@ -754,6 +754,60 @@ def integer_test(f: Family) -> str:
         else f"{unsigned} (Next_U64 mod 2 ** {f.bits})"
     )
     random_value = f"Bits_To_Value ({raw})" if f.signed else raw
+    reduction_add_type = unsigned if f.signed else f.scalar
+    reduction_add_value = (
+        "Value_To_Bits (Values (Lane))" if f.signed else "Values (Lane)"
+    )
+    reduction_add_result = "Bits_To_Value (Result)" if f.signed else "Result"
+    reduction_edges = []
+    for lane in range(f.lanes):
+        if lane in (0, f.half_lanes):
+            reduction_edges.append(f"{f.scalar}'First")
+        elif lane in (f.half_lanes - 1, f.lanes - 1):
+            reduction_edges.append(f"{f.scalar}'Last")
+        elif f.signed and lane % 2 == 0:
+            reduction_edges.append("-1")
+        else:
+            reduction_edges.append("1")
+    reduction_edge_values = ", ".join(reduction_edges)
+    reduction_declarations = f'''
+      function Reference_Reduce_Add_Wrap
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {reduction_add_type} := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            Result := Result + {reduction_add_value};
+         end loop;
+         return {reduction_add_result};
+      end Reference_Reduce_Add_Wrap;
+
+      function Reference_Reduce_Min
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {f.scalar} := Values (Values'First);
+      begin
+         for Lane in Wide.{f.index} loop
+            if Values (Lane) < Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Min;
+
+      function Reference_Reduce_Max
+        (Values : Wide.{f.values}) return {f.scalar}
+      is
+         Result : {f.scalar} := Values (Values'First);
+      begin
+         for Lane in Wide.{f.index} loop
+            if Values (Lane) > Result then
+               Result := Values (Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Reduce_Max;
+'''
     edge_patterns = (0, 1 << (f.bits - 1), (1 << f.bits) - 1,
                      int("AA" * (f.bits // 8), 16))
     edge_values = []
@@ -1149,6 +1203,7 @@ def integer_test(f: Family) -> str:
          end loop;
          return Result;
       end Random_Lanes;
+{reduction_declarations}
 {compaction_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
@@ -1156,6 +1211,8 @@ def integer_test(f: Family) -> str:
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
       Bit_Lanes : constant Wide.{f.values} := [{bit_lanes}];
+      Reduction_Edge_Lanes : constant Wide.{f.values} :=
+        [{reduction_edge_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       B : constant Wide.{f.vector} := Wide.From_Lanes (B_Lanes);
       Bit_Vector : constant Wide.{f.vector} := Wide.From_Lanes (Bit_Lanes);
@@ -1352,10 +1409,27 @@ def integer_test(f: Family) -> str:
         (Native.Compress (Native.From_Lanes (A_Lanes), Native.Mask_From_Bit_Mask ({f.mask_bits} ({alt}))),
          Native.Mask_From_Bit_Mask ({f.mask_bits} ({alt})))) = E,
         "{f.vector} native expansion");
-      Check (Native.Reduce_Add_Wrap (A) = Wide.Reduce_Add_Wrap (A)
-        and then Native.Reduce_Min (A) = Wide.Reduce_Min (A)
-        and then Native.Reduce_Max (A) = Wide.Reduce_Max (A),
-        "{f.vector} native reductions");
+      Check (Wide.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_Wrap (A_Lanes)
+        and then Wide.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+        and then Wide.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+        and then Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+        "{f.vector} independent fixed reductions");
+      declare
+         Edge_Value : constant Wide.{f.vector} :=
+           Wide.From_Lanes (Reduction_Edge_Lanes);
+      begin
+         Check (Wide.Reduce_Add_Wrap (Edge_Value) =
+           Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Native.Reduce_Add_Wrap (Edge_Value) =
+             Reference_Reduce_Add_Wrap (Reduction_Edge_Lanes)
+           and then Wide.Reduce_Min (Edge_Value) = {f.scalar}'First
+           and then Native.Reduce_Min (Edge_Value) = {f.scalar}'First
+           and then Wide.Reduce_Max (Edge_Value) = {f.scalar}'Last
+           and then Native.Reduce_Max (Edge_Value) = {f.scalar}'Last,
+           "{f.vector} independent reduction boundaries");
+      end;
       Check (Native.To_Lanes (Native.Reverse_Lanes (A)) = Wide.To_Lanes (Wide.Reverse_Lanes (A))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
         and then Native.To_Lanes (Native.Permute_Lanes (A, Native.Make_Lane_Map (Map_Selectors))) = Wide.To_Lanes (Wide.Permute_Lanes (A, Wide.Make_Lane_Map (Map_Selectors)))
@@ -1518,10 +1592,19 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Slide_Lanes_Toward_High (R_A, Slide)) = Wide.To_Lanes (Wide.Slide_Lanes_Toward_High (R_A, Slide)),
               "{f.vector} randomized selection and movement" & Iteration'Image);
 {lookup_randomized}
-            Check (Native.Reduce_Add_Wrap (R_A) = Wide.Reduce_Add_Wrap (R_A)
-              and then Native.Reduce_Min (R_A) = Wide.Reduce_Min (R_A)
-              and then Native.Reduce_Max (R_A) = Wide.Reduce_Max (R_A),
-              "{f.vector} randomized reductions" & Iteration'Image);
+            Check (Wide.Reduce_Add_Wrap (R_A) =
+              Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Add_Wrap (R_A) =
+                Reference_Reduce_Add_Wrap (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Min (R_A) =
+                Reference_Reduce_Min (Wide.To_Lanes (R_A))
+              and then Wide.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A))
+              and then Native.Reduce_Max (R_A) =
+                Reference_Reduce_Max (Wide.To_Lanes (R_A)),
+              "{f.vector} independent randomized reductions" & Iteration'Image);
 {bit_cast_tests(f, 'R_A', 'randomized ')}
          end;
       end loop;

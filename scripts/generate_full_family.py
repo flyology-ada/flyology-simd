@@ -285,8 +285,7 @@ def native_support_doc(name: str, declaration: str) -> str:
     }
     aarch_scalar = (
         (name == "Multiply_Wrap" and "64x2" in declaration)
-        or (name in {"Select_Value", "Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"}
-            and "64x2" in declaration)
+        or (name == "Select_Value" and "64x2" in declaration)
         or (name in {"Select_Value", "Reduce_Add", "Unordered"}
             and ("F32x4" in declaration or "F64x2" in declaration))
     )

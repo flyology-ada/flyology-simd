@@ -175,6 +175,13 @@ The complete artifact is written to the ignored `build/site/` directory.
   operations listed above. AVX2 has no packed byte
   multiply instruction, so wrapping byte multiplication composes 16-bit word
   operations and keeps the low eight bits of each lane product.
+  Wide Native integer reductions reduce both private parts with the selected
+  128-bit reduction. The implementation splats each scalar result, combines
+  the two vectors with selected 128-bit `Add_Wrap`, `Min`, or `Max`, and
+  extracts lane 0. This grouping applies only to associative integer
+  reductions. Floating reductions retain the defined evaluation order: they
+  combine lanes in ascending lane order. NaN, signed-zero, and rounding results
+  can depend on this order.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.

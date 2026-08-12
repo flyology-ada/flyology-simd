@@ -201,6 +201,7 @@ Exact   : constant Natural := Wide.Horizontal_Sum (Bytes);   --  8_160
 Wrapped : constant Flyology_SIMD.U8 :=
   Wide.Reduce_Add_Wrap (Bytes);                              --  224</code></pre>
           <p>The exact result cannot overflow its documented range. The wrapping result is useful only when modulo-256 arithmetic is intended.</p>
+          <p>The Wide Native integer reductions reduce each private 128-bit part with the selected 128-bit reduction. The implementation splats each scalar result, combines the two vectors with selected 128-bit <code>Add_Wrap</code>, <code>Min</code>, or <code>Max</code>, and extracts lane 0. This grouping preserves the scalar result because these integer operations are associative.</p>
           <p>A logical shift returns zero in each lane when its count is equal to or greater than the lane width. An arithmetic right shift returns the sign fill for those counts.</p>
           <p>For each result lane, the <code>U8x16</code> overload reads the unsigned value from the index lane at the same position. A value from 0 through 15 selects the table lane whose lane index equals that value. A larger value produces zero. The operation does not reduce the index modulo 16.</p>
           <pre><code class="language-ada">Hex_Digits : constant U8x16 := From_Lanes
@@ -244,7 +245,7 @@ out-of-range lane: 0</code></pre>
           </table>
           <p>The build does not enable <code>-ffast-math</code>. Ordered comparisons are false when either lane is NaN. <code>Unordered</code> is true for that case.</p>
           <p><code>Min_Number</code> and <code>Max_Number</code> return the numeric input when only one quiet NaN is present. They select negative zero for a minimum and positive zero for a maximum. The <a href="../../api/">API reference</a> and semantic document give the full NaN rules.</p>
-          <p><code>Reduce_Min_Number</code> and <code>Reduce_Max_Number</code> use lane 0 as the initial result. They combine each remaining lane with that result in ascending order. Each step applies the documented NaN and signed-zero rules on every backend.</p>
+          <p>Wide floating reductions do not use the integer grouping. <code>Reduce_Min_Number</code> and <code>Reduce_Max_Number</code> use lane 0 as the initial result. They combine each remaining lane with that result in ascending order. Each step applies the documented NaN and signed-zero rules on every backend.</p>
           <pre><code class="language-ada">Samples : constant F32x4 := From_Lanes ([4.5, -2.0, 7.25, 1.0]);
 Smallest : constant F32 := Reduce_Min_Number (Samples);  --  -2.0
 Largest  : constant F32 := Reduce_Max_Number (Samples);  --   7.25</code></pre>

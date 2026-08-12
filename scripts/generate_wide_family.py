@@ -252,9 +252,19 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "AArch64 and x86-64 conditionally compose selected 128-bit full "
             "and partial memory operations"
         )
+    elif operation in {"Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"}:
+        combine = {
+            "Reduce_Add_Wrap": "Add_Wrap",
+            "Reduce_Min": "Min",
+            "Reduce_Max": "Max",
+        }[operation]
+        mechanism = (
+            "AArch64 and x86-64 reduce each private part with the selected "
+            f"128-bit {operation} operation, combine the two results with "
+            f"the selected 128-bit {combine} operation, and extract lane zero"
+        )
     elif operation in {
-        "Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max", "Reduce_Add",
-        "Reduce_Min_Number", "Reduce_Max_Number",
+        "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
     }:
         mechanism = "AArch64 and x86-64 use portable Ada composition"
     else:
@@ -841,10 +851,14 @@ def scalar_movement_body(f: Family, prefix: str) -> list[str]:
             f"   function Reduce_Max_Number (Value : {f.vector}) return {f.scalar} is\n      Result : {f.scalar} := Extract (Value, 0);\n   begin\n      for Lane in 1 .. {total - 1} loop Result := Flyology_SIMD.Extract (Flyology_SIMD.Max_Number (Flyology_SIMD.Splat (Result), Flyology_SIMD.Splat (Extract (Value, Lane))), 0); end loop;\n      return Result;\n   end Reduce_Max_Number;",
         ]
     else:
+        reduction_prefix = (
+            "Flyology_SIMD" if prefix == "Flyology_SIMD"
+            else "Flyology_SIMD.Backends.Native"
+        )
         reductions = [
-            f"   function Reduce_Add_Wrap (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := Flyology_SIMD.Add_Wrap (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Add_Wrap (Value.High)));\n   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Add_Wrap;",
-            f"   function Reduce_Min (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := Flyology_SIMD.Min (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Min (Value.High)));\n   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Min;",
-            f"   function Reduce_Max (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := Flyology_SIMD.Max (Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.Low)), Flyology_SIMD.Splat (Flyology_SIMD.Reduce_Max (Value.High)));\n   begin return Flyology_SIMD.Extract (Pair, 0); end Reduce_Max;",
+            f"   function Reduce_Add_Wrap (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := {reduction_prefix}.Add_Wrap ({reduction_prefix}.Splat ({reduction_prefix}.Reduce_Add_Wrap (Value.Low)), {reduction_prefix}.Splat ({reduction_prefix}.Reduce_Add_Wrap (Value.High)));\n   begin return {reduction_prefix}.Extract (Pair, 0); end Reduce_Add_Wrap;",
+            f"   function Reduce_Min (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := {reduction_prefix}.Min ({reduction_prefix}.Splat ({reduction_prefix}.Reduce_Min (Value.Low)), {reduction_prefix}.Splat ({reduction_prefix}.Reduce_Min (Value.High)));\n   begin return {reduction_prefix}.Extract (Pair, 0); end Reduce_Min;",
+            f"   function Reduce_Max (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := {reduction_prefix}.Max ({reduction_prefix}.Splat ({reduction_prefix}.Reduce_Max (Value.Low)), {reduction_prefix}.Splat ({reduction_prefix}.Reduce_Max (Value.High)));\n   begin return {reduction_prefix}.Extract (Pair, 0); end Reduce_Max;",
         ]
     compact = [
         f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Compress;",

@@ -365,6 +365,21 @@ def neon_helpers() -> list[str]:
         "      type Scalar_Type is private;",
         "      Instruction : String;",
         "      Store_Instruction : String;",
+        "   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
+        "   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
+        "      Result : Scalar_Type;",
+        "   begin",
+        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,",
+        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
+        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
+        "      return Result;",
+        "   end NEON_Integer_Reduce_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Instruction : String;",
+        "      Store_Instruction : String;",
         "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
         "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
         "      Result : Scalar_Type;",
@@ -735,8 +750,8 @@ def neon_body() -> str:
             "Bitwise_And": "and v0.16b, v0.16b, v1.16b",
             "Bitwise_Or": "orr v0.16b, v0.16b, v1.16b",
             "Bitwise_Xor": "eor v0.16b, v0.16b, v1.16b",
-            "Min": (f"{prefix}min v0.{shape}, v0.{shape}, v1.{shape}" if bits < 64 else f"cm{'gt' if signed else 'hi'} v2.2d, v0.2d, v1.2d" + ASCII_PLACEHOLDER),
-            "Max": (f"{prefix}max v0.{shape}, v0.{shape}, v1.{shape}" if bits < 64 else f"cm{'gt' if signed else 'hi'} v2.2d, v0.2d, v1.2d" + ASCII_PLACEHOLDER),
+            "Min": (f"{prefix}min v0.{shape}, v0.{shape}, v1.{shape}" if bits < 64 else f"cm{'gt' if signed else 'hi'} v2.2d, v0.2d, v1.2d"),
+            "Max": (f"{prefix}max v0.{shape}, v0.{shape}, v1.{shape}" if bits < 64 else f"cm{'gt' if signed else 'hi'} v2.2d, v0.2d, v1.2d"),
             "Interleave_Low": f"zip1 v0.{shape}, v0.{shape}, v1.{shape}",
             "Interleave_High": f"zip2 v0.{shape}, v0.{shape}, v1.{shape}",
             "Deinterleave_Even": f"uzp1 v0.{shape}, v0.{shape}, v1.{shape}",
@@ -811,10 +826,39 @@ def neon_body() -> str:
             f"   function Less_Than (Left, Right : {vector}) return {mask} is (Greater_Than (Left => Right, Right => Left));",
             f"   function Less_Equal (Left, Right : {vector}) return {mask} is (Greater_Equal (Left => Right, Right => Left));",
             call("Select_Value", vector, "Mask, If_True, If_False", f"Mask : {mask}; If_True, If_False : {vector}"),
-            call("Reduce_Add_Wrap", scalar, "Value", f"Value : {vector}"),
-            call("Reduce_Min", scalar, "Value", f"Value : {vector}"),
-            call("Reduce_Max", scalar, "Value", f"Value : {vector}"),
         ]
+        scalar_lane = {8: "b", 16: "h", 32: "s", 64: "d"}[bits]
+        store = f"str {scalar_lane}0, [%0]"
+        if bits < 64:
+            reduce_instructions = {
+                "Reduce_Add_Wrap": f"addv {scalar_lane}0, v0.{shape}",
+                "Reduce_Min": f"{prefix}minv {scalar_lane}0, v0.{shape}",
+                "Reduce_Max": f"{prefix}maxv {scalar_lane}0, v0.{shape}",
+            }
+        else:
+            compare = "cmgt" if signed else "cmhi"
+            reduce_instructions = {
+                "Reduce_Add_Wrap": "addp d0, v0.2d",
+                "Reduce_Min": (
+                    "dup v1.2d, v0.d[1]\n      "
+                    + f"{compare} v2.2d, v0.2d, v1.2d\n      "
+                    + "bit v0.16b, v1.16b, v2.16b"
+                ),
+                "Reduce_Max": (
+                    "dup v1.2d, v0.d[1]\n      "
+                    + f"{compare} v2.2d, v0.2d, v1.2d\n      "
+                    + "bif v0.16b, v1.16b, v2.16b"
+                ),
+            }
+        for name, instruction in reduce_instructions.items():
+            ada_instruction = instruction.replace(
+                "\n      ", '" & ASCII.LF & ASCII.HT & "'
+            )
+            native = f"Native_{name}_{vector}"
+            out += [
+                f"   function {native} is new NEON_Integer_Reduce_128 ({vector}, {scalar}, \"{ada_instruction}\", \"{store}\");",
+                f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value));",
+            ]
         out += memory_body(vector, arr, count)
 
     for vector, scalar, bits, lanes in FLOAT_TYPES:
@@ -878,9 +922,6 @@ def neon_body() -> str:
         st = f"Interfaces.{storage}"
         out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), call("Population_Count", count, "Mask", f"Mask : {mask}"), call("First_True", count, "Mask", f"Mask : {mask}"), call("Last_True", count, "Mask", f"Mask : {mask}")]
     return "\n".join(out)
-
-
-ASCII_PLACEHOLDER = ""  # used only while constructing multi-instruction strings
 
 
 def memory_body(vector: str, arr: str, count: str) -> list[str]:

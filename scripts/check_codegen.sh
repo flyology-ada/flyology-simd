@@ -25,6 +25,7 @@ feature_object="$object_root/flyology_simd-features.o"
 slide_probe_object="$probe_root/slide_codegen_probe.o"
 permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
+wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -43,6 +44,8 @@ disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
+disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
+objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
     nm -u "$wide_byte_object" >"$temporary/wide-byte-undefined.txt"
@@ -53,6 +56,7 @@ fi
 disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
+nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -123,6 +127,29 @@ extract_symbol() {
     ' "$file" >"$output"
 }
 
+require_count 'backends__native__reduce_add_wrap' 2 \
+  "$temporary/wide-reduction-relocs.txt" \
+  'two selected 128-bit wrapping-sum reductions in the Wide caller'
+require_count 'backends__native__reduce_min' 2 \
+  "$temporary/wide-reduction-relocs.txt" \
+  'two selected 128-bit minimum reductions in the Wide caller'
+require_count 'backends__native__reduce_max' 2 \
+  "$temporary/wide-reduction-relocs.txt" \
+  'two selected 128-bit maximum reductions in the Wide caller'
+require_pattern 'backends__native__(neon_)?add_wrap' \
+  "$temporary/wide-reduction-relocs.txt" \
+  'selected 128-bit wrapping combine in the Wide reduction caller'
+require_pattern 'backends__native__min' "$temporary/wide-reduction-relocs.txt" \
+  'selected 128-bit minimum combine in the Wide reduction caller'
+require_pattern 'backends__native__max' "$temporary/wide-reduction-relocs.txt" \
+  'selected 128-bit maximum combine in the Wide reduction caller'
+require_count 'backends__native__extract' 3 \
+  "$temporary/wide-reduction-relocs.txt" \
+  'selected lane-zero extraction for all Wide reduction probes'
+forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' \
+  "$temporary/wide-reduction-undefined.txt" \
+  'Wide dispatcher or portable scalar reduction retained in caller probe'
+
 case "$architecture" in
     aarch64)
         require_pattern 'cmeq' "$temporary/native.txt" 'NEON byte comparison'
@@ -142,6 +169,24 @@ case "$architecture" in
         require_pattern 'zip2.*16b' "$temporary/native.txt" 'NEON high interleave'
         require_pattern 'uzp1.*16b' "$temporary/native.txt" 'NEON even deinterleave'
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
+        require_pattern 'uminv.*16b' "$temporary/native.txt" 'NEON unsigned byte minimum reduction'
+        require_pattern 'umaxv.*16b' "$temporary/native.txt" 'NEON unsigned byte maximum reduction'
+        extract_symbol 'native_reduce_add_wrap_i32x4' "$temporary/native.txt" "$temporary/reduce_add_i32.txt"
+        extract_symbol 'native_reduce_min_u16x8' "$temporary/native.txt" "$temporary/reduce_min_u16.txt"
+        extract_symbol 'native_reduce_max_i8x16' "$temporary/native.txt" "$temporary/reduce_max_i8.txt"
+        extract_symbol 'native_reduce_add_wrap_u64x2' "$temporary/native.txt" "$temporary/reduce_add_u64.txt"
+        extract_symbol 'native_reduce_min_i64x2' "$temporary/native.txt" "$temporary/reduce_min_i64.txt"
+        extract_symbol 'native_reduce_max_u64x2' "$temporary/native.txt" "$temporary/reduce_max_u64.txt"
+        require_pattern 'addv.*4s' "$temporary/reduce_add_i32.txt" 'NEON signed-32 wrapping reduction'
+        require_pattern 'uminv.*8h' "$temporary/reduce_min_u16.txt" 'NEON unsigned-16 minimum reduction'
+        require_pattern 'smaxv.*16b' "$temporary/reduce_max_i8.txt" 'NEON signed-byte maximum reduction'
+        require_pattern 'addp.*2d' "$temporary/reduce_add_u64.txt" 'NEON unsigned-64 wrapping reduction'
+        require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_min_i64.txt" 'NEON signed-64 reduction lane broadcast'
+        require_pattern 'cmgt.*2d' "$temporary/reduce_min_i64.txt" 'NEON signed-64 minimum comparison'
+        require_pattern 'bit.*16b' "$temporary/reduce_min_i64.txt" 'NEON signed-64 minimum selection'
+        require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 reduction lane broadcast'
+        require_pattern 'cmhi.*2d' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum comparison'
+        require_pattern 'bif.*16b' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum selection'
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
         for lane_kind in u8 i8 u16 i16 u32 i32 f32 u64 i64 f64; do

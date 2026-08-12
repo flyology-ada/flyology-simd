@@ -38,9 +38,8 @@ expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
 `Compress` and `Expand` derive an index map from the mask and then use
 `tbl` for every value family.
-`Multiply_Wrap`, `Select_Value`,
-`Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` use scalar composition for
-`U64x2` and `I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
+`Multiply_Wrap` and `Select_Value` use scalar composition for `U64x2` and
+`I64x2`. `Select_Value`, `Reduce_Add`, and `Unordered` use scalar
 composition for `F32x4` and `F64x2`. Floating minimum-number and
 maximum-number reductions use scalar Advanced SIMD leaves in ascending lane
 order.
@@ -165,6 +164,16 @@ Fixed-vector and deterministic pseudorandom tests compare scalar and Native
 results with an independent lane oracle. AArch64 and x86-64 caller-level
 code-generation checks require two calls to the target-selected 128-bit
 `Horizontal_Sum` operation.
+
+All 24 Wide Native integer reductions use selected 128-bit operations. Each
+reduction reduces both private parts. The implementation splats each scalar
+result, combines the two vectors with selected `Add_Wrap`, `Min`, or `Max`, and
+extracts lane 0. This grouping is valid because the three integer operations
+are associative. Wide floating reductions combine lanes in ascending lane
+order. Independent lane oracles cover fixed inputs and 128 deterministic
+pseudorandom inputs for every integer family. Caller-level probes require two selected reductions, one
+selected combine operation, and one lane-zero extraction. They reject calls to
+the Wide and root scalar reductions.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

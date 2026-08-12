@@ -269,9 +269,29 @@ package body Flyology_SIMD.Backends.Native is
    function Reduce_Add_Wrap (Value : U8x16) return U8 is
      (U8 (Horizontal_Sum (Value) mod 256));
    function Reduce_Min (Value : U8x16) return U8 is
-     (Flyology_SIMD.Reduce_Min (Value));
+      Result : U8;
+   begin
+      Asm
+        (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "uminv b0, v0.16b" & ASCII.LF & ASCII.HT & "str b0, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Reduce_Min;
    function Reduce_Max (Value : U8x16) return U8 is
-     (Flyology_SIMD.Reduce_Max (Value));
+      Result : U8;
+   begin
+      Asm
+        (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
+           "umaxv b0, v0.16b" & ASCII.LF & ASCII.HT & "str b0, [%0]",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end Reduce_Max;
 
    function Reverse_Bytes (Value : U8x16) return U8x16 is
      (NEON_Reverse_Bytes (Value));
@@ -433,6 +453,21 @@ package body Flyology_SIMD.Backends.Native is
            Clobber => "v0,v1,memory", Volatile => True);
       return Result;
    end NEON_Unary_128;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Instruction : String;
+      Store_Instruction : String;
+   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type;
+   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type is
+      Result : Scalar_Type;
+   begin
+      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "v0,v1,v2,memory", Volatile => True);
+      return Result;
+   end NEON_Integer_Reduce_128;
 
    generic
       type Vector_Type is private;
@@ -1269,12 +1304,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : I8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "addv b0, v0.16b", "str b0, [%0]");
+   function Reduce_Add_Wrap (Value : I8x16) return I8 is (Native_Reduce_Add_Wrap_I8x16 (Value));
+   function Native_Reduce_Min_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "sminv b0, v0.16b", "str b0, [%0]");
+   function Reduce_Min (Value : I8x16) return I8 is (Native_Reduce_Min_I8x16 (Value));
+   function Native_Reduce_Max_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "smaxv b0, v0.16b", "str b0, [%0]");
+   function Reduce_Max (Value : I8x16) return I8 is (Native_Reduce_Max_I8x16 (Value));
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
@@ -1404,12 +1439,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : U16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "addv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Add_Wrap (Value : U16x8) return U16 is (Native_Reduce_Add_Wrap_U16x8 (Value));
+   function Native_Reduce_Min_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "uminv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Min (Value : U16x8) return U16 is (Native_Reduce_Min_U16x8 (Value));
+   function Native_Reduce_Max_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "umaxv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Max (Value : U16x8) return U16 is (Native_Reduce_Max_U16x8 (Value));
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
@@ -1542,12 +1577,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "addv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Add_Wrap (Value : I16x8) return I16 is (Native_Reduce_Add_Wrap_I16x8 (Value));
+   function Native_Reduce_Min_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "sminv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Min (Value : I16x8) return I16 is (Native_Reduce_Min_I16x8 (Value));
+   function Native_Reduce_Max_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "smaxv h0, v0.8h", "str h0, [%0]");
+   function Reduce_Max (Value : I16x8) return I16 is (Native_Reduce_Max_I16x8 (Value));
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
@@ -1677,12 +1712,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : U32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "addv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Add_Wrap (Value : U32x4) return U32 is (Native_Reduce_Add_Wrap_U32x4 (Value));
+   function Native_Reduce_Min_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "uminv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Min (Value : U32x4) return U32 is (Native_Reduce_Min_U32x4 (Value));
+   function Native_Reduce_Max_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "umaxv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Max (Value : U32x4) return U32 is (Native_Reduce_Max_U32x4 (Value));
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
@@ -1815,12 +1850,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : I32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "addv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Add_Wrap (Value : I32x4) return I32 is (Native_Reduce_Add_Wrap_I32x4 (Value));
+   function Native_Reduce_Min_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "sminv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Min (Value : I32x4) return I32 is (Native_Reduce_Min_I32x4 (Value));
+   function Native_Reduce_Max_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "smaxv s0, v0.4s", "str s0, [%0]");
+   function Reduce_Max (Value : I32x4) return I32 is (Native_Reduce_Max_I32x4 (Value));
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
@@ -1950,12 +1985,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : U64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "addp d0, v0.2d", "str d0, [%0]");
+   function Reduce_Add_Wrap (Value : U64x2) return U64 is (Native_Reduce_Add_Wrap_U64x2 (Value));
+   function Native_Reduce_Min_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Reduce_Min (Value : U64x2) return U64 is (Native_Reduce_Min_U64x2 (Value));
+   function Native_Reduce_Max_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Reduce_Max (Value : U64x2) return U64 is (Native_Reduce_Max_U64x2 (Value));
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
@@ -2088,12 +2123,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Equal (Left, Right : I64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is
      (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Reduce_Add_Wrap (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "addp d0, v0.2d", "str d0, [%0]");
+   function Reduce_Add_Wrap (Value : I64x2) return I64 is (Native_Reduce_Add_Wrap_I64x2 (Value));
+   function Native_Reduce_Min_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Reduce_Min (Value : I64x2) return I64 is (Native_Reduce_Min_I64x2 (Value));
+   function Native_Reduce_Max_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Reduce_Max (Value : I64x2) return I64 is (Native_Reduce_Max_I64x2 (Value));
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));

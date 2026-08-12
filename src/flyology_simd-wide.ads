@@ -241,17 +241,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U8x32) return U8;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : U8x32) return U8;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : U8x32) return U8;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : U8x32) return U8x32;
@@ -607,17 +607,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I8x32) return I8;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : I8x32) return I8;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : I8x32) return I8;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : I8x32) return I8x32;
@@ -936,17 +936,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U16x16) return U16;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : U16x16) return U16;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : U16x16) return U16;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : U16x16) return U16x16;
@@ -1302,17 +1302,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I16x16) return I16;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : I16x16) return I16;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : I16x16) return I16;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : I16x16) return I16x16;
@@ -1636,17 +1636,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U32x8) return U32;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : U32x8) return U32;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : U32x8) return U32;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : U32x8) return U32x8;
@@ -2007,17 +2007,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I32x8) return I32;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : I32x8) return I32;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : I32x8) return I32;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : I32x8) return I32x8;
@@ -2341,17 +2341,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U64x4) return U64;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : U64x4) return U64;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : U64x4) return U64;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : U64x4) return U64x4;
@@ -2712,17 +2712,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I64x4) return I64;
    --  Apply Reduce_Add_Wrap in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Add_Wrap operation, combine the two results with the selected 128-bit Add_Wrap operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Min (Value : I64x4) return I64;
    --  Apply Reduce_Min in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Min operation, combine the two results with the selected 128-bit Min operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reduce_Max (Value : I64x4) return I64;
    --  Apply Reduce_Max in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use portable Ada composition. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends reduce each private part with the selected 128-bit Reduce_Max operation, combine the two results with the selected 128-bit Max operation, and extract lane zero. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Reverse_Lanes (Value : I64x4) return I64x4;

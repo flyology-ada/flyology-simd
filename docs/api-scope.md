@@ -244,6 +244,15 @@ The rounding, saturation, exceptional-input, and floating-environment rules
 are the same as the corresponding 128-bit operations. Same-width Wide numeric
 conversions preserve lane positions.
 
+Wide Native integer `Reduce_Add_Wrap`, `Reduce_Min`, and `Reduce_Max` reduce
+each private part with the selected 128-bit operation. The implementation
+splats each scalar result, combines the two vectors with selected 128-bit
+`Add_Wrap`, `Min`, or `Max`, and extracts lane 0. These integer operations are
+associative, so this grouping preserves the portable Wide result. Floating
+reductions do not use this grouping. They combine lanes in ascending lane
+order. Their NaN rules, signed-zero rules, and rounding points remain
+observable parts of the contract.
+
 ## Floating-point contract
 
 Floating arithmetic uses IEEE binary32 or binary64 without `-ffast-math`.

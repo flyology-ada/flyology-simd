@@ -192,6 +192,13 @@ Wide Native `Horizontal_Sum` adds the exact results from two selected 128-bit
 `Horizontal_Sum` operations. The public result is a `Natural` from 0 through
 8,160.
 
+Wide Native integer reductions reduce both private parts with selected 128-bit
+reductions. The implementation splats each scalar result, combines the two
+vectors with selected 128-bit `Add_Wrap`, `Min`, or `Max`, and extracts lane 0.
+This grouping is valid because the three integer operations are associative.
+Floating reductions combine lanes in ascending lane order because rounding,
+NaN, and signed-zero results can depend on the order.
+
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
 remains the semantic authority. On AArch64, Ada code derives a 32-byte index
