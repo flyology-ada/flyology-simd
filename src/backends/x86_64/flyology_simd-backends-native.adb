@@ -1188,22 +1188,22 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is
      (Flyology_SIMD.Convert_Truncate_Saturate (Value));
-   function Convert_Saturate (Value : I8x16) return U8x16 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : U8x16) return I8x16 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : I16x8) return U16x8 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : U16x8) return I16x8 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : I32x4) return U32x4 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : U32x4) return I32x4 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : I64x2) return U64x2 is
-     (Flyology_SIMD.Convert_Saturate (Value));
-   function Convert_Saturate (Value : U64x2) return I64x2 is
-     (Flyology_SIMD.Convert_Saturate (Value));
+   function Native_Convert_Saturate_I8x16_To_U8x16 is new SSE2_Convert_128 (I8x16, U8x16, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Convert_Saturate (Value : I8x16) return U8x16 is (Native_Convert_Saturate_I8x16_To_U8x16 (Value));
+   function Native_Convert_Saturate_U8x16_To_I8x16 is new SSE2_Convert_128 (U8x16, I8x16, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $9, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Convert_Saturate (Value : U8x16) return I8x16 is (Native_Convert_Saturate_U8x16_To_I8x16 (Value));
+   function Native_Convert_Saturate_I16x8_To_U16x8 is new SSE2_Convert_128 (I16x8, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Convert_Saturate (Value : I16x8) return U16x8 is (Native_Convert_Saturate_I16x8_To_U16x8 (Value));
+   function Native_Convert_Saturate_U16x8_To_I16x8 is new SSE2_Convert_128 (U16x8, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Convert_Saturate (Value : U16x8) return I16x8 is (Native_Convert_Saturate_U16x8_To_I16x8 (Value));
+   function Native_Convert_Saturate_I32x4_To_U32x4 is new SSE2_Convert_128 (I32x4, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Convert_Saturate (Value : I32x4) return U32x4 is (Native_Convert_Saturate_I32x4_To_U32x4 (Value));
+   function Native_Convert_Saturate_U32x4_To_I32x4 is new SSE2_Convert_128 (U32x4, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Convert_Saturate (Value : U32x4) return I32x4 is (Native_Convert_Saturate_U32x4_To_I32x4 (Value));
+   function Native_Convert_Saturate_I64x2_To_U64x2 is new SSE2_Convert_128 (I64x2, U64x2, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Convert_Saturate (Value : I64x2) return U64x2 is (Native_Convert_Saturate_I64x2_To_U64x2 (Value));
+   function Native_Convert_Saturate_U64x2_To_I64x2 is new SSE2_Convert_128 (U64x2, I64x2, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
    function Native_Add_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "paddb %%xmm1, %%xmm0");
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
    function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "psubb %%xmm1, %%xmm0");

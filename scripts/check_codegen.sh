@@ -614,6 +614,42 @@ EOF
         require_count '(^|[[:space:]])cvtpd2ps[[:space:]]' 2 \
           "$temporary/conversion_narrow_round_f64x2_f32x4.txt" \
           'two SSE2 binary64-to-binary32 conversions in Narrow_Round'
+        while read -r suffix source target compare shift; do
+            if [ "$suffix" = base ]; then
+                operation=convert_saturate
+            else
+                operation="convert_saturate${suffix}"
+            fi
+            extract_symbol "flyology_simd__backends__native__${operation}" \
+              "$temporary/native.txt" \
+              "$temporary/conversion_${operation}_${source}_${target}.txt"
+            require_pattern "$compare" \
+              "$temporary/conversion_${operation}_${source}_${target}.txt" \
+              "SSE2 sign-mask derivation in ${source} to ${target} Convert_Saturate"
+            require_pattern '(^|[[:space:]])pandn[[:space:]]' \
+              "$temporary/conversion_${operation}_${source}_${target}.txt" \
+              "SSE2 clamped selection in ${source} to ${target} Convert_Saturate"
+            if [ "$shift" != none ]; then
+                require_pattern "$shift" \
+                  "$temporary/conversion_${operation}_${source}_${target}.txt" \
+                  "SSE2 signed-maximum construction in ${source} to ${target} Convert_Saturate"
+                require_pattern '(^|[[:space:]])por[[:space:]]' \
+                  "$temporary/conversion_${operation}_${source}_${target}.txt" \
+                  "SSE2 signed-maximum selection in ${source} to ${target} Convert_Saturate"
+            fi
+            forbid_pattern '(^|[[:space:]])call|flyology_simd__convert_saturate' \
+              "$temporary/conversion_${operation}_${source}_${target}.txt" \
+              "scalar or out-of-line helper in ${source} to ${target} Convert_Saturate"
+        done <<'EOF'
+base   i8x16  u8x16  pcmpgtb none
+__2    u8x16  i8x16  pcmpgtb psrlw
+__3    i16x8  u16x8  pcmpgtw none
+__4    u16x8  i16x8  pcmpgtw psrlw
+__5    i32x4  u32x4  pcmpgtd none
+__6    u32x4  i32x4  pcmpgtd psrld
+__7    i64x2  u64x2  psrad none
+__8    u64x2  i64x2  psrad psrlq
+EOF
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'

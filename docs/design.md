@@ -218,7 +218,9 @@ for 128-bit lane slides. It uses unpack-and-extension sequences for integer
 widening and shuffle, clamp, and pack sequences for integer narrowing. It
 uses `cvtps2pd` for floating widening and two `cvtpd2ps` conversions followed
 by a lane merge for floating narrowing. It currently composes numeric
-conversion operations with the scalar implementation.
+conversions between integer and floating types with the scalar implementation.
+Same-width conversion between signed and unsigned integer types uses SSE2
+comparisons, sign-mask construction, and bit selection.
 It also composes 128-bit and Wide variable lane permutation, mask compression,
 and mask expansion because SSE2 has no indexed-byte table instruction.
 This preserves the contract but does not claim an SSE2 instruction sequence

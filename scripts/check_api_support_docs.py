@@ -183,6 +183,23 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact floating "
                 "Narrow_Round backend classification"
             )
+        convert_saturate_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Convert_Saturate")[1:]
+        ]
+        convert_saturate_phrase = (
+            "dedicated SSE2 sequence that derives a sign mask and selects "
+            "the clamped lanes"
+        )
+        found = sum(
+            convert_saturate_phrase in block
+            for block in convert_saturate_blocks
+        )
+        if found != 8:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: expected eight exact "
+                f"Convert_Saturate SSE2 classifications, found {found}"
+            )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

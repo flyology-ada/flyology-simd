@@ -1378,6 +1378,44 @@ def x86_clamp_signed_instruction(target_bits: int) -> str:
     return "\n".join(lines) + "\n" + x86_truncate_instruction(target_bits)
 
 
+def x86_convert_saturate_instruction(bits: int, signed_source: bool) -> str:
+    """Clamp signedness-changing lanes without changing their width."""
+    suffix = {8: "b", 16: "w", 32: "d"}.get(bits)
+    if bits == 64:
+        sign_mask = (
+            "movdqa %%xmm0, %%xmm1\n"
+            "pshufd $0xF5, %%xmm1, %%xmm1\n"
+            "psrad $31, %%xmm1"
+        )
+    else:
+        sign_mask = (
+            "pxor %%xmm1, %%xmm1\n"
+            f"pcmpgt{suffix} %%xmm0, %%xmm1"
+        )
+    if signed_source:
+        return sign_mask + "\npandn %%xmm0, %%xmm1\nmovdqa %%xmm1, %%xmm0"
+    if bits == 8:
+        signed_max = (
+            "pcmpeqd %%xmm2, %%xmm2\n"
+            "psrlw $9, %%xmm2\n"
+            "packuswb %%xmm2, %%xmm2"
+        )
+    else:
+        signed_max = (
+            "pcmpeqd %%xmm2, %%xmm2\n"
+            f"psrl{'q' if bits == 64 else suffix} $1, %%xmm2"
+        )
+    return (
+        sign_mask
+        + "\n" + signed_max + "\n"
+        + "movdqa %%xmm1, %%xmm3\n"
+        + "pand %%xmm2, %%xmm1\n"
+        + "pandn %%xmm0, %%xmm3\n"
+        + "por %%xmm1, %%xmm3\n"
+        + "movdqa %%xmm3, %%xmm0"
+    )
+
+
 def x86_body() -> str:
     out = x86_helpers()
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
@@ -1461,8 +1499,15 @@ def x86_body() -> str:
                 f"Value : {source_vector}",
             )
         )
-    for source_vector, _, target_vector, _, _, _, _ in SIGNED_UNSIGNED_CONVERSIONS:
-        out.append(call("Convert_Saturate", target_vector, "Value", f"Value : {source_vector}"))
+    for source_vector, _, target_vector, _, bits, _, signed in SIGNED_UNSIGNED_CONVERSIONS:
+        native = f"Native_Convert_Saturate_{source_vector}_To_{target_vector}"
+        instruction = x86_ada_instruction(
+            x86_convert_saturate_instruction(bits, signed)
+        )
+        out += [
+            f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Convert_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+        ]
     multiplication = {
         8: (
             "movdqu %%xmm0, %%xmm2\nmovdqu %%xmm1, %%xmm4\nmovdqu %%xmm1, %%xmm5\n"

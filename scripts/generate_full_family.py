@@ -294,7 +294,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
             "Bit_Cast", "Convert_Round",
-            "Convert_Truncate_Saturate", "Convert_Saturate",
+            "Convert_Truncate_Saturate",
             "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
@@ -346,6 +346,9 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Narrow_Round":
         aarch = "a dedicated NEON sequence that converts the lanes with fcvtn and fcvtn2"
         x86 = "a dedicated SSE2 sequence that converts with cvtpd2ps and merges the result lanes"
+    elif name == "Convert_Saturate":
+        aarch = "a dedicated NEON sequence that clamps each lane to the destination type's range"
+        x86 = "a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes"
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
