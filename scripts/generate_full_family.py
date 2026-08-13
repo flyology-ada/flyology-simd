@@ -329,6 +329,14 @@ def native_support_doc(name: str, declaration: str) -> str:
             "sequence that does not require POPCNT. A scalar build uses the "
             "portable scalar implementation."
         )
+    if name == "Horizontal_Sum":
+        return (
+            "Cross-platform support: The AArch64 backend uses the NEON "
+            "uaddlv instruction to sum all 16 unsigned byte lanes. The "
+            "x86-64 backend uses SSE2 psadbw to form two 64-bit partial "
+            "sums and adds them. A scalar build uses the portable scalar "
+            "implementation."
+        )
     if name == "Unordered" and (
         "F32x4" in declaration or "F64x2" in declaration
     ):

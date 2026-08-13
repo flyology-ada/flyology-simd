@@ -77,6 +77,13 @@ mask. Exhaustive 128-bit mask patterns and independent Wide mask-reduction
 oracles check counts, lane results, and sentinels. Public caller and
 exact-symbol gates cover every shape and reject portable reduction calls.
 
+The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
+AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
+64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom
+vectors check the portable and Native results against an independent
+lane-array oracle. Exact-symbol gates require these target sequences and
+reject calls to the portable sum.
+
 Floating unordered-comparison tests use an independent IEEE encoding oracle.
 Fixed cases cover quiet and signaling NaNs in either or both inputs, NaN
 encodings with both sign-bit values, infinities, and signed zero. Another 250 deterministic cases use raw

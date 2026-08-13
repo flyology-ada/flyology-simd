@@ -77,6 +77,20 @@ def invalid_support(path: Path) -> list[str]:
                 f"{text.count(multiply_support)}"
             )
     if path.name == "flyology_simd-backends-native.ads":
+        horizontal_sum_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Horizontal_Sum")[1:]
+        ]
+        if (
+            len(horizontal_sum_blocks) != 1
+            or "NEON uaddlv instruction" not in horizontal_sum_blocks[0]
+            or "SSE2 psadbw" not in horizontal_sum_blocks[0]
+            or "two 64-bit partial sums" not in horizontal_sum_blocks[0]
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact Horizontal_Sum "
+                "backend classification"
+            )
         for phrase, backend in (
             ("dedicated NEON 32-bit partial-product sequence", "AArch64"),
             ("dedicated SSE2 32-bit partial-product sequence", "x86-64"),

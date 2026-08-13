@@ -60,6 +60,17 @@ procedure SIMD_Tests is
    function Same (Left, Right : U8x16) return Boolean is
      (To_Lanes (Left) = To_Lanes (Right));
 
+   function Reference_Horizontal_Sum
+     (Values : Lane_Values_8x16) return Natural
+   is
+      Result : Natural := 0;
+   begin
+      for Value of Values loop
+         Result := Result + Natural (Value);
+      end loop;
+      return Result;
+   end Reference_Horizontal_Sum;
+
    function Reference_Popcount (Bits : Interfaces.Unsigned_16) return Natural is
       Value : constant Interfaces.Unsigned_16 := Bits;
       Count : Natural := 0;
@@ -209,7 +220,12 @@ procedure SIMD_Tests is
       Check (Same (Select_Value (Equal (A, B), A, B), B), "select semantics");
       Check (Extract (Min (A, B), 6) = 2 and Extract (Max (A, B), 6) = 254,
              "unsigned min/max");
-      Check (Horizontal_Sum (Splat (255)) = 4_080, "horizontal sum");
+      Check
+        (Horizontal_Sum (Splat (255)) =
+           Reference_Horizontal_Sum ([others => 255])
+         and then Flyology_SIMD.Backends.Native.Horizontal_Sum (Splat (255)) =
+           Reference_Horizontal_Sum ([others => 255]),
+         "horizontal sum");
       Check (Extract (Reverse_Bytes (A), 0) = Extract (A, 15), "reverse");
       Check (Same (Reverse_Lanes (A), Reverse_Bytes (A)),
              "reverse lanes compatibility");
@@ -487,7 +503,8 @@ procedure SIMD_Tests is
    begin
       for Iteration in 1 .. 2_000 loop
          declare
-            A : constant U8x16 := From_Lanes (Random_Lanes);
+            A_Lanes : constant Lane_Values_8x16 := Random_Lanes;
+            A : constant U8x16 := From_Lanes (A_Lanes);
             B : constant U8x16 := From_Lanes (Random_Lanes);
             M : constant Mask_8x16 := Equal (A, B);
             Buffer : Byte_Array (0 .. 32) := [others => 0];
@@ -599,9 +616,10 @@ procedure SIMD_Tests is
             Check (Same (Flyology_SIMD.Backends.Native.Max (A, B), Max (A, B)),
                    "native max" & Iteration'Image);
             Check
-              (Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
-                 Horizontal_Sum (A),
-               "native horizontal sum" & Iteration'Image);
+              (Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes)
+               and then Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
+                 Reference_Horizontal_Sum (A_Lanes),
+               "horizontal sum oracle" & Iteration'Image);
             Check
               (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) =
                  Reduce_Add_Wrap (A)

@@ -231,7 +231,7 @@ is
    function Horizontal_Sum (Value : U8x16) return Natural
      with Post => Horizontal_Sum'Result <= 16 * 255;
    --  Return the exact sum of all unsigned byte lanes as Natural.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON uaddlv instruction to sum all 16 unsigned byte lanes. The x86-64 backend uses SSE2 psadbw to form two 64-bit partial sums and adds them. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U8x16) return U8;

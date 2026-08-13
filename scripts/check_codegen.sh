@@ -236,6 +236,16 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
+          "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
+        require_pattern 'uaddlv.*16b' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'AArch64 U8x16 exact horizontal sum'
+        require_pattern 'umov' "$temporary/horizontal-sum-u8x16.txt" \
+          'AArch64 U8x16 exact-sum result transfer'
+        forbid_pattern 'flyology_simd__horizontal_sum' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'portable AArch64 Horizontal_Sum call'
         for suffix in '' '__2' '__3' '__4'; do
             extract_symbol "flyology_simd__backends__native__population_count${suffix}" \
               "$temporary/native.txt" "$temporary/population_count${suffix}.txt"
@@ -607,6 +617,20 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
+          "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
+        require_pattern '(^|[[:space:]])psadbw[[:space:]]' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'x86-64 U8x16 pairwise byte sums'
+        require_pattern '(^|[[:space:]])movhlps[[:space:]]' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'x86-64 U8x16 high partial-sum transfer'
+        require_pattern '(^|[[:space:]])paddq[[:space:]]' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'x86-64 U8x16 partial-sum addition'
+        forbid_pattern 'flyology_simd__horizontal_sum' \
+          "$temporary/horizontal-sum-u8x16.txt" \
+          'portable x86-64 Horizontal_Sum call'
         for suffix in '' '__2' '__3' '__4'; do
             extract_symbol "flyology_simd__backends__native__population_count${suffix}" \
               "$temporary/native.txt" "$temporary/population_count${suffix}.txt"
