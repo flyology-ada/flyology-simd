@@ -220,10 +220,8 @@ package body Flyology_SIMD.Backends.Native is
      (Value : U8x16; Count : Natural) return U8x16
    is
       Result : U8x16;
+      Local_Count : constant Natural := Natural'Min (Count, 8);
    begin
-      if Count >= 8 then
-         return Zero;
-      end if;
       Asm
         (Template =>
            "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
@@ -233,7 +231,7 @@ package body Flyology_SIMD.Backends.Native is
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
             System.Address'Asm_Input ("r", Value'Address),
-            Natural'Asm_Input ("r", Count)],
+            Natural'Asm_Input ("r", Local_Count)],
          Clobber => "v0,v1,memory", Volatile => True);
       return Result;
    end Shift_Left_Logical;
@@ -242,10 +240,8 @@ package body Flyology_SIMD.Backends.Native is
      (Value : U8x16; Count : Natural) return U8x16
    is
       Result : U8x16;
+      Local_Count : constant Natural := Natural'Min (Count, 8);
    begin
-      if Count >= 8 then
-         return Zero;
-      end if;
       Asm
         (Template =>
            "ldr q0, [%1]" & ASCII.LF & ASCII.HT &
@@ -256,7 +252,7 @@ package body Flyology_SIMD.Backends.Native is
          Inputs =>
            [System.Address'Asm_Input ("r", Result'Address),
             System.Address'Asm_Input ("r", Value'Address),
-            Natural'Asm_Input ("r", Count)],
+            Natural'Asm_Input ("r", Local_Count)],
          Clobber => "v0,v1,x9,memory", Volatile => True);
       return Result;
    end Shift_Right_Logical;
@@ -1470,10 +1466,10 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Shift_Left_Logical_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "ushl v0.16b, v0.16b, v1.16b");
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is
-     (if Count >= 8 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I8x16 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_I8x16 (Value, Interfaces.Integer_64 (Natural'Min (Count, 8))));
    function Native_Shift_Right_Logical_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "ushl v0.16b, v0.16b, v1.16b");
    function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is
-     (if Count >= 8 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I8x16 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_I8x16 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 8))));
    function Native_SRA_I8x16 is new NEON_Shift_128 (I8x16, "dup v1.16b, %w2", "sshl v0.16b, v0.16b, v1.16b");
    function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16 is
      (Native_SRA_I8x16 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 8))));
@@ -1633,10 +1629,10 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Shift_Left_Logical_U16x8 is new NEON_Shift_128 (U16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is
-     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U16x8 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_U16x8 (Value, Interfaces.Integer_64 (Natural'Min (Count, 16))));
    function Native_Shift_Right_Logical_U16x8 is new NEON_Shift_128 (U16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
    function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is
-     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U16x8 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_U16x8 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 16))));
    function Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_U16x8 (Left, Right, Weights_16x8'Address)));
    function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_U16x8 (Left, Right, Weights_16x8'Address)));
    function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U16x8 (Left, Right, Weights_16x8'Address)));
@@ -1790,10 +1786,10 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Shift_Left_Logical_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is
-     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I16x8 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_I16x8 (Value, Interfaces.Integer_64 (Natural'Min (Count, 16))));
    function Native_Shift_Right_Logical_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "ushl v0.8h, v0.8h, v1.8h");
    function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is
-     (if Count >= 16 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I16x8 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_I16x8 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 16))));
    function Native_SRA_I16x8 is new NEON_Shift_128 (I16x8, "dup v1.8h, %w2", "sshl v0.8h, v0.8h, v1.8h");
    function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8 is
      (Native_SRA_I16x8 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 16))));
@@ -1950,10 +1946,10 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Shift_Left_Logical_U32x4 is new NEON_Shift_128 (U32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is
-     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U32x4 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_U32x4 (Value, Interfaces.Integer_64 (Natural'Min (Count, 32))));
    function Native_Shift_Right_Logical_U32x4 is new NEON_Shift_128 (U32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
    function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is
-     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U32x4 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_U32x4 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 32))));
    function Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_U32x4 (Left, Right, Weights_32x4'Address)));
    function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_U32x4 (Left, Right, Weights_32x4'Address)));
    function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U32x4 (Left, Right, Weights_32x4'Address)));
@@ -2107,10 +2103,10 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Shift_Left_Logical_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is
-     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I32x4 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_I32x4 (Value, Interfaces.Integer_64 (Natural'Min (Count, 32))));
    function Native_Shift_Right_Logical_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "ushl v0.4s, v0.4s, v1.4s");
    function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is
-     (if Count >= 32 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I32x4 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_I32x4 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 32))));
    function Native_SRA_I32x4 is new NEON_Shift_128 (I32x4, "dup v1.4s, %w2", "sshl v0.4s, v0.4s, v1.4s");
    function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4 is
      (Native_SRA_I32x4 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 32))));
@@ -2267,10 +2263,10 @@ package body Flyology_SIMD.Backends.Native is
    function Multiply_Wrap (Left, Right : U64x2) return U64x2 is (Native_Multiply_Wrap_U64x2 (Left, Right));
    function Native_Shift_Left_Logical_U64x2 is new NEON_Shift_128 (U64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is
-     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_U64x2 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_U64x2 (Value, Interfaces.Integer_64 (Natural'Min (Count, 64))));
    function Native_Shift_Right_Logical_U64x2 is new NEON_Shift_128 (U64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is
-     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_U64x2 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_U64x2 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 64))));
    function Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_U64x2 (Left, Right, Weights_64x2'Address)));
    function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_U64x2 (Left, Right, Weights_64x2'Address)));
    function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U64x2 (Left, Right, Weights_64x2'Address)));
@@ -2424,10 +2420,10 @@ package body Flyology_SIMD.Backends.Native is
    function Multiply_Wrap (Left, Right : I64x2) return I64x2 is (Native_Multiply_Wrap_I64x2 (Left, Right));
    function Native_Shift_Left_Logical_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is
-     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Left_Logical_I64x2 (Value, Interfaces.Integer_64 (Count)));
+     (Native_Shift_Left_Logical_I64x2 (Value, Interfaces.Integer_64 (Natural'Min (Count, 64))));
    function Native_Shift_Right_Logical_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "ushl v0.2d, v0.2d, v1.2d");
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is
-     (if Count >= 64 then Flyology_SIMD.Zero else Native_Shift_Right_Logical_I64x2 (Value, -Interfaces.Integer_64 (Count)));
+     (Native_Shift_Right_Logical_I64x2 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 64))));
    function Native_SRA_I64x2 is new NEON_Shift_128 (I64x2, "dup v1.2d, %2", "sshl v0.2d, v0.2d, v1.2d");
    function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is
      (Native_SRA_I64x2 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 64))));

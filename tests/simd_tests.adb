@@ -71,6 +71,34 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Horizontal_Sum;
 
+   function Reference_Shift_Left_Logical
+     (Value : U8x16; Count : Natural) return U8x16
+   is
+      Result : U8x16 := Zero;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result := Replace
+           (Result, Lane,
+            (if Count >= 8 then 0
+             else Interfaces.Shift_Left (Extract (Value, Lane), Count)));
+      end loop;
+      return Result;
+   end Reference_Shift_Left_Logical;
+
+   function Reference_Shift_Right_Logical
+     (Value : U8x16; Count : Natural) return U8x16
+   is
+      Result : U8x16 := Zero;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Result := Replace
+           (Result, Lane,
+            (if Count >= 8 then 0
+             else Interfaces.Shift_Right (Extract (Value, Lane), Count)));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Logical;
+
    function Reference_Popcount (Bits : Interfaces.Unsigned_16) return Natural is
       Value : constant Interfaces.Unsigned_16 := Bits;
       Count : Natural := 0;
@@ -210,6 +238,16 @@ procedure SIMD_Tests is
              "oversized left shift");
       Check (Same (Shift_Right_Logical (Splat (255), 100), Zero),
              "oversized right shift");
+      Check
+        (Same
+           (Flyology_SIMD.Backends.Native.Shift_Left_Logical
+              (Splat (255), Natural'Last),
+            Zero)
+         and then Same
+           (Flyology_SIMD.Backends.Native.Shift_Right_Logical
+              (Splat (255), Natural'Last),
+            Zero),
+         "native maximum-count logical shifts");
       Check (To_Bit_Mask (Equal (A, B)) = 16#0029#, "equality lane mask");
       Check (Test (Less_Than (A, B), 1) and not Test (Less_Than (A, B), 2),
              "unsigned ordered comparison");
@@ -604,14 +642,18 @@ procedure SIMD_Tests is
                   "scalar table lookup lane" & Lane'Image);
             end loop;
             Check
-              (Same
+              (Same (Shift_Left_Logical (A, Shift),
+                     Reference_Shift_Left_Logical (A, Shift))
+               and then Same
                  (Flyology_SIMD.Backends.Native.Shift_Left_Logical (A, Shift),
-                  Shift_Left_Logical (A, Shift)),
+                  Reference_Shift_Left_Logical (A, Shift)),
                "native left shift" & Iteration'Image);
             Check
-              (Same
+              (Same (Shift_Right_Logical (A, Shift),
+                     Reference_Shift_Right_Logical (A, Shift))
+               and then Same
                  (Flyology_SIMD.Backends.Native.Shift_Right_Logical (A, Shift),
-                  Shift_Right_Logical (A, Shift)),
+                  Reference_Shift_Right_Logical (A, Shift)),
                "native right shift" & Iteration'Image);
             Check (Flyology_SIMD.Backends.Native.To_Bit_Mask
                      (Flyology_SIMD.Backends.Native.Equal (A, B)) =

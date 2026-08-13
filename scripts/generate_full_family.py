@@ -373,6 +373,39 @@ def native_support_doc(name: str, declaration: str) -> str:
             f"The x86-64 backend {x86}. A scalar build uses the portable "
             "scalar implementation."
         )
+    if name in {"Shift_Left_Logical", "Shift_Right_Logical"}:
+        vector = next(
+            candidate
+            for candidate in (
+                "U8x16", "I8x16", "U16x8", "I16x8",
+                "U32x4", "I32x4", "U64x2", "I64x2",
+            )
+            if candidate in declaration
+        )
+        bits = int(vector[1:vector.index("x")])
+        direction = "left" if name == "Shift_Left_Logical" else "right"
+        if bits == 8:
+            x86 = (
+                f"widens the bytes, shifts the 16-bit lanes {direction}, "
+                "and packs the result bytes"
+            )
+        else:
+            instruction = {
+                ("left", 16): "psllw", ("left", 32): "pslld",
+                ("left", 64): "psllq", ("right", 16): "psrlw",
+                ("right", 32): "psrld", ("right", 64): "psrlq",
+            }[(direction, bits)]
+            x86 = f"shifts the {bits}-bit lanes with {instruction}"
+        return (
+            "Cross-platform support: The AArch64 backend shifts the "
+            f"{bits}-bit lanes with the NEON ushl instruction and a "
+            f"{'positive' if direction == 'left' else 'negative'} count. "
+            f"The x86-64 backend uses an SSE2 sequence that {x86}. When Count "
+            f"exceeds {bits}, both backends clamp it to {bits}. The clamped "
+            "count produces the defined all-zero result without calling the "
+            "portable root operation. A scalar build uses the portable scalar "
+            "implementation."
+        )
     if name == "Shift_Right_Arithmetic":
         vector = next(
             candidate for candidate in ("I8x16", "I16x8", "I32x4", "I64x2")

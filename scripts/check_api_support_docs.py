@@ -347,6 +347,47 @@ def invalid_support(path: Path) -> list[str]:
                     f"64-bit numeric conversion classification for {phrase!r}, "
                     f"found {found}"
                 )
+        logical_shift_blocks = {
+            operation: [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+                if any(
+                    f"Value : {vector}" in block.split(";", 1)[0]
+                    for vector in (
+                        "U8x16", "I8x16", "U16x8", "I16x8",
+                        "U32x4", "I32x4", "U64x2", "I64x2",
+                    )
+                )
+            ]
+            for operation in ("Shift_Left_Logical", "Shift_Right_Logical")
+        }
+        for operation, direction, byte_action, instruction_stem in (
+            ("Shift_Left_Logical", "positive", "shifts the 16-bit lanes left", "psll"),
+            ("Shift_Right_Logical", "negative", "shifts the 16-bit lanes right", "psrl"),
+        ):
+            blocks = logical_shift_blocks[operation]
+            requirements = (
+                ("8-bit lanes with the NEON ushl", byte_action, "When Count exceeds 8"),
+                ("8-bit lanes with the NEON ushl", byte_action, "When Count exceeds 8"),
+                ("16-bit lanes with the NEON ushl", f"16-bit lanes with {instruction_stem}w", "When Count exceeds 16"),
+                ("16-bit lanes with the NEON ushl", f"16-bit lanes with {instruction_stem}w", "When Count exceeds 16"),
+                ("32-bit lanes with the NEON ushl", f"32-bit lanes with {instruction_stem}d", "When Count exceeds 32"),
+                ("32-bit lanes with the NEON ushl", f"32-bit lanes with {instruction_stem}d", "When Count exceeds 32"),
+                ("64-bit lanes with the NEON ushl", f"64-bit lanes with {instruction_stem}q", "When Count exceeds 64"),
+                ("64-bit lanes with the NEON ushl", f"64-bit lanes with {instruction_stem}q", "When Count exceeds 64"),
+            )
+            if (
+                len(blocks) != 8
+                or any(
+                    f"a {direction} count" not in block
+                    or not all(phrase in block for phrase in expected)
+                    for block, expected in zip(blocks, requirements)
+                )
+            ):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact all-family "
+                    f"{operation} target classifications"
+                )
         shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]

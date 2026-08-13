@@ -247,11 +247,8 @@ package body Flyology_SIMD.Backends.Native is
    is
       Result : U8x16;
       Local_Count : aliased Interfaces.Unsigned_32 :=
-        Interfaces.Unsigned_32 (Count);
+        Interfaces.Unsigned_32 (Natural'Min (Count, 8));
    begin
-      if Count >= 8 then
-         return Zero;
-      end if;
       Asm
         (Template =>
            "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
@@ -281,11 +278,8 @@ package body Flyology_SIMD.Backends.Native is
    is
       Result : U8x16;
       Local_Count : aliased Interfaces.Unsigned_32 :=
-        Interfaces.Unsigned_32 (Count);
+        Interfaces.Unsigned_32 (Natural'Min (Count, 8));
    begin
-      if Count >= 8 then
-         return Zero;
-      end if;
       Asm
         (Template =>
            "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
@@ -1430,8 +1424,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psllw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psllw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm0");
    function Native_SHR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psrlw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm0");
-   function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is (if Count >= 8 then Flyology_SIMD.Zero else Native_SHL_I8x16 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is (if Count >= 8 then Flyology_SIMD.Zero else Native_SHR_I8x16 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is (Native_SHL_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
+   function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is (Native_SHR_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
    function Native_SAR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT & "psraw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psraw $8, %%xmm2" & ASCII.LF & ASCII.HT & "psraw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psraw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "packsswb %%xmm2, %%xmm0");
    function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16 is (Native_SAR_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
    function Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Equal_I8x16 (Left, Right, Sign_8'Address)));
@@ -1539,8 +1533,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_U16x8 is new SSE2_Shift_128 (U16x8, "psllw %%xmm1, %%xmm0");
    function Native_SHR_U16x8 is new SSE2_Shift_128 (U16x8, "psrlw %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is (if Count >= 16 then Flyology_SIMD.Zero else Native_SHL_U16x8 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is (if Count >= 16 then Flyology_SIMD.Zero else Native_SHR_U16x8 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is (Native_SHL_U16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
+   function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is (Native_SHR_U16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
    function Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U16x8 (Left, Right, Sign_16'Address))));
    function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_16'Address))));
    function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_16'Address) or Compare_Equal_U16x8 (Left, Right, Sign_16'Address))));
@@ -1650,8 +1644,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_I16x8 is new SSE2_Shift_128 (I16x8, "psllw %%xmm1, %%xmm0");
    function Native_SHR_I16x8 is new SSE2_Shift_128 (I16x8, "psrlw %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is (if Count >= 16 then Flyology_SIMD.Zero else Native_SHL_I16x8 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is (if Count >= 16 then Flyology_SIMD.Zero else Native_SHR_I16x8 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is (Native_SHL_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
+   function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is (Native_SHR_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
    function Native_SAR_I16x8 is new SSE2_Shift_128 (I16x8, "psraw %%xmm1, %%xmm0");
    function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8 is (Native_SAR_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
    function Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I16x8 (Left, Right, Sign_16'Address))));
@@ -1757,8 +1751,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_U32x4 is new SSE2_Shift_128 (U32x4, "pslld %%xmm1, %%xmm0");
    function Native_SHR_U32x4 is new SSE2_Shift_128 (U32x4, "psrld %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHL_U32x4 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHR_U32x4 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is (Native_SHL_U32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
+   function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is (Native_SHR_U32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
    function Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U32x4 (Left, Right, Sign_32'Address))));
    function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_32'Address))));
    function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_32'Address) or Compare_Equal_U32x4 (Left, Right, Sign_32'Address))));
@@ -1864,8 +1858,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_I32x4 is new SSE2_Shift_128 (I32x4, "pslld %%xmm1, %%xmm0");
    function Native_SHR_I32x4 is new SSE2_Shift_128 (I32x4, "psrld %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHL_I32x4 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHR_I32x4 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is (Native_SHL_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
+   function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is (Native_SHR_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
    function Native_SAR_I32x4 is new SSE2_Shift_128 (I32x4, "psrad %%xmm1, %%xmm0");
    function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4 is (Native_SAR_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
    function Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I32x4 (Left, Right, Sign_32'Address))));
@@ -1973,8 +1967,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_U64x2 is new SSE2_Shift_128 (U64x2, "psllq %%xmm1, %%xmm0");
    function Native_SHR_U64x2 is new SSE2_Shift_128 (U64x2, "psrlq %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHL_U64x2 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHR_U64x2 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is (Native_SHL_U64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
+   function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is (Native_SHR_U64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U64x2 (Left, Right, Sign_32'Address))));
    function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_32'Address))));
    function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_32'Address) or Compare_Equal_U64x2 (Left, Right, Sign_32'Address))));
@@ -2080,8 +2074,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Expand (Value, Mask));
    function Native_SHL_I64x2 is new SSE2_Shift_128 (I64x2, "psllq %%xmm1, %%xmm0");
    function Native_SHR_I64x2 is new SSE2_Shift_128 (I64x2, "psrlq %%xmm1, %%xmm0");
-   function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHL_I64x2 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHR_I64x2 (Value, Interfaces.Unsigned_32 (Count)));
+   function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is (Native_SHL_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
+   function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is (Native_SHR_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Native_SAR_I64x2 is new SSE2_Shift_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm0");
    function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is (Native_SAR_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I64x2 (Left, Right, Sign_32'Address))));

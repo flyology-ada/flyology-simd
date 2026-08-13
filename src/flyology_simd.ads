@@ -154,13 +154,13 @@ is
    --  Counts of eight or more produce zero in every lane.
    function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes left, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes right, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -1094,13 +1094,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes left, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes right, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -1393,13 +1393,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 16-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 16-bit lanes with psllw. When Count exceeds 16, both backends clamp it to 16. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 16-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 16-bit lanes with psrlw. When Count exceeds 16, both backends clamp it to 16. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -1686,13 +1686,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 16-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 16-bit lanes with psllw. When Count exceeds 16, both backends clamp it to 16. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 16-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 16-bit lanes with psrlw. When Count exceeds 16, both backends clamp it to 16. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -1985,13 +1985,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 32-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 32-bit lanes with pslld. When Count exceeds 32, both backends clamp it to 32. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 32-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 32-bit lanes with psrld. When Count exceeds 32, both backends clamp it to 32. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -2278,13 +2278,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 32-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 32-bit lanes with pslld. When Count exceeds 32, both backends clamp it to 32. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 32-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 32-bit lanes with psrld. When Count exceeds 32, both backends clamp it to 32. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -2577,13 +2577,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 64-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 64-bit lanes with psllq. When Count exceeds 64, both backends clamp it to 64. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 64-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 64-bit lanes with psrlq. When Count exceeds 64, both backends clamp it to 64. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
@@ -2870,13 +2870,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 64-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that shifts the 64-bit lanes with psllq. When Count exceeds 64, both backends clamp it to 64. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend shifts the 64-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that shifts the 64-bit lanes with psrlq. When Count exceeds 64, both backends clamp it to 64. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.

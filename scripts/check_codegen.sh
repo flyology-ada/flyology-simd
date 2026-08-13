@@ -29,7 +29,7 @@ wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
-shift64_probe_object="$probe_root/shift64_codegen_probe.o"
+integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
 unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
 construction_probe_object="$probe_root/construction_codegen_probe.o"
@@ -59,7 +59,7 @@ disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
-disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
+disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
 disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
 disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
@@ -88,7 +88,7 @@ nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
 nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
-nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
+nm -u "$integer_shift_probe_object" >"$temporary/integer-shift-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
 nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
@@ -198,11 +198,23 @@ forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
   "$temporary/conversion64-undefined.txt" \
   'portable 64-bit numeric conversion call in the Native caller probe'
 require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
-  "$temporary/shift64-undefined.txt" \
+  "$temporary/integer-shift-undefined.txt" \
   'all four Native arithmetic-right-shift calls in the public caller probe'
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
-  "$temporary/shift64-undefined.txt" \
+  "$temporary/integer-shift-undefined.txt" \
   'portable arithmetic-right-shift call in the Native caller probe'
+require_count 'flyology_simd__backends__native__shift_left_logical' 8 \
+  "$temporary/integer-shift-undefined.txt" \
+  'all eight Native logical-left-shift calls in the public caller probe'
+require_count 'flyology_simd__backends__native__shift_right_logical' 8 \
+  "$temporary/integer-shift-undefined.txt" \
+  'all eight Native logical-right-shift calls in the public caller probe'
+forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
+  "$temporary/integer-shift-undefined.txt" \
+  'portable logical-shift call in the Native caller probe'
+forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
+  "$temporary/native-undefined.txt" \
+  'portable logical-shift call retained in the Native backend object'
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/native-undefined.txt" \
   'portable arithmetic-right-shift call retained in the Native backend object'
@@ -329,6 +341,30 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        for entry in \
+          'shift_left_logical none 16b' 'shift_right_logical none 16b' \
+          'shift_left_logical 2 16b' 'shift_right_logical 2 16b' \
+          'shift_left_logical 3 8h' 'shift_right_logical 3 8h' \
+          'shift_left_logical 4 8h' 'shift_right_logical 4 8h' \
+          'shift_left_logical 5 4s' 'shift_right_logical 5 4s' \
+          'shift_left_logical 6 4s' 'shift_right_logical 6 4s' \
+          'shift_left_logical 7 2d' 'shift_right_logical 7 2d' \
+          'shift_left_logical 8 2d' 'shift_right_logical 8 2d'; do
+            set -- $entry
+            operation=$1
+            suffix=$2
+            shape=$3
+            symbol="flyology_simd__backends__native__${operation}"
+            if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
+            extract_symbol "$symbol" \
+              "$temporary/native.txt" "$temporary/${operation}-${suffix}.txt"
+            require_pattern "ushl.*${shape}" \
+              "$temporary/${operation}-${suffix}.txt" \
+              "AArch64 ushl in ${operation} overload ${suffix}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__(zero|shift_(left|right)_logical)' \
+              "$temporary/${operation}-${suffix}.txt" \
+              "portable or out-of-line helper in ${operation} overload ${suffix}"
+        done
         for entry in 'i8x16 16b' 'i16x8 8h' 'i32x4 4s' 'i64x2 2d'; do
             set -- $entry
             lane=$1
@@ -1182,6 +1218,49 @@ EOF
         require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
         require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
         require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
+        for entry in \
+          'shl u8x16 psllw packuswb' 'shr u8x16 psrlw packuswb' \
+          'shl i8x16 psllw packuswb' 'shr i8x16 psrlw packuswb' \
+          'shl u16x8 psllw none' 'shr u16x8 psrlw none' \
+          'shl i16x8 psllw none' 'shr i16x8 psrlw none' \
+          'shl u32x4 pslld none' 'shr u32x4 psrld none' \
+          'shl i32x4 pslld none' 'shr i32x4 psrld none' \
+          'shl u64x2 psllq none' 'shr u64x2 psrlq none' \
+          'shl i64x2 psllq none' 'shr i64x2 psrlq none'; do
+            set -- $entry
+            operation=$1
+            lane=$2
+            instruction=$3
+            secondary=$4
+            symbol="native_${operation}_${lane}"
+            if [ "$lane" = u8x16 ]; then
+                case "$operation" in
+                    shl) symbol='flyology_simd__backends__native__shift_left_logical' ;;
+                    shr) symbol='flyology_simd__backends__native__shift_right_logical' ;;
+                esac
+                forbidden='flyology_simd__(zero|shift_(left|right)_logical)'
+            else
+                forbidden='(^|[[:space:]])call[[:space:]]|flyology_simd__(zero|shift_(left|right)_logical)'
+            fi
+            extract_symbol "$symbol" \
+              "$temporary/native.txt" "$temporary/${operation}-${lane}.txt"
+            require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+              "$temporary/${operation}-${lane}.txt" \
+              "SSE2 ${instruction} in ${lane} logical shift"
+            if [ "$secondary" != none ]; then
+                require_pattern "(^|[[:space:]])${secondary}[[:space:]]" \
+                  "$temporary/${operation}-${lane}.txt" \
+                  "SSE2 byte repacking in ${lane} logical shift"
+                for widening in pxor punpcklbw punpckhbw; do
+                    require_pattern "(^|[[:space:]])${widening}[[:space:]]" \
+                      "$temporary/${operation}-${lane}.txt" \
+                      "SSE2 byte widening step ${widening} in ${lane} logical shift"
+                done
+            fi
+            forbid_pattern "$forbidden" \
+              "$temporary/${operation}-${lane}.txt" \
+              "portable or out-of-line helper in ${lane} logical shift"
+        done
         for entry in 'i8x16 psraw packsswb' 'i16x8 psraw none' 'i32x4 psrad none'; do
             set -- $entry
             lane=$1
