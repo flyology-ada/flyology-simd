@@ -108,31 +108,31 @@ is
 
    function Equal (Left, Right : U8x16) return Mask_8x16;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 16b lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqb comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -849,31 +849,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 16b lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqb comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 16b lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 16b lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison merged with pcmpeqb equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 16b lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I8x16) return Mask_8x16;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 16b lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison merged with pcmpeqb equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1142,31 +1142,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 8h lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqw comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 8h lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison with an unsigned sign-bit bias using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 8h lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison with an unsigned sign-bit bias merged with pcmpeqw equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 8h lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 8h lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison with an unsigned sign-bit bias merged with pcmpeqw equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1441,31 +1441,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 8h lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqw comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 8h lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 8h lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison merged with pcmpeqw equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 8h lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I16x8) return Mask_16x8;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 8h lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtw comparison merged with pcmpeqw equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1734,31 +1734,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 4s lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 4s lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison with an unsigned sign-bit bias using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 4s lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison with an unsigned sign-bit bias merged with pcmpeqd equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 4s lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 4s lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison with an unsigned sign-bit bias merged with pcmpeqd equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2033,31 +2033,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 4s lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 4s lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 4s lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison merged with pcmpeqd equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 4s lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 4s lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtd comparison merged with pcmpeqd equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2326,31 +2326,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 2d lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqd comparison with adjacent dword results combined per 64-bit lane for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 2d lanes with reversed operands for the less-than predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 2d lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 2d lanes for the greater-than predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 2d lanes for the greater-than-or-equal predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2625,31 +2625,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 2d lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqd comparison with adjacent dword results combined per 64-bit lane for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 2d lanes with reversed operands for the less-than predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 2d lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmgt comparison over 2d lanes for the greater-than predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmge comparison over 2d lanes for the greater-than-or-equal predicate. The x86-64 backend uses an SSE2 equality-gated two-dword lexicographic comparison using pcmpgtd for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2877,31 +2877,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : F32x4) return Mask_32x4;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmeq comparison over 4s lanes for the equality predicate. The x86-64 backend uses the SSE2 cmpeqps comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : F32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmgt with reversed operands comparison over 4s lanes for the less-than predicate. The x86-64 backend uses the SSE2 cmpltps comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : F32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmge with reversed operands comparison over 4s lanes for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 cmpleps comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : F32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmgt comparison over 4s lanes for the greater-than predicate. The x86-64 backend uses the SSE2 cmpltps with reversed operands comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : F32x4) return Mask_32x4;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmge comparison over 4s lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 cmpleps with reversed operands comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3136,31 +3136,31 @@ is
    --  @return The operation result.
    function Equal (Left, Right : F64x2) return Mask_64x2;
    --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmeq comparison over 2d lanes for the equality predicate. The x86-64 backend uses the SSE2 cmpeqpd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : F64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmgt with reversed operands comparison over 2d lanes for the less-than predicate. The x86-64 backend uses the SSE2 cmpltpd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : F64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmge with reversed operands comparison over 2d lanes for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 cmplepd comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : F64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmgt comparison over 2d lanes for the greater-than predicate. The x86-64 backend uses the SSE2 cmpltpd with reversed operands comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : F64x2) return Mask_64x2;
    --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fcmge comparison over 2d lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 cmplepd with reversed operands comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

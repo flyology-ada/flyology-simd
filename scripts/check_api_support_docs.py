@@ -73,6 +73,50 @@ def declaration_blocks(text: str, name: str) -> list[str]:
     return blocks
 
 
+def comparison_phrases(operation: str, vector: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for one fixed-width predicate."""
+    if vector.startswith("F"):
+        shape = "4s" if vector == "F32x4" else "2d"
+        x86_shape = "ps" if vector == "F32x4" else "pd"
+        neon = {
+            "Equal": "fcmeq", "Less_Than": "fcmgt with reversed operands",
+            "Less_Equal": "fcmge with reversed operands",
+            "Greater_Than": "fcmgt", "Greater_Equal": "fcmge",
+        }[operation]
+        sse2 = {
+            "Equal": f"cmpeq{x86_shape}", "Less_Than": f"cmplt{x86_shape}",
+            "Less_Equal": f"cmple{x86_shape}",
+            "Greater_Than": f"cmplt{x86_shape} with reversed operands",
+            "Greater_Equal": f"cmple{x86_shape} with reversed operands",
+        }[operation]
+        return (f"NEON {neon} comparison over {shape} lanes", f"SSE2 {sse2} comparison")
+    signed = vector.startswith("I")
+    width = re.search(r"(8|16|32|64)x", vector).group(1)
+    shape = {"8": "16b", "16": "8h", "32": "4s", "64": "2d"}[width]
+    pcmpeq = {"8": "pcmpeqb", "16": "pcmpeqw", "32": "pcmpeqd", "64": "pcmpeqd"}[width]
+    pcmpgt = {"8": "pcmpgtb", "16": "pcmpgtw", "32": "pcmpgtd", "64": "pcmpgtd"}[width]
+    if operation == "Equal":
+        x86 = f"SSE2 {pcmpeq} comparison"
+        if width == "64":
+            x86 += " with adjacent dword results combined per 64-bit lane"
+        return (f"NEON cmeq comparison over {shape} lanes", x86)
+    neon = (("cmgt" if signed else "cmhi") if "Than" in operation
+            else ("cmge" if signed else "cmhs"))
+    direction = " with reversed operands" if operation.startswith("Less") else ""
+    aarch = f"NEON {neon} comparison over {shape} lanes{direction}"
+    if width == "64":
+        bias = " with an unsigned sign-bit bias" if not signed else ""
+        x86 = f"SSE2 equality-gated two-dword lexicographic comparison using {pcmpgt}{bias}"
+    else:
+        bias = " with an unsigned sign-bit bias" if not signed else ""
+        x86 = f"SSE2 {pcmpgt} comparison{bias}"
+        if "Equal" in operation:
+            x86 += f" merged with {pcmpeq} equality"
+        if operation.startswith("Less"):
+            x86 += " using reversed operands"
+    return aarch, x86
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -508,6 +552,30 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected ten exact Select_Value "
                 f"NEON classifications, found {selected}"
             )
+        comparison_vectors = (
+            "U8x16", "I8x16", "U16x8", "I16x8", "U32x4",
+            "I32x4", "U64x2", "I64x2", "F32x4", "F64x2",
+        )
+        for operation in (
+            "Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal"
+        ):
+            blocks = declaration_blocks(text, operation)
+            for vector in comparison_vectors:
+                matching = [
+                    block for block in blocks if f"Left, Right : {vector}" in block
+                ]
+                aarch, x86 = comparison_phrases(operation, vector)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "Both compact the lane results into the public mask" in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} comparison classification, found {len(exact)}"
+                    )
         floating_add_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Reduce_Add")[1:]

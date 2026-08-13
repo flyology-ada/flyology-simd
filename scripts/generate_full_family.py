@@ -277,6 +277,73 @@ LEGACY_NATIVE_SUPPORT_PREFIXES = (
 )
 
 
+def comparison_support_doc(name: str, declaration: str) -> str:
+    """Describe one fixed-width comparison's exact target mechanisms."""
+    vector = next(
+        vector for vector in (
+            "U8x16", "I8x16", "U16x8", "I16x8", "U32x4",
+            "I32x4", "U64x2", "I64x2", "F32x4", "F64x2",
+        ) if vector in declaration
+    )
+    relation = {
+        "Equal": "equality", "Less_Than": "less-than",
+        "Less_Equal": "less-than-or-equal",
+        "Greater_Than": "greater-than",
+        "Greater_Equal": "greater-than-or-equal",
+    }[name]
+    if vector.startswith("F"):
+        shape = "4s" if vector == "F32x4" else "2d"
+        x86_shape = "ps" if vector == "F32x4" else "pd"
+        neon = {
+            "Equal": "fcmeq", "Less_Than": "fcmgt with reversed operands",
+            "Less_Equal": "fcmge with reversed operands",
+            "Greater_Than": "fcmgt", "Greater_Equal": "fcmge",
+        }[name]
+        sse2 = {
+            "Equal": f"cmpeq{x86_shape}", "Less_Than": f"cmplt{x86_shape}",
+            "Less_Equal": f"cmple{x86_shape}",
+            "Greater_Than": f"cmplt{x86_shape} with reversed operands",
+            "Greater_Equal": f"cmple{x86_shape} with reversed operands",
+        }[name]
+        aarch = f"the NEON {neon} comparison over {shape} lanes"
+        x86 = f"the SSE2 {sse2} comparison"
+    else:
+        signed = vector.startswith("I")
+        width = re.search(r"(8|16|32|64)x", vector).group(1)
+        shape = {"8": "16b", "16": "8h", "32": "4s", "64": "2d"}[width]
+        pcmpeq = {"8": "pcmpeqb", "16": "pcmpeqw", "32": "pcmpeqd", "64": "pcmpeqd"}[width]
+        pcmpgt = {"8": "pcmpgtb", "16": "pcmpgtw", "32": "pcmpgtd", "64": "pcmpgtd"}[width]
+        if name == "Equal":
+            aarch = f"the NEON cmeq comparison over {shape} lanes"
+            x86 = f"the SSE2 {pcmpeq} comparison"
+            if width == "64":
+                x86 += " with adjacent dword results combined per 64-bit lane"
+        else:
+            neon = (("cmgt" if signed else "cmhi") if "Than" in name
+                    else ("cmge" if signed else "cmhs"))
+            direction = " with reversed operands" if name.startswith("Less") else ""
+            aarch = f"the NEON {neon} comparison over {shape} lanes{direction}"
+            if width == "64":
+                bias = " with an unsigned sign-bit bias" if not signed else ""
+                x86 = (
+                    "an SSE2 equality-gated two-dword lexicographic comparison "
+                    f"using {pcmpgt}{bias}"
+                )
+            else:
+                bias = " with an unsigned sign-bit bias" if not signed else ""
+                x86 = f"the SSE2 {pcmpgt} comparison{bias}"
+                if "Equal" in name:
+                    x86 += f" merged with {pcmpeq} equality"
+                if name.startswith("Less"):
+                    x86 += " using reversed operands"
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch} for "
+        f"the {relation} predicate. The x86-64 backend uses {x86} for "
+        f"the same predicate. Both compact the lane results into the "
+        "public mask. A scalar build uses the portable scalar implementation."
+    )
+
+
 def native_support_doc(name: str, declaration: str) -> str:
     """Describe the verified implementation class of one exact overload."""
     fixed_ada = {
@@ -363,6 +430,10 @@ def native_support_doc(name: str, declaration: str) -> str:
             "with Ada.Unchecked_Conversion. They do not call the portable root "
             "operation. A scalar build uses the portable scalar implementation."
         )
+    if name in {
+        "Equal", "Less_Than", "Less_Equal", "Greater_Than", "Greater_Equal"
+    }:
+        return comparison_support_doc(name, declaration)
     if name == "Table_Lookup":
         return (
             "Cross-platform support: The AArch64 backend uses one NEON tbl "

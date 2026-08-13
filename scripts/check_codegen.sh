@@ -47,6 +47,7 @@ u8_value_probe_object="$probe_root/u8_value_codegen_probe.o"
 integer_reduction_probe_object="$probe_root/integer_reduction_codegen_probe.o"
 float_binary_probe_object="$probe_root/float_binary_codegen_probe.o"
 complete_memory_probe_object="$probe_root/complete_memory_codegen_probe.o"
+comparison_probe_object="$probe_root/comparison_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -87,6 +88,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$complete_memory_probe_object" \
       >"$temporary/complete-memory-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$comparison_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/comparison-probe.txt"
+else
+    objdump -dr "$comparison_probe_object" >"$temporary/comparison-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$wide_construction_probe_object" |
@@ -187,6 +194,7 @@ nm -u "$integer_reduction_probe_object" \
   >"$temporary/integer-reduction-undefined.txt"
 nm -u "$float_binary_probe_object" >"$temporary/float-binary-undefined.txt"
 nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt"
+nm -u "$comparison_probe_object" >"$temporary/comparison-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1139,6 +1147,167 @@ require_count 'flyology_simd__backends__native__(load|store)(_unaligned|_aligned
   'the 59 out-of-line selected complete-memory operations'
 require_count 'flyology_simd__' 59 "$temporary/complete-memory-undefined.txt" \
   'only the intended complete-memory operations remain unresolved'
+
+comparison_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/comparison_codegen_cases.txt | wc -l | tr -d ' ')
+comparison_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/comparison_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$comparison_case_count" -ne 62 ] || \
+   [ "$comparison_unique_count" -ne 62 ]; then
+    echo 'fixed-width comparison manifest must contain 62 unique operations' >&2
+    exit 1
+fi
+require_count 'Left => Right, Right => Left' 20 \
+  "src/backends/${architecture}/flyology_simd-backends-native.adb" \
+  "the ten less-than and ten less-equal reversed-operand definitions on ${architecture}"
+while read -r lane_kind operation suffix; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/comparison-${lane_kind}-${operation}.txt"
+    extract_symbol "comparison_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/comparison-probe.txt" "$caller"
+    require_count "comparison_codegen_probe__selected_${lane_kind}_${operation}" 1 \
+      "$caller" "matching isolated ${lane_kind} ${operation} leaf"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(equal|less_than|less_equal|greater_than|greater_equal|unordered|select_value)|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide comparison in ${lane_kind} ${operation} caller"
+done <scripts/probes/comparison_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(equal|less_than|less_equal|greater_than|greater_equal|select_value)(__([2-9]|10))?$|flyology_simd__backends__native__unordered(__2)?$' 61 \
+  "$temporary/comparison-undefined.txt" \
+  'the 61 out-of-line selected comparison and selection overloads'
+require_count 'flyology_simd__backends__native__weights_8x16$' 1 \
+  "$temporary/comparison-undefined.txt" \
+  'the inlined U8 equality compact-mask weight table'
+require_count 'flyology_simd__' 62 "$temporary/comparison-undefined.txt" \
+  'only the 62 intended fixed-width comparison operations remain unresolved'
+
+while read -r lane_kind operation suffix; do
+    [ -n "$lane_kind" ] || continue
+    leaf="$temporary/comparison-leaf-${lane_kind}-${operation}.txt"
+    extract_symbol "comparison_codegen_probe__selected_${lane_kind}_${operation}" \
+      "$temporary/comparison-probe.txt" "$leaf"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if grep -Eiq "backends__native__${operation}${symbol_suffix}${symbol_end}" "$leaf"; then
+        extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+          "$temporary/native.txt" "$leaf"
+    fi
+    case "$lane_kind" in
+        u8|i8) lane_shape=16b; x86_compare=pcmpgtb; x86_equal=pcmpeqb; compact_pattern='pmovmskb' ;;
+        u16|i16) lane_shape=8h; x86_compare=pcmpgtw; x86_equal=pcmpeqw; compact_pattern='pmovmskb' ;;
+        u32|i32) lane_shape=4s; x86_compare=pcmpgtd; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
+        u64|i64) lane_shape=2d; x86_compare=pcmpgtd; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
+        f32) lane_shape=4s; x86_equal=pcmpeqd; compact_pattern='movmskps' ;;
+        f64) lane_shape=2d; x86_equal=pcmpeqd; compact_pattern='movmskpd' ;;
+    esac
+    case "$architecture:$lane_kind:$operation" in
+        aarch64:*:select_value)
+            require_count "cmtst.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} mask expansion in ${lane_kind} selection"
+            require_count 'bsl.*16b' 1 "$leaf" "NEON 128-bit selection in ${lane_kind} selection"
+            ;;
+        aarch64:f32:unordered|aarch64:f64:unordered)
+            require_count "fcm(e|g)[a-z]*.*${lane_shape}" 2 "$leaf" "two NEON ${lane_shape} self comparisons in ${lane_kind} unordered"
+            require_pattern '(^|[[:space:]])and' "$leaf" "ordered-mask conjunction in ${lane_kind} unordered"
+            require_count '(^|[[:space:]])mvn' 1 "$leaf" "ordered-mask inversion in ${lane_kind} unordered"
+            ;;
+        aarch64:f32:equal|aarch64:f64:equal) require_count "fcmeq.*${lane_shape}" 1 "$leaf" "NEON floating equality in ${lane_kind}" ;;
+        aarch64:f32:less_than|aarch64:f64:less_than|aarch64:f32:greater_than|aarch64:f64:greater_than) require_count "fcmgt.*${lane_shape}" 1 "$leaf" "NEON floating strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:f32:less_equal|aarch64:f64:less_equal|aarch64:f32:greater_equal|aarch64:f64:greater_equal) require_count "fcmge.*${lane_shape}" 1 "$leaf" "NEON floating inclusive comparison in ${lane_kind} ${operation}" ;;
+        aarch64:*:equal) require_count "cmeq.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} integer equality in ${lane_kind}" ;;
+        aarch64:u*:less_than|aarch64:u*:greater_than) require_count "cmhi.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:u*:less_equal|aarch64:u*:greater_equal) require_count "cmhs.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
+        aarch64:i*:less_than|aarch64:i*:greater_than) require_count "cmgt.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:i*:less_equal|aarch64:i*:greater_equal) require_count "cmge.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
+        x86_64:*:select_value)
+            require_pattern "$x86_equal" "$leaf" "SSE2 lane-width mask expansion in ${lane_kind} selection"
+            require_pattern '(^|[[:space:]])pand' "$leaf" "SSE2 true-lane selection in ${lane_kind} selection"
+            require_count '(^|[[:space:]])pandn' 1 "$leaf" "SSE2 false-lane selection in ${lane_kind} selection"
+            require_count '(^|[[:space:]])por' 1 "$leaf" "SSE2 selected-lane merge in ${lane_kind} selection"
+            ;;
+        x86_64:f32:unordered) require_count 'cmpunordps' 1 "$leaf" 'SSE2 F32 unordered comparison' ;;
+        x86_64:f64:unordered) require_count 'cmpunordpd' 1 "$leaf" 'SSE2 F64 unordered comparison' ;;
+        x86_64:f32:equal) require_count 'cmpeqps' 1 "$leaf" 'SSE2 F32 equality' ;;
+        x86_64:f64:equal) require_count 'cmpeqpd' 1 "$leaf" 'SSE2 F64 equality' ;;
+        x86_64:f32:less_than|x86_64:f32:greater_than) require_count 'cmpltps' 1 "$leaf" "SSE2 F32 strict comparison in ${operation}" ;;
+        x86_64:f64:less_than|x86_64:f64:greater_than) require_count 'cmpltpd' 1 "$leaf" "SSE2 F64 strict comparison in ${operation}" ;;
+        x86_64:f32:less_equal|x86_64:f32:greater_equal) require_count 'cmpleps' 1 "$leaf" "SSE2 F32 inclusive comparison in ${operation}" ;;
+        x86_64:f64:less_equal|x86_64:f64:greater_equal) require_count 'cmplepd' 1 "$leaf" "SSE2 F64 inclusive comparison in ${operation}" ;;
+        x86_64:*:equal)
+            require_count "$x86_equal" 1 "$leaf" "SSE2 lane-width integer equality in ${lane_kind}"
+            require_count "$compact_pattern" 1 "$leaf" "SSE2 compact-mask extraction in ${lane_kind} equality"
+            ;;
+        x86_64:u*:less_than|x86_64:u*:less_equal|x86_64:u*:greater_than|x86_64:u*:greater_equal)
+            require_pattern 'pxor' "$leaf" "unsigned sign-bit bias in ${lane_kind} ${operation}"
+            require_pattern "$x86_compare" "$leaf" "SSE2 unsigned ordered comparison in ${lane_kind} ${operation}"
+            ;;
+        x86_64:i*:less_than|x86_64:i*:less_equal|x86_64:i*:greater_than|x86_64:i*:greater_equal)
+            require_pattern "$x86_compare" "$leaf" "SSE2 signed ordered comparison in ${lane_kind} ${operation}"
+            ;;
+    esac
+    case "$architecture:$operation" in
+        x86_64:*less_equal|x86_64:*greater_equal)
+            case "$lane_kind" in
+                u8|i8|u16|i16|u32|i32)
+                    require_count "$x86_equal" 1 "$leaf" "SSE2 equality component in ${lane_kind} ${operation}"
+                    require_count "$compact_pattern" 2 "$leaf" "SSE2 strict and equality mask extraction in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])orl?' 1 "$leaf" "strict/equality mask merge in ${lane_kind} ${operation}"
+                    ;;
+            esac
+            ;;
+    esac
+    case "$architecture:$operation" in
+        x86_64:equal|x86_64:less_than|x86_64:less_equal|x86_64:greater_than|x86_64:greater_equal)
+            require_pattern "$compact_pattern" "$leaf" "lane-width compact-mask extraction in ${lane_kind} ${operation}"
+            ;;
+    esac
+    case "$architecture:$lane_kind:$operation" in
+        x86_64:u8:less_than|x86_64:u8:less_equal|x86_64:u8:greater_than|x86_64:u8:greater_equal|x86_64:u16:less_than|x86_64:u16:less_equal|x86_64:u16:greater_than|x86_64:u16:greater_equal|x86_64:u32:less_than|x86_64:u32:less_equal|x86_64:u32:greater_than|x86_64:u32:greater_equal)
+            require_count '(^|[[:space:]])pxor' 2 "$leaf" "two unsigned sign-bit transforms in ${lane_kind} ${operation}"
+            ;;
+        x86_64:u64:less_than|x86_64:u64:less_equal|x86_64:u64:greater_than|x86_64:u64:greater_equal|x86_64:i64:less_than|x86_64:i64:less_equal|x86_64:i64:greater_than|x86_64:i64:greater_equal)
+            require_count 'pcmpgtd' 2 "$leaf" "high/low dword comparisons in ${lane_kind} ${operation}"
+            require_pattern 'pcmpeqd' "$leaf" "high-dword equality gate in ${lane_kind} ${operation}"
+            require_pattern 'pshufd' "$leaf" "dword-to-lane replication in ${lane_kind} ${operation}"
+            require_pattern '(^|[[:space:]])pand' "$leaf" "equality-gated low comparison in ${lane_kind} ${operation}"
+            require_pattern '(^|[[:space:]])por' "$leaf" "lexicographic comparison merge in ${lane_kind} ${operation}"
+            if [ "$lane_kind" = u64 ]; then
+                require_count '(^|[[:space:]])pxor' 4 "$leaf" "unsigned high/low dword sign transforms in ${lane_kind} ${operation}"
+            else
+                require_count '(^|[[:space:]])pxor' 2 "$leaf" "signed low-dword sign transforms in ${lane_kind} ${operation}"
+            fi
+            ;;
+        x86_64:u64:equal|x86_64:i64:equal)
+            require_count 'pcmpeqd' 1 "$leaf" "dword equality in ${lane_kind} equality"
+            require_count 'pshufd' 2 "$leaf" "adjacent-dword equality replication in ${lane_kind} equality"
+            require_count '(^|[[:space:]])pand' 1 "$leaf" "adjacent-dword equality conjunction in ${lane_kind} equality"
+            ;;
+    esac
+    case "$architecture:$lane_kind:$operation" in
+        aarch64:u8:equal|aarch64:u8:less_than|aarch64:u8:less_equal|aarch64:u8:greater_than|aarch64:u8:greater_equal|aarch64:i8:equal|aarch64:i8:less_than|aarch64:i8:less_equal|aarch64:i8:greater_than|aarch64:i8:greater_equal)
+            require_count 'and.*16b' 1 "$leaf" "byte comparison weight mask in ${lane_kind} ${operation}"
+            require_count 'ext.*16b' 1 "$leaf" "byte comparison half advance in ${lane_kind} ${operation}"
+            require_count 'uaddlv.*8b' 2 "$leaf" "byte comparison half sums in ${lane_kind} ${operation}"
+            require_count 'umov.*h' 2 "$leaf" "byte compact-mask transfers in ${lane_kind} ${operation}"
+            ;;
+        aarch64:u16:equal|aarch64:u16:less_than|aarch64:u16:less_equal|aarch64:u16:greater_than|aarch64:u16:greater_equal|aarch64:i16:equal|aarch64:i16:less_than|aarch64:i16:less_equal|aarch64:i16:greater_than|aarch64:i16:greater_equal)
+            require_count 'ushr.*8h' 1 "$leaf" "16-bit comparison normalization in ${lane_kind} ${operation}"
+            require_count 'mul.*8h' 1 "$leaf" "16-bit compact-mask weighting in ${lane_kind} ${operation}"
+            require_count 'addv.*8h' 1 "$leaf" "16-bit compact-mask reduction in ${lane_kind} ${operation}"
+            ;;
+        aarch64:u32:equal|aarch64:u32:less_than|aarch64:u32:less_equal|aarch64:u32:greater_than|aarch64:u32:greater_equal|aarch64:i32:equal|aarch64:i32:less_than|aarch64:i32:less_equal|aarch64:i32:greater_than|aarch64:i32:greater_equal|aarch64:f32:equal|aarch64:f32:less_than|aarch64:f32:less_equal|aarch64:f32:greater_than|aarch64:f32:greater_equal)
+            require_count 'ushr.*4s' 1 "$leaf" "32-bit comparison normalization in ${lane_kind} ${operation}"
+            require_count 'mul.*4s' 1 "$leaf" "32-bit compact-mask weighting in ${lane_kind} ${operation}"
+            require_count 'addv.*4s' 1 "$leaf" "32-bit compact-mask reduction in ${lane_kind} ${operation}"
+            ;;
+        aarch64:u64:equal|aarch64:u64:less_than|aarch64:u64:less_equal|aarch64:u64:greater_than|aarch64:u64:greater_equal|aarch64:i64:equal|aarch64:i64:less_than|aarch64:i64:less_equal|aarch64:i64:greater_than|aarch64:i64:greater_equal|aarch64:f64:equal|aarch64:f64:less_than|aarch64:f64:less_equal|aarch64:f64:greater_than|aarch64:f64:greater_equal)
+            require_count 'ushr.*2d' 1 "$leaf" "64-bit comparison normalization in ${lane_kind} ${operation}"
+            require_count '(^|[[:space:]])and' 1 "$leaf" "64-bit compact-mask merge in ${lane_kind} ${operation}"
+            ;;
+    esac
+    forbid_pattern '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' "$leaf" \
+      "branch or out-of-line helper in isolated ${lane_kind} ${operation} leaf"
+done <scripts/probes/comparison_codegen_cases.txt
 
 case "$architecture" in
     aarch64)

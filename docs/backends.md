@@ -195,6 +195,23 @@ matching selected Native leaf. The exact selected-leaf check requires the
 operation-specific target instruction. The gates reject portable root and
 public Wide dispatcher calls.
 
+The 62 fixed-width comparison and selection overloads comprise equality, four
+ordered predicates, and `Select_Value` for all ten value types, plus
+`Unordered` for binary32 and binary64. AArch64 uses the applicable NEON signed,
+unsigned, or floating comparison and compacts the lane results into the public
+mask. x86-64 uses the applicable SSE2 comparison, including unsigned sign-bit
+bias and equality-gated two-dword lexicographic comparisons where SSE2 lacks a
+direct predicate. Selection expands the compact mask and merges lane bits.
+
+Independent lane oracles check the root, `Backends.Scalar`, and
+`Backends.Native` results on fixed inputs and 250 deterministic full-width
+inputs per type. Floating cases use raw IEEE encodings and cover ordered
+false-on-NaN behavior, `Unordered`, infinities, subnormals, and signed zero.
+Exhaustive compact-mask cases check selected integer values and floating bit
+encodings. A generated caller probe covers all 62 overloads. Its isolated-leaf
+gates require the exact target comparison or selection mechanism and reject
+portable, Scalar, Wide, and mismatched routes.
+
 Floating unordered-comparison tests use an independent IEEE encoding oracle.
 Fixed cases cover quiet and signaling NaNs in either or both inputs, NaN
 encodings with both sign-bit values, infinities, and signed zero. Another 250 deterministic cases use raw
