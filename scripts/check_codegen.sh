@@ -89,6 +89,8 @@ else
     : >"$temporary/wide-float-undefined.txt"
 fi
 disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
+nm -u "$wide_lookup_object" >"$temporary/wide-lookup-undefined.txt"
+objdump -r "$wide_lookup_object" >"$temporary/wide-lookup-relocs.txt"
 disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 disassemble "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf.txt"
 nm -u "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf-undefined.txt"
@@ -1977,6 +1979,27 @@ EOF
         fi
         if [ "$wide_backend" = composed ]; then
             require_pattern 'flyology_simd__backends__native__native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call selected 128-bit native leaves'
+            require_count 'flyology_simd__backends__native__table_lookup([+-]0x[[:xdigit:]]+)?$' 4 \
+              "$temporary/wide-lookup-relocs.txt" \
+              'four selected 128-bit table lookups in the composed Wide lookup mechanism'
+            require_count 'flyology_simd__backends__native__subtract_wrap([+-]0x[[:xdigit:]]+)?$' 2 \
+              "$temporary/wide-lookup-relocs.txt" \
+              'two selected 128-bit index adjustments in the composed Wide lookup mechanism'
+            require_count 'flyology_simd__backends__native__bitwise_or([+-]0x[[:xdigit:]]+)?$' 2 \
+              "$temporary/wide-lookup-relocs.txt" \
+              'two selected 128-bit result merges in the composed Wide lookup mechanism'
+            require_count 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' 1 \
+              "$temporary/wide-lookup-relocs.txt" \
+              'one selected 128-bit 16-filled vector construction in the composed Wide lookup mechanism'
+            require_count 'flyology_simd__backends__native__(table_lookup|subtract_wrap|bitwise_or)$|flyology_simd__(backends__native__)?splat$' 4 \
+              "$temporary/wide-lookup-undefined.txt" \
+              'the four intended selected 128-bit operations remain unresolved from the composed Wide lookup mechanism'
+            require_count 'flyology_simd__' 4 \
+              "$temporary/wide-lookup-undefined.txt" \
+              'only the four intended library operations remain unresolved from the composed Wide lookup mechanism'
+            forbid_pattern 'flyology_simd__(wide__)?table_lookup|flyology_simd__wide__native__table_lookup' \
+              "$temporary/wide-lookup-undefined.txt" \
+              'portable or public Wide table lookup call from the composed lookup mechanism'
         fi
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'

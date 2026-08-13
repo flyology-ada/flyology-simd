@@ -218,6 +218,13 @@ aligned operation requires 32-byte alignment. Other Wide operations have no
 AVX2-specific 256-bit implementation or code-generation claim outside the
 documented byte, floating-arithmetic, table-lookup, and lane-movement groups.
 
+The target-selected lookup mechanism implements Wide Native `Table_Lookup`.
+AArch64 uses one two-register `tbl` operation for each 128-bit result half. The
+composed x86-64 backend and a scalar build use one selected 128-bit `Splat`
+operation to construct a vector whose lanes all contain 16. They use four selected 128-bit `Table_Lookup` operations, two
+selected `Subtract_Wrap` operations, and two selected `Bitwise_Or` operations.
+The optional AVX2 backend uses one dedicated 256-bit implementation.
+
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
 defines the result. AArch64 derives a 32-byte index map from the mask. It runs

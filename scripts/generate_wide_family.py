@@ -51,6 +51,7 @@ FLOAT_ARITH_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_ar
 FLOAT_ARITH_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
 FLOAT_ARITH_AVX2_LEAF_SPEC = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.ads"
 FLOAT_ARITH_AVX2_LEAF_BODY = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.adb"
+LOOKUP_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-lookup_mechanism.adb"
 MOVEMENT_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.ads"
 MOVEMENT_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.adb"
 
@@ -230,10 +231,15 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "composition through the portable 128-bit implementation."
         )
     elif summary.startswith("Select each result byte"):
-        mechanism = (
-            "AArch64 uses two-register NEON tbl for each result half; the "
-            "x86-64 composed selection calls the Wide scalar implementation, "
-            "and the optional AVX2 selection uses a dedicated U8x32 implementation"
+        return (
+            "Cross-platform support: The AArch64 backend uses one two-register "
+            "NEON tbl operation for each result half. The composed x86-64 "
+            "backend constructs one 16-filled vector with selected Splat. It "
+            "uses four selected 128-bit Table_Lookup operations, two selected "
+            "Subtract_Wrap operations, and two selected Bitwise_Or operations. "
+            "The optional AVX2 backend uses a dedicated U8x32 "
+            "implementation. In a scalar build, this overload uses the same "
+            "composition through the portable 128-bit implementation."
         )
     elif operation in {
             "Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate",
@@ -1770,6 +1776,33 @@ end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 """
 
 
+def lookup_composed_body_text() -> str:
+    return """with Flyology_SIMD.Backends.Native;
+
+package body Flyology_SIMD.Wide.Lookup_Mechanism is
+   package Selected renames Flyology_SIMD.Backends.Native;
+
+   function Table_Lookup_32
+     (Table, Indices : U8x32) return U8x32
+   is
+      Sixteen : constant U8x16 := Selected.Splat (16);
+      Low_Indexes : constant U8x16 :=
+        Selected.Subtract_Wrap (Indices.Low, Sixteen);
+      High_Indexes : constant U8x16 :=
+        Selected.Subtract_Wrap (Indices.High, Sixteen);
+   begin
+      return
+        (Low => Selected.Bitwise_Or
+           (Selected.Table_Lookup (Table.Low, Indices.Low),
+            Selected.Table_Lookup (Table.High, Low_Indexes)),
+         High => Selected.Bitwise_Or
+           (Selected.Table_Lookup (Table.Low, Indices.High),
+            Selected.Table_Lookup (Table.High, High_Indexes)));
+   end Table_Lookup_32;
+end Flyology_SIMD.Wide.Lookup_Mechanism;
+"""
+
+
 def permute_spec_text() -> str:
     declarations = []
     for f in FAMILIES:
@@ -2786,6 +2819,7 @@ def main() -> None:
         FLOAT_ARITH_INVALID: float_arithmetic_composed_body_text(),
         FLOAT_ARITH_AVX2_LEAF_SPEC: float_arithmetic_avx2_leaf_spec_text(),
         FLOAT_ARITH_AVX2_LEAF_BODY: float_arithmetic_avx2_leaf_body_text(),
+        LOOKUP_COMPOSED: lookup_composed_body_text(),
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),

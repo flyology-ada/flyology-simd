@@ -746,7 +746,7 @@ def invalid_support(path: Path) -> list[str]:
             "function Reduce_Add (": "dedicated SSE2 sequence with the same start value and lane order",
             "function Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
             "function Reduce_Max_Number": "integer-only SSE2 classification and bit-selection sequence that applies maximum-number in the same order",
-            "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
+            "function Table_Lookup": "uses four selected 128-bit Table_Lookup operations",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
             "function Reverse_Lanes": "composed x86-64 backend uses two selected 128-bit two-source Permute_Lanes operations",
             "function Interleave_Low": "four selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations",

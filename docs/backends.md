@@ -357,15 +357,26 @@ widening, narrowing, and numeric
 conversion operations. The project does not claim a 256-bit instruction
 sequence.
 The default Wide 32-entry lookup uses composed target code. On AArch64, it
-applies one two-register `tbl` leaf to each private index part. On scalar and
-x86-64 targets, the composed selection calls the scalar implementation. The optional
-x86-64 AVX2 selection uses one separately compiled 256-bit implementation
-subprogram. Tests compare
-fixed, all-index, and deterministic pseudorandom cases with an independent
-lane oracle for each selection. The x86-64 code-generation gate requires one
-mechanism call from the public caller. For the AVX2 selection, the isolated
-subprogram must contain `vpshufb`, `vperm2i128`, `vpsubusb`, and `vzeroupper`.
-Baseline objects must remain free of AVX instructions.
+applies one two-register `tbl` leaf to each private index part. The composed
+x86-64 backend and a scalar build use one selected 128-bit `Splat` operation to
+construct a vector whose lanes all contain 16. They use four selected 128-bit
+`Table_Lookup` operations, two selected
+`Subtract_Wrap` operations, and two selected `Bitwise_Or` operations. The
+low-table lookup accepts indexes 0 through 15. Subtracting 16 makes the
+high-table lookup accept indexes 16 through 31. Both lookups return zero for an
+index above their range. Their bitwise merge therefore returns zero for every
+index above 31.
+
+The optional x86-64 AVX2 selection uses one separately compiled 256-bit
+implementation subprogram. Tests compare fixed, all-index, and deterministic
+pseudorandom cases with an independent lane oracle for each selection. The
+x86-64 public caller gate requires one target-selected mechanism call. For the
+composed selection, the Native-object gate requires four selected 128-bit
+`Table_Lookup` calls, two selected 128-bit `Subtract_Wrap` calls, and two
+selected 128-bit `Bitwise_Or` calls. It rejects portable and public Wide lookup
+calls. For the AVX2 selection, the isolated subprogram must
+contain `vpshufb`, `vperm2i128`, `vpsubusb`, and `vzeroupper`. Baseline objects
+must remain free of AVX instructions.
 
 The composed and AArch64 Wide byte mechanisms call the selected 128-bit
 operations for both private parts. The x86-64 AVX2 mechanism uses isolated

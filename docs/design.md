@@ -196,8 +196,15 @@ AVX2 has no packed byte multiplication instruction. `Multiply_Wrap` separates
 the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
 product to eight bits, and restores the original byte positions.
 With `FLYOLOGY_SIMD_WIDE_BACKEND=composed`, Wide Native table lookup also uses
-the target-selected mechanism. AArch64 applies one two-register `tbl` leaf to each
-16-lane index part. The x86-64 composed backend calls the scalar implementation.
+the target-selected mechanism. AArch64 applies one two-register `tbl` leaf to
+each 16-lane index part. The composed x86-64 backend and a scalar build use one
+selected 128-bit `Splat` operation to construct a vector whose lanes all contain
+16. They use four selected 128-bit
+`Table_Lookup` operations, two selected `Subtract_Wrap` operations, and two
+selected `Bitwise_Or` operations. The low-table lookup accepts indexes 0 through
+15. Subtracting 16 makes the high-table lookup accept indexes 16 through 31.
+Both lookups return zero for an index above their range, so indexes above 31
+remain zero after the merge.
 With `FLYOLOGY_SIMD_ARCH=x86_64`, `FLYOLOGY_SIMD_AVX2=enabled`, and
 `FLYOLOGY_SIMD_WIDE_BACKEND=avx2`, one separately compiled 256-bit AVX2
 subprogram implements the complete lookup. The build rejects other

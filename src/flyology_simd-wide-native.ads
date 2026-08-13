@@ -56,7 +56,7 @@ is
    --  @return The operation result.
    function Table_Lookup (Table, Indices : U8x32) return U8x32 with Inline_Always;
    --  Select each result byte from the corresponding unsigned index. Indexes from 0 through 31 select that table lane; larger indexes produce zero.
-   --  Cross-platform support: AArch64 uses two-register NEON tbl for each result half; the x86-64 composed selection calls the Wide scalar implementation, and the optional AVX2 selection uses a dedicated U8x32 implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend uses one two-register NEON tbl operation for each result half. The composed x86-64 backend constructs one 16-filled vector with selected Splat. It uses four selected 128-bit Table_Lookup operations, two selected Subtract_Wrap operations, and two selected Bitwise_Or operations. The optional AVX2 backend uses a dedicated U8x32 implementation. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Table The table input.
    --  @param Indices The indices input.
    --  @return The operation result.

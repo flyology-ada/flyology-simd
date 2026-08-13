@@ -157,8 +157,12 @@ The complete artifact is written to the ignored `build/site/` directory.
   optional AVX2 whole-buffer algorithms remain in separately compiled objects.
   For operations without a separate Wide mechanism,
   `Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
-  fixed-width Ada code. Wide `Compress` and `Expand` use the target-selected compression
-  and expansion mechanism. On AArch64, the mechanism derives a 32-byte index
+  fixed-width Ada code. Wide `Table_Lookup` uses a target-selected lookup
+  mechanism. AArch64 uses one two-register `tbl` operation for each result half.
+  The composed x86-64 and scalar selections use selected 128-bit operations;
+  the optional AVX2 selection uses a dedicated 256-bit implementation. Wide
+  `Compress` and `Expand` use the target-selected compression and expansion
+  mechanism. On AArch64, the mechanism derives a 32-byte index
   map from the mask. It runs one two-register `tbl` operation for each 128-bit
   result half. The x86-64 composed and AVX2 mechanisms each derive one
   two-source lane map for each 128-bit result half. Each mechanism calls
