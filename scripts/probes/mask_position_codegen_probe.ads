@@ -1,6 +1,19 @@
 with Flyology_SIMD;
+with Interfaces;
 
 package Mask_Position_Codegen_Probe is
+   function Algebra_8
+     (Left, Right : Interfaces.Unsigned_16;
+      Lane : Flyology_SIMD.Lane_Index_8x16) return Boolean;
+   function Algebra_16
+     (Left, Right : Interfaces.Unsigned_8;
+      Lane : Flyology_SIMD.Lane_Index_16x8) return Boolean;
+   function Algebra_32
+     (Left, Right : Interfaces.Unsigned_8;
+      Lane : Flyology_SIMD.Lane_Index_32x4) return Boolean;
+   function Algebra_64
+     (Left, Right : Interfaces.Unsigned_8;
+      Lane : Flyology_SIMD.Lane_Index_64x2) return Boolean;
    function Count_8
      (Mask : Flyology_SIMD.Mask_8x16)
       return Flyology_SIMD.Lane_Count_8x16;

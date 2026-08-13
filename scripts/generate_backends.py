@@ -144,6 +144,36 @@ def call(name: str, result: str, args: str, params: str) -> str:
     )
 
 
+def native_mask_body(bits: int, lanes: int, storage: str) -> list[str]:
+    """Implement compact masks directly without crossing the root API."""
+    mask = mask_for(bits, lanes)
+    idx = lane_index(bits, lanes)
+    st = f"Interfaces.{storage}"
+    full = 2 ** lanes - 1
+    return [
+        f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is",
+        f"     (Bits => Bits and {full});",
+        f"   function To_Bit_Mask (Mask : {mask}) return {st} is",
+        f"     (Mask.Bits and {full});",
+        f"   function Mask_And (Left, Right : {mask}) return {mask} is",
+        f"     (Bits => (Left.Bits and Right.Bits) and {full});",
+        f"   function Mask_Or (Left, Right : {mask}) return {mask} is",
+        f"     (Bits => (Left.Bits or Right.Bits) and {full});",
+        f"   function Mask_Xor (Left, Right : {mask}) return {mask} is",
+        f"     (Bits => (Left.Bits xor Right.Bits) and {full});",
+        f"   function Mask_Not (Value : {mask}) return {mask} is",
+        f"     (Bits => (not Value.Bits) and {full});",
+        f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is",
+        f"     ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);",
+        f"   function Any_True (Mask : {mask}) return Boolean is",
+        "     (Mask.Bits /= 0);",
+        f"   function All_True (Mask : {mask}) return Boolean is",
+        f"     ((Mask.Bits and {full}) = {full});",
+        f"   function None_True (Mask : {mask}) return Boolean is",
+        "     (Mask.Bits = 0);",
+    ]
+
+
 def fallback_body() -> str:
     out: list[str] = [
         call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
@@ -1009,8 +1039,8 @@ def neon_body() -> str:
 
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
-        st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));"]
+        out += native_mask_body(bits, lanes, storage)
+        out += [f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));"]
     return "\n".join(out)
 
 
@@ -2360,8 +2390,8 @@ def x86_body() -> str:
 
     for bits, lanes, storage in MASKS:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
-        st = f"Interfaces.{storage}"
-        out += [call("Mask_From_Bit_Mask", mask, "Bits", f"Bits : {st}"), call("To_Bit_Mask", st, "Mask", f"Mask : {mask}"), call("Mask_And", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Or", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Xor", mask, "Left, Right", f"Left, Right : {mask}"), call("Mask_Not", mask, "Value", f"Value : {mask}"), call("Test", "Boolean", "Mask, Lane", f"Mask : {mask}; Lane : {idx}"), call("Any_True", "Boolean", "Mask", f"Mask : {mask}"), call("All_True", "Boolean", "Mask", f"Mask : {mask}"), call("None_True", "Boolean", "Mask", f"Mask : {mask}"), f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (To_Bit_Mask (Mask))));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));"]
+        out += native_mask_body(bits, lanes, storage)
+        out += [f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (To_Bit_Mask (Mask))));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));"]
     return "\n".join(out)
 
 
@@ -2705,12 +2735,13 @@ def test_program() -> str:
             f"         Check (Backends.Native.First_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Backends.Native.Last_True ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} native mask positions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))))) = {mask_storage} (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Backends.Native.Mask_From_Bit_Mask ({mask_storage} (2 ** {lanes} - 1 - Pattern)))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
-            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Lane) = ((Pattern / 2 ** Lane) mod 2 = 1), \"{vector} independent native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             f"         Check (Same (Compress (A, Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))), \"{vector} exhaustive compress\" & Pattern'Image);",
             f"         Check (Same (Expand (A, Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask ({mask_storage} (Pattern)))), \"{vector} exhaustive expand\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent scalar and native select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
+            f"      Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage}'Last))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native masks unused storage bits\");",
             f"      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A), \"{vector} independent reduce add\");",
             f"      Check (Reduce_Min (A) = Reference_Reduce_Min_{vector} (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_{vector} (A), \"{vector} independent reduce min\");",
             f"      Check (Reduce_Max (A) = Reference_Reduce_Max_{vector} (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_{vector} (A), \"{vector} independent reduce max\");",
@@ -2926,12 +2957,13 @@ def test_program() -> str:
             f"         Check (Backends.Native.First_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_First_True (Pattern, {lanes}) and then Backends.Native.Last_True ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) = Reference_Last_True (Pattern, {lanes}), \"{vector} native mask positions\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern), \"{vector} native mask not\" & Pattern'Image);",
             f"         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (2 ** {lanes} - 1 - Pattern)))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} native mask algebra\" & Pattern'Image);",
-            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = Test ({mask}'(Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane), \"{vector} native mask lane\" & Pattern'Image & Lane'Image); end loop;",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Backends.Native.Test ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Lane) = ((Pattern / 2 ** Lane) mod 2 = 1), \"{vector} independent native mask lane\" & Pattern'Image & Lane'Image); end loop;",
             f"         Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B)), \"{vector} exhaustive select\" & Pattern'Image);",
             f"         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Compress_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), \"{vector} exhaustive compress\" & Pattern'Image);",
             f"         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern))), Reference_Expand_{vector} (A, Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)))), \"{vector} exhaustive expand\" & Pattern'Image);",
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane)) = Bits_{vector} ((if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane))) and then Bits_{vector} (Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane)) = Bits_{vector} ((if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane))), \"{vector} independent bitwise scalar and native select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
+            f"      Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** {lanes} - 1), \"{vector} native masks unused storage bits\");",
             f"      Check (Bits_{vector} (Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)) and then Bits_{vector} (Backends.Native.Reduce_Add (A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (A)), \"{vector} independent reduce\");",
             f"      Check (Bits_{vector} (Reduce_Min_Number (B)) = Bits_{vector} (Reference_Reduce_Min_{vector} (B)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (B)) = Bits_{vector} (Reference_Reduce_Min_{vector} (B)) and then Bits_{vector} (Reduce_Max_Number (B)) = Bits_{vector} (Reference_Reduce_Max_{vector} (B)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (B)) = Bits_{vector} (Reference_Reduce_Max_{vector} (B)), \"{vector} independent min/max reductions\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",

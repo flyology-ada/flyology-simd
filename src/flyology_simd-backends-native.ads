@@ -217,56 +217,56 @@ is
    function Mask_From_Bit_Mask
      (Bits : Interfaces.Unsigned_16) return Mask_8x16;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
    function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16;
    --  Return compact lane truths. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Mask_And (Left, Right : Mask_8x16) return Mask_8x16;
    --  Apply Boolean AND to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16;
    --  Apply Boolean OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16;
    --  Apply Boolean exclusive OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Not (Value : Mask_8x16) return Mask_8x16;
    --  Complement every mask lane truth.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean;
    --  Return the Boolean truth of one mask lane.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Any_True (Mask : Mask_8x16) return Boolean;
    --  Return true when at least one mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function All_True (Mask : Mask_8x16) return Boolean;
    --  Return true when every mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function None_True (Mask : Mask_8x16) return Boolean;
    --  Return true when every mask lane is false.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16;
@@ -3339,56 +3339,56 @@ is
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8;
    --  Return compact lane truths. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Mask_And (Left, Right : Mask_16x8) return Mask_16x8;
    --  Apply Boolean AND to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Or (Left, Right : Mask_16x8) return Mask_16x8;
    --  Apply Boolean OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Xor (Left, Right : Mask_16x8) return Mask_16x8;
    --  Apply Boolean exclusive OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Not (Value : Mask_16x8) return Mask_16x8;
    --  Complement every mask lane truth.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Test (Mask : Mask_16x8; Lane : Lane_Index_16x8) return Boolean;
    --  Return the Boolean truth of one mask lane.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Any_True (Mask : Mask_16x8) return Boolean;
    --  Return true when at least one mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function All_True (Mask : Mask_16x8) return Boolean;
    --  Return true when every mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function None_True (Mask : Mask_16x8) return Boolean;
    --  Return true when every mask lane is false.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8;
@@ -3409,56 +3409,56 @@ is
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8;
    --  Return compact lane truths. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Mask_And (Left, Right : Mask_32x4) return Mask_32x4;
    --  Apply Boolean AND to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Or (Left, Right : Mask_32x4) return Mask_32x4;
    --  Apply Boolean OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Xor (Left, Right : Mask_32x4) return Mask_32x4;
    --  Apply Boolean exclusive OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Not (Value : Mask_32x4) return Mask_32x4;
    --  Complement every mask lane truth.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Test (Mask : Mask_32x4; Lane : Lane_Index_32x4) return Boolean;
    --  Return the Boolean truth of one mask lane.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Any_True (Mask : Mask_32x4) return Boolean;
    --  Return true when at least one mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function All_True (Mask : Mask_32x4) return Boolean;
    --  Return true when every mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function None_True (Mask : Mask_32x4) return Boolean;
    --  Return true when every mask lane is false.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4;
@@ -3479,56 +3479,56 @@ is
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8;
    --  Return compact lane truths. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Mask_And (Left, Right : Mask_64x2) return Mask_64x2;
    --  Apply Boolean AND to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Or (Left, Right : Mask_64x2) return Mask_64x2;
    --  Apply Boolean OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Xor (Left, Right : Mask_64x2) return Mask_64x2;
    --  Apply Boolean exclusive OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Mask_Not (Value : Mask_64x2) return Mask_64x2;
    --  Complement every mask lane truth.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Test (Mask : Mask_64x2; Lane : Lane_Index_64x2) return Boolean;
    --  Return the Boolean truth of one mask lane.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Any_True (Mask : Mask_64x2) return Boolean;
    --  Return true when at least one mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function All_True (Mask : Mask_64x2) return Boolean;
    --  Return true when every mask lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function None_True (Mask : Mask_64x2) return Boolean;
    --  Return true when every mask lane is false.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2;

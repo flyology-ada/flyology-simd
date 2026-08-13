@@ -329,6 +329,17 @@ def native_support_doc(name: str, declaration: str) -> str:
             "sequence that does not require POPCNT. A scalar build uses the "
             "portable scalar implementation."
         )
+    if name in {
+        "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
+        "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
+        "None_True",
+    }:
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends apply "
+            "this operation directly to the fixed-width compact integer mask. "
+            "No vector instruction is required. A scalar build uses the "
+            "portable scalar implementation."
+        )
     if name == "Horizontal_Sum":
         return (
             "Cross-platform support: The AArch64 backend uses the NEON "

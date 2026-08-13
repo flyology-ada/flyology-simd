@@ -2494,71 +2494,71 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
-     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+     (Bits => Bits and 255);
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is
-     (Flyology_SIMD.To_Bit_Mask (Mask));
+     (Mask.Bits and 255);
    function Mask_And (Left, Right : Mask_16x8) return Mask_16x8 is
-     (Flyology_SIMD.Mask_And (Left, Right));
+     (Bits => (Left.Bits and Right.Bits) and 255);
    function Mask_Or (Left, Right : Mask_16x8) return Mask_16x8 is
-     (Flyology_SIMD.Mask_Or (Left, Right));
+     (Bits => (Left.Bits or Right.Bits) and 255);
    function Mask_Xor (Left, Right : Mask_16x8) return Mask_16x8 is
-     (Flyology_SIMD.Mask_Xor (Left, Right));
+     (Bits => (Left.Bits xor Right.Bits) and 255);
    function Mask_Not (Value : Mask_16x8) return Mask_16x8 is
-     (Flyology_SIMD.Mask_Not (Value));
+     (Bits => (not Value.Bits) and 255);
    function Test (Mask : Mask_16x8; Lane : Lane_Index_16x8) return Boolean is
-     (Flyology_SIMD.Test (Mask, Lane));
+     ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
    function Any_True (Mask : Mask_16x8) return Boolean is
-     (Flyology_SIMD.Any_True (Mask));
+     (Mask.Bits /= 0);
    function All_True (Mask : Mask_16x8) return Boolean is
-     (Flyology_SIMD.All_True (Mask));
+     ((Mask.Bits and 255) = 255);
    function None_True (Mask : Mask_16x8) return Boolean is
-     (Flyology_SIMD.None_True (Mask));
+     (Mask.Bits = 0);
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
    function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 8));
    function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 8));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is
-     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+     (Bits => Bits and 15);
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
-     (Flyology_SIMD.To_Bit_Mask (Mask));
+     (Mask.Bits and 15);
    function Mask_And (Left, Right : Mask_32x4) return Mask_32x4 is
-     (Flyology_SIMD.Mask_And (Left, Right));
+     (Bits => (Left.Bits and Right.Bits) and 15);
    function Mask_Or (Left, Right : Mask_32x4) return Mask_32x4 is
-     (Flyology_SIMD.Mask_Or (Left, Right));
+     (Bits => (Left.Bits or Right.Bits) and 15);
    function Mask_Xor (Left, Right : Mask_32x4) return Mask_32x4 is
-     (Flyology_SIMD.Mask_Xor (Left, Right));
+     (Bits => (Left.Bits xor Right.Bits) and 15);
    function Mask_Not (Value : Mask_32x4) return Mask_32x4 is
-     (Flyology_SIMD.Mask_Not (Value));
+     (Bits => (not Value.Bits) and 15);
    function Test (Mask : Mask_32x4; Lane : Lane_Index_32x4) return Boolean is
-     (Flyology_SIMD.Test (Mask, Lane));
+     ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
    function Any_True (Mask : Mask_32x4) return Boolean is
-     (Flyology_SIMD.Any_True (Mask));
+     (Mask.Bits /= 0);
    function All_True (Mask : Mask_32x4) return Boolean is
-     (Flyology_SIMD.All_True (Mask));
+     ((Mask.Bits and 15) = 15);
    function None_True (Mask : Mask_32x4) return Boolean is
-     (Flyology_SIMD.None_True (Mask));
+     (Mask.Bits = 0);
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
    function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 4));
    function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 4));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is
-     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+     (Bits => Bits and 3);
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
-     (Flyology_SIMD.To_Bit_Mask (Mask));
+     (Mask.Bits and 3);
    function Mask_And (Left, Right : Mask_64x2) return Mask_64x2 is
-     (Flyology_SIMD.Mask_And (Left, Right));
+     (Bits => (Left.Bits and Right.Bits) and 3);
    function Mask_Or (Left, Right : Mask_64x2) return Mask_64x2 is
-     (Flyology_SIMD.Mask_Or (Left, Right));
+     (Bits => (Left.Bits or Right.Bits) and 3);
    function Mask_Xor (Left, Right : Mask_64x2) return Mask_64x2 is
-     (Flyology_SIMD.Mask_Xor (Left, Right));
+     (Bits => (Left.Bits xor Right.Bits) and 3);
    function Mask_Not (Value : Mask_64x2) return Mask_64x2 is
-     (Flyology_SIMD.Mask_Not (Value));
+     (Bits => (not Value.Bits) and 3);
    function Test (Mask : Mask_64x2; Lane : Lane_Index_64x2) return Boolean is
-     (Flyology_SIMD.Test (Mask, Lane));
+     ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_8'(1), Lane)) /= 0);
    function Any_True (Mask : Mask_64x2) return Boolean is
-     (Flyology_SIMD.Any_True (Mask));
+     (Mask.Bits /= 0);
    function All_True (Mask : Mask_64x2) return Boolean is
-     (Flyology_SIMD.All_True (Mask));
+     ((Mask.Bits and 3) = 3);
    function None_True (Mask : Mask_64x2) return Boolean is
-     (Flyology_SIMD.None_True (Mask));
+     (Mask.Bits = 0);
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
    function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 2));
    function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 2));

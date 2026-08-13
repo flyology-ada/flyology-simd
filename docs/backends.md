@@ -77,6 +77,16 @@ mask. Exhaustive 128-bit mask patterns and independent Wide mask-reduction
 oracles check counts, lane results, and sentinels. Public caller and
 exact-symbol gates cover every shape and reject portable reduction calls.
 
+The AArch64 and x86-64 backends apply construction, conversion, Boolean
+algebra, lane tests, and Boolean queries directly to the fixed-width integer
+bits of all four compact-mask shapes. A scalar build uses the portable scalar
+implementation. The 4- and 2-lane shapes mask unused storage bits. Exhaustive
+tests check every logical mask and every `Test` result against independent
+integer expectations. Fixed cases set unused high bits in the
+`Mask_From_Bit_Mask` input and verify that the result excludes them.
+Target-backend public-caller and Native-object gates reject calls to the
+portable mask operations.
+
 The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
 AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
 64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom

@@ -83,6 +83,7 @@ nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
+nm -u "$native_object" >"$temporary/native-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -210,6 +211,23 @@ require_count 'flyology_simd__backends__native__population_count' 4 \
 forbid_pattern 'flyology_simd__population_count' \
   "$temporary/mask-position-undefined.txt" \
   'portable population-count call in the Native caller probe'
+for operation in mask_and mask_or mask_xor mask_not test any_true all_true none_true; do
+  require_count "flyology_simd__backends__native__${operation}" 4 \
+    "$temporary/mask-position-undefined.txt" \
+    "four Native ${operation} calls in the public caller probe"
+done
+require_count 'flyology_simd__backends__native__mask_from_bit_mask' 3 \
+  "$temporary/mask-position-undefined.txt" \
+  'three out-of-line Native mask-construction calls in the public caller probe'
+require_count 'flyology_simd__backends__native__to_bit_mask' 3 \
+  "$temporary/mask-position-undefined.txt" \
+  'three out-of-line Native mask-conversion calls in the public caller probe'
+forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|test|any_true|all_true|none_true)' \
+  "$temporary/mask-position-undefined.txt" \
+  'portable compact-mask call in the Native caller probe'
+forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|test|any_true|all_true|none_true)' \
+  "$temporary/native-undefined.txt" \
+  'portable compact-mask call retained in the Native backend object'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \

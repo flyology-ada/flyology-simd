@@ -77,6 +77,32 @@ def invalid_support(path: Path) -> list[str]:
                 f"{text.count(multiply_support)}"
             )
     if path.name == "flyology_simd-backends-native.ads":
+        direct_mask_support = (
+            "The AArch64 and x86-64 backends apply this operation directly to "
+            "the fixed-width compact integer mask."
+        )
+        for operation in (
+            "Mask_From_Bit_Mask",
+            "To_Bit_Mask",
+            "Mask_And",
+            "Mask_Or",
+            "Mask_Xor",
+            "Mask_Not",
+            "Test",
+            "Any_True",
+            "All_True",
+            "None_True",
+        ):
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            found = sum(direct_mask_support in block for block in blocks)
+            if found != 4:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected four exact {operation} "
+                    f"direct-mask classifications, found {found}"
+                )
         horizontal_sum_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Horizontal_Sum")[1:]
