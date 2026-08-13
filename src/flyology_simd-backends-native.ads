@@ -695,7 +695,7 @@ is
    --  @return The operation result.
    function Table_Lookup (Table, Indices : U8x16) return U8x16;
    --  Use the unsigned value in each index lane for the corresponding result lane. A value from zero through 15 selects the table lane with the same lane index. A larger value returns zero.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON tbl instruction. The x86-64 backend uses an SSE2 sequence that compares each index with every valid table position, broadcasts the matching table byte, masks it, and merges all matches into an initially zero result. Indexes above 15 match no position and remain zero. A scalar build uses the portable scalar implementation.
    --  @param Table The 16 selectable byte lanes.
    --  @param Indices One unsigned table index for each result lane.
    --  @return The operation result.

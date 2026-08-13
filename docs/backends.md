@@ -234,10 +234,23 @@ complete private vector value directly in both target backends. They do not
 call the portable root operation or need an arithmetic SIMD instruction. This
 direct reinterpretation of the same 128 storage bits does not make the private
 vector representation part of the public contract.
-The x86-64 byte-table lookup and one-source or two-source variable lane
-permutations use scalar composition because SSE2 has no equivalent indexed
-byte-table instruction. Mask compression and expansion also use scalar
-composition on x86-64.
+x86-64 implements the 16-entry byte-table lookup with a dedicated SSE2
+sequence. The sequence compares each index with all 16 valid table positions.
+For each position, it broadcasts the corresponding table byte, masks the byte
+with the comparison result, and merges the match into an initially zero result.
+An index above 15 matches no position, so its result lane remains zero.
+One-source and two-source variable lane permutations use scalar composition
+because SSE2 has no equivalent indexed byte-table instruction. Mask compression
+and expansion also use scalar composition on x86-64.
+
+The table-lookup tests exhaustively cover index values from zero through 255.
+Deterministic pseudorandom cases compare every scalar and Native result lane
+with an independent expectation. A public caller probe requires the Native
+operation and rejects the portable root operation. Exact-symbol gates require
+the AArch64 `tbl` instruction or all 16 x86-64 comparison, broadcast, mask, and
+merge steps. The x86-64 gate also requires zero initialization. Both
+exact-symbol gates reject portable and out-of-line lookup calls. The
+Native-object gate rejects a retained portable lookup call.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

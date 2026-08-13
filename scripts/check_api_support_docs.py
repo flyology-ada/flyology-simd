@@ -411,6 +411,21 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: incorrect exact all-family "
                     f"{operation} target classifications"
                 )
+        table_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Table_Lookup")[1:]
+        ]
+        if (
+            len(table_blocks) != 1
+            or "one NEON tbl instruction" not in table_blocks[0]
+            or "compares each index with every valid table position" not in table_blocks[0]
+            or "broadcasts the matching table byte" not in table_blocks[0]
+            or "Indexes above 15 match no position and remain zero" not in table_blocks[0]
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact Table_Lookup "
+                "target classification"
+            )
         shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]

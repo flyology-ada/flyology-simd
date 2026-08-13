@@ -754,6 +754,13 @@ procedure SIMD_Tests is
                "native two-source lane permutation" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check
+                 (Extract
+                    (Flyology_SIMD.Backends.Native.Table_Lookup (A, B), Lane) =
+                    (if Extract (B, Lane) <= 15
+                     then Extract (A, Lane_Index_8x16 (Extract (B, Lane)))
+                     else 0),
+                  "native independent table lookup lane" & Lane'Image);
+               Check
                  (Extract (Permute_Lanes (A, Map), Lane) =
                     Extract (A, Selectors (Lane)),
                   "randomized independent lane permutation" & Lane'Image);

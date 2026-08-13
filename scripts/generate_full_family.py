@@ -287,7 +287,7 @@ def native_support_doc(name: str, declaration: str) -> str:
     }
     x86_scalar = (
         name in {
-            "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
+            "Permute_Lanes", "Compress", "Expand",
         }
     )
     if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
@@ -324,6 +324,15 @@ def native_support_doc(name: str, declaration: str) -> str:
             "reinterpret the complete 128-bit private vector value directly "
             "with Ada.Unchecked_Conversion. They do not call the portable root "
             "operation. A scalar build uses the portable scalar implementation."
+        )
+    if name == "Table_Lookup":
+        return (
+            "Cross-platform support: The AArch64 backend uses one NEON tbl "
+            "instruction. The x86-64 backend uses an SSE2 sequence that "
+            "compares each index with every valid table position, broadcasts "
+            "the matching table byte, masks it, and merges all matches into an "
+            "initially zero result. Indexes above 15 match no position and "
+            "remain zero. A scalar build uses the portable scalar implementation."
         )
     if name == "Is_Aligned_16":
         return (

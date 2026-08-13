@@ -36,6 +36,7 @@ construction_probe_object="$probe_root/construction_codegen_probe.o"
 partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
 bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
 alignment_probe_object="$probe_root/alignment_codegen_probe.o"
+table_lookup_probe_object="$probe_root/table_lookup_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -66,6 +67,7 @@ disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
 disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt"
 disassemble "$bit_cast_probe_object" >"$temporary/bit-cast-probe.txt"
 disassemble "$alignment_probe_object" >"$temporary/alignment-probe.txt"
+disassemble "$table_lookup_probe_object" >"$temporary/table-lookup-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -97,6 +99,7 @@ nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
 nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
 nm -u "$alignment_probe_object" >"$temporary/alignment-undefined.txt"
+nm -u "$table_lookup_probe_object" >"$temporary/table-lookup-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
@@ -220,6 +223,14 @@ forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/native-undefined.txt" \
   'portable arithmetic-right-shift call retained in the Native backend object'
+require_count 'flyology_simd__backends__native__table_lookup' 1 \
+  "$temporary/table-lookup-undefined.txt" \
+  'one Native Table_Lookup call in the public caller probe'
+forbid_pattern 'flyology_simd__table_lookup' \
+  "$temporary/table-lookup-undefined.txt" \
+  'portable Table_Lookup call in the Native caller probe'
+forbid_pattern 'flyology_simd__table_lookup' "$temporary/native-undefined.txt" \
+  'portable Table_Lookup call retained in the Native backend object'
 require_count 'slide_codegen_probe__(u8|i8|u16|i16|u32|i32|u64|i64|f32|f64)_low$' 10 \
   "$temporary/slide-symbols.txt" \
   'all ten dynamic slide-toward-low public caller probes'
@@ -355,17 +366,16 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
-        for operation in slide_lanes_toward_low slide_lanes_toward_high; do
-            for suffix in none 2 3 4 5 6 7 8 9 10; do
-                symbol="flyology_simd__backends__native__${operation}"
-                if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
-                output="$temporary/${operation}-${suffix}.txt"
-                extract_symbol "$symbol" "$temporary/native.txt" "$output"
+        for direction in low high; do
+            for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+                symbol="slide_codegen_probe__${lane_kind}_${direction}"
+                output="$temporary/slide-${lane_kind}-${direction}.txt"
+                extract_symbol "$symbol" "$temporary/slide-probe.txt" "$output"
                 require_pattern 'ext.*16b' "$output" \
-                  "AArch64 immediate lane movement in ${operation} overload ${suffix}"
+                  "AArch64 immediate lane movement in ${lane_kind} ${direction} caller"
                 forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
                   "$output" \
-                  "portable zero or lane-slide call in ${operation} overload ${suffix}"
+                  "portable zero or lane-slide call in ${lane_kind} ${direction} caller"
             done
         done
         for entry in \
@@ -598,6 +608,8 @@ case "$architecture" in
         done
         extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
+        forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__table_lookup' \
+          "$temporary/table_lookup.txt" 'portable or out-of-line AArch64 Table_Lookup helper'
         for lane_kind in u8 i8 u16 i16 u32 i32 f32 u64 i64 f64; do
             for operation in compress expand; do
                 extract_symbol "permute_codegen_probe__${lane_kind}_${operation}" "$temporary/permute-probe.txt" "$temporary/${lane_kind}_${operation}.txt"
@@ -1245,19 +1257,44 @@ EOF
         require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
         require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
         require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
-        for operation in slide_lanes_toward_low slide_lanes_toward_high; do
+        extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" \
+          "$temporary/table_lookup.txt"
+        require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 table-index comparisons'
+        require_count '(^|[[:space:]])punpcklbw[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 table-byte broadcasts'
+        require_count '(^|[[:space:]])punpcklwd[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 table-byte word broadcasts'
+        require_count '(^|[[:space:]])pshufd[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 table-byte dword broadcasts'
+        require_count '(^|[[:space:]])pand[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 lookup masks'
+        require_count '(^|[[:space:]])por[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 lookup merges'
+        require_count '(^|[[:space:]])paddb[[:space:]]' 16 \
+          "$temporary/table_lookup.txt" 'sixteen SSE2 selector increments'
+        require_count '(^|[[:space:]])pxor[[:space:]]' 2 \
+          "$temporary/table_lookup.txt" 'SSE2 result and selector zero initialization'
+        require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 \
+          "$temporary/table_lookup.txt" 'SSE2 all-ones increment construction'
+        require_count '(^|[[:space:]])psrlw[[:space:]]' 1 \
+          "$temporary/table_lookup.txt" 'SSE2 one-bit increment construction'
+        require_count '(^|[[:space:]])packuswb[[:space:]]' 1 \
+          "$temporary/table_lookup.txt" 'SSE2 byte increment construction'
+        forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__table_lookup' \
+          "$temporary/table_lookup.txt" 'portable or out-of-line x86-64 Table_Lookup helper'
+        for direction in low high; do
             instruction=psrldq
-            if [ "$operation" = slide_lanes_toward_high ]; then instruction=pslldq; fi
-            for suffix in none 2 3 4 5 6 7 8 9 10; do
-                symbol="flyology_simd__backends__native__${operation}"
-                if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
-                output="$temporary/${operation}-${suffix}.txt"
-                extract_symbol "$symbol" "$temporary/native.txt" "$output"
+            if [ "$direction" = high ]; then instruction=pslldq; fi
+            for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+                symbol="slide_codegen_probe__${lane_kind}_${direction}"
+                output="$temporary/slide-${lane_kind}-${direction}.txt"
+                extract_symbol "$symbol" "$temporary/slide-probe.txt" "$output"
                 require_pattern "(^|[[:space:]])${instruction}[[:space:]]" "$output" \
-                  "SSE2 immediate lane movement in ${operation} overload ${suffix}"
+                  "SSE2 immediate lane movement in ${lane_kind} ${direction} caller"
                 forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
                   "$output" \
-                  "portable zero or lane-slide call in ${operation} overload ${suffix}"
+                  "portable zero or lane-slide call in ${lane_kind} ${direction} caller"
             done
         done
         for entry in \

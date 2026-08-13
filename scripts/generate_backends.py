@@ -2186,7 +2186,31 @@ def x86_convert_truncate_saturate_f32_instruction(signed_target: bool) -> str:
 
 def x86_body() -> str:
     out = x86_helpers()
-    out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
+    lookup_steps = [
+        "pxor %%xmm2, %%xmm2",
+        "pxor %%xmm3, %%xmm3",
+        "pcmpeqd %%xmm6, %%xmm6",
+        "psrlw $15, %%xmm6",
+        "packuswb %%xmm6, %%xmm6",
+    ]
+    for lane in range(16):
+        lookup_steps += [
+            "movdqa %%xmm0, %%xmm4",
+            *([f"psrldq ${lane}, %%xmm4"] if lane else []),
+            "punpcklbw %%xmm4, %%xmm4",
+            "punpcklwd %%xmm4, %%xmm4",
+            "pshufd $0, %%xmm4, %%xmm4",
+            "movdqa %%xmm1, %%xmm5",
+            "pcmpeqb %%xmm3, %%xmm5",
+            "pand %%xmm5, %%xmm4",
+            "por %%xmm4, %%xmm2",
+            "paddb %%xmm6, %%xmm3",
+        ]
+    lookup_steps.append("movdqa %%xmm2, %%xmm0")
+    out += [
+        f"   function Native_Table_Lookup_U8x16 is new SSE2_Binary_128 (U8x16, \"{x86_ada_instruction(chr(10).join(lookup_steps))}\");",
+        "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
+    ]
     out.append(call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"))
     out.append(call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"))
     out.append(call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
