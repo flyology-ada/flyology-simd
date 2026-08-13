@@ -9223,23 +9223,10 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lane_Values_I64x4;
-      function Random_Lane_Values_F32x8 return Wide.Lane_Values_F32x8 is
-         Result : Wide.Lane_Values_F32x8;
-      begin
-         for Lane in Wide.Lane_Index_32x8 loop
-            Result (Lane) := F32 (Integer (Next_U64 mod 2_000_001) - 1_000_000) / 128.0;
-         end loop;
-         return Result;
-      end Random_Lane_Values_F32x8;
-      function Random_Lane_Values_F64x4 return Wide.Lane_Values_F64x4 is
-         Result : Wide.Lane_Values_F64x4;
-      begin
-         for Lane in Wide.Lane_Index_64x4 loop
-            Result (Lane) := F64 (Integer (Next_U64 mod 2_000_001) - 1_000_000) / 128.0;
-         end loop;
-         return Result;
-      end Random_Lane_Values_F64x4;
       function I32_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+      function Oracle_Bits_To_I8 is new Ada.Unchecked_Conversion (U8, I8);
+      function I16_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
+      function Oracle_Bits_To_I16 is new Ada.Unchecked_Conversion (U16, I16);
       function Oracle_Bits_To_I32 is new Ada.Unchecked_Conversion (U32, I32);
       function I64_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
       function Oracle_Bits_To_I64 is new Ada.Unchecked_Conversion (U64, I64);
@@ -9247,6 +9234,128 @@ procedure Wide_Tests is
       function Bits_To_F32_Oracle is new Ada.Unchecked_Conversion (U32, F32);
       function F64_To_Bits_Oracle is new Ada.Unchecked_Conversion (F64, U64);
       function Bits_To_F64_Oracle is new Ada.Unchecked_Conversion (U64, F64);
+
+      function Same_F32_Conversion (Actual, Expected : F32) return Boolean is
+         Actual_Bits : constant U32 := F32_To_Bits_Oracle (Actual);
+         Expected_Bits : constant U32 := F32_To_Bits_Oracle (Expected);
+         Actual_NaN : constant Boolean :=
+           (Actual_Bits and 16#7F80_0000#) = 16#7F80_0000#
+           and then (Actual_Bits and 16#007F_FFFF#) /= 0;
+         Expected_NaN : constant Boolean :=
+           (Expected_Bits and 16#7F80_0000#) = 16#7F80_0000#
+           and then (Expected_Bits and 16#007F_FFFF#) /= 0;
+      begin
+         return Actual_Bits = Expected_Bits
+           or else (Actual_NaN and then Expected_NaN);
+      end Same_F32_Conversion;
+
+      function Same_F64_Conversion (Actual, Expected : F64) return Boolean is
+         Actual_Bits : constant U64 := F64_To_Bits_Oracle (Actual);
+         Expected_Bits : constant U64 := F64_To_Bits_Oracle (Expected);
+         Actual_NaN : constant Boolean :=
+           (Actual_Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+           and then (Actual_Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;
+         Expected_NaN : constant Boolean :=
+           (Expected_Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+           and then (Expected_Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;
+      begin
+         return Actual_Bits = Expected_Bits
+           or else (Actual_NaN and then Expected_NaN);
+      end Same_F64_Conversion;
+
+      function Oracle_Widen_F32 (Item : F32) return F64 is
+         Bits : constant U32 := F32_To_Bits_Oracle (Item);
+         Sign : constant U64 :=
+           (if (Bits and 16#8000_0000#) = 0
+            then 0 else 16#8000_0000_0000_0000#);
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, 23) and 16#FF#);
+         Fraction : constant U32 := Bits and 16#007F_FFFF#;
+         Highest : Natural := 0;
+         Scan : U32 := Fraction;
+      begin
+         if Encoded_Exponent = 255 then
+            return Bits_To_F64_Oracle
+              (if Fraction = 0 then Sign or 16#7FF0_0000_0000_0000#
+               else Sign or 16#7FF8_0000_0000_0000#);
+         elsif Encoded_Exponent /= 0 then
+            return Bits_To_F64_Oracle
+              (Sign
+               or Interfaces.Shift_Left
+                 (U64 (Encoded_Exponent - 127 + 1_023), 52)
+               or Interfaces.Shift_Left (U64 (Fraction), 29));
+         elsif Fraction = 0 then
+            return Bits_To_F64_Oracle (Sign);
+         end if;
+         while Interfaces.Shift_Right (Scan, 1) /= 0 loop
+            Scan := Interfaces.Shift_Right (Scan, 1);
+            Highest := Highest + 1;
+         end loop;
+         return Bits_To_F64_Oracle
+           (Sign
+            or Interfaces.Shift_Left
+              (U64 (Integer (Highest) - 149 + 1_023), 52)
+            or Interfaces.Shift_Left
+              (U64 (Fraction - Interfaces.Shift_Left (1, Highest)),
+               52 - Highest));
+      end Oracle_Widen_F32;
+
+      function Oracle_Narrow_Round (Item : F64) return F32 is
+         Bits : constant U64 := F64_To_Bits_Oracle (Item);
+         Sign : constant U32 :=
+           (if (Bits and 16#8000_0000_0000_0000#) = 0
+            then 0 else 16#8000_0000#);
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, 52) and 16#7FF#);
+         Fraction : constant U64 := Bits and 16#000F_FFFF_FFFF_FFFF#;
+
+         function Round_Right (Value : U64; Count : Positive) return U64 is
+            Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+            Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+            Remainder : constant U64 :=
+              Value and (Interfaces.Shift_Left (1, Count) - 1);
+         begin
+            return
+              (if Remainder > Half
+                 or else (Remainder = Half and then (Quotient and 1) /= 0)
+               then Quotient + 1 else Quotient);
+         end Round_Right;
+
+         Exponent : Integer;
+         Significant, Rounded : U64;
+      begin
+         if Encoded_Exponent = 0 then
+            return Bits_To_F32_Oracle (Sign);
+         elsif Encoded_Exponent = 16#7FF# then
+            return Bits_To_F32_Oracle
+              (if Fraction = 0 then Sign or 16#7F80_0000#
+               else Sign or 16#7FC0_0000#);
+         end if;
+         Exponent := Encoded_Exponent - 1_023;
+         Significant := 16#0010_0000_0000_0000# or Fraction;
+         if Exponent >= -126 then
+            Rounded := Round_Right (Significant, 29);
+            if Rounded = 16#0100_0000# then
+               Rounded := 16#0080_0000#;
+               Exponent := Exponent + 1;
+            end if;
+            if Exponent > 127 then
+               return Bits_To_F32_Oracle (Sign or 16#7F80_0000#);
+            end if;
+            return Bits_To_F32_Oracle
+              (Sign or Interfaces.Shift_Left (U32 (Exponent + 127), 23)
+               or U32 (Rounded - 16#0080_0000#));
+         end if;
+         declare
+            Shift : constant Positive := -Exponent - 97;
+         begin
+            if Shift > 53 then
+               return Bits_To_F32_Oracle (Sign);
+            end if;
+            return Bits_To_F32_Oracle
+              (Sign or U32 (Round_Right (Significant, Shift)));
+         end;
+      end Oracle_Narrow_Round;
 
       function Oracle_Integer_To_Float_Bits
         (Magnitude : U64; Sign : U64; Fraction_Bits, Bias : Natural)
@@ -9410,476 +9519,308 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1];
          Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U8x16 := U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant U16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U16x8 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.U16x16 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.U16x16 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low U8x32 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U8x32 := Random_Lane_Values_U8x32;
             Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U8x16 := U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant U16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U16x8 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.U16x16 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.U16x16 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low U8x32 to U16x16" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1];
          Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U8x16 := U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)]));
-         Expected_Low : constant U16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U16x8 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 (Source_Lanes (Lane + 16))];
+         Scalar_Result : constant Wide.U16x16 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.U16x16 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High U8x32 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U8x32 := Random_Lane_Values_U8x32;
             Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U8x16 := U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)]));
-            Expected_Low : constant U16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U16x8 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 (Source_Lanes (Lane + 16))];
+            Scalar_Result : constant Wide.U16x16 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.U16x16 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High U8x32 to U16x16" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I8x32 := [I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0];
          Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I8x16 := I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant I16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I16x8 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => I16 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.I16x16 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.I16x16 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low I8x32 to I16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I8x32 := Random_Lane_Values_I8x32;
             Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I8x16 := I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant I16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I16x8 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => I16 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.I16x16 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.I16x16 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low I8x32 to I16x16" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I8x32 := [I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0];
          Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I8x16 := I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)]));
-         Expected_Low : constant I16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I16x8 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => I16 (Source_Lanes (Lane + 16))];
+         Scalar_Result : constant Wide.I16x16 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.I16x16 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High I8x32 to I16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I8x32 := Random_Lane_Values_I8x32;
             Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I8x16 := I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)]));
-            Expected_Low : constant I16x8 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I16x8 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => I16 (Source_Lanes (Lane + 16))];
+            Scalar_Result : constant Wide.I16x16 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.I16x16 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High I8x32 to I16x16" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1];
          Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U16x8 := U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant U32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U32x4 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.U32x8 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low U16x16 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U16x8 := U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant U32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U32x4 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.U32x8 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low U16x16 to U32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1];
          Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U16x8 := U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)]));
-         Expected_Low : constant U32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U32x4 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 (Source_Lanes (Lane + 8))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.U32x8 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High U16x16 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U16x8 := U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)]));
-            Expected_Low : constant U32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U32x4 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 (Source_Lanes (Lane + 8))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.U32x8 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High U16x16 to U32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I16x16 := [I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last];
          Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I16x8 := I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant I32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I32x4 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => I32 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.I32x8 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.I32x8 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low I16x16 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I16x8 := I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant I32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I32x4 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => I32 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.I32x8 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.I32x8 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low I16x16 to I32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I16x16 := [I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last];
          Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I16x8 := I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)]));
-         Expected_Low : constant I32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I32x4 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => I32 (Source_Lanes (Lane + 8))];
+         Scalar_Result : constant Wide.I32x8 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.I32x8 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High I16x16 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I16x8 := I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)]));
-            Expected_Low : constant I32x4 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I32x4 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => I32 (Source_Lanes (Lane + 8))];
+            Scalar_Result : constant Wide.I32x8 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.I32x8 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High I16x16 to I32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 65_535, 65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0];
          Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U32x4 := U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant U64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => U64 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.U64x4 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.U64x4 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low U32x8 to U64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U32x4 := U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant U64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => U64 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.U64x4 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.U64x4 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low U32x8 to U64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 65_535, 65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0];
          Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant U32x4 := U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-         Expected_Low : constant U64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant U64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_U64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => U64 (Source_Lanes (Lane + 4))];
+         Scalar_Result : constant Wide.U64x4 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.U64x4 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High U32x8 to U64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant U32x4 := U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-            Expected_Low : constant U64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant U64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_U64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => U64 (Source_Lanes (Lane + 4))];
+            Scalar_Result : constant Wide.U64x4 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.U64x4 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High U32x8 to U64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I32x8 := [I32'First, -2_147_483_647, -65_537, -1, 0, 65_535, 65_536, I32'Last];
          Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I32x4 := I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant I64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => I64 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.I64x4 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.I64x4 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_Low I32x8 to I64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I32x4 := I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant I64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => I64 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.I64x4 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.I64x4 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_Low I32x8 to I64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I32x8 := [I32'First, -2_147_483_647, -65_537, -1, 0, 65_535, 65_536, I32'Last];
          Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant I32x4 := I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-         Expected_Low : constant I64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant I64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_I64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => I64 (Source_Lanes (Lane + 4))];
+         Scalar_Result : constant Wide.I64x4 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.I64x4 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Widen_High I32x8 to I64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant I32x4 := I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-            Expected_Low : constant I64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant I64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_I64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => I64 (Source_Lanes (Lane + 4))];
+            Scalar_Result : constant Wide.I64x4 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.I64x4 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Widen_High I32x8 to I64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F32x8 := [-F32'Last, -16_777_217.0, -2.75, -0.5, 0.0, 1.5, 16_777_217.0, F32'Last];
          Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant F32x4 := F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-         Expected_Low : constant F64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant F64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_F64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Widen_F32 (Source_Lanes (Lane + 0))];
+         Scalar_Result : constant Wide.F64x4 := Wide.Widen_Low (Value);
+         Native_Result : constant Wide.F64x4 := Native.Widen_Low (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+         Check ((for all Lane in Wide.Lane_Index_64x4 => Same_F64_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F64_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
            "wide Widen_Low F32x8 to F64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Lane_Values_F32x8;
+            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Raw_F32_Lanes;
             Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant F32x4 := F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)]));
-            Expected_Low : constant F64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant F64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_F64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Widen_F32 (Source_Lanes (Lane + 0))];
+            Scalar_Result : constant Wide.F64x4 := Wide.Widen_Low (Value);
+            Native_Result : constant Wide.F64x4 := Native.Widen_Low (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_Low (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_Low (Value)) = Expected,
+            Check ((for all Lane in Wide.Lane_Index_64x4 => Same_F64_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F64_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
               "wide randomized Widen_Low F32x8 to F64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F32x8 := [-F32'Last, -16_777_217.0, -2.75, -0.5, 0.0, 1.5, 16_777_217.0, F32'Last];
          Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant F32x4 := F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-         Expected_Low : constant F64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant F64x2 := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.Lane_Values_F64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Widen_F32 (Source_Lanes (Lane + 4))];
+         Scalar_Result : constant Wide.F64x4 := Wide.Widen_High (Value);
+         Native_Result : constant Wide.F64x4 := Native.Widen_High (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-           and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+         Check ((for all Lane in Wide.Lane_Index_64x4 => Same_F64_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F64_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
            "wide Widen_High F32x8 to F64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Lane_Values_F32x8;
+            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Raw_F32_Lanes;
             Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant F32x4 := F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)]));
-            Expected_Low : constant F64x2 := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant F64x2 := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.Lane_Values_F64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Widen_F32 (Source_Lanes (Lane + 4))];
+            Scalar_Result : constant Wide.F64x4 := Wide.Widen_High (Value);
+            Native_Result : constant Wide.F64x4 := Native.Widen_High (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Widen_High (Value)) = Expected
-              and then Native.To_Lanes (Native.Widen_High (Value)) = Expected,
+            Check ((for all Lane in Wide.Lane_Index_64x4 => Same_F64_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F64_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
               "wide randomized Widen_High F32x8 to F64x4" & Iteration'Image);
          end;
       end loop;
@@ -9888,38 +9829,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U16x16 := [256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767];
          Low_Value : constant Wide.U16x16 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U16x16 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Truncate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-         Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Truncate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_U8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) and U16 (U8'Last))];
+         Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.U8x32 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate U16x16 to U8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             High_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             Low_Value : constant Wide.U16x16 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U16x16 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Truncate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-            Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Truncate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_U8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) and U16 (U8'Last))];
+            Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.U8x32 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate U16x16 to U8x32" & Iteration'Image);
          end;
       end loop;
@@ -9928,38 +9855,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I16x16 := [-1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129];
          Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I8x16 := Flyology_SIMD.Narrow_Truncate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-         Expected_High : constant I8x16 := Flyology_SIMD.Narrow_Truncate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_I8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => Oracle_Bits_To_I8 (U8 (I16_To_Bits ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))) and U16 (U8'Last)))];
+         Scalar_Result : constant Wide.I8x32 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.I8x32 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate I16x16 to I8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             High_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I8x16 := Flyology_SIMD.Narrow_Truncate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-            Expected_High : constant I8x16 := Flyology_SIMD.Narrow_Truncate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_I8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => Oracle_Bits_To_I8 (U8 (I16_To_Bits ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))) and U16 (U8'Last)))];
+            Scalar_Result : constant Wide.I8x32 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.I8x32 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate I16x16 to I8x32" & Iteration'Image);
          end;
       end loop;
@@ -9968,38 +9881,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U32x8 := [65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0, 1, 65_535, 65_536];
          Low_Value : constant Wide.U32x8 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U32x8 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Truncate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-         Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Truncate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) and U32 (U16'Last))];
+         Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.U16x16 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate U32x8 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             High_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Low_Value : constant Wide.U32x8 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U32x8 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Truncate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-            Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Truncate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) and U32 (U16'Last))];
+            Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.U16x16 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate U32x8 to U16x16" & Iteration'Image);
          end;
       end loop;
@@ -10008,38 +9907,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I32x8 := [-1, 0, 65_535, 65_536, I32'Last, I32'First, -2_147_483_647, -65_537];
          Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I16x8 := Flyology_SIMD.Narrow_Truncate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-         Expected_High : constant I16x8 := Flyology_SIMD.Narrow_Truncate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_I16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => Oracle_Bits_To_I16 (U16 (I32_To_Bits ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))) and U32 (U16'Last)))];
+         Scalar_Result : constant Wide.I16x16 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.I16x16 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate I32x8 to I16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             High_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I16x8 := Flyology_SIMD.Narrow_Truncate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-            Expected_High : constant I16x8 := Flyology_SIMD.Narrow_Truncate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_I16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => Oracle_Bits_To_I16 (U16 (I32_To_Bits ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))) and U32 (U16'Last)))];
+            Scalar_Result : constant Wide.I16x16 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.I16x16 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate I32x8 to I16x16" & Iteration'Image);
          end;
       end loop;
@@ -10048,38 +9933,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U64x4 := [4_294_967_296, 9_223_372_036_854_775_807, 9_223_372_036_854_775_808, U64'Last];
          Low_Value : constant Wide.U64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Truncate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Truncate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) and U64 (U32'Last))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.U32x8 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate U64x4 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             High_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             Low_Value : constant Wide.U64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Truncate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Truncate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) and U64 (U32'Last))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.U32x8 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate U64x4 to U32x8" & Iteration'Image);
          end;
       end loop;
@@ -10088,38 +9959,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I64x4 := [-1, 0, 4_294_967_295, 4_294_967_296];
          Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I32x4 := Flyology_SIMD.Narrow_Truncate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant I32x4 := Flyology_SIMD.Narrow_Truncate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Bits_To_I32 (U32 (I64_To_Bits ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))) and U64 (U32'Last)))];
+         Scalar_Result : constant Wide.I32x8 := Wide.Narrow_Truncate (Low_Value, High_Value);
+         Native_Result : constant Wide.I32x8 := Native.Narrow_Truncate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Truncate I64x4 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             High_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I32x4 := Flyology_SIMD.Narrow_Truncate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant I32x4 := Flyology_SIMD.Narrow_Truncate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Bits_To_I32 (U32 (I64_To_Bits ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))) and U64 (U32'Last)))];
+            Scalar_Result : constant Wide.I32x8 := Wide.Narrow_Truncate (Low_Value, High_Value);
+            Native_Result : constant Wide.I32x8 := Native.Narrow_Truncate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Truncate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Truncate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Truncate I64x4 to I32x8" & Iteration'Image);
          end;
       end loop;
@@ -10128,38 +9985,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U16x16 := [256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767];
          Low_Value : constant Wide.U16x16 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U16x16 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-         Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_U8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > U16 (U8'Last) then U8'Last else U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+         Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate U16x16 to U8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             High_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             Low_Value : constant Wide.U16x16 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U16x16 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-            Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_U8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > U16 (U8'Last) then U8'Last else U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+            Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate U16x16 to U8x32" & Iteration'Image);
          end;
       end loop;
@@ -10168,38 +10011,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I16x16 := [-1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129];
          Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I8x16 := Flyology_SIMD.Narrow_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-         Expected_High : constant I8x16 := Flyology_SIMD.Narrow_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_I8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) < I16 (I8'First) then I8'First elsif (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > I16 (I8'Last) then I8'Last else I8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+         Scalar_Result : constant Wide.I8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.I8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I16x16 to I8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             High_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I8x16 := Flyology_SIMD.Narrow_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-            Expected_High : constant I8x16 := Flyology_SIMD.Narrow_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_I8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) < I16 (I8'First) then I8'First elsif (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > I16 (I8'Last) then I8'Last else I8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+            Scalar_Result : constant Wide.I8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.I8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I16x16 to I8x32" & Iteration'Image);
          end;
       end loop;
@@ -10208,38 +10037,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U32x8 := [65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0, 1, 65_535, 65_536];
          Low_Value : constant Wide.U32x8 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U32x8 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-         Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > U32 (U16'Last) then U16'Last else U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+         Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate U32x8 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             High_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Low_Value : constant Wide.U32x8 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U32x8 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-            Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > U32 (U16'Last) then U16'Last else U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+            Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate U32x8 to U16x16" & Iteration'Image);
          end;
       end loop;
@@ -10248,38 +10063,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I32x8 := [-1, 0, 65_535, 65_536, I32'Last, I32'First, -2_147_483_647, -65_537];
          Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I16x8 := Flyology_SIMD.Narrow_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-         Expected_High : constant I16x8 := Flyology_SIMD.Narrow_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_I16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) < I32 (I16'First) then I16'First elsif (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > I32 (I16'Last) then I16'Last else I16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+         Scalar_Result : constant Wide.I16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.I16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I32x8 to I16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             High_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I16x8 := Flyology_SIMD.Narrow_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-            Expected_High : constant I16x8 := Flyology_SIMD.Narrow_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_I16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) < I32 (I16'First) then I16'First elsif (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > I32 (I16'Last) then I16'Last else I16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+            Scalar_Result : constant Wide.I16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.I16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I32x8 to I16x16" & Iteration'Image);
          end;
       end loop;
@@ -10288,38 +10089,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_U64x4 := [4_294_967_296, 9_223_372_036_854_775_807, 9_223_372_036_854_775_808, U64'Last];
          Low_Value : constant Wide.U64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.U64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > U64 (U32'Last) then U32'Last else U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate U64x4 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             High_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             Low_Value : constant Wide.U64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.U64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > U64 (U32'Last) then U32'Last else U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate U64x4 to U32x8" & Iteration'Image);
          end;
       end loop;
@@ -10328,38 +10115,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I64x4 := [-1, 0, 4_294_967_295, 4_294_967_296];
          Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant I32x4 := Flyology_SIMD.Narrow_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant I32x4 := Flyology_SIMD.Narrow_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) < I64 (I32'First) then I32'First elsif (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > I64 (I32'Last) then I32'Last else I32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+         Scalar_Result : constant Wide.I32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.I32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I64x4 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             High_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant I32x4 := Flyology_SIMD.Narrow_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant I32x4 := Flyology_SIMD.Narrow_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) < I64 (I32'First) then I32'First elsif (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > I64 (I32'Last) then I32'Last else I32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+            Scalar_Result : constant Wide.I32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.I32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I64x4 to I32x8" & Iteration'Image);
          end;
       end loop;
@@ -10368,38 +10141,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I16x16 := [-1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129];
          Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-         Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_U8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) < 0 then 0 elsif (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > I16 (U8'Last) then U8'Last else U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+         Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I16x16 to U8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             High_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Low_Value : constant Wide.I16x16 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I16x16 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Low_Lanes (Lane + 8)])));
-            Expected_High : constant U8x16 := Flyology_SIMD.Narrow_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 0)])), I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => High_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_U8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) < 0 then 0 elsif (if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16)) > I16 (U8'Last) then U8'Last else U8 ((if Lane < 16 then Low_Lanes (Lane) else High_Lanes (Lane - 16))))];
+            Scalar_Result : constant Wide.U8x32 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U8x32 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I16x16 to U8x32" & Iteration'Image);
          end;
       end loop;
@@ -10408,38 +10167,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I32x8 := [-1, 0, 65_535, 65_536, I32'Last, I32'First, -2_147_483_647, -65_537];
          Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-         Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) < 0 then 0 elsif (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > I32 (U16'Last) then U16'Last else U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+         Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I32x8 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             High_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Low_Value : constant Wide.I32x8 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I32x8 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Low_Lanes (Lane + 4)])));
-            Expected_High : constant U16x8 := Flyology_SIMD.Narrow_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 0)])), I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => High_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) < 0 then 0 elsif (if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8)) > I32 (U16'Last) then U16'Last else U16 ((if Lane < 8 then Low_Lanes (Lane) else High_Lanes (Lane - 8))))];
+            Scalar_Result : constant Wide.U16x16 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U16x16 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I32x8 to U16x16" & Iteration'Image);
          end;
       end loop;
@@ -10448,38 +10193,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_I64x4 := [-1, 0, 4_294_967_295, 4_294_967_296];
          Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) < 0 then 0 elsif (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > I64 (U32'Last) then U32'Last else U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+         Native_Result : constant Wide.U32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
            "wide Narrow_Saturate I64x4 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Low_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             High_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             Low_Value : constant Wide.I64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.I64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant U32x4 := Flyology_SIMD.Narrow_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) < 0 then 0 elsif (if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)) > I64 (U32'Last) then U32'Last else U32 ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4))))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Narrow_Saturate (Low_Value, High_Value);
+            Native_Result : constant Wide.U32x8 := Native.Narrow_Saturate (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Saturate (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Saturate (Low_Value, High_Value)) = Expected,
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
               "wide randomized Narrow_Saturate I64x4 to U32x8" & Iteration'Image);
          end;
       end loop;
@@ -10488,38 +10219,24 @@ procedure Wide_Tests is
          High_Lanes : constant Wide.Lane_Values_F64x4 := [-0.5, 0.0, 1.5, 9_007_199_254_740_993.0];
          Low_Value : constant Wide.F64x4 := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.F64x4 := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant F32x4 := Flyology_SIMD.Narrow_Round
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-         Expected_High : constant F32x4 := Flyology_SIMD.Narrow_Round
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_F32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Narrow_Round ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)))];
+         Scalar_Result : constant Wide.F32x8 := Wide.Narrow_Round (Low_Value, High_Value);
+         Native_Result : constant Wide.F32x8 := Native.Narrow_Round (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.Narrow_Round (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.Narrow_Round (Low_Value, High_Value)) = Expected,
+         Check ((for all Lane in Wide.Lane_Index_32x8 => Same_F32_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F32_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
            "wide Narrow_Round F64x4 to F32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Low_Lanes : constant Wide.Lane_Values_F64x4 := Random_Lane_Values_F64x4;
-            High_Lanes : constant Wide.Lane_Values_F64x4 := Random_Lane_Values_F64x4;
+            Low_Lanes : constant Wide.Lane_Values_F64x4 := Random_Raw_F64_Lanes;
+            High_Lanes : constant Wide.Lane_Values_F64x4 := Random_Raw_F64_Lanes;
             Low_Value : constant Wide.F64x4 := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.F64x4 := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant F32x4 := Flyology_SIMD.Narrow_Round
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 0)])), F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Low_Lanes (Lane + 2)])));
-            Expected_High : constant F32x4 := Flyology_SIMD.Narrow_Round
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 0)])), F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => High_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_F32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Narrow_Round ((if Lane < 4 then Low_Lanes (Lane) else High_Lanes (Lane - 4)))];
+            Scalar_Result : constant Wide.F32x8 := Wide.Narrow_Round (Low_Value, High_Value);
+            Native_Result : constant Wide.F32x8 := Native.Narrow_Round (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.Narrow_Round (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.Narrow_Round (Low_Value, High_Value)) = Expected,
+            Check ((for all Lane in Wide.Lane_Index_32x8 => Same_F32_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) and then Same_F32_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane))),
               "wide randomized Narrow_Round F64x4 to F32x8" & Iteration'Image);
          end;
       end loop;
@@ -10702,33 +10419,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_I8x32 := [I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0, 1, 126, I8'Last, I8'First, -127, -1, 0];
          Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U8x16 := Flyology_SIMD.Convert_Saturate
-           (I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U8x16 := Flyology_SIMD.Convert_Saturate
-           (I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)])));
-         Expected : constant Wide.Lane_Values_U8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if Source_Lanes (Lane) < 0 then 0 else U8 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate I8x32 to U8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I8x32 := Random_Lane_Values_I8x32;
             Value : constant Wide.I8x32 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U8x16 := Flyology_SIMD.Convert_Saturate
-              (I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U8x16 := Flyology_SIMD.Convert_Saturate
-              (I8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)])));
-            Expected : constant Wide.Lane_Values_U8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_U8x32 := [for Lane in Wide.Lane_Index_8x32 => (if Source_Lanes (Lane) < 0 then 0 else U8 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10738,33 +10439,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1];
          Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I8x16 := Flyology_SIMD.Convert_Saturate
-           (U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I8x16 := Flyology_SIMD.Convert_Saturate
-           (U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)])));
-         Expected : constant Wide.Lane_Values_I8x32 :=
-           [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+         Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => (if Source_Lanes (Lane) > U8 (I8'Last) then I8'Last else I8 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate U8x32 to I8x32");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U8x32 := Random_Lane_Values_U8x32;
             Value : constant Wide.U8x32 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I8x16 := Flyology_SIMD.Convert_Saturate
-              (U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I8x16 := Flyology_SIMD.Convert_Saturate
-              (U8x16'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Source_Lanes (Lane + 16)])));
-            Expected : constant Wide.Lane_Values_I8x32 :=
-              [for Lane in Wide.Lane_Index_8x32 =>
-              (if Lane < 16
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 16))];
+            Expected : constant Wide.Lane_Values_I8x32 := [for Lane in Wide.Lane_Index_8x32 => (if Source_Lanes (Lane) > U8 (I8'Last) then I8'Last else I8 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10774,33 +10459,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_I16x16 := [I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last, I16'First, -32_767, -129, -1, 0, 127, 128, I16'Last];
          Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U16x8 := Flyology_SIMD.Convert_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U16x8 := Flyology_SIMD.Convert_Saturate
-           (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_U16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if Source_Lanes (Lane) < 0 then 0 else U16 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate I16x16 to U16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I16x16 := Random_Lane_Values_I16x16;
             Value : constant Wide.I16x16 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U16x8 := Flyology_SIMD.Convert_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U16x8 := Flyology_SIMD.Convert_Saturate
-              (I16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_U16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_U16x16 := [for Lane in Wide.Lane_Index_16x16 => (if Source_Lanes (Lane) < 0 then 0 else U16 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10810,33 +10479,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1, 255, 256, 32_767, 32_768, U16'Last, 0, 1];
          Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I16x8 := Flyology_SIMD.Convert_Saturate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I16x8 := Flyology_SIMD.Convert_Saturate
-           (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)])));
-         Expected : constant Wide.Lane_Values_I16x16 :=
-           [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+         Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => (if Source_Lanes (Lane) > U16 (I16'Last) then I16'Last else I16 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate U16x16 to I16x16");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U16x16 := Random_Lane_Values_U16x16;
             Value : constant Wide.U16x16 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I16x8 := Flyology_SIMD.Convert_Saturate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I16x8 := Flyology_SIMD.Convert_Saturate
-              (U16x8'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Source_Lanes (Lane + 8)])));
-            Expected : constant Wide.Lane_Values_I16x16 :=
-              [for Lane in Wide.Lane_Index_16x16 =>
-              (if Lane < 8
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 8))];
+            Expected : constant Wide.Lane_Values_I16x16 := [for Lane in Wide.Lane_Index_16x16 => (if Source_Lanes (Lane) > U16 (I16'Last) then I16'Last else I16 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10846,33 +10499,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_I32x8 := [I32'First, -2_147_483_647, -65_537, -1, 0, 65_535, 65_536, I32'Last];
          Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U32x4 := Flyology_SIMD.Convert_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U32x4 := Flyology_SIMD.Convert_Saturate
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if Source_Lanes (Lane) < 0 then 0 else U32 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate I32x8 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U32x4 := Flyology_SIMD.Convert_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U32x4 := Flyology_SIMD.Convert_Saturate
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => (if Source_Lanes (Lane) < 0 then 0 else U32 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10882,33 +10519,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 65_535, 65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0];
          Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I32x4 := Flyology_SIMD.Convert_Saturate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I32x4 := Flyology_SIMD.Convert_Saturate
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => (if Source_Lanes (Lane) > U32 (I32'Last) then I32'Last else I32 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate U32x8 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I32x4 := Flyology_SIMD.Convert_Saturate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I32x4 := Flyology_SIMD.Convert_Saturate
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => (if Source_Lanes (Lane) > U32 (I32'Last) then I32'Last else I32 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10918,33 +10539,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_I64x4 := [I64'First, -9_223_372_036_854_775_807, -4_294_967_297, -1];
          Value : constant Wide.I64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U64x2 := Flyology_SIMD.Convert_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U64x2 := Flyology_SIMD.Convert_Saturate
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_U64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => (if Source_Lanes (Lane) < 0 then 0 else U64 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate I64x4 to U64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             Value : constant Wide.I64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U64x2 := Flyology_SIMD.Convert_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U64x2 := Flyology_SIMD.Convert_Saturate
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_U64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => (if Source_Lanes (Lane) < 0 then 0 else U64 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
@@ -10954,33 +10559,17 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 4_294_967_295, 4_294_967_296];
          Value : constant Wide.U64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I64x2 := Flyology_SIMD.Convert_Saturate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I64x2 := Flyology_SIMD.Convert_Saturate
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_I64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => (if Source_Lanes (Lane) > U64 (I64'Last) then I64'Last else I64 (Source_Lanes (Lane)))];
       begin
          Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
            and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,
            "wide Convert_Saturate U64x4 to I64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             Value : constant Wide.U64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I64x2 := Flyology_SIMD.Convert_Saturate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I64x2 := Flyology_SIMD.Convert_Saturate
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_I64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => (if Source_Lanes (Lane) > U64 (I64'Last) then I64'Last else I64 (Source_Lanes (Lane)))];
          begin
             Check (Wide.To_Lanes (Wide.Convert_Saturate (Value)) = Expected
               and then Native.To_Lanes (Native.Convert_Saturate (Value)) = Expected,

@@ -3236,72 +3236,72 @@ is
 
    function Widen_Low (Value : U8x32) return U16x16 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : U8x32) return U16x16 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : I8x32) return I16x16 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : I8x32) return I16x16 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : U16x16) return U32x8 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : U16x16) return U32x8 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : I16x16) return I32x8 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : I16x16) return I32x8 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : U32x8) return U64x4 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : U32x8) return U64x4 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : I32x8) return I64x4 with Inline_Always;
    --  Widen the low integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : I32x8) return I64x4 with Inline_Always;
    --  Widen the high integer source half exactly, preserve signedness, and preserve lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : F32x8) return F64x4 with Inline_Always;
    --  With the platform's default gradual-underflow environment, widen the low binary32 source half exactly to binary64 and preserve lane order. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the low private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : F32x8) return F64x4 with Inline_Always;
    --  With the platform's default gradual-underflow environment, widen the high binary32 source half exactly to binary64 and preserve lane order. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends select the high private source part. The selected 128-bit Widen_Low operation forms the low result part, and the selected 128-bit Widen_High operation forms the high result part. In a scalar build, the overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : U16x16) return U8x32 with Inline_Always;

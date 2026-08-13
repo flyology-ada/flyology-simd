@@ -436,26 +436,11 @@ def movement_declarations(f: Family) -> str:
 '''
 
 
-def root_half(source: Family, values: str, offset: int) -> str:
-    return (
-        f"{source.half}'(Flyology_SIMD.From_Lanes "
-        f"([for Lane in 0 .. {source.half_lanes - 1} => {values} (Lane + {offset})])"
-        f")"
-    )
-
-
-def assembled_expected(target: Family, low: str, high: str) -> str:
-    return (
-        f"[for Lane in Wide.{target.index} =>\n"
-        f"              (if Lane < {target.half_lanes}\n"
-        f"               then Flyology_SIMD.Extract ({low}, Lane)\n"
-        f"               else Flyology_SIMD.Extract ({high}, Lane - {target.half_lanes}))]"
-    )
-
-
 def random_conversion_helpers() -> str:
     out: list[str] = []
     for family in FAMILIES:
+        if family.floating:
+            continue
         unsigned = f"U{family.bits}"
         conversion = ""
         if family.signed:
@@ -465,10 +450,6 @@ def random_conversion_helpers() -> str:
             )
             raw = "Next_U64" if family.bits == 64 else f"{unsigned} (Next_U64 mod 2 ** {family.bits})"
             value = f"Bits_To_{family.scalar} ({raw})"
-        elif family.floating:
-            value = (
-                f"{family.scalar} (Integer (Next_U64 mod 2_000_001) - 1_000_000) / 128.0"
-            )
         else:
             value = "Next_U64" if family.bits == 64 else f"{unsigned} (Next_U64 mod 2 ** {family.bits})"
         out.append(
@@ -487,6 +468,9 @@ def random_conversion_helpers() -> str:
 def numeric_conversion_oracle_declarations() -> str:
     return r'''
       function I32_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+      function Oracle_Bits_To_I8 is new Ada.Unchecked_Conversion (U8, I8);
+      function I16_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
+      function Oracle_Bits_To_I16 is new Ada.Unchecked_Conversion (U16, I16);
       function Oracle_Bits_To_I32 is new Ada.Unchecked_Conversion (U32, I32);
       function I64_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
       function Oracle_Bits_To_I64 is new Ada.Unchecked_Conversion (U64, I64);
@@ -494,6 +478,128 @@ def numeric_conversion_oracle_declarations() -> str:
       function Bits_To_F32_Oracle is new Ada.Unchecked_Conversion (U32, F32);
       function F64_To_Bits_Oracle is new Ada.Unchecked_Conversion (F64, U64);
       function Bits_To_F64_Oracle is new Ada.Unchecked_Conversion (U64, F64);
+
+      function Same_F32_Conversion (Actual, Expected : F32) return Boolean is
+         Actual_Bits : constant U32 := F32_To_Bits_Oracle (Actual);
+         Expected_Bits : constant U32 := F32_To_Bits_Oracle (Expected);
+         Actual_NaN : constant Boolean :=
+           (Actual_Bits and 16#7F80_0000#) = 16#7F80_0000#
+           and then (Actual_Bits and 16#007F_FFFF#) /= 0;
+         Expected_NaN : constant Boolean :=
+           (Expected_Bits and 16#7F80_0000#) = 16#7F80_0000#
+           and then (Expected_Bits and 16#007F_FFFF#) /= 0;
+      begin
+         return Actual_Bits = Expected_Bits
+           or else (Actual_NaN and then Expected_NaN);
+      end Same_F32_Conversion;
+
+      function Same_F64_Conversion (Actual, Expected : F64) return Boolean is
+         Actual_Bits : constant U64 := F64_To_Bits_Oracle (Actual);
+         Expected_Bits : constant U64 := F64_To_Bits_Oracle (Expected);
+         Actual_NaN : constant Boolean :=
+           (Actual_Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+           and then (Actual_Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;
+         Expected_NaN : constant Boolean :=
+           (Expected_Bits and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
+           and then (Expected_Bits and 16#000F_FFFF_FFFF_FFFF#) /= 0;
+      begin
+         return Actual_Bits = Expected_Bits
+           or else (Actual_NaN and then Expected_NaN);
+      end Same_F64_Conversion;
+
+      function Oracle_Widen_F32 (Item : F32) return F64 is
+         Bits : constant U32 := F32_To_Bits_Oracle (Item);
+         Sign : constant U64 :=
+           (if (Bits and 16#8000_0000#) = 0
+            then 0 else 16#8000_0000_0000_0000#);
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, 23) and 16#FF#);
+         Fraction : constant U32 := Bits and 16#007F_FFFF#;
+         Highest : Natural := 0;
+         Scan : U32 := Fraction;
+      begin
+         if Encoded_Exponent = 255 then
+            return Bits_To_F64_Oracle
+              (if Fraction = 0 then Sign or 16#7FF0_0000_0000_0000#
+               else Sign or 16#7FF8_0000_0000_0000#);
+         elsif Encoded_Exponent /= 0 then
+            return Bits_To_F64_Oracle
+              (Sign
+               or Interfaces.Shift_Left
+                 (U64 (Encoded_Exponent - 127 + 1_023), 52)
+               or Interfaces.Shift_Left (U64 (Fraction), 29));
+         elsif Fraction = 0 then
+            return Bits_To_F64_Oracle (Sign);
+         end if;
+         while Interfaces.Shift_Right (Scan, 1) /= 0 loop
+            Scan := Interfaces.Shift_Right (Scan, 1);
+            Highest := Highest + 1;
+         end loop;
+         return Bits_To_F64_Oracle
+           (Sign
+            or Interfaces.Shift_Left
+              (U64 (Integer (Highest) - 149 + 1_023), 52)
+            or Interfaces.Shift_Left
+              (U64 (Fraction - Interfaces.Shift_Left (1, Highest)),
+               52 - Highest));
+      end Oracle_Widen_F32;
+
+      function Oracle_Narrow_Round (Item : F64) return F32 is
+         Bits : constant U64 := F64_To_Bits_Oracle (Item);
+         Sign : constant U32 :=
+           (if (Bits and 16#8000_0000_0000_0000#) = 0
+            then 0 else 16#8000_0000#);
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, 52) and 16#7FF#);
+         Fraction : constant U64 := Bits and 16#000F_FFFF_FFFF_FFFF#;
+
+         function Round_Right (Value : U64; Count : Positive) return U64 is
+            Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+            Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+            Remainder : constant U64 :=
+              Value and (Interfaces.Shift_Left (1, Count) - 1);
+         begin
+            return
+              (if Remainder > Half
+                 or else (Remainder = Half and then (Quotient and 1) /= 0)
+               then Quotient + 1 else Quotient);
+         end Round_Right;
+
+         Exponent : Integer;
+         Significant, Rounded : U64;
+      begin
+         if Encoded_Exponent = 0 then
+            return Bits_To_F32_Oracle (Sign);
+         elsif Encoded_Exponent = 16#7FF# then
+            return Bits_To_F32_Oracle
+              (if Fraction = 0 then Sign or 16#7F80_0000#
+               else Sign or 16#7FC0_0000#);
+         end if;
+         Exponent := Encoded_Exponent - 1_023;
+         Significant := 16#0010_0000_0000_0000# or Fraction;
+         if Exponent >= -126 then
+            Rounded := Round_Right (Significant, 29);
+            if Rounded = 16#0100_0000# then
+               Rounded := 16#0080_0000#;
+               Exponent := Exponent + 1;
+            end if;
+            if Exponent > 127 then
+               return Bits_To_F32_Oracle (Sign or 16#7F80_0000#);
+            end if;
+            return Bits_To_F32_Oracle
+              (Sign or Interfaces.Shift_Left (U32 (Exponent + 127), 23)
+               or U32 (Rounded - 16#0080_0000#));
+         end if;
+         declare
+            Shift : constant Positive := -Exponent - 97;
+         begin
+            if Shift > 53 then
+               return Bits_To_F32_Oracle (Sign);
+            end if;
+            return Bits_To_F32_Oracle
+              (Sign or U32 (Round_Right (Significant, Shift)));
+         end;
+      end Oracle_Narrow_Round;
 
       function Oracle_Integer_To_Float_Bits
         (Magnitude : U64; Sign : U64; Fraction_Bits, Bias : Natural)
@@ -658,37 +764,92 @@ def numeric_conversion_oracle_declarations() -> str:
 def conversion_tests() -> str:
     blocks: list[str] = []
 
+    signed_bits = {
+        "I8": ("I8_To_Bits", "Oracle_Bits_To_I8"),
+        "I16": ("I16_To_Bits", "Oracle_Bits_To_I16"),
+        "I32": ("I32_To_Bits", "Oracle_Bits_To_I32"),
+        "I64": ("I64_To_Bits", "Oracle_Bits_To_I64"),
+    }
+
+    def widen_lane(source: Family, target: Family, value: str) -> str:
+        if source.floating:
+            return f"Oracle_Widen_F32 ({value})"
+        return f"{target.scalar} ({value})"
+
+    def truncate_lane(source: Family, target: Family, value: str) -> str:
+        if source.signed:
+            to_bits, from_bits = signed_bits[source.scalar][0], signed_bits[target.scalar][1]
+            return (
+                f"{from_bits} ({target.scalar.replace('I', 'U', 1)} "
+                f"({to_bits} ({value}) and {source.scalar.replace('I', 'U', 1)} "
+                f"({target.scalar.replace('I', 'U', 1)}'Last)))"
+            )
+        return f"{target.scalar} ({value} and {source.scalar} ({target.scalar}'Last))"
+
+    def saturate_lane(source: Family, target: Family, value: str) -> str:
+        if target.scalar.startswith("U") and source.signed:
+            return (
+                f"(if {value} < 0 then 0 elsif {value} > {source.scalar} "
+                f"({target.scalar}'Last) then {target.scalar}'Last else {target.scalar} ({value}))"
+            )
+        if target.signed:
+            return (
+                f"(if {value} < {source.scalar} ({target.scalar}'First) then {target.scalar}'First "
+                f"elsif {value} > {source.scalar} ({target.scalar}'Last) then {target.scalar}'Last "
+                f"else {target.scalar} ({value}))"
+            )
+        return (
+            f"(if {value} > {source.scalar} ({target.scalar}'Last) "
+            f"then {target.scalar}'Last else {target.scalar} ({value}))"
+        )
+
+    def convert_saturate_lane(source: Family, target: Family, value: str) -> str:
+        if source.signed:
+            return f"(if {value} < 0 then 0 else {target.scalar} ({value}))"
+        return (
+            f"(if {value} > {source.scalar} ({target.scalar}'Last) "
+            f"then {target.scalar}'Last else {target.scalar} ({value}))"
+        )
+
     for source_half, _, target_half, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
         source = BY_HALF[source_half]
         target = BY_HALF[target_half]
         values = lane_values(source.scalar, source.lanes)
+        random_source = (
+            f"Random_Raw_{source.scalar}_Lanes"
+            if source.floating else f"Random_{source.values}"
+        )
         for operation, offset in (("Widen_Low", 0), ("Widen_High", source.half_lanes)):
-            root_source = root_half(source, "Source_Lanes", offset)
+            expected = (
+                f"[for Lane in Wide.{target.index} => "
+                f"{widen_lane(source, target, f'Source_Lanes (Lane + {offset})')}]"
+            )
+            matches = (
+                f"(for all Lane in Wide.{target.index} => "
+                f"Same_F64_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) "
+                f"and then Same_F64_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane)))"
+                if source.floating else
+                "Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected"
+            )
             blocks.append(f'''      declare
          Source_Lanes : constant Wide.{source.values} := [{values}];
          Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
-         Root_Source : constant {source.half} := {root_source};
-         Expected_Low : constant {target.half} := Flyology_SIMD.Widen_Low (Root_Source);
-         Expected_High : constant {target.half} := Flyology_SIMD.Widen_High (Root_Source);
-         Expected : constant Wide.{target.values} :=
-           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         Expected : constant Wide.{target.values} := {expected};
+         Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Value);
+         Native_Result : constant Wide.{target.vector} := Native.{operation} (Value);
       begin
-         Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
-           and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+         Check ({matches},
            "wide {operation} {source.vector} to {target.vector}");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.{source.values} := Random_{source.values};
+            Source_Lanes : constant Wide.{source.values} := {random_source};
             Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
-            Root_Source : constant {source.half} := {root_source};
-            Expected_Low : constant {target.half} := Flyology_SIMD.Widen_Low (Root_Source);
-            Expected_High : constant {target.half} := Flyology_SIMD.Widen_High (Root_Source);
-            Expected : constant Wide.{target.values} :=
-              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+            Expected : constant Wide.{target.values} := {expected};
+            Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Value);
+            Native_Result : constant Wide.{target.vector} := Native.{operation} (Value);
          begin
-            Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
-              and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
+            Check ({matches},
               "wide randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
          end;
       end loop;
@@ -708,37 +869,51 @@ def conversion_tests() -> str:
         target = BY_HALF[target_half]
         low_values = lane_values(source.scalar, source.lanes)
         high_values = lane_values(source.scalar, source.lanes, 3)
+        random_source = (
+            f"Random_Raw_{source.scalar}_Lanes"
+            if source.floating else f"Random_{source.values}"
+        )
+        lane_oracle = (
+            (lambda value: truncate_lane(source, target, value))
+            if operation == "Narrow_Truncate"
+            else ((lambda value: f"Oracle_Narrow_Round ({value})")
+                  if operation == "Narrow_Round"
+                  else (lambda value: saturate_lane(source, target, value)))
+        )
+        expected = (
+            f"[for Lane in Wide.{target.index} => "
+            f"{lane_oracle(f'(if Lane < {source.lanes} then Low_Lanes (Lane) else High_Lanes (Lane - {source.lanes}))')}]"
+        )
+        matches = (
+            f"(for all Lane in Wide.{target.index} => "
+            f"Same_F32_Conversion (Wide.Extract (Scalar_Result, Lane), Expected (Lane)) "
+            f"and then Same_F32_Conversion (Native.Extract (Native_Result, Lane), Expected (Lane)))"
+            if operation == "Narrow_Round" else
+            "Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected"
+        )
         blocks.append(f'''      declare
          Low_Lanes : constant Wide.{source.values} := [{low_values}];
          High_Lanes : constant Wide.{source.values} := [{high_values}];
          Low_Value : constant Wide.{source.vector} := Wide.From_Lanes (Low_Lanes);
          High_Value : constant Wide.{source.vector} := Wide.From_Lanes (High_Lanes);
-         Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
-           ({root_half(source, 'Low_Lanes', 0)}, {root_half(source, 'Low_Lanes', source.half_lanes)});
-         Expected_High : constant {target.half} := Flyology_SIMD.{operation}
-           ({root_half(source, 'High_Lanes', 0)}, {root_half(source, 'High_Lanes', source.half_lanes)});
-         Expected : constant Wide.{target.values} :=
-           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         Expected : constant Wide.{target.values} := {expected};
+         Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Low_Value, High_Value);
+         Native_Result : constant Wide.{target.vector} := Native.{operation} (Low_Value, High_Value);
       begin
-         Check (Wide.To_Lanes (Wide.{operation} (Low_Value, High_Value)) = Expected
-           and then Native.To_Lanes (Native.{operation} (Low_Value, High_Value)) = Expected,
+         Check ({matches},
            "wide {operation} {source.vector} to {target.vector}");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Low_Lanes : constant Wide.{source.values} := Random_{source.values};
-            High_Lanes : constant Wide.{source.values} := Random_{source.values};
+            Low_Lanes : constant Wide.{source.values} := {random_source};
+            High_Lanes : constant Wide.{source.values} := {random_source};
             Low_Value : constant Wide.{source.vector} := Wide.From_Lanes (Low_Lanes);
             High_Value : constant Wide.{source.vector} := Wide.From_Lanes (High_Lanes);
-            Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
-              ({root_half(source, 'Low_Lanes', 0)}, {root_half(source, 'Low_Lanes', source.half_lanes)});
-            Expected_High : constant {target.half} := Flyology_SIMD.{operation}
-              ({root_half(source, 'High_Lanes', 0)}, {root_half(source, 'High_Lanes', source.half_lanes)});
-            Expected : constant Wide.{target.values} :=
-              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+            Expected : constant Wide.{target.values} := {expected};
+            Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Low_Value, High_Value);
+            Native_Result : constant Wide.{target.vector} := Native.{operation} (Low_Value, High_Value);
          begin
-            Check (Wide.To_Lanes (Wide.{operation} (Low_Value, High_Value)) = Expected
-              and then Native.To_Lanes (Native.{operation} (Low_Value, High_Value)) = Expected,
+            Check ({matches},
               "wide randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
          end;
       end loop;
@@ -818,30 +993,24 @@ def conversion_tests() -> str:
         source = BY_HALF[source_half]
         target = BY_HALF[target_half]
         values = lane_values(source.scalar, source.lanes)
+        expected = (
+            f"[for Lane in Wide.{target.index} => "
+            f"{convert_saturate_lane(source, target, 'Source_Lanes (Lane)')}]"
+        )
         blocks.append(f'''      declare
          Source_Lanes : constant Wide.{source.values} := [{values}];
          Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
-           ({root_half(source, 'Source_Lanes', 0)});
-         Expected_High : constant {target.half} := Flyology_SIMD.{operation}
-           ({root_half(source, 'Source_Lanes', source.half_lanes)});
-         Expected : constant Wide.{target.values} :=
-           {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+         Expected : constant Wide.{target.values} := {expected};
       begin
          Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
            and then Native.To_Lanes (Native.{operation} (Value)) = Expected,
            "wide {operation} {source.vector} to {target.vector}");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.{source.values} := Random_{source.values};
             Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant {target.half} := Flyology_SIMD.{operation}
-              ({root_half(source, 'Source_Lanes', 0)});
-            Expected_High : constant {target.half} := Flyology_SIMD.{operation}
-              ({root_half(source, 'Source_Lanes', source.half_lanes)});
-            Expected : constant Wide.{target.values} :=
-              {assembled_expected(target, 'Expected_Low', 'Expected_High')};
+            Expected : constant Wide.{target.values} := {expected};
          begin
             Check (Wide.To_Lanes (Wide.{operation} (Value)) = Expected
               and then Native.To_Lanes (Native.{operation} (Value)) = Expected,

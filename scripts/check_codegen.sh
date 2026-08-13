@@ -252,9 +252,45 @@ done
 require_count 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 8 \
   "$temporary/wide-numeric-conversion-undefined.txt" \
   'all eight matching selected conversion symbols in the Wide conversion probe'
-require_count 'flyology_simd__' 8 \
+non_numeric_conversion_cases='scripts/probes/wide_non_numeric_conversion_codegen_cases.txt'
+while read -r caller operation overload; do
+    extract_symbol "wide_numeric_conversion_codegen_probe__${caller}" \
+      "$temporary/wide-numeric-conversion-probe.txt" \
+      "$temporary/wide_non_numeric_${caller}.txt"
+    suffix='($|[^_])'
+    if [ "$overload" -gt 1 ]; then
+        suffix="__${overload}($|[^0-9])"
+    fi
+    if [ "$operation" = widen ]; then
+        require_count "flyology_simd__backends__native__widen_low${suffix}" 1 \
+          "$temporary/wide_non_numeric_${caller}.txt" \
+          "one matching selected low-half widening call in Wide ${caller} conversion"
+        require_count "flyology_simd__backends__native__widen_high${suffix}" 1 \
+          "$temporary/wide_non_numeric_${caller}.txt" \
+          "one matching selected high-half widening call in Wide ${caller} conversion"
+        require_count 'flyology_simd__backends__native__widen_(low|high)' 2 \
+          "$temporary/wide_non_numeric_${caller}.txt" \
+          "no extra or mismatched selected call in Wide ${caller} conversion"
+    else
+        require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+          "$temporary/wide_non_numeric_${caller}.txt" \
+          "two matching selected 128-bit calls in Wide ${caller} conversion"
+        require_count "flyology_simd__backends__native__${operation}" 2 \
+          "$temporary/wide_non_numeric_${caller}.txt" \
+          "no extra or mismatched selected call in Wide ${caller} conversion"
+    fi
+    portable_operation=$operation
+    if [ "$operation" = widen ]; then portable_operation='widen_(low|high)'; fi
+    forbid_pattern "flyology_simd__(wide__)?${portable_operation}|flyology_simd__wide__native__" \
+      "$temporary/wide_non_numeric_${caller}.txt" \
+      "portable or public dispatcher call in Wide ${caller} conversion"
+done <"$non_numeric_conversion_cases"
+require_count 'flyology_simd__backends__native__(widen_(low|high)|narrow_(truncate|saturate|round)|convert_saturate)' 38 \
   "$temporary/wide-numeric-conversion-undefined.txt" \
-  'only the eight intended selected conversion symbols remain unresolved from the Wide conversion probe'
+  'all 38 selected non-numeric conversion symbols in the Wide conversion probe'
+require_count 'flyology_simd__' 46 \
+  "$temporary/wide-numeric-conversion-undefined.txt" \
+  'only the 38 non-numeric and eight numeric conversion symbols remain unresolved'
 require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
   "$temporary/integer-shift-undefined.txt" \
   'all four Native arithmetic-right-shift calls in the public caller probe'

@@ -56,6 +56,7 @@ MOVEMENT_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe
 MOVEMENT_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.adb"
 NUMERIC_CONVERSION_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.ads"
 NUMERIC_CONVERSION_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.adb"
+NON_NUMERIC_CONVERSION_CASES = ROOT / "scripts" / "probes" / "wide_non_numeric_conversion_codegen_cases.txt"
 
 
 @dataclass(frozen=True)
@@ -162,6 +163,16 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     """Describe the verified Wide.Native implementation class."""
     match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", declaration)
     operation = match.group(1) if match else ""
+    if operation in {"Widen_Low", "Widen_High"}:
+        part = "low" if operation == "Widen_Low" else "high"
+        return (
+            f"Cross-platform support: The AArch64 and x86-64 backends select "
+            f"the {part} private source part. The selected 128-bit Widen_Low "
+            "operation forms the low result part, and the selected 128-bit "
+            "Widen_High operation forms the high result part. In a scalar "
+            "build, the overload uses the same composition through the "
+            "portable 128-bit implementation."
+        )
     if operation in {
         "Reverse_Lanes", "Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High",
     }:
@@ -262,7 +273,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
         "Unordered", "Bit_Cast", "Load", "Store",
         "Load_Unaligned", "Store_Unaligned", "Load_Aligned", "Store_Aligned",
-        "Horizontal_Sum", "Widen_Low", "Widen_High", "Narrow_Truncate",
+        "Horizontal_Sum", "Narrow_Truncate",
         "Narrow_Saturate", "Narrow_Round", "Convert_Round",
         "Convert_Truncate_Saturate", "Convert_Saturate",
     }:
@@ -1806,9 +1817,44 @@ end Flyology_SIMD.Wide.Lookup_Mechanism;
 
 
 def numeric_conversion_probe_spec_text() -> str:
+    declarations = []
+    for source, _, target, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        stem = BY_HALF[source].scalar.lower()
+        for operation in ("Widen_Low", "Widen_High"):
+            declarations.append(
+                f"   function {stem}_{operation.lower()}\n"
+                f"     (Value : Flyology_SIMD.Wide.{source_wide}) return "
+                f"Flyology_SIMD.Wide.{target_wide};"
+            )
+    for operation, conversions in (
+        ("Narrow_Truncate", NARROWINGS),
+        ("Narrow_Saturate", (*NARROWINGS, *SIGNED_TO_UNSIGNED_NARROWINGS)),
+        ("Narrow_Round", FLOAT_NARROWINGS),
+    ):
+        for source, _, target, *_ in conversions:
+            source_wide = BY_HALF[source].vector
+            target_wide = BY_HALF[target].vector
+            name = f"{BY_HALF[source].scalar.lower()}_{operation.lower()}_{BY_HALF[target].scalar.lower()}"
+            declarations.append(
+                f"   function {name}\n"
+                f"     (Low, High : Flyology_SIMD.Wide.{source_wide}) return "
+                f"Flyology_SIMD.Wide.{target_wide};"
+            )
+    for source, _, target, *_ in SIGNED_UNSIGNED_CONVERSIONS:
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        name = f"{BY_HALF[source].scalar.lower()}_convert_saturate_{BY_HALF[target].scalar.lower()}"
+        declarations.append(
+            f"   function {name}\n"
+            f"     (Value : Flyology_SIMD.Wide.{source_wide}) return "
+            f"Flyology_SIMD.Wide.{target_wide};"
+        )
     return """with Flyology_SIMD.Wide;
 
 package Wide_Numeric_Conversion_Codegen_Probe is
+{non_numeric}
    function I32_To_F32
      (Value : Flyology_SIMD.Wide.I32x8) return Flyology_SIMD.Wide.F32x8;
    function U32_To_F32
@@ -1826,15 +1872,53 @@ package Wide_Numeric_Conversion_Codegen_Probe is
    function F64_To_U64
      (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.U64x4;
 end Wide_Numeric_Conversion_Codegen_Probe;
-"""
+""".format(non_numeric="\n".join(declarations))
 
 
 def numeric_conversion_probe_body_text() -> str:
+    bodies = []
+    for source, _, target, *_ in (*WIDENINGS, *FLOAT_WIDENINGS):
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        stem = BY_HALF[source].scalar.lower()
+        for operation in ("Widen_Low", "Widen_High"):
+            bodies.append(
+                f"   function {stem}_{operation.lower()}\n"
+                f"     (Value : Flyology_SIMD.Wide.{source_wide}) return "
+                f"Flyology_SIMD.Wide.{target_wide} is\n"
+                f"     (Native.{operation} (Value));"
+            )
+    for operation, conversions in (
+        ("Narrow_Truncate", NARROWINGS),
+        ("Narrow_Saturate", (*NARROWINGS, *SIGNED_TO_UNSIGNED_NARROWINGS)),
+        ("Narrow_Round", FLOAT_NARROWINGS),
+    ):
+        for source, _, target, *_ in conversions:
+            source_wide = BY_HALF[source].vector
+            target_wide = BY_HALF[target].vector
+            name = f"{BY_HALF[source].scalar.lower()}_{operation.lower()}_{BY_HALF[target].scalar.lower()}"
+            bodies.append(
+                f"   function {name}\n"
+                f"     (Low, High : Flyology_SIMD.Wide.{source_wide}) return "
+                f"Flyology_SIMD.Wide.{target_wide} is\n"
+                f"     (Native.{operation} (Low, High));"
+            )
+    for source, _, target, *_ in SIGNED_UNSIGNED_CONVERSIONS:
+        source_wide = BY_HALF[source].vector
+        target_wide = BY_HALF[target].vector
+        name = f"{BY_HALF[source].scalar.lower()}_convert_saturate_{BY_HALF[target].scalar.lower()}"
+        bodies.append(
+            f"   function {name}\n"
+            f"     (Value : Flyology_SIMD.Wide.{source_wide}) return "
+            f"Flyology_SIMD.Wide.{target_wide} is\n"
+            f"     (Native.Convert_Saturate (Value));"
+        )
     return """with Flyology_SIMD.Wide.Native;
 
 package body Wide_Numeric_Conversion_Codegen_Probe is
    package Native renames Flyology_SIMD.Wide.Native;
 
+{non_numeric}
    function I32_To_F32
      (Value : Flyology_SIMD.Wide.I32x8) return Flyology_SIMD.Wide.F32x8 is
      (Native.Convert_Round (Value));
@@ -1860,7 +1944,41 @@ package body Wide_Numeric_Conversion_Codegen_Probe is
      (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.U64x4 is
      (Native.Convert_Truncate_Saturate (Value));
 end Wide_Numeric_Conversion_Codegen_Probe;
-"""
+""".format(non_numeric="\n\n".join(bodies))
+
+
+def non_numeric_conversion_cases_text() -> str:
+    """Return the exact public-caller/selected-overload gate manifest."""
+    rows = []
+    for index, (source, _, _, *_) in enumerate((*WIDENINGS, *FLOAT_WIDENINGS), 1):
+        stem = BY_HALF[source].scalar.lower()
+        for operation in ("widen_low", "widen_high"):
+            rows.append(f"{stem}_{operation} widen {index}")
+    truncate_index = saturate_index = 0
+    for operation, conversions in (
+        ("narrow_truncate", NARROWINGS),
+        ("narrow_saturate", (*NARROWINGS, *SIGNED_TO_UNSIGNED_NARROWINGS)),
+        ("narrow_round", FLOAT_NARROWINGS),
+    ):
+        for source, _, target, *_ in conversions:
+            if operation == "narrow_truncate":
+                truncate_index += 1
+                index = truncate_index
+            elif operation == "narrow_saturate":
+                saturate_index += 1
+                index = saturate_index
+            else:
+                index = 1
+            caller = f"{BY_HALF[source].scalar.lower()}_{operation}_{BY_HALF[target].scalar.lower()}"
+            rows.append(f"{caller} {operation} {index}")
+    for index, (source, _, target, *_) in enumerate(SIGNED_UNSIGNED_CONVERSIONS, 1):
+        caller = (
+            f"{BY_HALF[source].scalar.lower()}_convert_saturate_"
+            f"{BY_HALF[target].scalar.lower()}"
+        )
+        rows.append(f"{caller} convert_saturate {index}")
+    assert len(rows) == 38
+    return "\n".join(rows) + "\n"
 
 
 def permute_spec_text() -> str:
@@ -2882,6 +3000,7 @@ def main() -> None:
         LOOKUP_COMPOSED: lookup_composed_body_text(),
         NUMERIC_CONVERSION_PROBE_SPEC: numeric_conversion_probe_spec_text(),
         NUMERIC_CONVERSION_PROBE_BODY: numeric_conversion_probe_body_text(),
+        NON_NUMERIC_CONVERSION_CASES: non_numeric_conversion_cases_text(),
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),

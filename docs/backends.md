@@ -347,11 +347,18 @@ selected 128-bit calls or target instruction sequences and reject Wide scalar
 operation calls.
 Wide conversion operations compose the corresponding selected 128-bit
 operations. For the 38 Wide widening, narrowing, and same-width
-signedness-conversion overloads, tests use fixed vectors and 32 deterministic
-pseudorandom inputs. They compare scalar and Native results with results from
-the 128-bit authority. Direct floating-point edge cases cover signed zeros,
-infinities, quiet and signaling NaNs, subnormals, halfway rounding, and
-overflow in both private parts.
+signedness-conversion overloads, tests use fixed vectors and 128 deterministic
+pseudorandom inputs. Independent integer lane oracles check truncation,
+saturation, extension, and lane placement directly for scalar and Native
+results. Independent IEEE oracles check specified non-NaN widening and
+narrowing results bit for bit. When a NaN payload and signaling state are
+unspecified, they check NaN classification instead. Fixed floating cases cover signed zeros,
+infinities, quiet and signaling NaNs, subnormals, halfway rounding, and overflow
+in both private parts. Caller-level code-generation probes cover all 38
+overloads. Each gate requires two calls to the exact matching selected 128-bit
+operation. For widening, one call processes the low result and one call
+processes the high result. The gates reject mismatched selected operations,
+portable root operations, and Wide Native dispatcher calls.
 
 The eight Wide conversions between integer and floating lanes have additional
 independent coverage. Integer-to-floating cases use a bit-level rounding oracle

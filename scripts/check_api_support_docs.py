@@ -838,6 +838,43 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: incorrect exact {operation} "
                     f"{parameter} {result} selected-two-part classification"
                 )
+        non_numeric_counts = {
+            "Narrow_Truncate": 6,
+            "Narrow_Saturate": 9,
+            "Narrow_Round": 1,
+            "Convert_Saturate": 8,
+        }
+        phrase = (
+            "AArch64 and x86-64 backends run the selected 128-bit "
+            "operation on both private parts"
+        )
+        for operation, expected in non_numeric_counts.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            if len(blocks) != expected or sum(phrase in block for block in blocks) != expected:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: exact Wide {operation} "
+                    f"selected-two-part classifications are incomplete"
+                )
+        for operation, part in (("Widen_Low", "low"), ("Widen_High", "high")):
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            phrases = (
+                f"select the {part} private source part",
+                "selected 128-bit Widen_Low operation forms the low result part",
+                "selected 128-bit Widen_High operation forms the high result part",
+            )
+            if len(blocks) != 7 or any(
+                sum(phrase in block for block in blocks) != 7 for phrase in phrases
+            ):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: exact Wide {operation} "
+                    "selected-source/two-result-part classifications are incomplete"
+                )
     return invalid
 
 
