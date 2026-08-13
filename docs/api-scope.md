@@ -34,6 +34,8 @@ implementations for selected `U8x32` and `I8x32` operations and for `U8x32`
 operations, both interleave operations, and both deinterleave operations. The
 optional AVX2 backend also supplies these operations and both
 `Permute_Lanes` overloads for all ten Wide value types.
+It supplies isolated 256-bit `Add`, `Subtract`, `Multiply`, and `Divide`
+implementations for `F32x8` and `F64x4`.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
@@ -214,7 +216,7 @@ An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
 aligned operation requires 32-byte alignment. Other Wide operations have no
 AVX2-specific 256-bit implementation or code-generation claim outside the
-documented byte, table-lookup, and lane-movement groups.
+documented byte, floating-arithmetic, table-lookup, and lane-movement groups.
 
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body

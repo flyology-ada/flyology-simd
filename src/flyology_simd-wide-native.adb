@@ -1,6 +1,7 @@
 with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
+with Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 with Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with Flyology_SIMD.Wide.Permute_Mechanism;
@@ -9,6 +10,7 @@ with System.Storage_Elements;
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
+   package Float_Arithmetic_Mechanism renames Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
    package Float_Reduce_Mechanism renames Flyology_SIMD.Wide.Float_Reduce_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    package Permute_Mechanism renames Flyology_SIMD.Wide.Permute_Mechanism;
@@ -1783,20 +1785,16 @@ package body Flyology_SIMD.Wide.Native is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));
 
    function Add (Left, Right : F32x8) return F32x8 is
-     ((Low => Flyology_SIMD.Backends.Native.Add (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Add (Left, Right));
 
    function Subtract (Left, Right : F32x8) return F32x8 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Subtract (Left, Right));
 
    function Multiply (Left, Right : F32x8) return F32x8 is
-     ((Low => Flyology_SIMD.Backends.Native.Multiply (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Multiply (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Multiply (Left, Right));
 
    function Divide (Left, Right : F32x8) return F32x8 is
-     ((Low => Flyology_SIMD.Backends.Native.Divide (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Divide (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Divide (Left, Right));
 
    function Min_Number (Left, Right : F32x8) return F32x8 is
      ((Low => Flyology_SIMD.Backends.Native.Min_Number (Left.Low, Right.Low),
@@ -1945,20 +1943,16 @@ package body Flyology_SIMD.Wide.Native is
      ((Low => Flyology_SIMD.Backends.Native.Bit_Cast (Value.Low), High => Flyology_SIMD.Backends.Native.Bit_Cast (Value.High)));
 
    function Add (Left, Right : F64x4) return F64x4 is
-     ((Low => Flyology_SIMD.Backends.Native.Add (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Add (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Add (Left, Right));
 
    function Subtract (Left, Right : F64x4) return F64x4 is
-     ((Low => Flyology_SIMD.Backends.Native.Subtract (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Subtract (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Subtract (Left, Right));
 
    function Multiply (Left, Right : F64x4) return F64x4 is
-     ((Low => Flyology_SIMD.Backends.Native.Multiply (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Multiply (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Multiply (Left, Right));
 
    function Divide (Left, Right : F64x4) return F64x4 is
-     ((Low => Flyology_SIMD.Backends.Native.Divide (Left.Low, Right.Low),
-       High => Flyology_SIMD.Backends.Native.Divide (Left.High, Right.High)));
+     (Float_Arithmetic_Mechanism.Divide (Left, Right));
 
    function Min_Number (Left, Right : F64x4) return F64x4 is
      ((Low => Flyology_SIMD.Backends.Native.Min_Number (Left.Low, Right.Low),

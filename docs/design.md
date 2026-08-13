@@ -130,8 +130,8 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   differential tests and focused code-generation checks;
 - `x86_64`: full-family SSE2 lowering with explicit scalar composition for
   operations not expressible in SSE2 without changing semantics;
-- optional AVX2 whole-buffer objects and the optional Wide byte-operation
-  subprograms are compiled separately with `-mavx2`.
+- optional AVX2 whole-buffer objects and the optional Wide byte, floating,
+  lookup, and permutation subprograms are compiled separately with `-mavx2`.
 
 `Flyology_SIMD.Wide` is the scalar authority for the initial 256-bit profile.
 Its private values currently contain two 128-bit parts.
@@ -147,6 +147,8 @@ operations are `Reverse_Lanes`, both slide operations, both interleave
 operations, and both deinterleave operations. The AVX2 backend also supplies
 these operations and both `Permute_Lanes` overloads for all ten Wide value
 types.
+The optional AVX2 backend also supplies isolated 256-bit floating arithmetic
+for `F32x8` and `F64x4`.
 Wide bit casts compose two same-shape 128-bit bit casts. The Wide lane-movement
 operations and both `Permute_Lanes` overloads use a target-selected permutation
 mechanism. On AArch64, reverse, slides, and the one-source `Permute_Lanes`
@@ -174,6 +176,10 @@ dedicated comparison subprograms. Less-than swaps the greater-than operands.
 `Less_Equal (Left, Right)` complements `Greater_Than (Left, Right)`.
 `Greater_Equal (Left, Right)` complements `Greater_Than (Right, Left)`.
 `Select_Value` expands the compact mask and selects one value in each lane.
+The optional AVX2 floating arithmetic mechanism applies one 256-bit `vaddps`,
+`vaddpd`, `vsubps`, `vsubpd`, `vmulps`, `vmulpd`, `vdivps`, or `vdivpd`
+operation. Each isolated subprogram ends with `vzeroupper`. The composed
+x86-64 and AArch64 backends retain two selected 128-bit operations.
 AVX2 has no packed byte multiplication instruction. `Multiply_Wrap` separates
 the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
 product to eight bits, and restores the original byte positions.

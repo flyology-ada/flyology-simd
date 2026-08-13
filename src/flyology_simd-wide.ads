@@ -2882,25 +2882,25 @@ is
    --  @return The operation result.
    function Add (Left, Right : F32x8) return F32x8;
    --  Apply Add independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vaddps operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract (Left, Right : F32x8) return F32x8;
    --  Apply Subtract independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vsubps operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply (Left, Right : F32x8) return F32x8;
    --  Apply Multiply independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vmulps operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Divide (Left, Right : F32x8) return F32x8;
    --  Apply Divide independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vdivps operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3143,25 +3143,25 @@ is
    --  @return The operation result.
    function Add (Left, Right : F64x4) return F64x4;
    --  Apply Add independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vaddpd operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract (Left, Right : F64x4) return F64x4;
    --  Apply Subtract independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vsubpd operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply (Left, Right : F64x4) return F64x4;
    --  Apply Multiply independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vmulpd operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Divide (Left, Right : F64x4) return F64x4;
    --  Apply Divide independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit vdivpd operation and vzeroupper. In a scalar build, the matching Wide.Native overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

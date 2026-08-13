@@ -6398,6 +6398,65 @@ procedure Wide_Tests is
                                     Reference_Reduce_Max_Number (Values)),
            "F32x8 independent reduction oracle " & Context);
       end Check_Reductions;
+      function Same_Arithmetic
+        (Actual, Expected : F32) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Arithmetic
+        (Left_Values, Right_Values : Wide.Lane_Values_F32x8; Context : String)
+      is
+         Left_Value : constant Wide.F32x8 :=
+           Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.F32x8 :=
+           Wide.From_Lanes (Right_Values);
+         Scalar_Add : constant Wide.F32x8 :=
+           Wide.Add (Left_Value, Right_Value);
+         Native_Add : constant Wide.F32x8 :=
+           Native.Add (Left_Value, Right_Value);
+         Scalar_Subtract : constant Wide.F32x8 :=
+           Wide.Subtract (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.F32x8 :=
+           Native.Subtract (Left_Value, Right_Value);
+         Scalar_Multiply : constant Wide.F32x8 :=
+           Wide.Multiply (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.F32x8 :=
+           Native.Multiply (Left_Value, Right_Value);
+         Scalar_Divide : constant Wide.F32x8 :=
+           Wide.Divide (Left_Value, Right_Value);
+         Native_Divide : constant Wide.F32x8 :=
+           Native.Divide (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check
+              (Same_Arithmetic
+                 (Wide.Extract (Scalar_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane)),
+               "F32x8 independent arithmetic oracle " & Context
+               & Lane'Image);
+         end loop;
+      end Check_Arithmetic;
 
       function Reference_Compress
         (Values : Wide.Lane_Values_F32x8; Bits : Wide.Mask_Bits_32x8)
@@ -6640,6 +6699,9 @@ procedure Wide_Tests is
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (Lane) + 2.0], "F32x8 add");
       Check (Wide.To_Lanes (Wide.Multiply (A, Two)) =
         [for Lane in Wide.Lane_Index_32x8 => A_Lanes (Lane) * 2.0], "F32x8 multiply");
+      Check_Arithmetic (A_Lanes, [others => 2.0], "fixed finite");
+      Check_Arithmetic (Special_Lanes, Compaction_Extra_Lanes,
+                        "fixed IEEE categories");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F32x8 ordered comparison");
 
@@ -7092,6 +7154,12 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
               "F32x8 randomized arithmetic" & Iteration'Image);
+            Check_Arithmetic
+              (R_A_Lanes, R_B_Lanes,
+               "randomized finite" & Iteration'Image);
+            Check_Arithmetic
+              (R_Bit_Lanes, Special_Lanes,
+               "randomized raw bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Min_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Min_Number (R_A, R_B))
               and then Native.To_Lanes (Native.Max_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Max_Number (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
@@ -7283,6 +7351,65 @@ procedure Wide_Tests is
                                     Reference_Reduce_Max_Number (Values)),
            "F64x4 independent reduction oracle " & Context);
       end Check_Reductions;
+      function Same_Arithmetic
+        (Actual, Expected : F64) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Arithmetic
+        (Left_Values, Right_Values : Wide.Lane_Values_F64x4; Context : String)
+      is
+         Left_Value : constant Wide.F64x4 :=
+           Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.F64x4 :=
+           Wide.From_Lanes (Right_Values);
+         Scalar_Add : constant Wide.F64x4 :=
+           Wide.Add (Left_Value, Right_Value);
+         Native_Add : constant Wide.F64x4 :=
+           Native.Add (Left_Value, Right_Value);
+         Scalar_Subtract : constant Wide.F64x4 :=
+           Wide.Subtract (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.F64x4 :=
+           Native.Subtract (Left_Value, Right_Value);
+         Scalar_Multiply : constant Wide.F64x4 :=
+           Wide.Multiply (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.F64x4 :=
+           Native.Multiply (Left_Value, Right_Value);
+         Scalar_Divide : constant Wide.F64x4 :=
+           Wide.Divide (Left_Value, Right_Value);
+         Native_Divide : constant Wide.F64x4 :=
+           Native.Divide (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check
+              (Same_Arithmetic
+                 (Wide.Extract (Scalar_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane)),
+               "F64x4 independent arithmetic oracle " & Context
+               & Lane'Image);
+         end loop;
+      end Check_Arithmetic;
 
       function Reference_Compress
         (Values : Wide.Lane_Values_F64x4; Bits : Wide.Mask_Bits_64x4)
@@ -7525,6 +7652,9 @@ procedure Wide_Tests is
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (Lane) + 2.0], "F64x4 add");
       Check (Wide.To_Lanes (Wide.Multiply (A, Two)) =
         [for Lane in Wide.Lane_Index_64x4 => A_Lanes (Lane) * 2.0], "F64x4 multiply");
+      Check_Arithmetic (A_Lanes, [others => 2.0], "fixed finite");
+      Check_Arithmetic (Special_Lanes, Compaction_Extra_Lanes,
+                        "fixed IEEE categories");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F64x4 ordered comparison");
 
@@ -7977,6 +8107,12 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
               "F64x4 randomized arithmetic" & Iteration'Image);
+            Check_Arithmetic
+              (R_A_Lanes, R_B_Lanes,
+               "randomized finite" & Iteration'Image);
+            Check_Arithmetic
+              (R_Bit_Lanes, Special_Lanes,
+               "randomized raw bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Min_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Min_Number (R_A, R_B))
               and then Native.To_Lanes (Native.Max_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Max_Number (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))

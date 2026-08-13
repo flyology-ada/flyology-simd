@@ -39,6 +39,13 @@ FLOAT_REDUCE_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-f
 FLOAT_REDUCE_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-float_reduce_mechanism.adb"
 FLOAT_REDUCE_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_reduce_mechanism.adb"
 FLOAT_REDUCE_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_reduce_mechanism.adb"
+FLOAT_ARITH_SPEC = ROOT / "src" / "flyology_simd-wide-float_arithmetic_mechanism.ads"
+FLOAT_ARITH_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
+FLOAT_ARITH_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
+FLOAT_ARITH_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
+FLOAT_ARITH_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
+FLOAT_ARITH_AVX2_LEAF_SPEC = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.ads"
+FLOAT_ARITH_AVX2_LEAF_BODY = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.adb"
 
 
 @dataclass(frozen=True)
@@ -243,9 +250,22 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "AArch64 and x86-64 call the selected 128-bit operation only on "
             "the private part that contains the requested lane"
         )
-    elif operation in {
-        "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
-    }:
+    elif operation in {"Add", "Subtract", "Multiply", "Divide"}:
+        precision = "ps" if "F32x8" in declaration else "pd"
+        instruction = {
+            "Add": f"vadd{precision}",
+            "Subtract": f"vsub{precision}",
+            "Multiply": f"vmul{precision}",
+            "Divide": f"vdiv{precision}",
+        }[operation]
+        return (
+            "Cross-platform support: The AArch64 backend and the composed "
+            "x86-64 backend run the selected 128-bit operation on both private "
+            "parts. The optional AVX2 backend uses one isolated 256-bit "
+            f"{instruction} operation and vzeroupper. In a scalar build, this "
+            "overload calls the portable Wide implementation."
+        )
+    elif operation in {"Min_Number", "Max_Number"}:
         mechanism = (
             "AArch64 and x86-64 run the selected 128-bit operation on both "
             "private parts"
@@ -763,6 +783,13 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
                 f"   function {name} (Left, Right : {f.vector}) return {f.vector} is\n"
                 f"     (Byte_Mechanism.{name} (Left, Right));"
             )
+        elif p != "Flyology_SIMD" and f.floating and name in {
+            "Add", "Subtract", "Multiply", "Divide",
+        }:
+            out.append(
+                f"   function {name} (Left, Right : {f.vector}) return {f.vector} is\n"
+                f"     (Float_Arithmetic_Mechanism.{name} (Left, Right));"
+            )
         else:
             out.append(pair_function(name, f, f"Left, Right : {f.vector}", "Left.Low, Right.Low", "Left.High, Right.High", prefix=p))
     if not f.floating:
@@ -1062,6 +1089,7 @@ def native_body_text() -> str:
     return f"""with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
+with Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 with Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 with Flyology_SIMD.Wide.Lookup_Mechanism;
 with Flyology_SIMD.Wide.Permute_Mechanism;
@@ -1070,6 +1098,7 @@ with System.Storage_Elements;
 package body Flyology_SIMD.Wide.Native is
    package Byte_Mechanism renames Flyology_SIMD.Wide.Byte_Mechanism;
    package Compact_Mechanism renames Flyology_SIMD.Wide.Compact_Mechanism;
+   package Float_Arithmetic_Mechanism renames Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
    package Float_Reduce_Mechanism renames Flyology_SIMD.Wide.Float_Reduce_Mechanism;
    package Lookup_Mechanism renames Flyology_SIMD.Wide.Lookup_Mechanism;
    package Permute_Mechanism renames Flyology_SIMD.Wide.Permute_Mechanism;
@@ -1147,6 +1176,122 @@ is
    --  @param Value The input lanes.
    --  @return The ordered binary64 maximum-number result.
 end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+"""
+
+
+def float_arithmetic_spec_text() -> str:
+    declarations = []
+    for vector in ("F32x8", "F64x4"):
+        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+            declarations.append(
+                f"   function {operation} (Left, Right : {vector}) return {vector}\n"
+                "     with Inline_Always;\n"
+                f"   --  Apply {operation} independently to corresponding lanes.\n"
+                "   --  @param Left The left input lanes.\n"
+                "   --  @param Right The right input lanes.\n"
+                "   --  @return The lane-wise floating-point results."
+            )
+    return f"""private package Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
+  with Preelaborate
+is
+   --  Target-selected Wide floating-point arithmetic.
+
+{chr(10).join(declarations)}
+end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
+"""
+
+
+def float_arithmetic_composed_body_text() -> str:
+    bodies = []
+    for vector, half in (("F32x8", "F32x4"), ("F64x4", "F64x2")):
+        del half
+        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+            bodies.append(
+                f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
+                f"     ((Low => Flyology_SIMD.Backends.Native.{operation}\n"
+                "                (Left.Low, Right.Low),\n"
+                f"       High => Flyology_SIMD.Backends.Native.{operation}\n"
+                "                (Left.High, Right.High)));"
+            )
+    return f"""with Flyology_SIMD.Backends.Native;
+
+package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
+"""
+
+
+def float_arithmetic_avx2_leaf_spec_text() -> str:
+    declarations = []
+    for vector in ("F32x8", "F64x4"):
+        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+            declarations.append(
+                f"   function {operation} (Left, Right : {vector}) return {vector};"
+            )
+    return f"""private package Flyology_SIMD.Wide.Float_AVX2_Leaf
+  with Preelaborate
+is
+   --  Isolated AVX2-width floating-point arithmetic leaves.
+
+{chr(10).join(declarations)}
+end Flyology_SIMD.Wide.Float_AVX2_Leaf;
+"""
+
+
+def float_arithmetic_avx2_leaf_body_text() -> str:
+    bodies = []
+    instructions = {
+        "Add": ("vaddps", "vaddpd"),
+        "Subtract": ("vsubps", "vsubpd"),
+        "Multiply": ("vmulps", "vmulpd"),
+        "Divide": ("vdivps", "vdivpd"),
+    }
+    for vector, instruction_index in (("F32x8", 0), ("F64x4", 1)):
+        for operation, operation_instructions in instructions.items():
+            instruction = operation_instructions[instruction_index]
+            bodies.append(
+                f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
+                f"      Result : {vector};\n"
+                "   begin\n"
+                "      Asm\n"
+                "        (Template =>\n"
+                '           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &\n'
+                '           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &\n'
+                f'           "{instruction} %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &\n'
+                '           "vmovdqu %%ymm0, (%0)" & ASCII.LF & ASCII.HT &\n'
+                '           "vzeroupper",\n'
+                "         Inputs =>\n"
+                "           [System.Address'Asm_Input (\"r\", Result'Address),\n"
+                "            System.Address'Asm_Input (\"r\", Left'Address),\n"
+                "            System.Address'Asm_Input (\"r\", Right'Address)],\n"
+                '         Clobber => "ymm0,ymm1,memory",\n'
+                "         Volatile => True);\n"
+                "      return Result;\n"
+                f"   end {operation};"
+            )
+    return f"""with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Float_AVX2_Leaf is
+   use System.Machine_Code;
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Float_AVX2_Leaf;
+"""
+
+
+def float_arithmetic_avx2_body_text() -> str:
+    bodies = []
+    for vector in ("F32x8", "F64x4"):
+        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+            bodies.append(
+                f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
+                f"     (Flyology_SIMD.Wide.Float_AVX2_Leaf.{operation} (Left, Right));"
+            )
+    return f"""with Flyology_SIMD.Wide.Float_AVX2_Leaf;
+
+package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 """
 
 
@@ -1952,6 +2097,13 @@ def main() -> None:
         FLOAT_REDUCE_COMPOSED: float_reduce_composed_body_text(),
         FLOAT_REDUCE_AVX2: float_reduce_composed_body_text(),
         FLOAT_REDUCE_INVALID: float_reduce_composed_body_text(),
+        FLOAT_ARITH_SPEC: float_arithmetic_spec_text(),
+        FLOAT_ARITH_AARCH64: float_arithmetic_composed_body_text(),
+        FLOAT_ARITH_COMPOSED: float_arithmetic_composed_body_text(),
+        FLOAT_ARITH_AVX2: float_arithmetic_avx2_body_text(),
+        FLOAT_ARITH_INVALID: float_arithmetic_composed_body_text(),
+        FLOAT_ARITH_AVX2_LEAF_SPEC: float_arithmetic_avx2_leaf_spec_text(),
+        FLOAT_ARITH_AVX2_LEAF_BODY: float_arithmetic_avx2_leaf_body_text(),
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),

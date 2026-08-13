@@ -7,6 +7,27 @@ package Wide_Codegen_Probe is
    function F32_Multiply
      (Left, Right : Flyology_SIMD.Wide.F32x8)
       return Flyology_SIMD.Wide.F32x8;
+   function F32_Add
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
+   function F32_Subtract
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
+   function F32_Divide
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
+   function F64_Add
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
+   function F64_Subtract
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
+   function F64_Multiply
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
+   function F64_Divide
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
    function F32_To_U32_Bits
      (Value : Flyology_SIMD.Wide.F32x8)
       return Flyology_SIMD.Wide.U32x8;

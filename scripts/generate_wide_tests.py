@@ -1767,6 +1767,65 @@ def float_test(f: Family) -> str:
                                     Reference_Reduce_Max_Number (Values)),
            "{f.vector} independent reduction oracle " & Context);
       end Check_Reductions;
+      function Same_Arithmetic
+        (Actual, Expected : {f.scalar}) return Boolean is
+        (if Is_NaN (Expected)
+         then Is_NaN (Actual)
+         else Value_To_Bits (Actual) = Value_To_Bits (Expected));
+      procedure Check_Arithmetic
+        (Left_Values, Right_Values : Wide.{f.values}; Context : String)
+      is
+         Left_Value : constant Wide.{f.vector} :=
+           Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.{f.vector} :=
+           Wide.From_Lanes (Right_Values);
+         Scalar_Add : constant Wide.{f.vector} :=
+           Wide.Add (Left_Value, Right_Value);
+         Native_Add : constant Wide.{f.vector} :=
+           Native.Add (Left_Value, Right_Value);
+         Scalar_Subtract : constant Wide.{f.vector} :=
+           Wide.Subtract (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.{f.vector} :=
+           Native.Subtract (Left_Value, Right_Value);
+         Scalar_Multiply : constant Wide.{f.vector} :=
+           Wide.Multiply (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.{f.vector} :=
+           Native.Multiply (Left_Value, Right_Value);
+         Scalar_Divide : constant Wide.{f.vector} :=
+           Wide.Divide (Left_Value, Right_Value);
+         Native_Divide : constant Wide.{f.vector} :=
+           Native.Divide (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check
+              (Same_Arithmetic
+                 (Wide.Extract (Scalar_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Add, Lane),
+                  Left_Values (Lane) + Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Subtract, Lane),
+                  Left_Values (Lane) - Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Multiply, Lane),
+                  Left_Values (Lane) * Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Scalar_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane))
+               and then Same_Arithmetic
+                 (Wide.Extract (Native_Divide, Lane),
+                  Left_Values (Lane) / Right_Values (Lane)),
+               "{f.vector} independent arithmetic oracle " & Context
+               & Lane'Image);
+         end loop;
+      end Check_Arithmetic;
 {compaction_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
@@ -1819,6 +1878,9 @@ def float_test(f: Family) -> str:
         [for Lane in Wide.{f.index} => A_Lanes (Lane) + 2.0], "{f.vector} add");
       Check (Wide.To_Lanes (Wide.Multiply (A, Two)) =
         [for Lane in Wide.{f.index} => A_Lanes (Lane) * 2.0], "{f.vector} multiply");
+      Check_Arithmetic (A_Lanes, [others => 2.0], "fixed finite");
+      Check_Arithmetic (Special_Lanes, Compaction_Extra_Lanes,
+                        "fixed IEEE categories");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "{f.vector} ordered comparison");
 {compaction_fixed_tests(f, 'A_Lanes')}
@@ -2111,6 +2173,12 @@ def float_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Subtract (R_A, R_B)) = Wide.To_Lanes (Wide.Subtract (R_A, R_B))
               and then Native.To_Lanes (Native.Multiply (R_A, R_B)) = Wide.To_Lanes (Wide.Multiply (R_A, R_B)),
               "{f.vector} randomized arithmetic" & Iteration'Image);
+            Check_Arithmetic
+              (R_A_Lanes, R_B_Lanes,
+               "randomized finite" & Iteration'Image);
+            Check_Arithmetic
+              (R_Bit_Lanes, Special_Lanes,
+               "randomized raw bits" & Iteration'Image);
             Check (Native.To_Lanes (Native.Min_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Min_Number (R_A, R_B))
               and then Native.To_Lanes (Native.Max_Number (R_A, R_B)) = Wide.To_Lanes (Wide.Max_Number (R_A, R_B))
               and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))

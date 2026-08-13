@@ -9,7 +9,7 @@ continuous execution.  A source file alone is not a support claim.
 | AArch64 NEON full 128-bit family | yes | yes | yes, macOS AArch64 | macOS AArch64 |
 | x86-64 SSE2 full 128-bit family | yes | Linux x86-64 | differential + ASan, Linux x86-64 | Linux x86-64 |
 | x86-64 AVX2 algorithms | yes | Linux x86-64 | differential, Linux x86-64 AVX2 | Linux x86-64 with runtime gate |
-| x86-64 AVX2 Wide byte operations and permutation | yes | Linux x86-64 | differential + code generation, Linux x86-64 AVX2 | Linux x86-64, static selection |
+| x86-64 AVX2 Wide byte, floating arithmetic, and permutation operations | yes | Linux x86-64 | differential + code generation, Linux x86-64 AVX2 | Linux x86-64, static selection |
 
 The initial `Flyology_SIMD.Wide` profile is compiled and executed on the local
 Darwin AArch64 development host. The workflow is configured to run
@@ -135,8 +135,10 @@ saturating arithmetic, bitwise operations, minimum, maximum, comparison, and
 value selection. The lane-movement operations are `Reverse_Lanes`, both slide
 operations, both interleave operations, and both deinterleave operations. The
 AVX2 selection also implements these operations, the 256-bit `U8x32` table
-lookup, and both `Permute_Lanes` overloads for all ten Wide value types. No
-other Wide operation has a 256-bit instruction claim. The
+lookup, and both `Permute_Lanes` overloads for all ten Wide value types. The
+`F32x8` and `F64x4` `Add`, `Subtract`, `Multiply`, and `Divide` overloads also
+have isolated 256-bit implementations. No other Wide operation has a 256-bit
+instruction claim. The
 current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
@@ -195,6 +197,15 @@ independent lane result. Code-generation checks inspect all 22 overloads and
 require `vzeroupper` in each subprogram. Wrapping byte multiplication uses
 `vpmullw` plus word masks and shifts because AVX2 has no packed byte multiply
 instruction.
+
+The optional AVX2 floating arithmetic mechanism uses one isolated 256-bit
+packed instruction for each `F32x8` or `F64x4` `Add`, `Subtract`, `Multiply`,
+and `Divide` call. Independent lane oracles cover fixed finite values, IEEE
+special categories, 128 deterministic finite vectors, and 128 raw-bit vectors
+for each type. Caller probes require one isolated leaf. Exact leaf gates
+require the matching packed AVX instruction and `vzeroupper`, and reject
+portable or selected-128 calls. The composed x86-64 and AArch64 paths retain
+two selected 128-bit operations.
 
 For both signed and unsigned bytes, separate exhaustive tests cover all 65,536
 ordered byte pairs for equality and the four ordered comparisons. Individual

@@ -81,6 +81,8 @@ greater-than operands. `Less_Equal (Left, Right)` complements
 both slide operations, both interleave operations, and both deinterleave
 operations. The AVX2 selection also implements these operations, the `U8x32`
 table lookup, and both `Permute_Lanes` overloads for all ten Wide value types.
+It also uses isolated 256-bit implementations for `F32x8` and `F64x4`
+addition, subtraction, multiplication, and division.
 Before a target runs this build, CPUID must report the
 AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.
 Select the backend with:
