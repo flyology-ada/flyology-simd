@@ -142,6 +142,35 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact floating "
                 "Reduce_Add backend classifications"
             )
+        floating_minmax_support = {
+            "Min_Number": (
+                "integer-only SSE2 classification and bit-selection sequence that preserves",
+                2,
+            ),
+            "Max_Number": (
+                "integer-only SSE2 classification and bit-selection sequence that preserves",
+                2,
+            ),
+            "Reduce_Min_Number": (
+                "integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order",
+                2,
+            ),
+            "Reduce_Max_Number": (
+                "integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order",
+                2,
+            ),
+        }
+        for operation, (phrase, expected) in floating_minmax_support.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            found = sum(phrase in block for block in blocks)
+            if len(blocks) != expected or found != expected:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    "SSE2 classifications"
+                )
         conversion_support = {
             "Widen_Low": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),
             "Widen_High": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),

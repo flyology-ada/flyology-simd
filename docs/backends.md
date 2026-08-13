@@ -79,8 +79,12 @@ Minimum and maximum reductions use packed minimum or maximum where SSE2 has
 the lane operation, and comparison plus bit selection otherwise. Floating
 `Reduce_Add` uses a dedicated SSE2 sequence. It starts from positive zero and
 adds one lane at a time in ascending order.
-Floating `Min_Number`, `Max_Number`, `Reduce_Min_Number`, and
-`Reduce_Max_Number` use scalar composition. The
+Floating `Min_Number` and `Max_Number` use integer-only SSE2 classification
+and bit-selection sequences. The SSE2 reduction sequences start with lane 0.
+They classify each remaining lane's IEEE encoding and select the result bits
+in ascending lane order. These sequences
+preserve the documented quiet-NaN, signaling-NaN, and signed-zero results
+without executing a floating comparison during classification. The
 integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
 overloads use SSE2 unpack, shuffle, clamp, and pack sequences. The current bit
 casts use scalar composition on x86-64. Conversions between 32-bit integer and

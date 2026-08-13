@@ -1884,7 +1884,7 @@ procedure Family_Tests is
                Check (Bits_F32x4 (Extract (Add (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F32x4 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F32x4 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F32x4 (Extract (Divide (R_A, R_B), Lane)) = Bits_F32x4 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F32x4 randomized independent division" & Lane'Image); end if;
                Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), "F32x4 randomized independent comparison" & Lane'Image);
-               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), "F32x4 randomized independent min/max" & Lane'Image);
+               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), "F32x4 randomized independent scalar and native min/max" & Lane'Image);
             end loop;
          end;
       end loop;
@@ -2091,7 +2091,7 @@ procedure Family_Tests is
                Check (Bits_F64x2 (Extract (Add (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Subtract (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_F64x2 (Extract (Multiply (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) * Extract (R_B, Lane)), "F64x2 randomized independent arithmetic" & Lane'Image);
                if Extract (R_B, Lane) /= 0.0 then Check (Bits_F64x2 (Extract (Divide (R_A, R_B), Lane)) = Bits_F64x2 (Extract (R_A, Lane) / Extract (R_B, Lane)), "F64x2 randomized independent division" & Lane'Image); end if;
                Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), "F64x2 randomized independent comparison" & Lane'Image);
-               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), "F64x2 randomized independent min/max" & Lane'Image);
+               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), "F64x2 randomized independent scalar and native min/max" & Lane'Image);
             end loop;
          end;
       end loop;
@@ -2115,6 +2115,7 @@ procedure Family_Tests is
       pragma Suppress (Validity_Check);
       NaN32 : constant F32 := To_F32 (16#7FC0_0001#);
       SNaN32 : constant F32 := To_F32 (16#7F80_0001#);
+      SNaN32_B : constant F32 := To_F32 (16#FF80_0021#);
       Inf32 : constant F32 := To_F32 (16#7F80_0000#);
       Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);
       A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);
@@ -2127,6 +2128,7 @@ procedure Family_Tests is
       Two32_Map_B : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([Select_Right_Lane (0), Select_Left_Lane (1), Select_Right_Lane (2), Select_Left_Lane (3)]);
       NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);
       SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);
+      SNaN64_B : constant F64 := To_F64 (16#FFF0_0000_0000_0021#);
       Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);
       Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);
       A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);
@@ -2243,6 +2245,7 @@ procedure Family_Tests is
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Quiet32), 0)), "F32 signaling then quiet NaN");
       Check (Is_Quiet_NaN (Extract (Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet32, Signal32), 0)), "F32 quiet then signaling NaN");
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Signal32), 0)), "F32 two signaling NaNs");
+      Check (F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), From_Lanes ([SNaN32_B, 0.0, 0.0, 0.0])), 0)) = (F32_Bits (SNaN32) or 16#0040_0000#) and then F32_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN32_B, 0.0, 0.0, 0.0]), From_Lanes ([SNaN32, 0.0, 0.0, 0.0])), 0)) = (F32_Bits (SNaN32_B) or 16#0040_0000#), "F32 signaling NaN left precedence");
       Check (Is_NaN (Extract (Add (A32, B32), 0)) and then Is_NaN (Extract (Backends.Native.Add (A32, B32), 0)), "F32 NaN addition");
       Check (Is_NaN (Extract (Subtract (A32, B32), 1)) and then Is_NaN (Extract (Backends.Native.Subtract (A32, B32), 1)), "F32 infinity subtraction");
       Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, "F32 infinity multiplication");
@@ -2267,6 +2270,7 @@ procedure Family_Tests is
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Quiet64), 0)), "F64 signaling then quiet NaN");
       Check (Is_Quiet_NaN (Extract (Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet64, Signal64), 0)), "F64 quiet then signaling NaN");
       Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Signal64), 0)), "F64 two signaling NaNs");
+      Check (F64_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN64, 0.0]), From_Lanes ([SNaN64_B, 0.0])), 0)) = (F64_Bits (SNaN64) or 16#0008_0000_0000_0000#) and then F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64_B, 0.0]), From_Lanes ([SNaN64, 0.0])), 0)) = (F64_Bits (SNaN64_B) or 16#0008_0000_0000_0000#), "F64 signaling NaN left precedence");
       Check (Is_NaN (Extract (Add (A64, B64), 0)) and then Is_NaN (Extract (Backends.Native.Add (A64, B64), 0)), "F64 NaN addition");
       Check (Is_NaN (Extract (Subtract (Infinity64, Infinity64), 0)) and then Is_NaN (Extract (Backends.Native.Subtract (Infinity64, Infinity64), 0)), "F64 infinity subtraction");
       Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, "F64 infinity multiplication");

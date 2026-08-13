@@ -3389,13 +3389,13 @@ is
    --  @return The operation result.
    function Reduce_Min_Number (Value : F32x4) return F32
      renames Flyology_SIMD.Reduce_Min_Number;
-   --  Apply Min_Number to all floating lanes in ascending lane order.
+   --  Use lane zero as the initial result. Apply Min_Number to each remaining lane in ascending order.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F32x4) return F32
      renames Flyology_SIMD.Reduce_Max_Number;
-   --  Apply Max_Number to all floating lanes in ascending lane order.
+   --  Use lane zero as the initial result. Apply Max_Number to each remaining lane in ascending order.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
@@ -3689,13 +3689,13 @@ is
    --  @return The operation result.
    function Reduce_Min_Number (Value : F64x2) return F64
      renames Flyology_SIMD.Reduce_Min_Number;
-   --  Apply Min_Number to all floating lanes in ascending lane order.
+   --  Use lane zero as the initial result. Apply Min_Number to each remaining lane in ascending order.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F64x2) return F64
      renames Flyology_SIMD.Reduce_Max_Number;
-   --  Apply Max_Number to all floating lanes in ascending lane order.
+   --  Use lane zero as the initial result. Apply Max_Number to each remaining lane in ascending order.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.

@@ -132,8 +132,8 @@ OPERATION_DOCS = {
     "Reduce_Min": "Return the smallest integer lane.",
     "Reduce_Max": "Return the largest integer lane.",
     "Reduce_Add": "Add all floating lanes in ascending lane order.",
-    "Reduce_Min_Number": "Apply Min_Number to all floating lanes in ascending lane order.",
-    "Reduce_Max_Number": "Apply Max_Number to all floating lanes in ascending lane order.",
+    "Reduce_Min_Number": "Use lane zero as the initial result. Apply Min_Number to each remaining lane in ascending order.",
+    "Reduce_Max_Number": "Use lane zero as the initial result. Apply Max_Number to each remaining lane in ascending order.",
     "Reverse_Lanes": "Reverse logical lane order.",
     "Reverse_Bytes": "Reverse logical byte-lane order. This is the compatibility name for Reverse_Lanes.",
     "Make_Lane_Map": (
@@ -295,8 +295,6 @@ def native_support_doc(name: str, declaration: str) -> str:
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
             "Bit_Cast",
-            "Min_Number", "Max_Number",
-            "Reduce_Min_Number", "Reduce_Max_Number",
         }
         or (name in {"Convert_Round", "Convert_Truncate_Saturate"}
             and "64x2" in declaration)
@@ -386,6 +384,21 @@ def native_support_doc(name: str, declaration: str) -> str:
             "a dedicated SSE2 sequence that starts from positive zero and "
             f"adds one {lane_kind} lane at a time in ascending order"
         )
+    elif name in {
+        "Min_Number", "Max_Number", "Reduce_Min_Number", "Reduce_Max_Number"
+    }:
+        extreme = "minimum" if "Min" in name else "maximum"
+        aarch = f"a dedicated NEON number-{extreme} sequence"
+        if name in {"Min_Number", "Max_Number"}:
+            x86 = (
+                "a dedicated integer-only SSE2 classification and bit-selection "
+                "sequence that preserves the documented NaN and signed-zero rules"
+            )
+        else:
+            x86 = (
+                "a dedicated integer-only SSE2 classification and bit-selection "
+                "sequence that folds lanes in ascending order"
+            )
     elif name in {"Reduce_Min", "Reduce_Max"}:
         aarch = "a dedicated NEON packed reduction"
         result = "minimum" if name == "Reduce_Min" else "maximum"

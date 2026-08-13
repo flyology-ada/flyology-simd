@@ -3195,13 +3195,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F32x4) return F32x4;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F32x4) return F32x4;
    --  Return the floating number maximum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3211,13 +3211,13 @@ is
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F32x4) return F32;
-   --  Apply Min_Number to all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Use lane zero as the initial result. Apply Min_Number to each remaining lane in ascending order.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F32x4) return F32;
-   --  Apply Max_Number to all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Use lane zero as the initial result. Apply Max_Number to each remaining lane in ascending order.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : F32x4) return F32x4;
@@ -3454,13 +3454,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F64x2) return F64x2;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F64x2) return F64x2;
    --  Return the floating number maximum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3470,13 +3470,13 @@ is
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F64x2) return F64;
-   --  Apply Min_Number to all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Use lane zero as the initial result. Apply Min_Number to each remaining lane in ascending order.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max_Number (Value : F64x2) return F64;
-   --  Apply Max_Number to all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Use lane zero as the initial result. Apply Max_Number to each remaining lane in ascending order.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that folds lanes in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : F64x2) return F64x2;

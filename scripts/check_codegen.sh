@@ -139,6 +139,21 @@ require_count 'flyology_simd__backends__native__reduce_add' 2 \
 forbid_pattern 'flyology_simd__reduce_add' \
   "$temporary/float-reduction-undefined.txt" \
   'portable Reduce_Add call in the Native caller probe'
+require_count 'flyology_simd__backends__native__min_number' 2 \
+  "$temporary/float-reduction-undefined.txt" \
+  'two Native floating Min_Number calls in the public caller probe'
+require_count 'flyology_simd__backends__native__max_number' 2 \
+  "$temporary/float-reduction-undefined.txt" \
+  'two Native floating Max_Number calls in the public caller probe'
+require_count 'flyology_simd__backends__native__reduce_min_number' 2 \
+  "$temporary/float-reduction-undefined.txt" \
+  'two Native floating Reduce_Min_Number calls in the public caller probe'
+require_count 'flyology_simd__backends__native__reduce_max_number' 2 \
+  "$temporary/float-reduction-undefined.txt" \
+  'two Native floating Reduce_Max_Number calls in the public caller probe'
+forbid_pattern 'flyology_simd__(min_number|max_number|reduce_min_number|reduce_max_number)' \
+  "$temporary/float-reduction-undefined.txt" \
+  'portable floating min/max call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -501,6 +516,54 @@ case "$architecture" in
               "$temporary/${reduction}.txt" \
               "out-of-line or portable reduction in ${reduction}"
         done
+        while read -r symbol output kind steps; do
+            section=$output
+            output="$temporary/$section.txt"
+            extract_symbol "$symbol" "$temporary/native.txt" "$output"
+            require_pattern '(^|[[:space:]])pcmpgtd[[:space:]]' \
+              "$output" \
+              "integer SSE2 ordering in $section"
+            require_pattern '(^|[[:space:]])pcmpeqd[[:space:]]' \
+              "$output" \
+              "integer SSE2 NaN classification in $section"
+            require_pattern '(^|[[:space:]])pandn[[:space:]]' \
+              "$output" \
+              "SSE2 masked selection in $section"
+            require_pattern '(^|[[:space:]])por[[:space:]]' \
+              "$output" \
+              "SSE2 selected-value merge in $section"
+            require_pattern '(^|[[:space:]])pxor[[:space:]]' \
+              "$output" \
+              "SSE2 sortable-key or quiet-bit construction in $section"
+            require_pattern '(^|[[:space:]])ps(ra|rl|ll)(d|q)[[:space:]]' \
+              "$output" \
+              "SSE2 classification and sortable-key shifts in $section"
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__(min_number|max_number|reduce_min_number|reduce_max_number)' \
+              "$output" \
+              "portable or out-of-line helper in $section"
+            forbid_pattern '(^|[[:space:]])(min|max)(ps|pd|ss|sd)[[:space:]]|(^|[[:space:]])cmp(unord|lt|le|eq)(ps|pd|ss|sd)[[:space:]]' \
+              "$output" \
+              "floating comparison or bare min/max in $section"
+            if [ "$kind" = f64 ]; then
+                require_pattern '(^|[[:space:]])pshufd[[:space:]]' \
+                  "$output" \
+                  "64-bit dword-mask replication in $section"
+            fi
+            if [ "$steps" -gt 0 ]; then
+                require_count '(^|[[:space:]])psrldq[[:space:]]' "$steps" \
+                  "$output" \
+                  "ascending lane advances in $section"
+            fi
+        done <<'EOF'
+native_min_number_f32x4          min-number-f32x4          f32 0
+native_max_number_f32x4          max-number-f32x4          f32 0
+native_min_number_f64x2          min-number-f64x2          f64 0
+native_max_number_f64x2          max-number-f64x2          f64 0
+native_reduce_min_number_f32x4   reduce-min-number-f32x4   f32 3
+native_reduce_max_number_f32x4   reduce-max-number-f32x4   f32 3
+native_reduce_min_number_f64x2   reduce-min-number-f64x2   f64 1
+native_reduce_max_number_f64x2   reduce-max-number-f64x2   f64 1
+EOF
         require_pattern 'flyology_simd__wide__reduce_add' \
           "$temporary/wide-float-reduction-undefined.txt" \
           'portable ordered F32 addition reduction on x86-64'

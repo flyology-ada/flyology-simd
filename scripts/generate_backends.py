@@ -1152,7 +1152,7 @@ def x86_helpers() -> list[str]:
         "   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
         "      Result : Scalar_Type;",
         "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
         "      return Result;",
         "   end SSE2_Float_Reduce_128;",
         "",
@@ -1327,6 +1327,190 @@ def x86_float_reduce_add_instruction(bits: int, lanes: int) -> str:
         steps.append(f"{operation} %%xmm2, %%xmm0")
         if lane + 1 < lanes:
             steps.append(f"psrldq ${shift}, %%xmm2")
+    return "\n".join(steps)
+
+
+def x86_float_minmax_instruction(bits: int, maximum: bool) -> str:
+    """Return an SSE2 number-minimum/maximum with the public edge rules.
+
+    The implementation uses integer operations only.  This avoids the
+    operand-order rules of MINP*/MAXP* and avoids raising an invalid exception
+    while classifying a signaling NaN.  XMM6 and XMM7 retain the original
+    operands while XMM0 accumulates the result.
+    """
+    assert bits in (32, 64)
+    def select(mask: str, candidate: str) -> list[str]:
+        return [
+            f"movdqa %%{mask}, %%xmm2",
+            f"movdqa %%{candidate}, %%xmm3",
+            f"pand %%{mask}, %%xmm3",
+            "pandn %%xmm0, %%xmm2",
+            "por %%xmm2, %%xmm3",
+            "movdqa %%xmm3, %%xmm0",
+        ]
+
+    def nan_mask(source: str, signaling: bool) -> list[str]:
+        if bits == 32:
+            lines = [
+                f"movdqa %%{source}, %%xmm3",
+                "pcmpeqd %%xmm4, %%xmm4",
+                "psrld $1, %%xmm4",
+                "pand %%xmm4, %%xmm3",
+                "pcmpeqd %%xmm4, %%xmm4",
+                "pslld $24, %%xmm4",
+                "psrld $1, %%xmm4",
+                "pcmpgtd %%xmm4, %%xmm3",
+                f"movdqa %%{source}, %%xmm4",
+                "pslld $9, %%xmm4",
+                "psrad $31, %%xmm4",
+            ]
+        else:
+            # Absolute IEEE encodings fit in signed 64-bit order.  Compare
+            # each absolute value with positive infinity using the high signed
+            # dword and, when equal, the low unsigned dword.
+            lines = [
+                f"movdqa %%{source}, %%xmm1",
+                "pcmpeqd %%xmm2, %%xmm2",
+                "psrlq $1, %%xmm2",
+                "pand %%xmm2, %%xmm1",
+                "pcmpeqd %%xmm3, %%xmm3",
+                "psllq $53, %%xmm3",
+                "psrlq $1, %%xmm3",
+                "movdqa %%xmm1, %%xmm4",
+                "pcmpgtd %%xmm3, %%xmm4",
+                "pshufd $0xF5, %%xmm4, %%xmm4",
+                "movdqa %%xmm1, %%xmm5",
+                "pcmpeqd %%xmm3, %%xmm5",
+                "pshufd $0xF5, %%xmm5, %%xmm5",
+                "pcmpeqd %%xmm2, %%xmm2",
+                "pslld $31, %%xmm2",
+                "pxor %%xmm2, %%xmm1",
+                "pxor %%xmm2, %%xmm3",
+                "pcmpgtd %%xmm3, %%xmm1",
+                "pshufd $0xA0, %%xmm1, %%xmm1",
+                "pand %%xmm5, %%xmm1",
+                "por %%xmm1, %%xmm4",
+                "movdqa %%xmm4, %%xmm3",
+                f"movdqa %%{source}, %%xmm4",
+                "psllq $12, %%xmm4",
+                "pshufd $0xF5, %%xmm4, %%xmm4",
+                "psrad $31, %%xmm4",
+            ]
+        lines.append(
+            "pandn %%xmm3, %%xmm4"
+            if signaling
+            else "pand %%xmm3, %%xmm4"
+        )
+        return lines
+
+    def quiet(source: str) -> list[str]:
+        lines = [f"movdqa %%{source}, %%xmm5", "pcmpeqd %%xmm3, %%xmm3"]
+        if bits == 32:
+            lines += ["pslld $31, %%xmm3", "psrld $9, %%xmm3"]
+        else:
+            lines += ["psllq $63, %%xmm3", "psrlq $12, %%xmm3"]
+        lines.append("por %%xmm3, %%xmm5")
+        return lines
+
+    lines = ["movdqa %%xmm0, %%xmm6", "movdqa %%xmm1, %%xmm7"]
+    if bits == 32:
+        lines += [
+            "movdqa %%xmm6, %%xmm2",
+            "movdqa %%xmm6, %%xmm3",
+            "psrad $31, %%xmm3",
+            "psrld $1, %%xmm3",
+            "pxor %%xmm3, %%xmm2",
+            "movdqa %%xmm7, %%xmm4",
+            "movdqa %%xmm7, %%xmm5",
+            "psrad $31, %%xmm5",
+            "psrld $1, %%xmm5",
+            "pxor %%xmm5, %%xmm4",
+        ]
+        if maximum:
+            lines.append("pcmpgtd %%xmm4, %%xmm2")
+        else:
+            lines += ["pcmpgtd %%xmm2, %%xmm4", "movdqa %%xmm4, %%xmm2"]
+    else:
+        # Create monotonically ordered signed keys for each binary64 value.
+        lines += [
+            "movdqa %%xmm6, %%xmm2",
+            "movdqa %%xmm6, %%xmm3",
+            "pshufd $0xF5, %%xmm3, %%xmm3",
+            "psrad $31, %%xmm3",
+            "psrlq $1, %%xmm3",
+            "pxor %%xmm3, %%xmm2",
+            "movdqa %%xmm7, %%xmm4",
+            "movdqa %%xmm7, %%xmm5",
+            "pshufd $0xF5, %%xmm5, %%xmm5",
+            "psrad $31, %%xmm5",
+            "psrlq $1, %%xmm5",
+            "pxor %%xmm5, %%xmm4",
+        ]
+        left_key, right_key = ("xmm2", "xmm4") if maximum else ("xmm4", "xmm2")
+        lines += [
+            f"movdqa %%{left_key}, %%xmm3",
+            f"pcmpgtd %%{right_key}, %%xmm3",
+            "pshufd $0xF5, %%xmm3, %%xmm3",
+            f"movdqa %%{left_key}, %%xmm5",
+            f"pcmpeqd %%{right_key}, %%xmm5",
+            "pshufd $0xF5, %%xmm5, %%xmm5",
+            "pcmpeqd %%xmm0, %%xmm0",
+            "pslld $31, %%xmm0",
+            "pxor %%xmm0, %%xmm2",
+            "pxor %%xmm0, %%xmm4",
+        ]
+        if maximum:
+            lines += ["pcmpgtd %%xmm4, %%xmm2", "pshufd $0xA0, %%xmm2, %%xmm2"]
+        else:
+            lines += [
+                "pcmpgtd %%xmm2, %%xmm4",
+                "pshufd $0xA0, %%xmm4, %%xmm4",
+                "movdqa %%xmm4, %%xmm2",
+            ]
+        lines += ["pand %%xmm5, %%xmm2", "por %%xmm3, %%xmm2"]
+
+    # A strict ordered comparison selects Left; equality selects Right.  The
+    # integer keys order negative zero below positive zero, so this also gives
+    # the documented zero result without executing a floating comparison.
+    lines += [
+        "movdqa %%xmm2, %%xmm3",
+        "pand %%xmm6, %%xmm3",
+        "pandn %%xmm7, %%xmm2",
+        "por %%xmm3, %%xmm2",
+        "movdqa %%xmm2, %%xmm0",
+    ]
+
+    # Apply lower-priority quiet NaNs first.  A quiet left operand selects the
+    # right number; a quiet right operand selects the left number.  Applying
+    # the left mask second also reproduces the scalar two-qNaN result.
+    lines += nan_mask("xmm7", signaling=False)
+    lines += select("xmm4", "xmm6")
+    lines += nan_mask("xmm6", signaling=False)
+    lines += select("xmm4", "xmm7")
+
+    # A signaling NaN wins over a quiet NaN or number and is returned with its
+    # quiet bit set.  The left signaling operand has final precedence.
+    lines += nan_mask("xmm7", signaling=True)
+    lines += quiet("xmm7")
+    lines += select("xmm4", "xmm5")
+    lines += nan_mask("xmm6", signaling=True)
+    lines += quiet("xmm6")
+    lines += select("xmm4", "xmm5")
+    return "\n".join(lines)
+
+
+def x86_float_reduce_minmax_instruction(
+    bits: int, lanes: int, maximum: bool
+) -> str:
+    """Apply the exact scalar min/max rule from lane 0 in ascending order."""
+    shift = 4 if bits == 32 else 8
+    steps: list[str] = []
+    for lane in range(1, lanes):
+        steps += [
+            "movdqu (%1), %%xmm1",
+            f"psrldq ${lane * shift}, %%xmm1",
+            x86_float_minmax_instruction(bits, maximum),
+        ]
     return "\n".join(steps)
 
 
@@ -2014,6 +2198,18 @@ def x86_body() -> str:
             x86_float_reduce_add_instruction(bits, lanes)
         )
         reduce_store = "movss %%xmm0, (%0)" if bits == 32 else "movsd %%xmm0, (%0)"
+        min_instruction = x86_ada_instruction(
+            x86_float_minmax_instruction(bits, maximum=False)
+        )
+        max_instruction = x86_ada_instruction(
+            x86_float_minmax_instruction(bits, maximum=True)
+        )
+        reduce_min_instruction = x86_ada_instruction(
+            x86_float_reduce_minmax_instruction(bits, lanes, maximum=False)
+        )
+        reduce_max_instruction = x86_ada_instruction(
+            x86_float_reduce_minmax_instruction(bits, lanes, maximum=True)
+        )
         out += [
             f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Less_Than (Left => Right, Right => Left));",
             f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
@@ -2027,12 +2223,16 @@ def x86_body() -> str:
             call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
             call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
-            call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
-            call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
+            f"   function Native_Min_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{min_instruction}\");",
+            f"   function Min_Number (Left, Right : {vector}) return {vector} is (Native_Min_Number_{vector} (Left, Right));",
+            f"   function Native_Max_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{max_instruction}\");",
+            f"   function Max_Number (Left, Right : {vector}) return {vector} is (Native_Max_Number_{vector} (Left, Right));",
             f"   function Native_Reduce_Add_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_instruction}\", \"{reduce_store}\");",
             f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
-            call("Reduce_Min_Number", scalar, "Value", f"Value : {vector}"),
-            call("Reduce_Max_Number", scalar, "Value", f"Value : {vector}"),
+            f"   function Native_Reduce_Min_Number_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_min_instruction}\", \"{reduce_store}\");",
+            f"   function Reduce_Min_Number (Value : {vector}) return {scalar} is (Native_Reduce_Min_Number_{vector} (Value));",
+            f"   function Native_Reduce_Max_Number_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_max_instruction}\", \"{reduce_store}\");",
+            f"   function Reduce_Max_Number (Value : {vector}) return {scalar} is (Native_Reduce_Max_Number_{vector} (Value));",
         ]
         out += x86_memory_body(vector, arr, count)
 
@@ -2640,7 +2840,7 @@ def test_program() -> str:
             f"               Check (Bits_{vector} (Extract (Add (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_{vector} (Extract (Subtract (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_{vector} (Extract (Multiply (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) * Extract (R_B, Lane)), \"{vector} randomized independent arithmetic\" & Lane'Image);",
             f"               if Extract (R_B, Lane) /= 0.0 then Check (Bits_{vector} (Extract (Divide (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) / Extract (R_B, Lane)), \"{vector} randomized independent division\" & Lane'Image); end if;",
             f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} randomized independent comparison\" & Lane'Image);",
-            f"               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} randomized independent min/max\" & Lane'Image);",
+            f"               Check (Extract (Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Min_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) <= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Backends.Native.Max_Number (R_A, R_B), Lane) = (if Extract (R_A, Lane) >= Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} randomized independent scalar and native min/max\" & Lane'Image);",
             "            end loop;",
             "         end;",
             "      end loop;",
@@ -2665,6 +2865,7 @@ def test_program() -> str:
         "      pragma Suppress (Validity_Check);",
         "      NaN32 : constant F32 := To_F32 (16#7FC0_0001#);",
         "      SNaN32 : constant F32 := To_F32 (16#7F80_0001#);",
+        "      SNaN32_B : constant F32 := To_F32 (16#FF80_0021#);",
         "      Inf32 : constant F32 := To_F32 (16#7F80_0000#);",
         "      Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);",
         "      A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);",
@@ -2677,6 +2878,7 @@ def test_program() -> str:
         "      Two32_Map_B : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([Select_Right_Lane (0), Select_Left_Lane (1), Select_Right_Lane (2), Select_Left_Lane (3)]);",
         "      NaN64 : constant F64 := To_F64 (16#7FF8_0000_0000_0001#);",
         "      SNaN64 : constant F64 := To_F64 (16#7FF0_0000_0000_0001#);",
+        "      SNaN64_B : constant F64 := To_F64 (16#FFF0_0000_0000_0021#);",
         "      Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);",
         "      Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);",
         "      A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);",
@@ -2793,6 +2995,7 @@ def test_program() -> str:
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Quiet32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Quiet32), 0)), \"F32 signaling then quiet NaN\");",
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet32, Signal32), 0)), \"F32 quiet then signaling NaN\");",
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal32, Signal32), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal32, Signal32), 0)), \"F32 two signaling NaNs\");",
+        "      Check (F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), From_Lanes ([SNaN32_B, 0.0, 0.0, 0.0])), 0)) = (F32_Bits (SNaN32) or 16#0040_0000#) and then F32_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN32_B, 0.0, 0.0, 0.0]), From_Lanes ([SNaN32, 0.0, 0.0, 0.0])), 0)) = (F32_Bits (SNaN32_B) or 16#0040_0000#), \"F32 signaling NaN left precedence\");",
         "      Check (Is_NaN (Extract (Add (A32, B32), 0)) and then Is_NaN (Extract (Backends.Native.Add (A32, B32), 0)), \"F32 NaN addition\");",
         "      Check (Is_NaN (Extract (Subtract (A32, B32), 1)) and then Is_NaN (Extract (Backends.Native.Subtract (A32, B32), 1)), \"F32 infinity subtraction\");",
         "      Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, \"F32 infinity multiplication\");",
@@ -2817,6 +3020,7 @@ def test_program() -> str:
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Quiet64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Quiet64), 0)), \"F64 signaling then quiet NaN\");",
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Quiet64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Quiet64, Signal64), 0)), \"F64 quiet then signaling NaN\");",
         "      Check (Is_Quiet_NaN (Extract (Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Max_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Min_Number (Signal64, Signal64), 0)) and then Is_Quiet_NaN (Extract (Backends.Native.Max_Number (Signal64, Signal64), 0)), \"F64 two signaling NaNs\");",
+        "      Check (F64_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN64, 0.0]), From_Lanes ([SNaN64_B, 0.0])), 0)) = (F64_Bits (SNaN64) or 16#0008_0000_0000_0000#) and then F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64_B, 0.0]), From_Lanes ([SNaN64, 0.0])), 0)) = (F64_Bits (SNaN64_B) or 16#0008_0000_0000_0000#), \"F64 signaling NaN left precedence\");",
         "      Check (Is_NaN (Extract (Add (A64, B64), 0)) and then Is_NaN (Extract (Backends.Native.Add (A64, B64), 0)), \"F64 NaN addition\");",
         "      Check (Is_NaN (Extract (Subtract (Infinity64, Infinity64), 0)) and then Is_NaN (Extract (Backends.Native.Subtract (Infinity64, Infinity64), 0)), \"F64 infinity subtraction\");",
         "      Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, \"F64 infinity multiplication\");",
