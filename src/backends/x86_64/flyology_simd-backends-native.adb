@@ -582,7 +582,7 @@ package body Flyology_SIMD.Backends.Native is
    function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type is
       Result : Vector_Type; Local_Count : aliased Interfaces.Unsigned_32 := Count;
    begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movd (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address), System.Address'Asm_Input ("r", Local_Count'Address)], Clobber => "xmm0,xmm1,xmm2,memory", Volatile => True);
+      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movd (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address), System.Address'Asm_Input ("r", Local_Count'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
       return Result;
    end SSE2_Shift_128;
 
@@ -1789,8 +1789,8 @@ package body Flyology_SIMD.Backends.Native is
    function Native_SHR_I64x2 is new SSE2_Shift_128 (I64x2, "psrlq %%xmm1, %%xmm0");
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHL_I64x2 (Value, Interfaces.Unsigned_32 (Count)));
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHR_I64x2 (Value, Interfaces.Unsigned_32 (Count)));
-   function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is
-     (Flyology_SIMD.Shift_Right_Arithmetic (Value, Count));
+   function Native_SAR_I64x2 is new SSE2_Shift_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm0");
+   function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is (Native_SAR_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I64x2 (Left, Right, Sign_32'Address))));
    function Greater_Than (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_32'Address))));
    function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_32'Address) or Compare_Equal_I64x2 (Left, Right, Sign_32'Address))));

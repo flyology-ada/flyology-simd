@@ -202,6 +202,21 @@ def invalid_support(path: Path) -> list[str]:
                     f"64-bit numeric conversion classification for {phrase!r}, "
                     f"found {found}"
                 )
+        shift64_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Shift_Right_Arithmetic")[1:]
+            if "Value : I64x2" in block.split(";", 1)[0]
+        ]
+        shift64_phrase = (
+            "The x86-64 backend uses an SSE2 sequence that derives each "
+            "lane's sign mask, applies a logical right shift to each 64-bit "
+            "lane and its sign mask, and merges the sign fill."
+        )
+        if len(shift64_blocks) != 1 or shift64_phrase not in shift64_blocks[0]:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact I64x2 "
+                "Shift_Right_Arithmetic SSE2 classification"
+            )
         floating_widening_support = {
             "Widen_Low": (
                 "dedicated NEON instruction that converts the selected lanes with fcvtl",

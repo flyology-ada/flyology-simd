@@ -1507,6 +1507,20 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Expand_I64x2;
+   function Reference_Shift_Right_Arithmetic_I64x2 (Value : I64x2; Count : Natural) return I64x2 is
+      Result : I64x2 := Zero;
+      Raw, Shifted : Interfaces.Unsigned_64;
+   begin
+      for Lane in Lane_Index_64x2 loop
+         Raw := I64x2_To_Bits (Extract (Value, Lane));
+         if Count = 0 then Shifted := Raw;
+         elsif Count >= 64 then Shifted := (if Extract (Value, Lane) < 0 then Interfaces.Unsigned_64'Last else 0);
+         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left (Interfaces.Unsigned_64'Last, 64 - Count);
+         else Shifted := Interfaces.Shift_Right (Raw, Count); end if;
+         Result := Replace (Result, Lane, Bits_To_I64x2 (Shifted));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Arithmetic_I64x2;
    procedure Test_I64x2 is
       A : constant I64x2 := From_Lanes ([I64'First, -1]);
       B : constant I64x2 := From_Lanes ([1, I64'Last]);
@@ -1567,7 +1581,7 @@ procedure Family_Tests is
       for Shift in Natural range 0 .. 66 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I64x2 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I64x2 shr" & Shift'Image);
-         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), "I64x2 sar" & Shift'Image);
+         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)), "I64x2 independent arithmetic shift" & Shift'Image);
       end loop;
       Check (Same (Shift_Left_Logical (A, 64), Zero) and then Same (Shift_Right_Logical (A, 64), Zero), "I64x2 independent oversized logical shifts");
       for Lane in Lane_Index_64x2 loop
@@ -1655,7 +1669,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I64x2 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I64x2 randomized native logical shifts");
-            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I64x2 randomized native arithmetic shift");
+            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (R_A, Shift)), "I64x2 randomized independent arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I64x2 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I64x2 randomized native lane permutation");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I64x2 randomized native two-source lane permutation");

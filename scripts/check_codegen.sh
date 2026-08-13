@@ -29,6 +29,7 @@ wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
+shift64_probe_object="$probe_root/shift64_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -51,6 +52,7 @@ disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
+disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -66,6 +68,7 @@ nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
 nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
+nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -166,6 +169,12 @@ require_count 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
 forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
   "$temporary/conversion64-undefined.txt" \
   'portable 64-bit numeric conversion call in the Native caller probe'
+require_count 'flyology_simd__backends__native__shift_right_arithmetic' 1 \
+  "$temporary/shift64-undefined.txt" \
+  'one I64x2 Native arithmetic-right-shift call in the public caller probe'
+forbid_pattern 'flyology_simd__shift_right_arithmetic' \
+  "$temporary/shift64-undefined.txt" \
+  'portable I64x2 arithmetic-right-shift call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -859,6 +868,16 @@ EOF
         require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
         require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
         require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
+        extract_symbol 'native_sar_i64x2' "$temporary/native.txt" \
+          "$temporary/sar-i64x2.txt"
+        for instruction in pshufd psrad psrlq pxor por; do
+            require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+              "$temporary/sar-i64x2.txt" \
+              "SSE2 ${instruction} in I64x2 Shift_Right_Arithmetic"
+        done
+        forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__shift_right_arithmetic' \
+          "$temporary/sar-i64x2.txt" \
+          'portable or out-of-line helper in I64x2 Shift_Right_Arithmetic'
         require_pattern 'pandn' "$temporary/native.txt" 'SSE2 mask selection'
         require_pattern 'punpckl(bw|wd|dq|qdq)' "$temporary/native.txt" 'SSE2 interleave family'
         require_pattern 'pshuf(d|lw|hw)' "$temporary/native.txt" 'SSE2 reverse/shuffle family'

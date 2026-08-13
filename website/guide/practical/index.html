@@ -193,7 +193,15 @@ Saturated : constant U16x8 := Add_Saturate (Input, Increment);
 
 --  Wrapped lane 0 = 4
 --  Saturated lane 0 = 65_535</code></pre>
-          <p>The signed and unsigned families use the same explicit naming rule. Oversized logical shifts return zero lanes. An oversized signed arithmetic right shift returns the sign fill.</p>
+          <p>The signed and unsigned families use the same explicit naming rule.</p>
+        </section>
+        <section id="shifts">
+          <h2>Shift signed lanes with sign fill</h2>
+          <p>Oversized logical shifts return zero lanes. An oversized signed arithmetic right shift returns the sign fill. The <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_I64x2"><code>From_Lanes</code></a> overload constructs the signed input below. The <a data-api="Flyology_SIMD.Shift_Right_Arithmetic" data-api-signature="Value : I64x2"><code>Shift_Right_Arithmetic</code></a> overload preserves each <a data-api="Flyology_SIMD.I64x2"><code>I64x2</code></a> lane's sign:</p>
+          <pre><code class="language-ada">Signed : constant I64x2 := From_Lanes ([-16, 16]);
+By_Two : constant I64x2 := Shift_Right_Arithmetic (Signed, 2);
+By_64  : constant I64x2 := Shift_Right_Arithmetic (Signed, 64);
+--  By_Two = [-4, 4]; By_64 = [-1, 0]</code></pre>
         </section>
         <section id="floats">
           <h2>Keep IEEE edge rules next to floating operations</h2>

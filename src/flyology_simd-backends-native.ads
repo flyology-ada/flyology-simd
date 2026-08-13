@@ -2619,7 +2619,7 @@ is
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2;
    --  Shift each signed lane right with sign fill. Use full sign fill when the count reaches the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses an SSE2 sequence that derives each lane's sign mask, applies a logical right shift to each 64-bit lane and its sign mask, and merges the sign fill. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of bit positions to shift.
    --  @return The operation result.

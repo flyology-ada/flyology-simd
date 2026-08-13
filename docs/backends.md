@@ -73,6 +73,9 @@ instructions. For signed 32- and 64-bit lanes, it derives an overflow mask and
 selects the signed minimum or maximum. For unsigned addition, it derives a
 carry mask and selects the unsigned maximum. For unsigned subtraction, it
 derives a borrow mask and selects zero.
+Signed 64-bit arithmetic right shift has no direct SSE2 instruction. The
+backend derives a sign mask for each lane, applies a logical right shift to
+each 64-bit lane and its sign mask, and merges the sign fill.
 All 24 integer
 reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
 Minimum and maximum reductions use packed minimum or maximum where SSE2 has

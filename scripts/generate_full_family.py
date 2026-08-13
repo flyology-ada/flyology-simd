@@ -297,6 +297,15 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Bit_Cast",
         }
     )
+    if name == "Shift_Right_Arithmetic" and "I64x2" in declaration:
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON implementation. The x86-64 backend uses an SSE2 sequence "
+            "that derives each lane's sign mask, applies a logical right "
+            "shift to each 64-bit lane and its sign mask, and merges the sign "
+            "fill. A scalar build uses "
+            "the portable scalar implementation."
+        )
     if name == "Convert_Round" and "I32x4" in declaration:
         return (
             "Cross-platform support: The AArch64 backend uses a dedicated "
