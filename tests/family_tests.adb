@@ -230,7 +230,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_8x16 loop Check (Data (1 + Lane) = Extract (A, Lane), "I8x16 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "I8x16 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I8x16 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I8x16 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "I8x16 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "I8x16 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I8x16 aligned memory");
       for N in Lane_Count_8x16 loop
@@ -463,7 +465,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_16x8 loop Check (Data (1 + Lane) = Extract (A, Lane), "U16x8 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "U16x8 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U16x8 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U16x8 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "U16x8 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "U16x8 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U16x8 aligned memory");
       for N in Lane_Count_16x8 loop
@@ -703,7 +707,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_16x8 loop Check (Data (1 + Lane) = Extract (A, Lane), "I16x8 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "I16x8 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I16x8 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I16x8 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "I16x8 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "I16x8 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I16x8 aligned memory");
       for N in Lane_Count_16x8 loop
@@ -941,7 +947,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Data (1 + Lane) = Extract (A, Lane), "U32x4 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "U32x4 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U32x4 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U32x4 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "U32x4 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "U32x4 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U32x4 aligned memory");
       for N in Lane_Count_32x4 loop
@@ -1186,7 +1194,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Data (1 + Lane) = Extract (A, Lane), "I32x4 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "I32x4 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I32x4 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I32x4 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "I32x4 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "I32x4 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I32x4 aligned memory");
       for N in Lane_Count_32x4 loop
@@ -1428,7 +1438,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Data (1 + Lane) = Extract (A, Lane), "U64x2 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "U64x2 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U64x2 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U64x2 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "U64x2 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "U64x2 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U64x2 aligned memory");
       for N in Lane_Count_64x2 loop
@@ -1696,7 +1708,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Data (1 + Lane) = Extract (A, Lane), "I64x2 independent full store" & Lane'Image); end loop;
       Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "I64x2 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I64x2 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "I64x2 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "I64x2 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "I64x2 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "I64x2 aligned memory");
       for N in Lane_Count_64x2 loop
@@ -1922,7 +1936,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Data (1 + Lane)) = Bits_F32x4 (Extract (A, Lane)), "F32x4 independent full store" & Lane'Image); end loop;
       Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "F32x4 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "F32x4 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "F32x4 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "F32x4 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "F32x4 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "F32x4 aligned memory");
       for N in Lane_Count_32x4 loop
@@ -2157,7 +2173,9 @@ procedure Family_Tests is
       for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Data (1 + Lane)) = Bits_F64x2 (Extract (A, Lane)), "F64x2 independent full store" & Lane'Image); end loop;
       Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
       Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "F64x2 ordinary memory");
-      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "F64x2 native alignment predicate");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "F64x2 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "F64x2 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "F64x2 out-of-range maximum-index alignment predicate");
       Backends.Native.Store_Aligned (Aligned_Data, 0, A);
       Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "F64x2 aligned memory");
       for N in Lane_Count_64x2 loop

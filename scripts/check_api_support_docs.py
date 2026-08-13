@@ -138,6 +138,23 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact Bit_Cast "
                 "direct-reinterpretation classifications"
             )
+        alignment_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Is_Aligned_16")[1:]
+        ]
+        if (
+            len(alignment_blocks) != 9
+            or sum(
+                "first check that Start is in the array range" in block
+                and "test the selected element address modulo 16 directly" in block
+                and "do not call the portable root operation" in block
+                for block in alignment_blocks
+            ) != 9
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact Is_Aligned_16 "
+                "direct-range-and-address classifications"
+            )
         zero_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Zero")[1:]
@@ -481,7 +498,7 @@ def invalid_support(path: Path) -> list[str]:
                 )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
-            "function Is_Aligned_32": "same portable Ada implementation",
+            "function Is_Aligned_32": "test the selected element address modulo 32 directly",
             "function Interleave_Low": "four-register NEON tbl operation",
             "function Interleave_High": "four-register NEON tbl operation",
             "function Deinterleave_Even": "four-register NEON tbl operation",

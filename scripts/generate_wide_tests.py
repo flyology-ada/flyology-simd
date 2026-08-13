@@ -1571,9 +1571,16 @@ def integer_test(f: Family) -> str:
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "{f.vector} ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "{f.vector} native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "{f.vector} misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "{f.vector} out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -2247,9 +2254,16 @@ def float_test(f: Family) -> str:
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "{f.vector} ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "{f.vector} native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "{f.vector} misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "{f.vector} out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, Two);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = Wide.To_Lanes (Two),

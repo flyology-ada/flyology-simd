@@ -1,11 +1,13 @@
 with Ada.Unchecked_Conversion;
 with System.Machine_Code;
+with System.Storage_Elements;
 
 package body Flyology_SIMD.Backends.Native is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Integer_64;
+   use type System.Storage_Elements.Integer_Address;
    use System.Machine_Code;
 
    function Find_First_Set_Bit
@@ -1492,7 +1494,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "smaxv b0, v0.16b", "str b0, [%0]");
    function Reduce_Max (Value : I8x16) return I8 is (Native_Reduce_Max_I8x16 (Value));
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x16 is
@@ -1647,7 +1651,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "umaxv h0, v0.8h", "str h0, [%0]");
    function Reduce_Max (Value : U16x8) return U16 is (Native_Reduce_Max_U16x8 (Value));
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x8 is
@@ -1805,7 +1811,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "smaxv h0, v0.8h", "str h0, [%0]");
    function Reduce_Max (Value : I16x8) return I16 is (Native_Reduce_Max_I16x8 (Value));
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x8 is
@@ -1960,7 +1968,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "umaxv s0, v0.4s", "str s0, [%0]");
    function Reduce_Max (Value : U32x4) return U32 is (Native_Reduce_Max_U32x4 (Value));
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x4 is
@@ -2118,7 +2128,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "smaxv s0, v0.4s", "str s0, [%0]");
    function Reduce_Max (Value : I32x4) return I32 is (Native_Reduce_Max_I32x4 (Value));
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x4 is
@@ -2273,7 +2285,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
    function Reduce_Max (Value : U64x2) return U64 is (Native_Reduce_Max_U64x2 (Value));
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x2 is
@@ -2431,7 +2445,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
    function Reduce_Max (Value : I64x2) return I64 is (Native_Reduce_Max_I64x2 (Value));
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x2 is
@@ -2572,7 +2588,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1", "str s0, [%0]");
    function Reduce_Max_Number (Value : F32x4) return F32 is (Native_Reduce_Max_Number_F32x4 (Value));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x4 is
@@ -2713,7 +2731,9 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Reduce_Max_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fmaxnm d0, d0, d1", "str d0, [%0]");
    function Reduce_Max_Number (Value : F64x2) return F64 is (Native_Reduce_Max_Number_F64x2 (Value));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
-     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x2 is

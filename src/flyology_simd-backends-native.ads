@@ -985,9 +985,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -1278,9 +1278,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -1577,9 +1577,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -1870,9 +1870,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -2169,9 +2169,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -2462,9 +2462,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -2761,9 +2761,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -3021,9 +3021,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -3280,9 +3280,9 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
-   function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean;
+   function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean with Inline_Always;
    --  Report whether the selected first element has a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.

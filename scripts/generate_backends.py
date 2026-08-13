@@ -69,7 +69,7 @@ def contract() -> str:
         ]
     )
     result = emit_conversion_spec() + "\n" + byte_operations + "\n" + operations
-    return strip_generated_docs(re.sub(
+    result = re.sub(
         r"(function (?:Slide_Lanes_Toward_(?:Low|High) "
         r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+|"
         r"(?:Compress|Expand) \(Value : [A-Za-z0-9_]+; Mask : Mask_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+|"
@@ -77,7 +77,13 @@ def contract() -> str:
         r"Permute_Lanes \(Left, Right : [A-Za-z0-9_]+; Map : Two_Source_Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+));",
         r"\1 with Inline_Always;",
         result,
-    ))
+    )
+    result = re.sub(
+        r"(function Is_Aligned_16 \(Data : [A-Za-z0-9_]+; Start : Natural\) return Boolean);",
+        r"\1 with Inline_Always;",
+        result,
+    )
+    return strip_generated_docs(result)
 
 
 def scalar_contract(native_spec: str) -> str:
@@ -1185,7 +1191,10 @@ def memory_body(vector: str, arr: str, count: str) -> list[str]:
     idx = lane_index(bits, lanes)
     zero = "0.0" if scalar in {"F32", "F64"} else "0"
     return [
-        call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
+        f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is\n"
+        "     (Start in Data'Range and then\n"
+        "      System.Storage_Elements.To_Integer (Data (Start)'Address) mod\n"
+        "        System.Storage_Elements.Integer_Address (16) = 0);",
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;",
         f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is",
@@ -1368,7 +1377,10 @@ def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
     idx = lane_index(bits, lanes)
     zero = "0.0" if scalar in {"F32", "F64"} else "0"
     return [
-        call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
+        f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is\n"
+        "     (Start in Data'Range and then\n"
+        "      System.Storage_Elements.To_Integer (Data (Start)'Address) mod\n"
+        "        System.Storage_Elements.Integer_Address (16) = 0);",
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;",
         f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is",
@@ -2921,7 +2933,9 @@ def test_program() -> str:
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Data (1 + Lane) = Extract (A, Lane), \"{vector} independent full store\" & Lane'Image); end loop;",
             f"      Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
-            f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
+            f"      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} aligned address predicate\");",
+            f"      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), \"{vector} misaligned address predicate\");",
+            f"      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), \"{vector} out-of-range maximum-index alignment predicate\");",
             f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
             f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
             f"      for N in {count} loop",
@@ -3166,7 +3180,9 @@ def test_program() -> str:
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Data (1 + Lane)) = Bits_{vector} (Extract (A, Lane)), \"{vector} independent full store\" & Lane'Image); end loop;",
             f"      Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), \"{vector} ordinary memory\");",
-            f"      Check (Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} native alignment predicate\");",
+            f"      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), \"{vector} aligned address predicate\");",
+            f"      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), \"{vector} misaligned address predicate\");",
+            f"      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), \"{vector} out-of-range maximum-index alignment predicate\");",
             f"      Backends.Native.Store_Aligned (Aligned_Data, 0, A);",
             f"      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), \"{vector} aligned memory\");",
             f"      for N in {count} loop",

@@ -325,6 +325,14 @@ def native_support_doc(name: str, declaration: str) -> str:
             "with Ada.Unchecked_Conversion. They do not call the portable root "
             "operation. A scalar build uses the portable scalar implementation."
         )
+    if name == "Is_Aligned_16":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends first "
+            "check that Start is in the array range. For a valid Start, they "
+            "test the selected element address modulo 16 directly with "
+            "fixed-width Ada code. They do not call the portable root "
+            "operation. A scalar build uses the portable scalar implementation."
+        )
     if name == "Zero":
         if "U8x16" in declaration:
             target = (

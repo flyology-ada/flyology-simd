@@ -109,6 +109,16 @@ Floating checks compare the complete bit encoding. Deterministic full-width
 inputs cover each lane position. A public caller probe covers all 40
 overloads, and a Native-object gate rejects portable lane-access calls.
 
+The nine typed 128-bit Native `Is_Aligned_16` overloads and all ten Wide
+`Is_Aligned_32` overloads first check whether `Start` is in the array range.
+For a valid `Start`, the AArch64 and x86-64 backends test the selected element
+address modulo 16 or 32 directly. Scalar and Native tests cover aligned,
+misaligned, and out-of-range inputs for every overload. The out-of-range case
+uses `Natural'Last` and returns false without evaluating an element address. A
+public caller probe covers all 19 typed overloads and rejects portable or
+out-of-line alignment-predicate calls. The Native-object gate permits only the
+shared root `Byte_Array` `Is_Aligned_16` contract predicate.
+
 All ten Native `Load_Partial` and `Store_Partial` pairs use direct exact-count
 Ada loops on AArch64 and x86-64. A partial load reads only the active elements
 and initializes inactive lanes to positive zero. A partial store writes the

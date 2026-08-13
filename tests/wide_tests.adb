@@ -875,9 +875,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "U8x32 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "U8x32 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "U8x32 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "U8x32 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -1887,9 +1894,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "I8x32 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "I8x32 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "I8x32 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "I8x32 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -2744,9 +2758,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "U16x16 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "U16x16 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "U16x16 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "U16x16 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -3509,9 +3530,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "I16x16 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "I16x16 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "I16x16 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "I16x16 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -4290,9 +4318,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "U32x8 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "U32x8 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "U32x8 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "U32x8 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -5087,9 +5122,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "I32x8 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "I32x8 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "I32x8 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "I32x8 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -5884,9 +5926,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "U64x4 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "U64x4 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "U64x4 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "U64x4 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -6681,9 +6730,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "I64x4 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "I64x4 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "I64x4 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "I64x4 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, B);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = B_Lanes,
@@ -7766,9 +7822,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "F32x8 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "F32x8 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "F32x8 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "F32x8 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, Two);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = Wide.To_Lanes (Two),
@@ -8846,9 +8909,16 @@ procedure Wide_Tests is
         and then Native.To_Lanes (Native.Load (Native_Data, Native_Data'First)) = A_Lanes,
         "F64x4 ordinary memory");
       Native.Store_Aligned (Aligned_Data, Aligned_Data'First, A);
-      Check (Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+      Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
+        and then Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Native.To_Lanes (Native.Load_Aligned (Aligned_Data, Aligned_Data'First)) = A_Lanes,
         "F64x4 native aligned memory");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Aligned_Data'First + 1),
+        "F64x4 misaligned address predicate");
+      Check (not Wide.Is_Aligned_32 (Aligned_Data, Natural'Last)
+        and then not Native.Is_Aligned_32 (Aligned_Data, Natural'Last),
+        "F64x4 out-of-range maximum-index alignment predicate");
       Wide.Store_Aligned (Aligned_Data, Aligned_Data'First, Two);
       Check (Wide.Is_Aligned_32 (Aligned_Data, Aligned_Data'First)
         and then Wide.To_Lanes (Wide.Load_Aligned (Aligned_Data, Aligned_Data'First)) = Wide.To_Lanes (Two),

@@ -300,7 +300,11 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "implementation."
         )
     elif operation == "Is_Aligned_32":
-        mechanism = "AArch64 and x86-64 use the same portable Ada implementation"
+        mechanism = (
+            "AArch64 and x86-64 first check that Start is in the array range. "
+            "For a valid Start, they test the selected element address modulo "
+            "32 directly with fixed-width Ada code"
+        )
     elif operation in {"Load_Partial", "Store_Partial"}:
         mechanism = (
             "AArch64 and x86-64 conditionally compose selected 128-bit full "

@@ -379,7 +379,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : Byte_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -676,7 +676,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : I8_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -1074,7 +1074,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : U16_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -1371,7 +1371,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : I16_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -1774,7 +1774,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : U32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -2076,7 +2076,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : I32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -2479,7 +2479,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : U64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -2781,7 +2781,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : I64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -3042,7 +3042,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : F32_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
@@ -3303,7 +3303,7 @@ is
    --  @return The operation result.
    function Is_Aligned_32 (Data : F64_Array; Start : Natural) return Boolean;
    --  Report whether the selected first element has a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends use the same portable Ada implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 32 directly with fixed-width Ada code. A scalar build uses the portable Wide implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.

@@ -35,6 +35,7 @@ mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
 construction_probe_object="$probe_root/construction_codegen_probe.o"
 partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
 bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
+alignment_probe_object="$probe_root/alignment_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -64,6 +65,7 @@ disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
 disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
 disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt"
 disassemble "$bit_cast_probe_object" >"$temporary/bit-cast-probe.txt"
+disassemble "$alignment_probe_object" >"$temporary/alignment-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -92,6 +94,8 @@ nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
 nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
 nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
+nm -u "$alignment_probe_object" >"$temporary/alignment-undefined.txt"
+nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
 require_pattern() {
@@ -281,6 +285,18 @@ forbid_pattern 'flyology_simd__bit_cast' \
 forbid_pattern 'native_bit_cast' \
   "$temporary/native.txt" \
   'out-of-line unchecked-conversion helper retained in the Native backend object'
+require_count 'alignment_codegen_probe__.*_aligned_(16|32)' 19 \
+  "$temporary/alignment-symbols.txt" \
+  'all nineteen typed alignment-predicate callers'
+forbid_pattern 'flyology_simd__(backends__native__is_aligned_16|wide__(native__)?is_aligned_32|is_aligned_16(__|$))' \
+  "$temporary/alignment-undefined.txt" \
+  'out-of-line or portable alignment-predicate call in the caller probe'
+require_count '(^|[[:space:]])_?flyology_simd__is_aligned_16$' 1 \
+  "$temporary/native-undefined.txt" \
+  'only the shared Byte_Array contract predicate remains undefined'
+forbid_pattern 'flyology_simd__is_aligned_16__' \
+  "$temporary/native-undefined.txt" \
+  'typed portable alignment-predicate call retained in the Native backend object'
 forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'
