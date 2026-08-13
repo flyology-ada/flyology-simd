@@ -204,6 +204,12 @@ require_count 'flyology_simd__backends__native__last_true' 4 \
 forbid_pattern 'flyology_simd__(first_true|last_true)' \
   "$temporary/mask-position-undefined.txt" \
   'portable mask-position call in the Native caller probe'
+require_count 'flyology_simd__backends__native__population_count' 4 \
+  "$temporary/mask-position-undefined.txt" \
+  'four Native Population_Count calls in the public caller probe'
+forbid_pattern 'flyology_simd__population_count' \
+  "$temporary/mask-position-undefined.txt" \
+  'portable population-count call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -231,6 +237,8 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 case "$architecture" in
     aarch64)
         for suffix in '' '__2' '__3' '__4'; do
+            extract_symbol "flyology_simd__backends__native__population_count${suffix}" \
+              "$temporary/native.txt" "$temporary/population_count${suffix}.txt"
             extract_symbol "flyology_simd__backends__native__first_true${suffix}" \
               "$temporary/native.txt" "$temporary/first_true${suffix}.txt"
             extract_symbol "flyology_simd__backends__native__last_true${suffix}" \
@@ -241,12 +249,20 @@ case "$architecture" in
               'AArch64 First_True leading-zero count'
             require_pattern 'clz' "$temporary/last_true${suffix}.txt" \
               'AArch64 Last_True leading-zero count'
+            require_pattern '(^|[[:space:]])cnt(\.8b)?[[:space:]]' \
+              "$temporary/population_count${suffix}.txt" \
+              'AArch64 Population_Count byte population count'
+            require_pattern 'uaddlv' "$temporary/population_count${suffix}.txt" \
+              'AArch64 Population_Count horizontal sum'
             forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
               "$temporary/first_true${suffix}.txt" \
               'portable AArch64 mask-position call'
             forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
               "$temporary/last_true${suffix}.txt" \
               'portable AArch64 mask-position call'
+            forbid_pattern 'flyology_simd__population_count' \
+              "$temporary/population_count${suffix}.txt" \
+              'portable AArch64 population-count call'
         done
         extract_symbol 'compare_unordered_f32x4' "$temporary/native.txt" \
           "$temporary/unordered-f32x4.txt"
@@ -592,6 +608,8 @@ case "$architecture" in
         ;;
     x86_64)
         for suffix in '' '__2' '__3' '__4'; do
+            extract_symbol "flyology_simd__backends__native__population_count${suffix}" \
+              "$temporary/native.txt" "$temporary/population_count${suffix}.txt"
             extract_symbol "flyology_simd__backends__native__first_true${suffix}" \
               "$temporary/native.txt" "$temporary/first_true${suffix}.txt"
             extract_symbol "flyology_simd__backends__native__last_true${suffix}" \
@@ -602,12 +620,24 @@ case "$architecture" in
             require_pattern '(^|[[:space:]])bsr(l)?([[:space:]]|$)' \
               "$temporary/last_true${suffix}.txt" \
               'x86-64 Last_True bit scan'
+            require_pattern '0x55555555' "$temporary/population_count${suffix}.txt" \
+              'x86-64 Population_Count pairwise arithmetic mask'
+            require_pattern '0x33333333' "$temporary/population_count${suffix}.txt" \
+              'x86-64 Population_Count nibble arithmetic mask'
+            require_pattern '0x1010101' "$temporary/population_count${suffix}.txt" \
+              'x86-64 Population_Count byte sum multiplier'
+            forbid_pattern '(^|[[:space:]])popcnt' \
+              "$temporary/population_count${suffix}.txt" \
+              'x86-64 Population_Count unexpectedly requires POPCNT'
             forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
               "$temporary/first_true${suffix}.txt" \
               'portable x86-64 mask-position call'
             forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
               "$temporary/last_true${suffix}.txt" \
               'portable x86-64 mask-position call'
+            forbid_pattern 'flyology_simd__population_count' \
+              "$temporary/population_count${suffix}.txt" \
+              'portable x86-64 population-count call'
         done
         extract_symbol 'native_reduce_add_f32x4' "$temporary/native.txt" \
           "$temporary/reduce-add-f32x4.txt"

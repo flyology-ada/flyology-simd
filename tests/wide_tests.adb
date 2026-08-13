@@ -218,6 +218,19 @@ procedure Wide_Tests is
          return 32;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+         Result : Wide.Lane_Count_8x32 := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_8x32; Label_Text : String)
       is
@@ -229,12 +242,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_8x32 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_8x32 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "U8x32 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "U8x32 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -1271,6 +1288,19 @@ procedure Wide_Tests is
          return 32;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+         Result : Wide.Lane_Count_8x32 := 0;
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_8x32; Label_Text : String)
       is
@@ -1282,12 +1312,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_8x32 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_8x32 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "I8x32 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "I8x32 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -2222,6 +2256,19 @@ procedure Wide_Tests is
          return 16;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+         Result : Wide.Lane_Count_16x16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_16x16; Label_Text : String)
       is
@@ -2233,12 +2280,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_16x16 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_16x16 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "U16x16 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "U16x16 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -2971,6 +3022,19 @@ procedure Wide_Tests is
          return 16;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+         Result : Wide.Lane_Count_16x16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_16x16; Label_Text : String)
       is
@@ -2982,12 +3046,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_16x16 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_16x16 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "I16x16 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "I16x16 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -3718,6 +3786,19 @@ procedure Wide_Tests is
          return 8;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+         Result : Wide.Lane_Count_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
       is
@@ -3729,12 +3810,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_32x8 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_32x8 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "U32x8 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "U32x8 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -4499,6 +4584,19 @@ procedure Wide_Tests is
          return 8;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+         Result : Wide.Lane_Count_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
       is
@@ -4510,12 +4608,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_32x8 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_32x8 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "I32x8 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "I32x8 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -5278,6 +5380,19 @@ procedure Wide_Tests is
          return 4;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+         Result : Wide.Lane_Count_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
       is
@@ -5289,12 +5404,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_64x4 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_64x4 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "U64x4 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "U64x4 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -6059,6 +6178,19 @@ procedure Wide_Tests is
          return 4;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+         Result : Wide.Lane_Count_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
       is
@@ -6070,12 +6202,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_64x4 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_64x4 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "I64x4 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "I64x4 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -7028,6 +7164,19 @@ procedure Wide_Tests is
          return 8;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+         Result : Wide.Lane_Count_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
       is
@@ -7039,12 +7188,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_32x8 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_32x8 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "F32x8 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "F32x8 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 
@@ -8091,6 +8244,19 @@ procedure Wide_Tests is
          return 4;
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+         Result : Wide.Lane_Count_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
       is
@@ -8102,12 +8268,16 @@ procedure Wide_Tests is
            Reference_First_True (Bits);
          Expected_Last : constant Wide.Lane_Count_64x4 :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.Lane_Count_64x4 :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "F64x4 independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "F64x4 independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 
 

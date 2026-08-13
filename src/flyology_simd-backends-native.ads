@@ -271,7 +271,7 @@ is
    --  @return The operation result.
    function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16;
    --  Return the number of true mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function First_True (Mask : Mask_8x16) return Lane_Count_8x16;
@@ -3393,7 +3393,7 @@ is
    --  @return The operation result.
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8;
    --  Return the number of true mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function First_True (Mask : Mask_16x8) return Lane_Count_16x8;
@@ -3463,7 +3463,7 @@ is
    --  @return The operation result.
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4;
    --  Return the number of true mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function First_True (Mask : Mask_32x4) return Lane_Count_32x4;
@@ -3533,7 +3533,7 @@ is
    --  @return The operation result.
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2;
    --  Return the number of true mask lanes.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function First_True (Mask : Mask_64x2) return Lane_Count_64x2;

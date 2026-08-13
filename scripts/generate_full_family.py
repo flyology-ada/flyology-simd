@@ -283,7 +283,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Zero", "Splat", "From_Lanes", "To_Lanes", "Extract", "Replace",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
-        "None_True", "Population_Count",
+        "None_True",
         "Is_Aligned_16", "Load_Partial", "Store_Partial", "Has_Extent",
         "Bit_Cast",
     }
@@ -319,6 +319,14 @@ def native_support_doc(name: str, declaration: str) -> str:
             f"the {direction} set compact-mask bit. The x86-64 backend uses "
             f"{x86} to find the {direction} set compact-mask bit. Both return "
             "the lane-count value for a zero mask. A scalar build uses the "
+            "portable scalar implementation."
+        )
+    if name == "Population_Count":
+        return (
+            "Cross-platform support: The AArch64 backend counts set bits with "
+            "a dedicated NEON byte-count and horizontal-add sequence. The "
+            "x86-64 backend uses a dedicated fixed-width arithmetic bit-count "
+            "sequence that does not require POPCNT. A scalar build uses the "
             "portable scalar implementation."
         )
     if name == "Unordered" and (
@@ -729,11 +737,7 @@ def strip_generated_docs(text: str) -> str:
             PORTABLE_SUPPORT_DOC, PORTABLE_SHARED_SUPPORT_DOC, SCALAR_SUPPORT_DOC,
             LEGACY_NATIVE_SUPPORT_DOC,
         ) or stripped.startswith(
-            "Cross-platform support: The AArch64 backend uses "
-        ) or stripped.startswith(
-            "Cross-platform support: The AArch64, x86-64, and scalar backends use "
-        ) or stripped.startswith(
-            "Cross-platform support: This overload uses the portable scalar implementation "
+            "Cross-platform support:"
         ) or any(stripped.startswith(prefix) for prefix in LEGACY_NATIVE_SUPPORT_PREFIXES):
             continue
         if stripped.startswith(

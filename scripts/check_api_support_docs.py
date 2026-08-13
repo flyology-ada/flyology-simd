@@ -382,7 +382,7 @@ def invalid_support(path: Path) -> list[str]:
             "function Any_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
             "function All_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
             "function None_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Population_Count": "call the selected 128-bit operation on each private part and combine the results in Ada",
+            "function Population_Count": "selected 128-bit population-count operation on both private parts and add the two counts",
             "function First_True": "return a valid low-part result first",
             "function Last_True": "return a valid high-part result plus the private lane count first",
             "function Extract": "only on the private part that contains the requested lane",

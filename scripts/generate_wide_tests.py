@@ -209,6 +209,19 @@ def mask_position_declarations(f: Family) -> str:
          return {f.lanes};
       end Reference_Last_True;
 
+      function Reference_Population_Count
+        (Bits : Wide.{f.mask_bits}) return Wide.{f.count}
+      is
+         Result : Wide.{f.count} := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Reference_Population_Count;
+
       procedure Check_Mask_Positions
         (Bits : Wide.{f.mask_bits}; Label_Text : String)
       is
@@ -220,12 +233,16 @@ def mask_position_declarations(f: Family) -> str:
            Reference_First_True (Bits);
          Expected_Last : constant Wide.{f.count} :=
            Reference_Last_True (Bits);
+         Expected_Count : constant Wide.{f.count} :=
+           Reference_Population_Count (Bits);
       begin
          Check (Wide.First_True (Scalar_Mask) = Expected_First
            and then Native.First_True (Native_Mask) = Expected_First
            and then Wide.Last_True (Scalar_Mask) = Expected_Last
-           and then Native.Last_True (Native_Mask) = Expected_Last,
-           "{f.vector} independent mask positions " & Label_Text);
+           and then Native.Last_True (Native_Mask) = Expected_Last
+           and then Wide.Population_Count (Scalar_Mask) = Expected_Count
+           and then Native.Population_Count (Native_Mask) = Expected_Count,
+           "{f.vector} independent mask reductions " & Label_Text);
       end Check_Mask_Positions;
 '''
 

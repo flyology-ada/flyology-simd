@@ -240,7 +240,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         "Zero", "Splat", "From_Lanes", "To_Lanes",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Any_True", "All_True",
-        "None_True", "Population_Count",
+        "None_True",
     }:
         mechanism = (
             "AArch64 and x86-64 call the selected 128-bit operation on each "
@@ -263,6 +263,11 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
                 "return a valid low-part result. If neither part contains a "
                 "true lane, they return the Wide lane-count value"
             )
+    elif operation == "Population_Count":
+        mechanism = (
+            "AArch64 and x86-64 call the selected 128-bit population-count "
+            "operation on both private parts and add the two counts"
+        )
     elif operation in {"Extract", "Replace", "Test"}:
         mechanism = (
             "AArch64 and x86-64 call the selected 128-bit operation only on "

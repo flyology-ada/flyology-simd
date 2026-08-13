@@ -66,13 +66,16 @@ compare selected lane bits.
 The AArch64 code-generation gate requires `cmtst` and `bsl` in each generated
 selection subprogram. It rejects calls to the portable selection operation.
 
-For all four compact-mask shapes, `First_True` and `Last_True` use target bit
-scans with an explicit zero-mask result. AArch64 uses bit reversal and
-leading-zero count for the first position and leading-zero count for the last
-position. x86-64 uses bit-scan-forward and bit-scan-reverse. Exhaustive
-128-bit mask patterns and independent Wide mask-position oracles check the
-lane result and lane-count sentinel. Public caller and exact-symbol gates
-cover every shape and reject portable position calls.
+For all four compact-mask shapes, `Population_Count`, `First_True`, and
+`Last_True` operate directly on the compact bits. AArch64 uses a NEON byte
+population count and horizontal sum for `Population_Count`, bit reversal and
+leading-zero count for the first position, and leading-zero count for the last
+position. x86-64 uses fixed-width arithmetic for `Population_Count`, so it does
+not require POPCNT, and uses bit-scan-forward and bit-scan-reverse for the
+positions. The position operations return the lane-count value for a zero
+mask. Exhaustive 128-bit mask patterns and independent Wide mask-reduction
+oracles check counts, lane results, and sentinels. Public caller and
+exact-symbol gates cover every shape and reject portable reduction calls.
 
 Floating unordered-comparison tests use an independent IEEE encoding oracle.
 Fixed cases cover quiet and signaling NaNs in either or both inputs, NaN

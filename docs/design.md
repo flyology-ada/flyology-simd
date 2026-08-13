@@ -76,6 +76,8 @@ instruction-specific result.
   true. If the mask contains a true lane, the result is a valid lane index.
   Native backends locate the compact mask bit directly. Wide operations query
   both private masks and add the private lane count to a high-part result.
+- `Population_Count` counts the compact bits directly in each Native backend.
+  The Wide result adds the selected 128-bit counts for its two private masks.
 - `Compress` packs true-mask lanes toward lane 0 in source order and zero-fills
   the remaining result lanes. `Expand` consumes packed low lanes into true
   mask positions and zero-fills false positions. Moved lane bits do not
