@@ -347,20 +347,30 @@ def invalid_support(path: Path) -> list[str]:
                     f"64-bit numeric conversion classification for {phrase!r}, "
                     f"found {found}"
                 )
-        shift64_blocks = [
+        shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]
-            if "Value : I64x2" in block.split(";", 1)[0]
+            if any(
+                f"Value : {vector}" in block.split(";", 1)[0]
+                for vector in ("I8x16", "I16x8", "I32x4", "I64x2")
+            )
         ]
-        shift64_phrase = (
-            "The x86-64 backend uses an SSE2 sequence that derives each "
-            "lane's sign mask, applies a logical right shift to each 64-bit "
-            "lane and its sign mask, and merges the sign fill."
+        shift_requirements = (
+            ("signed 8-bit lanes with the NEON sshl", "widens the signed bytes", "When Count exceeds 8, both backends clamp it to 8"),
+            ("signed 16-bit lanes with the NEON sshl", "signed 16-bit lanes with psraw", "When Count exceeds 16, both backends clamp it to 16"),
+            ("signed 32-bit lanes with the NEON sshl", "signed 32-bit lanes with psrad", "When Count exceeds 32, both backends clamp it to 32"),
+            ("signed 64-bit lanes with the NEON sshl", "derives each lane's sign mask", "When Count exceeds 64, both backends clamp it to 64"),
         )
-        if len(shift64_blocks) != 1 or shift64_phrase not in shift64_blocks[0]:
+        if (
+            len(shift_blocks) != 4
+            or any(
+                not all(phrase in block for phrase in requirements)
+                for block, requirements in zip(shift_blocks, shift_requirements)
+            )
+        ):
             invalid.append(
-                f"{path.relative_to(ROOT)}: incorrect exact I64x2 "
-                "Shift_Right_Arithmetic SSE2 classification"
+                f"{path.relative_to(ROOT)}: incorrect exact all-family "
+                "Shift_Right_Arithmetic target classifications"
             )
         unordered_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]

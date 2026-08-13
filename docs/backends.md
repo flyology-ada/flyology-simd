@@ -154,9 +154,22 @@ instructions. For signed 32- and 64-bit lanes, it derives an overflow mask and
 selects the signed minimum or maximum. For unsigned addition, it derives a
 carry mask and selects the unsigned maximum. For unsigned subtraction, it
 derives a borrow mask and selects zero.
-Signed 64-bit arithmetic right shift has no direct SSE2 instruction. The
-backend derives a sign mask for each lane, applies a logical right shift to
-each 64-bit lane and its sign mask, and merges the sign fill.
+
+All four signed arithmetic-right-shift overloads clamp `Count` to the lane
+width. This clamp gives an oversized count the defined full sign fill without
+calling the portable root operation. AArch64 uses NEON `sshl` with a negative
+count for each lane width. On x86-64, the byte overload widens the lanes, uses
+`psraw`, and packs the result. The 16- and 32-bit overloads use `psraw` and
+`psrad`. The 64-bit overload derives a sign mask, applies a logical right shift
+to each lane and its sign mask, and merges the sign fill.
+
+Independent bit-level oracles check scalar and Native results for every count
+from zero through two positions beyond the applicable lane width. Each signed
+integer family also uses 250 deterministic full-width inputs. A public caller
+probe covers all four Native overloads and rejects portable calls. Exact-symbol
+gates require each target instruction sequence, and the Native-object gate
+rejects retained portable arithmetic-right-shift calls.
+
 All 24 integer
 reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
 Minimum and maximum reductions use packed minimum or maximum where SSE2 has

@@ -126,6 +126,20 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Expand_I8x16;
+   function Reference_Shift_Right_Arithmetic_I8x16 (Value : I8x16; Count : Natural) return I8x16 is
+      Result : I8x16 := Zero;
+      Raw, Shifted : Interfaces.Unsigned_8;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Raw := I8x16_To_Bits (Extract (Value, Lane));
+         if Count = 0 then Shifted := Raw;
+         elsif Count >= 8 then Shifted := (if Extract (Value, Lane) < 0 then Interfaces.Unsigned_8'Last else 0);
+         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left (Interfaces.Unsigned_8'Last, 8 - Count);
+         else Shifted := Interfaces.Shift_Right (Raw, Count); end if;
+         Result := Replace (Result, Lane, Bits_To_I8x16 (Shifted));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Arithmetic_I8x16;
    procedure Test_I8x16 is
       A : constant I8x16 := From_Lanes ([I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First]);
       B : constant I8x16 := From_Lanes ([1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1]);
@@ -176,9 +190,10 @@ procedure Family_Tests is
       for Shift in Natural range 0 .. 10 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I8x16 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I8x16 shr" & Shift'Image);
-         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), "I8x16 sar" & Shift'Image);
+         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I8x16 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I8x16 (A, Shift)), "I8x16 independent arithmetic shift" & Shift'Image);
       end loop;
       Check (Same (Shift_Left_Logical (A, 8), Zero) and then Same (Shift_Right_Logical (A, 8), Zero), "I8x16 independent oversized logical shifts");
+      Check (Same (Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I8x16 (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I8x16 (A, Natural'Last)), "I8x16 maximum-count independent arithmetic shift");
       for Lane in Lane_Index_8x16 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = Bits_To_I8x16 (Interfaces.Shift_Left (I8x16_To_Bits (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = Bits_To_I8x16 (Interfaces.Shift_Right (I8x16_To_Bits (Extract (A, Lane)), 1)), "I8x16 independent logical shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I8x16 independent arithmetic shift" & Lane'Image);
@@ -271,7 +286,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I8x16 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I8x16 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I8x16 randomized native logical shifts");
-            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I8x16 randomized native arithmetic shift");
+            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I8x16 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I8x16 (R_A, Shift)), "I8x16 randomized independent arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I8x16 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I8x16 randomized native lane permutation");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I8x16 randomized native two-source lane permutation");
@@ -603,6 +618,20 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Expand_I16x8;
+   function Reference_Shift_Right_Arithmetic_I16x8 (Value : I16x8; Count : Natural) return I16x8 is
+      Result : I16x8 := Zero;
+      Raw, Shifted : Interfaces.Unsigned_16;
+   begin
+      for Lane in Lane_Index_16x8 loop
+         Raw := I16x8_To_Bits (Extract (Value, Lane));
+         if Count = 0 then Shifted := Raw;
+         elsif Count >= 16 then Shifted := (if Extract (Value, Lane) < 0 then Interfaces.Unsigned_16'Last else 0);
+         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left (Interfaces.Unsigned_16'Last, 16 - Count);
+         else Shifted := Interfaces.Shift_Right (Raw, Count); end if;
+         Result := Replace (Result, Lane, Bits_To_I16x8 (Shifted));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Arithmetic_I16x8;
    procedure Test_I16x8 is
       A : constant I16x8 := From_Lanes ([I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0]);
       B : constant I16x8 := From_Lanes ([1, I16'Last, -1, I16'First, 0, 1, I16'Last, -1]);
@@ -653,9 +682,10 @@ procedure Family_Tests is
       for Shift in Natural range 0 .. 18 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I16x8 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I16x8 shr" & Shift'Image);
-         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), "I16x8 sar" & Shift'Image);
+         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I16x8 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I16x8 (A, Shift)), "I16x8 independent arithmetic shift" & Shift'Image);
       end loop;
       Check (Same (Shift_Left_Logical (A, 16), Zero) and then Same (Shift_Right_Logical (A, 16), Zero), "I16x8 independent oversized logical shifts");
+      Check (Same (Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I16x8 (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I16x8 (A, Natural'Last)), "I16x8 maximum-count independent arithmetic shift");
       for Lane in Lane_Index_16x8 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = Bits_To_I16x8 (Interfaces.Shift_Left (I16x8_To_Bits (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = Bits_To_I16x8 (Interfaces.Shift_Right (I16x8_To_Bits (Extract (A, Lane)), 1)), "I16x8 independent logical shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I16x8 independent arithmetic shift" & Lane'Image);
@@ -748,7 +778,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I16x8 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I16x8 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I16x8 randomized native logical shifts");
-            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I16x8 randomized native arithmetic shift");
+            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I16x8 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I16x8 (R_A, Shift)), "I16x8 randomized independent arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I16x8 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I16x8 randomized native lane permutation");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I16x8 randomized native two-source lane permutation");
@@ -1085,6 +1115,20 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Expand_I32x4;
+   function Reference_Shift_Right_Arithmetic_I32x4 (Value : I32x4; Count : Natural) return I32x4 is
+      Result : I32x4 := Zero;
+      Raw, Shifted : Interfaces.Unsigned_32;
+   begin
+      for Lane in Lane_Index_32x4 loop
+         Raw := I32x4_To_Bits (Extract (Value, Lane));
+         if Count = 0 then Shifted := Raw;
+         elsif Count >= 32 then Shifted := (if Extract (Value, Lane) < 0 then Interfaces.Unsigned_32'Last else 0);
+         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left (Interfaces.Unsigned_32'Last, 32 - Count);
+         else Shifted := Interfaces.Shift_Right (Raw, Count); end if;
+         Result := Replace (Result, Lane, Bits_To_I32x4 (Shifted));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Arithmetic_I32x4;
    procedure Test_I32x4 is
       A : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
       B : constant I32x4 := From_Lanes ([1, I32'Last, -1, I32'First]);
@@ -1140,9 +1184,10 @@ procedure Family_Tests is
       for Shift in Natural range 0 .. 34 loop
          Check (Same (Backends.Native.Shift_Left_Logical (A, Shift), Shift_Left_Logical (A, Shift)), "I32x4 shl" & Shift'Image);
          Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), "I32x4 shr" & Shift'Image);
-         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), "I32x4 sar" & Shift'Image);
+         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I32x4 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I32x4 (A, Shift)), "I32x4 independent arithmetic shift" & Shift'Image);
       end loop;
       Check (Same (Shift_Left_Logical (A, 32), Zero) and then Same (Shift_Right_Logical (A, 32), Zero), "I32x4 independent oversized logical shifts");
+      Check (Same (Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I32x4 (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I32x4 (A, Natural'Last)), "I32x4 maximum-count independent arithmetic shift");
       for Lane in Lane_Index_32x4 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = Bits_To_I32x4 (Interfaces.Shift_Left (I32x4_To_Bits (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = Bits_To_I32x4 (Interfaces.Shift_Right (I32x4_To_Bits (Extract (A, Lane)), 1)), "I32x4 independent logical shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I32x4 independent arithmetic shift" & Lane'Image);
@@ -1235,7 +1280,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "I32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), "I32x4 randomized native comparisons");
             Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), "I32x4 randomized native logical shifts");
-            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), "I32x4 randomized native arithmetic shift");
+            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I32x4 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I32x4 (R_A, Shift)), "I32x4 randomized independent arithmetic shift");
             Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "I32x4 randomized native permutations");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "I32x4 randomized native lane permutation");
             Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "I32x4 randomized native two-source lane permutation");
@@ -1657,6 +1702,7 @@ procedure Family_Tests is
          Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)), "I64x2 independent arithmetic shift" & Shift'Image);
       end loop;
       Check (Same (Shift_Left_Logical (A, 64), Zero) and then Same (Shift_Right_Logical (A, 64), Zero), "I64x2 independent oversized logical shifts");
+      Check (Same (Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I64x2 (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_I64x2 (A, Natural'Last)), "I64x2 maximum-count independent arithmetic shift");
       for Lane in Lane_Index_64x2 loop
          Check (Extract (Shift_Left_Logical (A, 1), Lane) = Bits_To_I64x2 (Interfaces.Shift_Left (I64x2_To_Bits (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = Bits_To_I64x2 (Interfaces.Shift_Right (I64x2_To_Bits (Extract (A, Lane)), 1)), "I64x2 independent logical shift" & Lane'Image);
          Check (Extract (Shift_Right_Arithmetic (A, 1), Lane) = (if Extract (A, Lane) >= 0 then Extract (A, Lane) / 2 else -1 - ((-1 - Extract (A, Lane)) / 2)), "I64x2 independent arithmetic shift" & Lane'Image);

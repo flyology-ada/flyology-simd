@@ -1042,7 +1042,7 @@ def neon_body() -> str:
             out += [
                 f"   function Native_SRA_{vector} is new NEON_Shift_128 ({vector}, \"{dup}\", \"sshl v0.{shape}, v0.{shape}, v1.{shape}\");",
                 f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is",
-                f"     (if Count >= {bits} then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SRA_{vector} (Value, -Interfaces.Integer_64 (Count)));",
+                f"     (Native_SRA_{vector} (Value, -Interfaces.Integer_64 (Natural'Min (Count, {bits}))));",
             ]
         if vector == "I8x16":
             # Signed byte comparison needs its own compacting instantiations.
@@ -2450,7 +2450,7 @@ def x86_body() -> str:
             if bits < 64:
                 out += [
                     f"   function Native_SAR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_arithmetic[bits])}\");",
-                    f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is (if Count >= {bits} then Flyology_SIMD.Shift_Right_Arithmetic (Value, Count) else Native_SAR_{vector} (Value, Interfaces.Unsigned_32 (Count)));",
+                    f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is (Native_SAR_{vector} (Value, Interfaces.Unsigned_32 (Natural'Min (Count, {bits}))));",
                 ]
             else:
                 instruction = x86_ada_instruction(
@@ -2780,22 +2780,22 @@ def test_program() -> str:
             f"   end Reference_Expand_{vector};",
             *(
                 [
-                    "   function Reference_Shift_Right_Arithmetic_I64x2 (Value : I64x2; Count : Natural) return I64x2 is",
-                    "      Result : I64x2 := Zero;",
-                    "      Raw, Shifted : Interfaces.Unsigned_64;",
+                    f"   function Reference_Shift_Right_Arithmetic_{vector} (Value : {vector}; Count : Natural) return {vector} is",
+                    f"      Result : {vector} := Zero;",
+                    f"      Raw, Shifted : {unsigned};",
                     "   begin",
-                    "      for Lane in Lane_Index_64x2 loop",
-                    "         Raw := I64x2_To_Bits (Extract (Value, Lane));",
+                    f"      for Lane in {lane_index(bits, lanes)} loop",
+                    f"         Raw := {vector}_To_Bits (Extract (Value, Lane));",
                     "         if Count = 0 then Shifted := Raw;",
-                    "         elsif Count >= 64 then Shifted := (if Extract (Value, Lane) < 0 then Interfaces.Unsigned_64'Last else 0);",
-                    "         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left (Interfaces.Unsigned_64'Last, 64 - Count);",
+                    f"         elsif Count >= {bits} then Shifted := (if Extract (Value, Lane) < 0 then {unsigned}'Last else 0);",
+                    f"         elsif Extract (Value, Lane) < 0 then Shifted := Interfaces.Shift_Right (Raw, Count) or Interfaces.Shift_Left ({unsigned}'Last, {bits} - Count);",
                     "         else Shifted := Interfaces.Shift_Right (Raw, Count); end if;",
-                    "         Result := Replace (Result, Lane, Bits_To_I64x2 (Shifted));",
+                    f"         Result := Replace (Result, Lane, Bits_To_{vector} (Shifted));",
                     "      end loop;",
                     "      return Result;",
-                    "   end Reference_Shift_Right_Arithmetic_I64x2;",
+                    f"   end Reference_Shift_Right_Arithmetic_{vector};",
                 ]
-                if vector == "I64x2" else []
+                if signed else []
             ),
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
@@ -2873,13 +2873,11 @@ def test_program() -> str:
             f"         Check (Same (Backends.Native.Shift_Right_Logical (A, Shift), Shift_Right_Logical (A, Shift)), \"{vector} shr\" & Shift'Image);",
         ]
         if signed:
-            if vector == "I64x2":
-                lines.append("         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (A, Shift)), \"I64x2 independent arithmetic shift\" & Shift'Image);")
-            else:
-                lines.append(f"         Check (Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Shift_Right_Arithmetic (A, Shift)), \"{vector} sar\" & Shift'Image);")
+            lines.append(f"         Check (Same (Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_{vector} (A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Shift), Reference_Shift_Right_Arithmetic_{vector} (A, Shift)), \"{vector} independent arithmetic shift\" & Shift'Image);")
         lines += [
             "      end loop;",
             f"      Check (Same (Shift_Left_Logical (A, {bits}), Zero) and then Same (Shift_Right_Logical (A, {bits}), Zero), \"{vector} independent oversized logical shifts\");",
+            *([f"      Check (Same (Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_{vector} (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Arithmetic (A, Natural'Last), Reference_Shift_Right_Arithmetic_{vector} (A, Natural'Last)), \"{vector} maximum-count independent arithmetic shift\");"] if signed else []),
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Extract (Shift_Left_Logical (A, 1), Lane) = {shl_oracle} and then Extract (Shift_Right_Logical (A, 1), Lane) = {shr_oracle}, \"{vector} independent logical shift\" & Lane'Image);",
         ]
@@ -2975,9 +2973,7 @@ def test_program() -> str:
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)), \"{vector} randomized native comparisons\");",
             f"            Check (Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Shift_Left_Logical (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Shift_Right_Logical (R_A, Shift)), \"{vector} randomized native logical shifts\");",
             *(([
-                "            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_I64x2 (R_A, Shift)), \"I64x2 randomized independent arithmetic shift\");"
-                if vector == "I64x2" else
-                f"            Check (Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Shift_Right_Arithmetic (R_A, Shift)), \"{vector} randomized native arithmetic shift\");"
+                f"            Check (Same (Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_{vector} (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Arithmetic (R_A, Shift), Reference_Shift_Right_Arithmetic_{vector} (R_A, Shift)), \"{vector} randomized independent arithmetic shift\");"
             ] if signed else [])),
             f"            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), \"{vector} randomized native permutations\");",
             f"            Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), \"{vector} randomized native lane permutation\");",

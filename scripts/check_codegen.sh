@@ -197,12 +197,15 @@ require_count 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
 forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
   "$temporary/conversion64-undefined.txt" \
   'portable 64-bit numeric conversion call in the Native caller probe'
-require_count 'flyology_simd__backends__native__shift_right_arithmetic' 1 \
+require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
   "$temporary/shift64-undefined.txt" \
-  'one I64x2 Native arithmetic-right-shift call in the public caller probe'
+  'all four Native arithmetic-right-shift calls in the public caller probe'
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/shift64-undefined.txt" \
-  'portable I64x2 arithmetic-right-shift call in the Native caller probe'
+  'portable arithmetic-right-shift call in the Native caller probe'
+forbid_pattern 'flyology_simd__shift_right_arithmetic' \
+  "$temporary/native-undefined.txt" \
+  'portable arithmetic-right-shift call retained in the Native backend object'
 require_count 'flyology_simd__backends__native__unordered' 2 \
   "$temporary/unordered-undefined.txt" \
   'F32x4 and F64x2 Native Unordered calls in the public caller probe'
@@ -326,6 +329,18 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        for entry in 'i8x16 16b' 'i16x8 8h' 'i32x4 4s' 'i64x2 2d'; do
+            set -- $entry
+            lane=$1
+            shape=$2
+            extract_symbol "native_sra_${lane}" \
+              "$temporary/native.txt" "$temporary/${lane}-sar.txt"
+            require_pattern "sshl.*${shape}" "$temporary/${lane}-sar.txt" \
+              "inlined AArch64 arithmetic right shift for ${lane}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__shift_right_arithmetic' \
+              "$temporary/${lane}-sar.txt" \
+              "portable or out-of-line arithmetic right shift for ${lane}"
+        done
         extract_symbol 'construction_codegen_probe__splat_u8' \
           "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
         require_pattern 'dup\.16b' "$temporary/construction-splat-u8.txt" \
@@ -1167,6 +1182,30 @@ EOF
         require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
         require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
         require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
+        for entry in 'i8x16 psraw packsswb' 'i16x8 psraw none' 'i32x4 psrad none'; do
+            set -- $entry
+            lane=$1
+            instruction=$2
+            secondary=$3
+            extract_symbol "native_sar_${lane}" \
+              "$temporary/native.txt" "$temporary/${lane}-sar.txt"
+            require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+              "$temporary/${lane}-sar.txt" \
+              "inlined SSE2 arithmetic right shift for ${lane}"
+            if [ "$secondary" != none ]; then
+                require_pattern "(^|[[:space:]])${secondary}[[:space:]]" \
+                  "$temporary/${lane}-sar.txt" \
+                  "SSE2 signed-byte repacking for ${lane}"
+            fi
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__shift_right_arithmetic' \
+              "$temporary/${lane}-sar.txt" \
+              "portable or out-of-line arithmetic right shift for ${lane}"
+        done
+        for instruction in pxor punpcklbw punpckhbw psllw; do
+            require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+              "$temporary/i8x16-sar.txt" \
+              "SSE2 signed-byte widening step ${instruction} in I8x16 arithmetic right shift"
+        done
         extract_symbol 'native_sar_i64x2' "$temporary/native.txt" \
           "$temporary/sar-i64x2.txt"
         for instruction in pshufd psrad psrlq pxor por; do

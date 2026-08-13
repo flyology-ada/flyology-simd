@@ -373,14 +373,34 @@ def native_support_doc(name: str, declaration: str) -> str:
             f"The x86-64 backend {x86}. A scalar build uses the portable "
             "scalar implementation."
         )
-    if name == "Shift_Right_Arithmetic" and "I64x2" in declaration:
+    if name == "Shift_Right_Arithmetic":
+        vector = next(
+            candidate for candidate in ("I8x16", "I16x8", "I32x4", "I64x2")
+            if candidate in declaration
+        )
+        bits = {"I8x16": 8, "I16x8": 16, "I32x4": 32, "I64x2": 64}[vector]
+        if bits == 8:
+            x86 = (
+                "widens the signed bytes, shifts the 16-bit lanes with psraw, "
+                "and packs the result bytes"
+            )
+        elif bits == 16:
+            x86 = "shifts the signed 16-bit lanes with psraw"
+        elif bits == 32:
+            x86 = "shifts the signed 32-bit lanes with psrad"
+        else:
+            x86 = (
+                "derives each lane's sign mask, applies a logical right shift "
+                "to each 64-bit lane and its sign mask, and merges the sign fill"
+            )
         return (
-            "Cross-platform support: The AArch64 backend uses a dedicated "
-            "NEON implementation. The x86-64 backend uses an SSE2 sequence "
-            "that derives each lane's sign mask, applies a logical right "
-            "shift to each 64-bit lane and its sign mask, and merges the sign "
-            "fill. A scalar build uses "
-            "the portable scalar implementation."
+            "Cross-platform support: The AArch64 backend shifts the signed "
+            f"{bits}-bit lanes with the NEON sshl instruction and a negative "
+            f"count. The x86-64 backend uses an SSE2 sequence that {x86}. "
+            f"When Count exceeds {bits}, both backends clamp it to {bits}. "
+            "The clamped count produces the defined full sign fill without "
+            "calling the portable root operation. A scalar build uses the "
+            "portable scalar implementation."
         )
     if name in {"First_True", "Last_True"}:
         direction = "first" if name == "First_True" else "last"
