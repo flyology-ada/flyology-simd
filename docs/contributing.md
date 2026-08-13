@@ -30,3 +30,5 @@ both `simd_tests` and `family_tests`; generated family files are reproduced by
 
 The generated `U8x16` value-operation caller probe and its 26-operation
 manifest are reproduced by `scripts/generate_u8_value_probe.py`.
+The generated Wide integer-reduction caller probe and its 24-operation
+manifest are reproduced by `scripts/generate_wide_reduction_probe.py`.

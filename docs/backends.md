@@ -486,9 +486,11 @@ result, combines the two vectors with selected `Add_Wrap`, `Min`, or `Max`, and
 extracts lane 0. This grouping is valid because the three integer operations
 are associative.
 Independent lane oracles cover fixed inputs and 128 deterministic pseudorandom
-inputs for every integer family. Caller-level probes require two selected
-reductions, one selected combine operation, and one lane-zero extraction. They
-reject calls to the Wide and root scalar reductions.
+inputs for every integer family. A generated caller gate covers all 24
+overloads. For each caller, it requires two matching selected 128-bit
+reductions, one matching selected 128-bit `Add_Wrap`, `Min`, or `Max` combine
+operation, and one matching selected 128-bit extraction. It rejects mismatched
+selected operations and calls to the Wide and root scalar reductions.
 
 Wide floating reductions combine lanes in ascending lane order and do not
 reduce the two private parts independently. On AArch64, dedicated Advanced SIMD

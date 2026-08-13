@@ -63,7 +63,13 @@ disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
-disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_reduction_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-reduction-probe.txt"
+else
+    objdump -dr "$wide_reduction_probe_object" \
+      >"$temporary/wide-reduction-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -97,7 +103,6 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$u8_value_probe_object" >"$temporary/u8-value-probe.txt"
 fi
-objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
     nm -u "$wide_byte_object" >"$temporary/wide-byte-undefined.txt"
@@ -672,25 +677,68 @@ forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'
 
-require_count 'backends__native__reduce_add_wrap' 2 \
-  "$temporary/wide-reduction-relocs.txt" \
-  'two selected 128-bit wrapping-sum reductions in the Wide caller'
-require_count 'backends__native__reduce_min' 2 \
-  "$temporary/wide-reduction-relocs.txt" \
-  'two selected 128-bit minimum reductions in the Wide caller'
-require_count 'backends__native__reduce_max' 2 \
-  "$temporary/wide-reduction-relocs.txt" \
-  'two selected 128-bit maximum reductions in the Wide caller'
-require_pattern 'backends__native__(neon_)?add_wrap' \
-  "$temporary/wide-reduction-relocs.txt" \
-  'selected 128-bit wrapping combine in the Wide reduction caller'
-require_pattern 'backends__native__min' "$temporary/wide-reduction-relocs.txt" \
-  'selected 128-bit minimum combine in the Wide reduction caller'
-require_pattern 'backends__native__max' "$temporary/wide-reduction-relocs.txt" \
-  'selected 128-bit maximum combine in the Wide reduction caller'
-require_count 'backends__native__extract' 3 \
-  "$temporary/wide-reduction-relocs.txt" \
-  'selected lane-zero extraction for all Wide reduction probes'
+wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')
+wide_reduction_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_reduction_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_reduction_case_count" -ne 24 ] || \
+   [ "$wide_reduction_unique_count" -ne 24 ]; then
+    echo 'Wide reduction code-generation manifest must contain 24 unique operations' >&2
+    exit 1
+fi
+
+while read -r lane_kind operation combine suffix; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-reduction-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_reduction_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-reduction-probe.txt" "$caller"
+    if [ "$suffix" = none ]; then
+        operation_symbol="${operation}"
+        combine_symbol="${combine}"
+        extract_symbol_name='extract'
+        splat_symbol='splat'
+    else
+        operation_symbol="${operation}__${suffix}"
+        combine_symbol="${combine}__${suffix}"
+        extract_symbol_name="extract__${suffix}"
+        splat_symbol="splat__${suffix}"
+    fi
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+      "$caller" "two matching selected reductions in ${lane_kind} ${operation}"
+    require_count "backends__native__${combine_symbol}${symbol_end}" 1 \
+      "$caller" "one matching selected combine in ${lane_kind} ${operation}"
+    require_count "backends__native__${extract_symbol_name}${symbol_end}" 1 \
+      "$caller" "one matching selected extraction in ${lane_kind} ${operation}"
+    if grep -Eiq "backends__native__${splat_symbol}${symbol_end}" "$caller"; then
+        require_count "backends__native__${splat_symbol}${symbol_end}" 2 \
+          "$caller" "two matching selected splats in ${lane_kind} ${operation}"
+        selected_operation_count=6
+    else
+        case "$architecture:$lane_kind" in
+            aarch64:u8)
+                require_count 'dup\.16b' 2 "$caller" \
+                  "two inlined byte splats in ${lane_kind} ${operation}"
+                ;;
+            x86_64:u8)
+                require_count 'punpcklbw' 2 "$caller" \
+                  "two inlined byte splat expansions in ${lane_kind} ${operation}"
+                require_count 'punpcklwd' 2 "$caller" \
+                  "two inlined word splat expansions in ${lane_kind} ${operation}"
+                require_count 'pshufd' 2 "$caller" \
+                  "two inlined dword splat broadcasts in ${lane_kind} ${operation}"
+                ;;
+            *) echo "missing code-generation requirement: two matching selected splats in ${lane_kind} ${operation}" >&2; exit 1 ;;
+        esac
+        selected_operation_count=4
+    fi
+    require_count 'flyology_simd__backends__native__' \
+      "$selected_operation_count" "$caller" \
+      "only the intended selected operations in ${lane_kind} ${operation}"
+    forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' \
+      "$caller" "Wide dispatcher or portable scalar reduction in ${lane_kind} ${operation}"
+done <scripts/probes/wide_reduction_codegen_cases.txt
+
 forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' \
   "$temporary/wide-reduction-undefined.txt" \
   'Wide dispatcher or portable scalar reduction retained in caller probe'

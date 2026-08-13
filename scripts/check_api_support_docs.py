@@ -725,6 +725,49 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: incorrect exact {vector} "
                     f"{operation} SSE2 classification"
                 )
+    if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        reduction_support = {
+            "function Reduce_Add_Wrap": (
+                "reduce each private part with the selected 128-bit "
+                "Reduce_Add_Wrap operation, combine the two results with the "
+                "selected 128-bit Add_Wrap operation, and extract lane zero"
+            ),
+            "function Reduce_Min": (
+                "reduce each private part with the selected 128-bit Reduce_Min "
+                "operation, combine the two results with the selected 128-bit "
+                "Min operation, and extract lane zero"
+            ),
+            "function Reduce_Max": (
+                "reduce each private part with the selected 128-bit Reduce_Max "
+                "operation, combine the two results with the selected 128-bit "
+                "Max operation, and extract lane zero"
+            ),
+        }
+        for declaration, phrase in reduction_support.items():
+            count = sum(
+                1
+                for block in text.split(declaration)[1:]
+                if phrase in block.split("function ", 1)[0]
+            )
+            if count != 8:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: {declaration} exact reduction "
+                    f"classification appears {count} times, expected 8"
+                )
+        if path.name == "flyology_simd-wide.ads":
+            for declaration, phrase in reduction_support.items():
+                count = sum(
+                    1
+                    for block in text.split(declaration)[1:]
+                    if "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block.split("function ", 1)[0]
+                    and phrase in block.split("function ", 1)[0]
+                )
+                if count != 8:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {declaration} portable "
+                        f"authority appears {count} times, expected 8"
+                    )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "test the selected element address modulo 32 directly",
@@ -760,9 +803,6 @@ def invalid_support(path: Path) -> list[str]:
             "function Extract": "only on the private part that contains the requested lane",
             "function Replace": "only on the private part that contains the requested lane",
             "function Test": "only on the private part that contains the requested lane",
-            "function Reduce_Add_Wrap": "reduce each private part with the selected 128-bit Reduce_Add_Wrap operation",
-            "function Reduce_Min": "reduce each private part with the selected 128-bit Reduce_Min operation",
-            "function Reduce_Max": "reduce each private part with the selected 128-bit Reduce_Max operation",
             "function Reduce_Add (": "dedicated SSE2 sequence with the same start value and lane order",
             "function Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
             "function Reduce_Max_Number": "integer-only SSE2 classification and bit-selection sequence that applies maximum-number in the same order",
