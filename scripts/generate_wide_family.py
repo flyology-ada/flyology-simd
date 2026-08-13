@@ -317,14 +317,40 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "Greater_Than", "Greater_Equal",
         } or operation in {"Bitwise_Not", "Select_Value"}:
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
-        mechanism = (
-            "AArch64 runs the selected 128-bit operation on both private "
-            "parts; x86-64 does the same by default, and the optional AVX2 "
-            "build uses a dedicated 256-bit implementation"
-            if byte_shape else
-            "AArch64 and x86-64 run the selected 128-bit operation on both "
-            "private parts"
-        )
+        predicate = operation in {
+            "Equal", "Less_Than", "Less_Equal", "Greater_Than",
+            "Greater_Equal", "Select_Value",
+        }
+        if byte_shape and predicate:
+            avx2_action = {
+                "Equal": "uses an isolated relation-specific 256-bit Equal leaf",
+                "Less_Than": "uses an isolated relation-specific 256-bit Less_Than leaf. The leaf reverses the operands within its Greater_Than comparison",
+                "Less_Equal": "uses an isolated relation-specific 256-bit Less_Equal leaf. The leaf complements the result of Greater_Than (Left, Right)",
+                "Greater_Than": "uses an isolated relation-specific 256-bit Greater_Than leaf",
+                "Greater_Equal": "uses an isolated relation-specific 256-bit Greater_Equal leaf. The leaf complements the result of Greater_Than (Right, Left)",
+                "Select_Value": "uses an isolated relation-specific 256-bit Select_Value leaf",
+            }[operation]
+            mechanism = (
+                f"AArch64 runs the selected 128-bit {operation} operation on both "
+                f"private parts; x86-64 does the same by default, and the optional "
+                f"AVX2 build {avx2_action}"
+            )
+        elif byte_shape:
+            mechanism = (
+                "AArch64 runs the selected 128-bit operation on both private "
+                "parts; x86-64 does the same by default, and the optional AVX2 "
+                "build uses a dedicated 256-bit implementation"
+            )
+        elif predicate:
+            mechanism = (
+                f"AArch64 and x86-64 run the selected 128-bit {operation} "
+                "operation on both private parts"
+            )
+        else:
+            mechanism = (
+                "AArch64 and x86-64 run the selected 128-bit operation on both "
+                "private parts"
+            )
     elif operation in {
         "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
         "Unordered", "Bit_Cast",
@@ -333,6 +359,9 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         "Convert_Truncate_Saturate", "Convert_Saturate",
     }:
         mechanism = (
+            f"AArch64 and x86-64 run the selected 128-bit {operation} operation "
+            "on both private parts"
+            if operation == "Unordered" else
             "AArch64 and x86-64 run the selected 128-bit operation on both "
             "private parts"
         )

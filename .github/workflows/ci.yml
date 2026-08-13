@@ -39,6 +39,7 @@ jobs:
           python3 scripts/generate_u8_value_probe.py
           python3 scripts/generate_wide_reduction_probe.py
           python3 scripts/generate_wide_construction_probe.py
+          python3 scripts/generate_wide_comparison_probe.py
           python3 scripts/generate_conversion_tests.py
           python3 scripts/generate_wide_family.py
           python3 scripts/generate_wide_tests.py

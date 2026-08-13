@@ -78,6 +78,115 @@ def lane_values(scalar: str, lanes: int, variant: int = 0) -> str:
     return ", ".join(patterns[(lane + variant) % len(patterns)] for lane in range(lanes))
 
 
+def predicate_declarations(f: Family) -> str:
+    """Generate an independent lane oracle for comparisons and selection."""
+    unordered_kind = ", Is_Unordered" if f.floating else ""
+    if f.floating:
+        cases = """when Is_Equal         => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) = Right (Lane),
+                  when Is_Less          => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) <= Right (Lane),
+                  when Is_Greater       => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) >= Right (Lane),
+                  when Is_Unordered     => Is_NaN (Left (Lane)) or else Is_NaN (Right (Lane))"""
+        unordered_expected = """
+         Unordered_Bits : constant Wide.{mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Unordered);""".format(
+               mask_bits=f.mask_bits)
+        unordered_check = """
+           and then Wide.To_Bit_Mask (Wide.Unordered (Left_Value, Right_Value)) = Unordered_Bits
+           and then Native.To_Bit_Mask (Native.Unordered (Left_Value, Right_Value)) = Unordered_Bits"""
+        selection_check = """(for all Lane in Wide.{index} =>
+              Value_To_Bits (Wide.Extract (Scalar_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane)))
+           and then (for all Lane in Wide.{index} =>
+              Value_To_Bits (Native.Extract (Native_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane)))""".format(index=f.index)
+    else:
+        cases = """when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane)"""
+        unordered_expected = ""
+        unordered_check = ""
+        selection_check = (
+            "Wide.To_Lanes (Scalar_Selected) = Expected_Selected\n"
+            "           and then Native.To_Lanes (Native_Selected) = Expected_Selected"
+        )
+
+    return f'''
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal{unordered_kind});
+
+      function Reference_Comparison
+        (Left, Right : Wide.{f.values}; Kind : Comparison_Kind)
+         return Wide.{f.mask_bits}
+      is
+         Result : Wide.{f.mask_bits} := 0;
+      begin
+         for Lane in Wide.{f.index} loop
+            if (case Kind is
+                  {cases})
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.{f.mask_bits} (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.{f.mask_bits}; If_True, If_False : Wide.{f.values})
+         return Wide.{f.values}
+      is
+        ([for Lane in Wide.{f.index} =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.{f.values};
+         Select_Bits : Wide.{f.mask_bits};
+         Context : String)
+      is
+         Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.{f.mask} :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.{f.mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.{f.mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.{f.mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.{f.mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.{f.mask_bits} :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);{unordered_expected}
+         Expected_Selected : constant Wide.{f.values} :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.{f.vector} :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.{f.vector} :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits{unordered_check},
+            "{f.vector} independent comparison oracle " & Context);
+         Check ({selection_check},
+           "{f.vector} independent selection oracle " & Context);
+      end Check_Predicates;
+'''
+
+
 def compaction_declarations(f: Family) -> str:
     zero = "0.0" if f.floating else "0"
     if f.floating:
@@ -1615,7 +1724,7 @@ def integer_test(f: Family) -> str:
 '''
     byte_oracle_checks = ""
     byte_boundary_checks = ""
-    byte_predicate_declarations = ""
+    all_predicate_declarations = predicate_declarations(f)
     byte_predicate_checks = ""
     byte_predicate_randomized = ""
     if f.bits == 8:
@@ -1645,39 +1754,6 @@ def integer_test(f: Family) -> str:
             )
             bit = lambda operator: f"R_A_Lanes (Lane) {operator} R_B_Lanes (Lane)"
             complement = "not R_A_Lanes (Lane)"
-        byte_predicate_declarations = f'''
-      type Comparison_Kind is
-        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
-
-      function Reference_Comparison
-        (Left, Right : Wide.{f.values}; Kind : Comparison_Kind)
-         return Wide.{f.mask_bits}
-      is
-         Result : Wide.{f.mask_bits} := 0;
-      begin
-         for Lane in Wide.{f.index} loop
-            if (case Kind is
-                  when Is_Equal         => Left (Lane) = Right (Lane),
-                  when Is_Less          => Left (Lane) < Right (Lane),
-                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
-                  when Is_Greater       => Left (Lane) > Right (Lane),
-                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
-            then
-               Result := Result or Interfaces.Shift_Left
-                 (Wide.{f.mask_bits} (1), Lane);
-            end if;
-         end loop;
-         return Result;
-      end Reference_Comparison;
-
-      function Reference_Select
-        (Bits : Wide.{f.mask_bits}; If_True, If_False : Wide.{f.values})
-         return Wide.{f.values}
-      is
-        ([for Lane in Wide.{f.index} =>
-           (if ((Bits / 2 ** Lane) mod 2) = 1
-            then If_True (Lane) else If_False (Lane))]);
-'''
         pair_value = (
             f"Bits_To_Value (U8 (Pair / 256))"
             if f.signed else "U8 (Pair / 256)"
@@ -1917,7 +1993,7 @@ def integer_test(f: Family) -> str:
    procedure Test_{f.vector} is
 {('      function Bits_To_Value is new Ada.Unchecked_Conversion (' + unsigned + ', ' + f.scalar + ');') if f.signed else ''}
 {('      function Value_To_Bits is new Ada.Unchecked_Conversion (' + f.scalar + ', ' + unsigned + ');') if f.signed else ''}
-{byte_predicate_declarations}
+{all_predicate_declarations}
       function Random_Lanes return Wide.{f.values} is
          Result : Wide.{f.values};
       begin
@@ -1998,6 +2074,8 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.{f.index} => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "{f.vector} selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, {f.mask_bits} ({alt}), "fixed boundaries");
 {compaction_fixed_tests(f, 'A_Lanes')}
       for Lane in Wide.{f.index} loop
          if Lane < {f.lanes // 2} then
@@ -2316,18 +2394,15 @@ def integer_test(f: Family) -> str:
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
 {byte_predicate_randomized}
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)){' and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift))' if f.signed else ''},
               "{f.vector} randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "{f.vector} randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -2366,6 +2441,8 @@ def float_test(f: Family) -> str:
     inf_bits = "16#7F80_0000#" if f.bits == 32 else "16#7FF0_0000_0000_0000#"
     qnan_bits = "16#7FC1_2345#" if f.bits == 32 else "16#7FF8_1234_5678_9ABC#"
     snan_bits = "16#7F81_2345#" if f.bits == 32 else "16#7FF0_1234_5678_9ABC#"
+    negative_qnan_bits = "16#FFC1_2345#" if f.bits == 32 else "16#FFF8_1234_5678_9ABC#"
+    negative_snan_bits = "16#FF81_2345#" if f.bits == 32 else "16#FFF0_1234_5678_9ABC#"
     exponent_mask = "16#7F80_0000#" if f.bits == 32 else "16#7FF0_0000_0000_0000#"
     fraction_mask = "16#007F_FFFF#" if f.bits == 32 else "16#000F_FFFF_FFFF_FFFF#"
     quiet_bit = "16#0040_0000#" if f.bits == 32 else "16#0008_0000_0000_0000#"
@@ -2378,6 +2455,22 @@ def float_test(f: Family) -> str:
     compaction_extra_bits = [negative_inf_bits, snan_bits, "1", negative_subnormal_bits]
     compaction_extra_values = ", ".join(
         f"Bits_To_Value ({compaction_extra_bits[lane % len(compaction_extra_bits)]})"
+        for lane in range(f.lanes)
+    )
+    predicate_edge_left_bits = [
+        negative_qnan_bits, negative_snan_bits, "1", negative_subnormal_bits,
+        inf_bits, negative_inf_bits, "0", sign_bit,
+    ]
+    predicate_edge_right_bits = [
+        qnan_bits, snan_bits, sign_bit, "0", negative_inf_bits, inf_bits,
+        negative_subnormal_bits, "1",
+    ]
+    predicate_edge_left_values = ", ".join(
+        f"Bits_To_Value ({predicate_edge_left_bits[lane]})"
+        for lane in range(f.lanes)
+    )
+    predicate_edge_right_values = ", ".join(
+        f"Bits_To_Value ({predicate_edge_right_bits[lane]})"
         for lane in range(f.lanes)
     )
     order_values = ["2.0", "1.0", f"Bits_To_Value ({snan_bits})", "3.0"]
@@ -2411,6 +2504,7 @@ def float_test(f: Family) -> str:
       function Is_NaN (Value : {f.scalar}) return Boolean is
         ((Value_To_Bits (Value) and {exponent_mask}) = {exponent_mask}
          and then (Value_To_Bits (Value) and {fraction_mask}) /= 0);
+{predicate_declarations(f)}
       function Is_Signaling_NaN (Value : {f.scalar}) return Boolean is
         (Is_NaN (Value)
          and then (Value_To_Bits (Value) and {quiet_bit}) = 0);
@@ -2638,6 +2732,10 @@ def float_test(f: Family) -> str:
       Specials : constant Wide.{f.vector} := Wide.From_Lanes (Special_Lanes);
       Compaction_Extra_Lanes : constant Wide.{f.values} :=
         [{compaction_extra_values}];
+      Predicate_Edge_Left : constant Wide.{f.values} :=
+        [{predicate_edge_left_values}];
+      Predicate_Edge_Right : constant Wide.{f.values} :=
+        [{predicate_edge_right_values}];
       Order_Vector : constant Wide.{f.vector} := Wide.From_Lanes ([{order_lanes}]);
       Positive_Zero_First : constant Wide.{f.vector} :=
         Wide.From_Lanes ([{positive_zero_order}]);
@@ -2686,6 +2784,15 @@ def float_test(f: Family) -> str:
       Check_Extrema (Wide.To_Lanes (Negative_Zero_First),
                      Wide.To_Lanes (Positive_Zero_First),
                      "signed zeros reversed");
+      Check_Predicates
+        (Special_Lanes, Compaction_Extra_Lanes,
+         {f.mask_bits} ({alt}), "fixed IEEE categories");
+      Check_Predicates
+        (Compaction_Extra_Lanes, Special_Lanes,
+         {f.mask_bits} ({all_bits}), "fixed IEEE categories reversed");
+      Check_Predicates
+        (Predicate_Edge_Left, Predicate_Edge_Right,
+         {f.mask_bits} ({alt}), "both-sign NaNs and subnormals");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "{f.vector} ordered comparison");
 {compaction_fixed_tests(f, 'A_Lanes')}
@@ -3008,9 +3115,12 @@ def float_test(f: Family) -> str:
             Check_Extrema
               (R_Bit_Lanes, Special_Lanes,
                "randomized raw bits" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "{f.vector} randomized comparisons" & Iteration'Image);
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized finite" & Iteration'Image);
+            Check_Predicates
+              (R_Bit_Lanes, Special_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized raw bits" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
                "random special bits" & Iteration'Image);

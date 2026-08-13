@@ -55,21 +55,21 @@ package body Flyology_SIMD.Wide.Byte_Mechanism is
    function Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
      (Leaf.Equal (Left, Right));
    function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
-     (Leaf.Greater_Than (Left => Right, Right => Left));
+     (Leaf.Less_Than (Left, Right));
    function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
-     (Leaf.Greater_Than (Left => Right, Right => Left));
+     (Leaf.Less_Than (Left, Right));
    function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
-     (not Leaf.Greater_Than (Left, Right));
+     (Leaf.Less_Equal (Left, Right));
    function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
-     (not Leaf.Greater_Than (Left, Right));
+     (Leaf.Less_Equal (Left, Right));
    function Greater_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
      (Leaf.Greater_Than (Left, Right));
    function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
      (Leaf.Greater_Than (Left, Right));
    function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
-     (not Leaf.Greater_Than (Left => Right, Right => Left));
+     (Leaf.Greater_Equal (Left, Right));
    function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
-     (not Leaf.Greater_Than (Left => Right, Right => Left));
+     (Leaf.Greater_Equal (Left, Right));
    function Select_Value
      (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32 is
      (Leaf.Select_Value (Bits, If_True, If_False));

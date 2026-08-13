@@ -726,6 +726,52 @@ def invalid_support(path: Path) -> list[str]:
                     f"{operation} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        predicate_support = {
+            "Equal": 10,
+            "Less_Than": 10,
+            "Less_Equal": 10,
+            "Greater_Than": 10,
+            "Greater_Equal": 10,
+            "Unordered": 2,
+            "Select_Value": 10,
+        }
+        for operation, expected in predicate_support.items():
+            blocks = declaration_blocks(text, operation)
+            selected = sum(
+                f"selected 128-bit {operation} operation on both private parts"
+                in block
+                for block in blocks
+            )
+            avx2_phrase = {
+                "Equal": "optional AVX2 build uses an isolated relation-specific 256-bit Equal leaf",
+                "Less_Than": "optional AVX2 build uses an isolated relation-specific 256-bit Less_Than leaf. The leaf reverses the operands within its Greater_Than comparison",
+                "Less_Equal": "optional AVX2 build uses an isolated relation-specific 256-bit Less_Equal leaf. The leaf complements the result of Greater_Than (Left, Right)",
+                "Greater_Than": "optional AVX2 build uses an isolated relation-specific 256-bit Greater_Than leaf",
+                "Greater_Equal": "optional AVX2 build uses an isolated relation-specific 256-bit Greater_Equal leaf. The leaf complements the result of Greater_Than (Right, Left)",
+                "Select_Value": "optional AVX2 build uses an isolated relation-specific 256-bit Select_Value leaf",
+                "Unordered": "",
+            }[operation]
+            byte_avx2 = sum(avx2_phrase in block for block in blocks) if avx2_phrase else 0
+            expected_selected = expected
+            expected_byte = 2 if operation != "Unordered" else 0
+            if (len(blocks) != expected or selected != expected_selected
+                    or byte_avx2 != expected_byte):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"Wide predicate classifications ({len(blocks)} declarations, "
+                    f"{selected} selected-part notes, {byte_avx2} byte-AVX2 notes)"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block
+                    for block in blocks
+                )
+                if authority != expected:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected {expected}"
+                    )
         construction_support = {
             "Zero": "selected 128-bit Zero operation for both private parts",
             "Splat": "selected 128-bit Splat operation for both private parts",

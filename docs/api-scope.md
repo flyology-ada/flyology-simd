@@ -200,11 +200,11 @@ The public operation semantics do not change with the selected mechanism.
 `Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, `Max`,
 `Equal`, `Less_Than`, `Less_Equal`, `Greater_Than`, `Greater_Equal`, and
 `Select_Value` overloads. It also selects the 256-bit `U8x32` lookup
-implementation. Equality, greater-than, and selection have isolated 256-bit
-subprograms. Less-than reverses the greater-than operands. The inclusive
-comparisons use exact complements: `Less_Equal (Left, Right)` complements
-`Greater_Than (Left, Right)`, and `Greater_Equal (Left, Right)` complements
-`Greater_Than (Right, Left)`.
+implementation. Each byte comparison and `Select_Value` uses a
+relation-specific isolated 256-bit leaf. The `Less_Than` leaf reverses the
+operands of its greater-than comparison. The `Less_Equal` leaf complements that
+comparison with the original operand order. The `Greater_Equal` leaf
+complements it with reversed operands.
 With `FLYOLOGY_SIMD_ARCH=x86_64` and `FLYOLOGY_SIMD_AVX2=enabled`, the value
 `avx2` selects these implementations at compile time. The build rejects other
 configurations that select this backend. The library performs no runtime

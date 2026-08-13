@@ -73,6 +73,49 @@ procedure Wide_Tests is
            (if ((Bits / 2 ** Lane) mod 2) = 1
             then If_True (Lane) else If_False (Lane))]);
 
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_U8x32;
+         Select_Bits : Wide.Mask_Bits_8x32;
+         Context : String)
+      is
+         Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.U8x32 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_U8x32 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.U8x32 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.U8x32 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "U8x32 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "U8x32 independent selection oracle " & Context);
+      end Check_Predicates;
+
       function Random_Lanes return Wide.Lane_Values_U8x32 is
          Result : Wide.Lane_Values_U8x32;
       begin
@@ -783,6 +826,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_8x32 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U8x32 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_8x32 (1431655765), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -1252,18 +1297,15 @@ procedure Wide_Tests is
                  "U8x32 independent randomized selection" & Iteration'Image);
             end;
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U8x32 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "U8x32 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -1354,6 +1396,49 @@ procedure Wide_Tests is
         ([for Lane in Wide.Lane_Index_8x32 =>
            (if ((Bits / 2 ** Lane) mod 2) = 1
             then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_I8x32;
+         Select_Bits : Wide.Mask_Bits_8x32;
+         Context : String)
+      is
+         Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.I8x32 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_8x32 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_I8x32 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.I8x32 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.I8x32 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "I8x32 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "I8x32 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_I8x32 is
          Result : Wide.Lane_Values_I8x32;
@@ -2008,6 +2093,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_8x32 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I8x32 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_8x32 (1431655765), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -2476,18 +2563,15 @@ procedure Wide_Tests is
                  "I8x32 independent randomized selection" & Iteration'Image);
             end;
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I8x32 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "I8x32 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -2534,6 +2618,81 @@ procedure Wide_Tests is
    procedure Test_U16x16 is
 
 
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_U16x16; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_16x16
+      is
+         Result : Wide.Mask_Bits_16x16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_16x16 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_16x16; If_True, If_False : Wide.Lane_Values_U16x16)
+         return Wide.Lane_Values_U16x16
+      is
+        ([for Lane in Wide.Lane_Index_16x16 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_U16x16;
+         Select_Bits : Wide.Mask_Bits_16x16;
+         Context : String)
+      is
+         Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.U16x16 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_U16x16 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.U16x16 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.U16x16 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "U16x16 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "U16x16 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_U16x16 is
          Result : Wide.Lane_Values_U16x16;
@@ -3076,6 +3235,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_16x16 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U16x16 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_16x16 (21845), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -3453,18 +3614,15 @@ procedure Wide_Tests is
               "U16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U16x16 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "U16x16 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -3512,6 +3670,81 @@ procedure Wide_Tests is
    procedure Test_I16x16 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U16, I16);
       function Value_To_Bits is new Ada.Unchecked_Conversion (I16, U16);
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_I16x16; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_16x16
+      is
+         Result : Wide.Mask_Bits_16x16 := 0;
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_16x16 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_16x16; If_True, If_False : Wide.Lane_Values_I16x16)
+         return Wide.Lane_Values_I16x16
+      is
+        ([for Lane in Wide.Lane_Index_16x16 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_I16x16;
+         Select_Bits : Wide.Mask_Bits_16x16;
+         Context : String)
+      is
+         Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.I16x16 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_16x16 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_I16x16 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.I16x16 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.I16x16 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "I16x16 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "I16x16 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_I16x16 is
          Result : Wide.Lane_Values_I16x16;
@@ -4054,6 +4287,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_16x16 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I16x16 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_16x16 (21845), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -4430,18 +4665,15 @@ procedure Wide_Tests is
               "I16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I16x16 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "I16x16 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -4488,6 +4720,81 @@ procedure Wide_Tests is
    procedure Test_U32x8 is
 
 
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_U32x8; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_32x8
+      is
+         Result : Wide.Mask_Bits_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_32x8 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_32x8; If_True, If_False : Wide.Lane_Values_U32x8)
+         return Wide.Lane_Values_U32x8
+      is
+        ([for Lane in Wide.Lane_Index_32x8 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_U32x8;
+         Select_Bits : Wide.Mask_Bits_32x8;
+         Context : String)
+      is
+         Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.U32x8 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_U32x8 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.U32x8 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.U32x8 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "U32x8 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "U32x8 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_U32x8 is
          Result : Wide.Lane_Values_U32x8;
@@ -5030,6 +5337,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_32x8 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U32x8 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_32x8 (85), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -5423,18 +5732,15 @@ procedure Wide_Tests is
               "U32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U32x8 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "U32x8 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -5498,6 +5804,81 @@ procedure Wide_Tests is
    procedure Test_I32x8 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U32, I32);
       function Value_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_I32x8; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_32x8
+      is
+         Result : Wide.Mask_Bits_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_32x8 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_32x8; If_True, If_False : Wide.Lane_Values_I32x8)
+         return Wide.Lane_Values_I32x8
+      is
+        ([for Lane in Wide.Lane_Index_32x8 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_I32x8;
+         Select_Bits : Wide.Mask_Bits_32x8;
+         Context : String)
+      is
+         Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.I32x8 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_I32x8 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.I32x8 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.I32x8 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "I32x8 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "I32x8 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_I32x8 is
          Result : Wide.Lane_Values_I32x8;
@@ -6040,6 +6421,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_32x8 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I32x8 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_32x8 (85), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -6432,18 +6815,15 @@ procedure Wide_Tests is
               "I32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I32x8 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "I32x8 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -6506,6 +6886,81 @@ procedure Wide_Tests is
    procedure Test_U64x4 is
 
 
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_U64x4; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_64x4
+      is
+         Result : Wide.Mask_Bits_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_64x4 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_64x4; If_True, If_False : Wide.Lane_Values_U64x4)
+         return Wide.Lane_Values_U64x4
+      is
+        ([for Lane in Wide.Lane_Index_64x4 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_U64x4;
+         Select_Bits : Wide.Mask_Bits_64x4;
+         Context : String)
+      is
+         Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.U64x4 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_U64x4 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.U64x4 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.U64x4 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "U64x4 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "U64x4 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_U64x4 is
          Result : Wide.Lane_Values_U64x4;
@@ -7048,6 +7503,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_64x4 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "U64x4 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_64x4 (5), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -7441,18 +7898,15 @@ procedure Wide_Tests is
               "U64x4 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)),
               "U64x4 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "U64x4 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -7516,6 +7970,81 @@ procedure Wide_Tests is
    procedure Test_I64x4 is
       function Bits_To_Value is new Ada.Unchecked_Conversion (U64, I64);
       function Value_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_I64x4; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_64x4
+      is
+         Result : Wide.Mask_Bits_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if (case Kind is
+                  when Is_Equal         => Left (Lane) = Right (Lane),
+                  when Is_Less          => Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => Left (Lane) <= Right (Lane),
+                  when Is_Greater       => Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => Left (Lane) >= Right (Lane))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_64x4 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_64x4; If_True, If_False : Wide.Lane_Values_I64x4)
+         return Wide.Lane_Values_I64x4
+      is
+        ([for Lane in Wide.Lane_Index_64x4 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_I64x4;
+         Select_Bits : Wide.Mask_Bits_64x4;
+         Context : String)
+      is
+         Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.I64x4 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Expected_Selected : constant Wide.Lane_Values_I64x4 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.I64x4 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.I64x4 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits,
+            "I64x4 independent comparison oracle " & Context);
+         Check (Wide.To_Lanes (Scalar_Selected) = Expected_Selected
+           and then Native.To_Lanes (Native_Selected) = Expected_Selected,
+           "I64x4 independent selection oracle " & Context);
+      end Check_Predicates;
 
       function Random_Lanes return Wide.Lane_Values_I64x4 is
          Result : Wide.Lane_Values_I64x4;
@@ -8058,6 +8587,8 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Select_Value (Alternating, A, B)) =
         [for Lane in Wide.Lane_Index_64x4 => (if Lane mod 2 = 0 then A_Lanes (Lane) else 2)],
         "I64x4 selection");
+      Check_Predicates
+        (A_Lanes, Bit_Lanes, Mask_Bits_64x4 (5), "fixed boundaries");
 
       Check_Compaction (A_Lanes, 0, "fixed zero mask");
       Check_Compaction
@@ -8450,18 +8981,15 @@ procedure Wide_Tests is
               "I64x4 randomized bitwise extrema" & Iteration'Image);
 
 
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
             Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
               and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)) and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift)),
               "I64x4 randomized shifts" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Less_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Equal (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "I64x4 randomized comparisons" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))
@@ -8544,6 +9072,91 @@ procedure Wide_Tests is
       function Is_NaN (Value : F32) return Boolean is
         ((Value_To_Bits (Value) and 16#7F80_0000#) = 16#7F80_0000#
          and then (Value_To_Bits (Value) and 16#007F_FFFF#) /= 0);
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal, Is_Unordered);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_F32x8; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_32x8
+      is
+         Result : Wide.Mask_Bits_32x8 := 0;
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if (case Kind is
+                  when Is_Equal         => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) = Right (Lane),
+                  when Is_Less          => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) <= Right (Lane),
+                  when Is_Greater       => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) >= Right (Lane),
+                  when Is_Unordered     => Is_NaN (Left (Lane)) or else Is_NaN (Right (Lane)))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_32x8 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_32x8; If_True, If_False : Wide.Lane_Values_F32x8)
+         return Wide.Lane_Values_F32x8
+      is
+        ([for Lane in Wide.Lane_Index_32x8 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_F32x8;
+         Select_Bits : Wide.Mask_Bits_32x8;
+         Context : String)
+      is
+         Left_Value : constant Wide.F32x8 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.F32x8 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Unordered_Bits : constant Wide.Mask_Bits_32x8 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Unordered);
+         Expected_Selected : constant Wide.Lane_Values_F32x8 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.F32x8 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.F32x8 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Unordered (Left_Value, Right_Value)) = Unordered_Bits
+           and then Native.To_Bit_Mask (Native.Unordered (Left_Value, Right_Value)) = Unordered_Bits,
+            "F32x8 independent comparison oracle " & Context);
+         Check ((for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Wide.Extract (Scalar_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane)))
+           and then (for all Lane in Wide.Lane_Index_32x8 =>
+              Value_To_Bits (Native.Extract (Native_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane))),
+           "F32x8 independent selection oracle " & Context);
+      end Check_Predicates;
+
       function Is_Signaling_NaN (Value : F32) return Boolean is
         (Is_NaN (Value)
          and then (Value_To_Bits (Value) and 16#0040_0000#) = 0);
@@ -9220,6 +9833,10 @@ procedure Wide_Tests is
       Specials : constant Wide.F32x8 := Wide.From_Lanes (Special_Lanes);
       Compaction_Extra_Lanes : constant Wide.Lane_Values_F32x8 :=
         [Bits_To_Value (16#FF80_0000#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (1), Bits_To_Value (16#8000_0001#), Bits_To_Value (16#FF80_0000#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (1), Bits_To_Value (16#8000_0001#)];
+      Predicate_Edge_Left : constant Wide.Lane_Values_F32x8 :=
+        [Bits_To_Value (16#FFC1_2345#), Bits_To_Value (16#FF81_2345#), Bits_To_Value (1), Bits_To_Value (16#8000_0001#), Bits_To_Value (16#7F80_0000#), Bits_To_Value (16#FF80_0000#), Bits_To_Value (0), Bits_To_Value (16#8000_0000#)];
+      Predicate_Edge_Right : constant Wide.Lane_Values_F32x8 :=
+        [Bits_To_Value (16#7FC1_2345#), Bits_To_Value (16#7F81_2345#), Bits_To_Value (16#8000_0000#), Bits_To_Value (0), Bits_To_Value (16#FF80_0000#), Bits_To_Value (16#7F80_0000#), Bits_To_Value (16#8000_0001#), Bits_To_Value (1)];
       Order_Vector : constant Wide.F32x8 := Wide.From_Lanes ([2.0, 1.0, Bits_To_Value (16#7F81_2345#), 3.0, 3.0, 3.0, 3.0, 3.0]);
       Positive_Zero_First : constant Wide.F32x8 :=
         Wide.From_Lanes ([0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#), 0.0, Bits_To_Value (16#8000_0000#)]);
@@ -9268,6 +9885,15 @@ procedure Wide_Tests is
       Check_Extrema (Wide.To_Lanes (Negative_Zero_First),
                      Wide.To_Lanes (Positive_Zero_First),
                      "signed zeros reversed");
+      Check_Predicates
+        (Special_Lanes, Compaction_Extra_Lanes,
+         Mask_Bits_32x8 (85), "fixed IEEE categories");
+      Check_Predicates
+        (Compaction_Extra_Lanes, Special_Lanes,
+         Mask_Bits_32x8 (Mask_Bits_32x8'Last), "fixed IEEE categories reversed");
+      Check_Predicates
+        (Predicate_Edge_Left, Predicate_Edge_Right,
+         Mask_Bits_32x8 (85), "both-sign NaNs and subnormals");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F32x8 ordered comparison");
 
@@ -9750,9 +10376,12 @@ procedure Wide_Tests is
             Check_Extrema
               (R_Bit_Lanes, Special_Lanes,
                "randomized raw bits" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "F32x8 randomized comparisons" & Iteration'Image);
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized finite" & Iteration'Image);
+            Check_Predicates
+              (R_Bit_Lanes, Special_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized raw bits" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
                "random special bits" & Iteration'Image);
@@ -9837,6 +10466,91 @@ procedure Wide_Tests is
       function Is_NaN (Value : F64) return Boolean is
         ((Value_To_Bits (Value) and 16#7FF0_0000_0000_0000#) = 16#7FF0_0000_0000_0000#
          and then (Value_To_Bits (Value) and 16#000F_FFFF_FFFF_FFFF#) /= 0);
+
+      type Comparison_Kind is
+        (Is_Equal, Is_Less, Is_Less_Equal, Is_Greater, Is_Greater_Equal, Is_Unordered);
+
+      function Reference_Comparison
+        (Left, Right : Wide.Lane_Values_F64x4; Kind : Comparison_Kind)
+         return Wide.Mask_Bits_64x4
+      is
+         Result : Wide.Mask_Bits_64x4 := 0;
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if (case Kind is
+                  when Is_Equal         => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) = Right (Lane),
+                  when Is_Less          => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) < Right (Lane),
+                  when Is_Less_Equal    => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) <= Right (Lane),
+                  when Is_Greater       => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) > Right (Lane),
+                  when Is_Greater_Equal => not Is_NaN (Left (Lane)) and then not Is_NaN (Right (Lane)) and then Left (Lane) >= Right (Lane),
+                  when Is_Unordered     => Is_NaN (Left (Lane)) or else Is_NaN (Right (Lane)))
+            then
+               Result := Result or Interfaces.Shift_Left
+                 (Wide.Mask_Bits_64x4 (1), Lane);
+            end if;
+         end loop;
+         return Result;
+      end Reference_Comparison;
+
+      function Reference_Select
+        (Bits : Wide.Mask_Bits_64x4; If_True, If_False : Wide.Lane_Values_F64x4)
+         return Wide.Lane_Values_F64x4
+      is
+        ([for Lane in Wide.Lane_Index_64x4 =>
+           (if ((Bits / 2 ** Lane) mod 2) = 1
+            then If_True (Lane) else If_False (Lane))]);
+
+      procedure Check_Predicates
+        (Left_Values, Right_Values : Wide.Lane_Values_F64x4;
+         Select_Bits : Wide.Mask_Bits_64x4;
+         Context : String)
+      is
+         Left_Value : constant Wide.F64x4 := Wide.From_Lanes (Left_Values);
+         Right_Value : constant Wide.F64x4 := Wide.From_Lanes (Right_Values);
+         Select_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Select_Bits);
+         Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Equal);
+         Less_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less);
+         Less_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Less_Equal);
+         Greater_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater);
+         Greater_Equal_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Greater_Equal);
+         Unordered_Bits : constant Wide.Mask_Bits_64x4 :=
+           Reference_Comparison (Left_Values, Right_Values, Is_Unordered);
+         Expected_Selected : constant Wide.Lane_Values_F64x4 :=
+           Reference_Select (Select_Bits, Left_Values, Right_Values);
+         Scalar_Selected : constant Wide.F64x4 :=
+           Wide.Select_Value (Select_Mask, Left_Value, Right_Value);
+         Native_Selected : constant Wide.F64x4 :=
+           Native.Select_Value (Select_Mask, Left_Value, Right_Value);
+      begin
+         Check
+           (Wide.To_Bit_Mask (Wide.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Native.To_Bit_Mask (Native.Equal (Left_Value, Right_Value)) = Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Native.To_Bit_Mask (Native.Less_Than (Left_Value, Right_Value)) = Less_Bits
+           and then Wide.To_Bit_Mask (Wide.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Less_Equal (Left_Value, Right_Value)) = Less_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Than (Left_Value, Right_Value)) = Greater_Bits
+           and then Wide.To_Bit_Mask (Wide.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Native.To_Bit_Mask (Native.Greater_Equal (Left_Value, Right_Value)) = Greater_Equal_Bits
+           and then Wide.To_Bit_Mask (Wide.Unordered (Left_Value, Right_Value)) = Unordered_Bits
+           and then Native.To_Bit_Mask (Native.Unordered (Left_Value, Right_Value)) = Unordered_Bits,
+            "F64x4 independent comparison oracle " & Context);
+         Check ((for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Wide.Extract (Scalar_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane)))
+           and then (for all Lane in Wide.Lane_Index_64x4 =>
+              Value_To_Bits (Native.Extract (Native_Selected, Lane)) =
+                Value_To_Bits (Expected_Selected (Lane))),
+           "F64x4 independent selection oracle " & Context);
+      end Check_Predicates;
+
       function Is_Signaling_NaN (Value : F64) return Boolean is
         (Is_NaN (Value)
          and then (Value_To_Bits (Value) and 16#0008_0000_0000_0000#) = 0);
@@ -10513,6 +11227,10 @@ procedure Wide_Tests is
       Specials : constant Wide.F64x4 := Wide.From_Lanes (Special_Lanes);
       Compaction_Extra_Lanes : constant Wide.Lane_Values_F64x4 :=
         [Bits_To_Value (16#FFF0_0000_0000_0000#), Bits_To_Value (16#7FF0_1234_5678_9ABC#), Bits_To_Value (1), Bits_To_Value (16#8000_0000_0000_0001#)];
+      Predicate_Edge_Left : constant Wide.Lane_Values_F64x4 :=
+        [Bits_To_Value (16#FFF8_1234_5678_9ABC#), Bits_To_Value (16#FFF0_1234_5678_9ABC#), Bits_To_Value (1), Bits_To_Value (16#8000_0000_0000_0001#)];
+      Predicate_Edge_Right : constant Wide.Lane_Values_F64x4 :=
+        [Bits_To_Value (16#7FF8_1234_5678_9ABC#), Bits_To_Value (16#7FF0_1234_5678_9ABC#), Bits_To_Value (16#8000_0000_0000_0000#), Bits_To_Value (0)];
       Order_Vector : constant Wide.F64x4 := Wide.From_Lanes ([2.0, 1.0, Bits_To_Value (16#7FF0_1234_5678_9ABC#), 3.0]);
       Positive_Zero_First : constant Wide.F64x4 :=
         Wide.From_Lanes ([0.0, Bits_To_Value (16#8000_0000_0000_0000#), 0.0, Bits_To_Value (16#8000_0000_0000_0000#)]);
@@ -10561,6 +11279,15 @@ procedure Wide_Tests is
       Check_Extrema (Wide.To_Lanes (Negative_Zero_First),
                      Wide.To_Lanes (Positive_Zero_First),
                      "signed zeros reversed");
+      Check_Predicates
+        (Special_Lanes, Compaction_Extra_Lanes,
+         Mask_Bits_64x4 (5), "fixed IEEE categories");
+      Check_Predicates
+        (Compaction_Extra_Lanes, Special_Lanes,
+         Mask_Bits_64x4 (Mask_Bits_64x4'Last), "fixed IEEE categories reversed");
+      Check_Predicates
+        (Predicate_Edge_Left, Predicate_Edge_Right,
+         Mask_Bits_64x4 (5), "both-sign NaNs and subnormals");
       Check (Wide.To_Bit_Mask (Wide.Less_Than (A, Two)) = 1,
         "F64x4 ordered comparison");
 
@@ -11043,9 +11770,12 @@ procedure Wide_Tests is
             Check_Extrema
               (R_Bit_Lanes, Special_Lanes,
                "randomized raw bits" & Iteration'Image);
-            Check (Native.To_Bit_Mask (Native.Less_Than (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Less_Than (R_A, R_B))
-              and then Native.To_Bit_Mask (Native.Greater_Equal (R_A, R_B)) = Wide.To_Bit_Mask (Wide.Greater_Equal (R_A, R_B)),
-              "F64x4 randomized comparisons" & Iteration'Image);
+            Check_Predicates
+              (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized finite" & Iteration'Image);
+            Check_Predicates
+              (R_Bit_Lanes, Special_Lanes, Wide.To_Bit_Mask (R_Mask),
+               "randomized raw bits" & Iteration'Image);
             Check_Compaction
               (Wide.To_Lanes (R_Bits), Wide.To_Bit_Mask (R_Mask),
                "random special bits" & Iteration'Image);

@@ -73,11 +73,12 @@ alr build --release -- -XFLYOLOGY_SIMD_ARCH=x86_64 \
 
 The Wide backend defaults to portable composition. The optional AVX2 selection
 uses isolated 256-bit implementations for `U8x32` and `I8x32` wrapping,
-saturating, bitwise, minimum, and maximum operations. Equality, greater-than,
-and value selection use isolated 256-bit mechanisms. Less-than reverses the
-greater-than operands. `Less_Equal (Left, Right)` complements
-`Greater_Than (Left, Right)`. `Greater_Equal (Left, Right)` complements
-`Greater_Than (Right, Left)`. The lane-movement operations are `Reverse_Lanes`,
+saturating, bitwise, minimum, and maximum operations. Each byte comparison and
+`Select_Value` uses a relation-specific isolated 256-bit leaf. The `Less_Than`
+leaf reverses the operands of its greater-than comparison. The `Less_Equal` leaf
+complements that comparison with the original operand order. The
+`Greater_Equal` leaf complements it with reversed operands. The lane-movement
+operations are `Reverse_Lanes`,
 both slide operations, both interleave operations, and both deinterleave
 operations. The AVX2 selection also implements these operations, the `U8x32`
 table lookup, and both `Permute_Lanes` overloads for all ten Wide value types.

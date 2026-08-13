@@ -187,37 +187,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U8x32) return Mask_8x32;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Equal leaf. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U8x32) return Mask_8x32;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Less_Than operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Less_Than leaf. The leaf reverses the operands within its Greater_Than comparison. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U8x32) return Mask_8x32;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Less_Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Less_Equal leaf. The leaf complements the result of Greater_Than (Left, Right). A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U8x32) return Mask_8x32;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Greater_Than operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Greater_Than leaf. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U8x32) return Mask_8x32;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Greater_Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Greater_Equal leaf. The leaf complements the result of Greater_Than (Right, Left). A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_8x32; If_True, If_False : U8x32) return U8x32;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Select_Value operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Select_Value leaf. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -558,37 +558,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I8x32) return Mask_8x32;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Equal leaf. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I8x32) return Mask_8x32;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Less_Than operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Less_Than leaf. The leaf reverses the operands within its Greater_Than comparison. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I8x32) return Mask_8x32;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Less_Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Less_Equal leaf. The leaf complements the result of Greater_Than (Left, Right). A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I8x32) return Mask_8x32;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Greater_Than operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Greater_Than leaf. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I8x32) return Mask_8x32;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Greater_Equal operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Greater_Equal leaf. The leaf complements the result of Greater_Than (Right, Left). A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_8x32; If_True, If_False : I8x32) return I8x32;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit Select_Value operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses an isolated relation-specific 256-bit Select_Value leaf. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -887,37 +887,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U16x16) return Mask_16x16;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U16x16) return Mask_16x16;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U16x16) return Mask_16x16;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U16x16) return Mask_16x16;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U16x16) return Mask_16x16;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_16x16; If_True, If_False : U16x16) return U16x16;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -1253,37 +1253,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I16x16) return Mask_16x16;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I16x16) return Mask_16x16;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I16x16) return Mask_16x16;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I16x16) return Mask_16x16;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I16x16) return Mask_16x16;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_16x16; If_True, If_False : I16x16) return I16x16;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -1587,37 +1587,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U32x8) return Mask_32x8;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U32x8) return Mask_32x8;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U32x8) return Mask_32x8;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U32x8) return Mask_32x8;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U32x8) return Mask_32x8;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x8; If_True, If_False : U32x8) return U32x8;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -1958,37 +1958,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I32x8) return Mask_32x8;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I32x8) return Mask_32x8;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I32x8) return Mask_32x8;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I32x8) return Mask_32x8;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I32x8) return Mask_32x8;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x8; If_True, If_False : I32x8) return I32x8;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -2292,37 +2292,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : U64x4) return Mask_64x4;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : U64x4) return Mask_64x4;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : U64x4) return Mask_64x4;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : U64x4) return Mask_64x4;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : U64x4) return Mask_64x4;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x4; If_True, If_False : U64x4) return U64x4;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -2663,37 +2663,37 @@ is
    --  @return The operation result.
    function Equal (Left, Right : I64x4) return Mask_64x4;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : I64x4) return Mask_64x4;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : I64x4) return Mask_64x4;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : I64x4) return Mask_64x4;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : I64x4) return Mask_64x4;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x4; If_True, If_False : I64x4) return I64x4;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -2918,43 +2918,43 @@ is
    --  @return The operation result.
    function Equal (Left, Right : F32x8) return Mask_32x8;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : F32x8) return Mask_32x8;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : F32x8) return Mask_32x8;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : F32x8) return Mask_32x8;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : F32x8) return Mask_32x8;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Unordered (Left, Right : F32x8) return Mask_32x8;
    --  Apply Unordered independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Unordered operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_32x8; If_True, If_False : F32x8) return F32x8;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.
@@ -3179,43 +3179,43 @@ is
    --  @return The operation result.
    function Equal (Left, Right : F64x4) return Mask_64x4;
    --  Apply Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Than (Left, Right : F64x4) return Mask_64x4;
    --  Apply Less_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Less_Equal (Left, Right : F64x4) return Mask_64x4;
    --  Apply Less_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Less_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Than (Left, Right : F64x4) return Mask_64x4;
    --  Apply Greater_Than independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Than operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Greater_Equal (Left, Right : F64x4) return Mask_64x4;
    --  Apply Greater_Equal independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Greater_Equal operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Unordered (Left, Right : F64x4) return Mask_64x4;
    --  Apply Unordered independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Unordered operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Select_Value (Mask : Mask_64x4; If_True, If_False : F64x4) return F64x4;
    --  Select one input in each lane according to mask truth.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit Select_Value operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @param If_True The if true input.
    --  @param If_False The if false input.

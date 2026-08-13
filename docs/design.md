@@ -180,10 +180,11 @@ uses the same composition. With the AVX2 selection, `Add_Wrap`,
 `Subtract_Wrap`, `Multiply_Wrap`, `Add_Saturate`, `Subtract_Saturate`,
 `Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, `Bitwise_Not`, `Min`, `Max`,
 `Equal`, the four ordered comparisons, and `Select_Value` use isolated
-256-bit mechanisms for `U8x32` and `I8x32`. Equality and greater-than have
-dedicated comparison subprograms. Less-than swaps the greater-than operands.
-`Less_Equal (Left, Right)` complements `Greater_Than (Left, Right)`.
-`Greater_Equal (Left, Right)` complements `Greater_Than (Right, Left)`.
+256-bit mechanisms for `U8x32` and `I8x32`. Each byte comparison and
+`Select_Value` uses a relation-specific isolated leaf. The `Less_Than` leaf
+reverses the operands of its greater-than comparison. The `Less_Equal` leaf
+complements that comparison with the original operand order. The
+`Greater_Equal` leaf complements it with reversed operands.
 `Select_Value` expands the compact mask and selects one value in each lane.
 The optional AVX2 floating arithmetic mechanism applies one 256-bit `vaddps`,
 `vaddpd`, `vsubps`, `vsubpd`, `vmulps`, `vmulpd`, `vdivps`, or `vdivpd`

@@ -369,6 +369,25 @@ They also require the private-half boundary and a high-half lane adjustment for
 `Extract` and `Replace`. The gates reject mismatched selected operations,
 portable calls, and Wide dispatchers.
 
+The 62 Wide comparison and selection overloads are `Equal`, the four ordered
+comparisons, and `Select_Value` for all ten value types, plus `Unordered` for
+both floating types. AArch64 and the composed x86-64 backend apply the matching
+selected 128-bit operation to both private parts. The optional AVX2 backend
+retains its isolated byte comparison and selection mechanisms. A scalar build
+uses the portable Wide implementation.
+
+Independent lane oracles cover fixed inputs and 128 deterministic inputs for
+each type. Integer cases use full-width values. Floating cases use raw bit
+patterns that include quiet and signaling NaNs with both sign-bit values,
+infinities, subnormals, and signed zero. The lane oracles check `Equal`, all
+four ordered comparisons, and `Unordered` for both the scalar Wide
+implementation and `Wide.Native`. The `Select_Value` checks compare all bits of
+each selected floating encoding. A generated caller probe
+covers all 62 overloads in each target configuration. The gates verify the
+matching two-part lowering, or the applicable isolated or inlined byte
+lowering. They reject mismatched selected operations, portable calls, and Wide
+dispatchers.
+
 Wide `Compress` and `Expand` use the scalar Wide body as their semantic
 authority. On AArch64, the mechanism applies selected 128-bit `To_Bit_Mask` to
 both private mask parts. Ada combines the two compact results and derives one
@@ -483,9 +502,11 @@ lane masks, fixed masks, and deterministic pseudorandom masks check value
 selection with an independent lane oracle. The AVX2 code-generation gate
 requires `vpcmpeqb` and `vpmovmskb` for equality, `vpcmpgtb` and
 `vpmovmskb` for ordering, and mask expansion plus Boolean selection
-instructions for `Select_Value`. Less-than reverses the greater-than operands.
-`Less_Equal (Left, Right)` complements `Greater_Than (Left, Right)`.
-`Greater_Equal (Left, Right)` complements `Greater_Than (Right, Left)`.
+instructions for `Select_Value`. Each byte comparison and `Select_Value` uses a
+relation-specific isolated 256-bit leaf. The `Less_Than` leaf reverses the
+operands of its greater-than comparison. The `Less_Equal` leaf complements that
+comparison with the original operand order. The `Greater_Equal` leaf
+complements it with reversed operands.
 
 `FLYOLOGY_SIMD_WIDE_BACKEND` accepts `composed`, the default, or `avx2`.
 The `avx2` value selects the optional Wide mechanism subprograms only with

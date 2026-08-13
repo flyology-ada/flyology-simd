@@ -132,6 +132,18 @@ is
    --  @param Left The left operands.
    --  @param Right The right operands.
    --  @return Bit n is set exactly when Left (n) is greater than Right (n).
+   function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32;
+   function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32;
+   function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32;
+   function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32;
+   function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32;
+   function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32;
+   --  Derived ordered relations retain distinct isolated entry points so
+   --  caller code-generation checks can bind each public relation exactly.
+
+   pragma No_Inline (Less_Than);
+   pragma No_Inline (Less_Equal);
+   pragma No_Inline (Greater_Equal);
 
    function Select_Value
      (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32;

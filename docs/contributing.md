@@ -35,3 +35,5 @@ manifest are reproduced by `scripts/generate_wide_reduction_probe.py`.
 The generated Wide construction and lane-access caller probe and its
 60-operation manifest are reproduced by
 `scripts/generate_wide_construction_probe.py`.
+The generated Wide comparison and selection caller probe and its 62-operation
+manifest are reproduced by `scripts/generate_wide_comparison_probe.py`.

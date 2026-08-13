@@ -27,6 +27,7 @@ permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_construction_probe_object="$probe_root/wide_construction_codegen_probe.o"
+wide_comparison_probe_object="$probe_root/wide_comparison_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -77,6 +78,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_construction_probe_object" \
       >"$temporary/wide-construction-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_comparison_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-comparison-probe.txt"
+else
+    objdump -dr "$wide_comparison_probe_object" \
+      >"$temporary/wide-comparison-probe.txt"
 fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
@@ -778,6 +786,146 @@ nm -u "$object_root/flyology_simd-wide-native.o" \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(zero|splat|from_lanes|to_lanes|extract|replace)([[:space:]]|$)' \
   "$temporary/wide-native-construction-undefined.txt" \
   'portable or dispatcher construction operation retained in Wide.Native'
+
+wide_comparison_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_comparison_codegen_cases.txt | wc -l | tr -d ' ')
+wide_comparison_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_comparison_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_comparison_case_count" -ne 62 ] || \
+   [ "$wide_comparison_unique_count" -ne 62 ]; then
+    echo 'Wide comparison code-generation manifest must contain 62 unique operations' >&2
+    exit 1
+fi
+
+case "$architecture" in
+    aarch64) selected_function_reloc='ARM64_RELOC_BRANCH26.*flyology_simd__backends__native__' ;;
+    x86_64) selected_function_reloc='R_X86_64_(PLT32|PC32).*flyology_simd__backends__native__' ;;
+esac
+
+while read -r lane_kind operation suffix operation_class; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-comparison-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_comparison_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-comparison-probe.txt" "$caller"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$suffix" = none ]; then
+        operation_symbol="$operation"
+    else
+        operation_symbol="${operation}__${suffix}"
+    fi
+
+    if [ "$wide_backend" = avx2 ] && \
+       { [ "$lane_kind" = u8 ] || [ "$lane_kind" = i8 ]; }; then
+        case "$operation" in
+            equal) leaf=equal ;;
+            select_value) leaf=select_value ;;
+            less_than) leaf=less_than ;;
+            less_equal) leaf=less_equal ;;
+            greater_than) leaf=greater_than ;;
+            greater_equal) leaf=greater_equal ;;
+        esac
+        leaf_suffix=
+        [ "$lane_kind" = i8 ] && leaf_suffix='__2'
+        require_count "wide__byte_avx2_leaf__${leaf}${leaf_suffix}${symbol_end}" 1 \
+          "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
+        require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
+          "only one AVX2 byte leaf in ${lane_kind} ${operation}"
+        require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 "$caller" \
+          "only one out-of-line helper in AVX2 ${lane_kind} ${operation}"
+        require_count "$selected_function_reloc" 0 "$caller" \
+          "no composed selected operation in AVX2 ${lane_kind} ${operation}"
+        forbid_pattern 'wide__byte_mechanism__' "$caller" \
+          "out-of-line byte mechanism in AVX2 ${lane_kind} ${operation}"
+        selected_count=0
+    else
+        selected_count=$(grep -Eic \
+          "backends__native__${operation_symbol}${symbol_end}" "$caller" || true)
+        if [ "$selected_count" -eq 2 ]; then
+            require_count "$selected_function_reloc" 2 "$caller" \
+              "only two matching selected operations in ${lane_kind} ${operation}"
+        elif [ "$lane_kind" = u8 ]; then
+            case "$architecture:$operation" in
+                aarch64:equal)
+                    require_count 'cmeq.*16b' 2 "$caller" \
+                      'two inlined AArch64 U8 equality operations'
+                    ;;
+                aarch64:less_than|aarch64:greater_than)
+                    require_count 'backends__native__greater_bits' 2 "$caller" \
+                      "two selected AArch64 U8 strict comparisons in ${operation}"
+                    ;;
+                aarch64:less_equal|aarch64:greater_equal)
+                    require_count 'backends__native__greater_equal_bits' 2 "$caller" \
+                      "two selected AArch64 U8 inclusive comparisons in ${operation}"
+                    ;;
+                aarch64:select_value)
+                    require_count 'backends__native__select_value' 2 "$caller" \
+                      'two selected AArch64 U8 selections'
+                    ;;
+                x86_64:equal)
+                    require_count 'pcmpeqb' 2 "$caller" \
+                      'two inlined x86-64 U8 equality operations'
+                    require_count 'pmovmskb' 2 "$caller" \
+                      'two inlined x86-64 U8 equality mask extractions'
+                    ;;
+                x86_64:less_than|x86_64:greater_than)
+                    require_count 'backends__native__greater_mask' 2 "$caller" \
+                      "two selected x86-64 U8 strict comparisons in ${operation}"
+                    ;;
+                x86_64:less_equal|x86_64:greater_equal)
+                    require_count 'backends__native__greater_mask' 2 "$caller" \
+                      "two selected x86-64 U8 ordered comparisons in ${operation}"
+                    require_count 'pcmpeqb' 2 "$caller" \
+                      "two inlined x86-64 U8 equality comparisons in ${operation}"
+                    ;;
+                x86_64:select_value)
+                    require_count 'backends__native__select_value' 2 "$caller" \
+                      'two selected x86-64 U8 selections'
+                    ;;
+                *)
+                    echo "unexpected U8 ${operation} lowering on ${architecture}" >&2
+                    exit 1
+                    ;;
+            esac
+            actual_native=$(grep -Eic "$selected_function_reloc" "$caller" || true)
+            case "$architecture:$operation" in
+                aarch64:equal|x86_64:equal) expected_native=0 ;;
+                *) expected_native=2 ;;
+            esac
+            if [ "$actual_native" -ne "$expected_native" ]; then
+                echo "unexpected selected operation in ${lane_kind} ${operation}" >&2
+                exit 1
+            fi
+        elif [ "$lane_kind" = i8 ]; then
+            case "$architecture:$operation" in
+                aarch64:equal) leaf=compare_i8x16; expected=2 ;;
+                aarch64:less_than|aarch64:greater_than) leaf=compare_greater_i8x16; expected=2 ;;
+                aarch64:less_equal|aarch64:greater_equal) leaf=compare_greater_equal_i8x16; expected=2 ;;
+                aarch64:select_value) leaf=native_select_i8x16; expected=2 ;;
+                x86_64:equal) leaf=compare_equal_i8x16; expected=2 ;;
+                x86_64:less_than|x86_64:greater_than) leaf=compare_greater_i8x16; expected=2 ;;
+                x86_64:less_equal|x86_64:greater_equal)
+                    require_count 'backends__native__compare_greater_i8x16' 2 "$caller" \
+                      "two x86-64 I8 greater comparisons in ${operation}"
+                    require_count 'backends__native__compare_equal_i8x16' 2 "$caller" \
+                      "two x86-64 I8 equality comparisons in ${operation}"
+                    leaf='compare_(greater|equal)_i8x16'; expected=4
+                    ;;
+                x86_64:select_value) leaf=native_select_i8x16; expected=2 ;;
+                *) echo "unexpected I8 ${operation} lowering on ${architecture}" >&2; exit 1 ;;
+            esac
+            require_count "backends__native__${leaf}" "$expected" "$caller" \
+              "matching selected I8 operations in ${operation}"
+            require_count "$selected_function_reloc" "$expected" "$caller" \
+              "only matching selected I8 operations in ${operation}"
+        else
+            echo "missing two selected ${operation} calls in ${lane_kind}" >&2
+            exit 1
+        fi
+    fi
+
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(equal|less_than|less_equal|greater_than|greater_equal|unordered|select_value)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
+      "$caller" "portable or dispatcher comparison call in ${lane_kind} ${operation}"
+done <scripts/probes/wide_comparison_codegen_cases.txt
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')
@@ -2420,7 +2568,7 @@ EOF
             require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
             for precision in f32 f64; do
                 for operation in add subtract multiply divide min_number max_number; do
-                    require_count '(^|[[:space:]])(call|jmp)[[:space:]]' 1 \
+                    require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
                       "$temporary/wide_${precision}_${operation}.txt" \
                       "one isolated AVX2 ${precision} ${operation} leaf in wide caller"
                     forbid_pattern '(^|[[:space:]])(call|jmp).*backends__native|(^|[[:space:]])(call|jmp).*flyology_simd__wide__(native|float_arithmetic_mechanism)' \
@@ -2550,10 +2698,10 @@ EOF
         if [ "$wide_backend" = avx2 ]; then
             for lane_kind in u8 i8; do
                 for operation in equal less less_equal greater greater_equal select; do
-                    require_count '(^|[[:space:]])(call|jmp)[[:space:]]' 1 \
+                    require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
                       "$temporary/wide_${lane_kind}_${operation}.txt" \
                       "one isolated AVX2 ${lane_kind} ${operation} mechanism in wide caller"
-                    forbid_pattern '(^|[[:space:]])(call|jmp).*backends__native|(^|[[:space:]])(call|jmp).*flyology_simd__(wide__)?(equal|less|greater|select_value)' \
+                    forbid_pattern '(^|[[:space:]])(callq?|jmpq?).*backends__native|(^|[[:space:]])(callq?|jmpq?).*flyology_simd__(wide__)?(equal|less|greater|select_value)' \
                       "$temporary/wide_${lane_kind}_${operation}.txt" \
                       "scalar, composed, or public helper in AVX2 ${lane_kind} ${operation} caller"
                 done
@@ -2591,7 +2739,7 @@ EOF
         if [ "$wide_backend" = avx2 ]; then
             require_pattern 'flyology_simd__wide__byte_avx2_leaf__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the isolated AVX2 byte implementation'
             require_pattern 'flyology_simd__wide__float_avx2_leaf__(add|subtract|multiply|divide|min_number|max_number)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call isolated AVX2 implementations'
-            require_pattern 'flyology_simd__wide__byte_avx2_leaf__(equal|greater_than|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call isolated AVX2 implementations'
+            require_pattern 'flyology_simd__wide__byte_avx2_leaf__(equal|less_than|less_equal|greater_than|greater_equal|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call relation-specific isolated AVX2 implementations'
             forbid_pattern 'flyology_simd__wide__byte_mechanism__' "$temporary/wide-undefined.txt" 'non-AVX2 byte mechanism call retained in the public Wide caller'
         else
             require_pattern 'flyology_simd__backends__native__(u8_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
@@ -2627,7 +2775,7 @@ EOF
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
         require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
         if [ "$wide_backend" = avx2 ]; then
-            require_count 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|greater_than|greater_than__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2|min_number|min_number__2|max_number|max_number__2)|lookup_mechanism__table_lookup_32)' 26 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
+            require_count 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|less_than|less_than__2|less_equal|less_equal__2|greater_than|greater_than__2|greater_equal|greater_equal__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2|min_number|min_number__2|max_number|max_number__2)|lookup_mechanism__table_lookup_32)' 32 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
         else
             require_count 'flyology_simd__backends__native__((u8_)?add_wrap|native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|compare_(equal|greater)(_i8x16)?|native_select_(u8|i8)x16)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 23 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
         fi
@@ -2723,6 +2871,12 @@ EOF
             extract_symbol 'byte_avx2_leaf__equal__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_equal.txt"
             extract_symbol 'byte_avx2_leaf__greater_than' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_greater.txt"
             extract_symbol 'byte_avx2_leaf__greater_than__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_greater.txt"
+            extract_symbol 'byte_avx2_leaf__less_than' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_less.txt"
+            extract_symbol 'byte_avx2_leaf__less_than__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_less.txt"
+            extract_symbol 'byte_avx2_leaf__less_equal' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_less_equal.txt"
+            extract_symbol 'byte_avx2_leaf__less_equal__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_less_equal.txt"
+            extract_symbol 'byte_avx2_leaf__greater_equal' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_greater_equal.txt"
+            extract_symbol 'byte_avx2_leaf__greater_equal__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_greater_equal.txt"
             extract_symbol 'byte_avx2_leaf__select_value' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_select.txt"
             extract_symbol 'byte_avx2_leaf__select_value__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_select.txt"
             require_pattern 'vpaddb' "$temporary/wide_byte_u8_add.txt" 'AVX2 unsigned wrapping byte addition'
@@ -2764,6 +2918,26 @@ EOF
             require_count 'vpxor' 2 "$temporary/wide_byte_u8_greater.txt" 'two AVX2 unsigned sign-bit bias transforms'
             require_pattern 'vpmovmskb' "$temporary/wide_byte_u8_greater.txt" 'AVX2 unsigned compact ordered mask'
             require_pattern 'vpmovmskb' "$temporary/wide_byte_i8_greater.txt" 'AVX2 signed compact ordered mask'
+            for relation in less less_equal greater_equal; do
+                require_pattern 'vpcmpgtb' "$temporary/wide_byte_u8_${relation}.txt" \
+                  "AVX2 unsigned byte compare in ${relation} relation leaf"
+                require_pattern 'vpcmpgtb' "$temporary/wide_byte_i8_${relation}.txt" \
+                  "AVX2 signed byte compare in ${relation} relation leaf"
+                require_pattern 'vpmovmskb' "$temporary/wide_byte_u8_${relation}.txt" \
+                  "AVX2 unsigned compact mask in ${relation} relation leaf"
+                require_pattern 'vpmovmskb' "$temporary/wide_byte_i8_${relation}.txt" \
+                  "AVX2 signed compact mask in ${relation} relation leaf"
+                require_count 'vpxor' 2 "$temporary/wide_byte_u8_${relation}.txt" \
+                  "two AVX2 unsigned sign-bit bias transforms in ${relation} relation leaf"
+            done
+            for relation in less_equal greater_equal; do
+                require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+                  "$temporary/wide_byte_u8_${relation}.txt" \
+                  "compact-mask complement in unsigned ${relation} relation leaf"
+                require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+                  "$temporary/wide_byte_i8_${relation}.txt" \
+                  "compact-mask complement in signed ${relation} relation leaf"
+            done
             for leaf in "$temporary/wide_byte_u8_select.txt" "$temporary/wide_byte_i8_select.txt"; do
                 require_pattern 'vpbroadcastd' "$leaf" 'AVX2 compact-mask broadcast for selection'
                 require_pattern 'vpshufb' "$leaf" 'AVX2 compact-mask byte expansion for selection'
