@@ -5,6 +5,7 @@ with Ada.Unchecked_Conversion;
 with Interfaces;
 with Flyology_SIMD;
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Backends.Scalar;
 
 procedure Family_Tests is
    use Ada.Text_IO;
@@ -259,9 +260,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_8x16 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I8x16 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16'Last))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "I8x16 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A), "I8x16 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_I8x16 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I8x16 (A), "I8x16 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_I8x16 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I8x16 (A), "I8x16 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I8x16 (A), "I8x16 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_I8x16 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_I8x16 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I8x16 (A), "I8x16 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_I8x16 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_I8x16 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I8x16 (A), "I8x16 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I8x16 full memory");
       for Lane in Lane_Index_8x16 loop Check (Data (1 + Lane) = Extract (A, Lane), "I8x16 independent full store" & Lane'Image); end loop;
@@ -315,7 +316,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I8x16 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I8x16 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I8x16 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I8x16 (R_A, Mask_From_Bit_Mask (Pattern))), "I8x16 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I8x16 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -517,9 +518,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_16x8 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U16x8 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "U16x8 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A), "U16x8 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_U16x8 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U16x8 (A), "U16x8 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_U16x8 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U16x8 (A), "U16x8 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U16x8 (A), "U16x8 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_U16x8 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_U16x8 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U16x8 (A), "U16x8 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_U16x8 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_U16x8 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U16x8 (A), "U16x8 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U16x8 full memory");
       for Lane in Lane_Index_16x8 loop Check (Data (1 + Lane) = Extract (A, Lane), "U16x8 independent full store" & Lane'Image); end loop;
@@ -572,7 +573,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U16x8 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U16x8 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U16x8 (R_A, Mask_From_Bit_Mask (Pattern))), "U16x8 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U16x8 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -797,9 +798,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_16x8 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I16x8 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_16x8'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 8 - 1), "I16x8 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A), "I16x8 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_I16x8 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I16x8 (A), "I16x8 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_I16x8 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I16x8 (A), "I16x8 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I16x8 (A), "I16x8 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_I16x8 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_I16x8 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I16x8 (A), "I16x8 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_I16x8 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_I16x8 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I16x8 (A), "I16x8 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I16x8 full memory");
       for Lane in Lane_Index_16x8 loop Check (Data (1 + Lane) = Extract (A, Lane), "I16x8 independent full store" & Lane'Image); end loop;
@@ -853,7 +854,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I16x8 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I16x8 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I16x8 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I16x8 (R_A, Mask_From_Bit_Mask (Pattern))), "I16x8 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I16x8 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -1060,9 +1061,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_32x4 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U32x4 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "U32x4 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A), "U32x4 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_U32x4 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U32x4 (A), "U32x4 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_U32x4 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U32x4 (A), "U32x4 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U32x4 (A), "U32x4 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_U32x4 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_U32x4 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U32x4 (A), "U32x4 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_U32x4 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_U32x4 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U32x4 (A), "U32x4 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U32x4 full memory");
       for Lane in Lane_Index_32x4 loop Check (Data (1 + Lane) = Extract (A, Lane), "U32x4 independent full store" & Lane'Image); end loop;
@@ -1115,7 +1116,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U32x4 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U32x4 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U32x4 (R_A, Mask_From_Bit_Mask (Pattern))), "U32x4 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U32x4 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -1345,9 +1346,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_32x4 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I32x4 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_32x4'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 4 - 1), "I32x4 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A), "I32x4 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_I32x4 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I32x4 (A), "I32x4 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_I32x4 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I32x4 (A), "I32x4 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I32x4 (A), "I32x4 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_I32x4 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_I32x4 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I32x4 (A), "I32x4 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_I32x4 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_I32x4 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I32x4 (A), "I32x4 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I32x4 full memory");
       for Lane in Lane_Index_32x4 loop Check (Data (1 + Lane) = Extract (A, Lane), "I32x4 independent full store" & Lane'Image); end loop;
@@ -1401,7 +1402,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I32x4 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I32x4 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I32x4 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I32x4 (R_A, Mask_From_Bit_Mask (Pattern))), "I32x4 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I32x4 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -1525,6 +1526,8 @@ procedure Family_Tests is
       Saturation_Right : constant U64x2 := From_Lanes ([1, 1]);
       Saturating_Add_Expected : constant Lane_Values_U64x2 := [U64'Last, 1];
       Saturating_Subtract_Expected : constant Lane_Values_U64x2 := [U64'Last - 1, 0];
+      Reduction_Wrap : constant U64x2 := From_Lanes ([U64'Last, 2]);
+      Reduction_Order : constant U64x2 := From_Lanes ([16#7FFF_FFFF_FFFF_FFFF#, 16#8000_0000_0000_0000#]);
       Multiply_Edge_Left : constant U64x2 := From_Lanes ([16#FFFF_FFFF_0000_0001#, 16#8000_0001_0000_0001#]);
       Multiply_Edge_Right : constant U64x2 := From_Lanes ([16#0000_0002_FFFF_FFFF#, 16#FFFF_FFFF_0000_0003#]);
       Multiply_Edge_Expected : constant Lane_Values_U64x2 := [16#0000_0003_FFFF_FFFF#, 16#8000_0002_0000_0003#];
@@ -1555,6 +1558,8 @@ procedure Family_Tests is
       Check (Same (Backends.Native.Deinterleave_Odd (A, B), Deinterleave_Odd (A, B)), "U64x2 Deinterleave_Odd");
       Check (Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, "U64x2 independent 32-bit partial-product boundaries");
       Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, "U64x2 independent fixed saturation boundaries");
+      Check (Reduce_Add_Wrap (Reduction_Wrap) = 1 and then Backends.Scalar.Reduce_Add_Wrap (Reduction_Wrap) = 1 and then Backends.Native.Reduce_Add_Wrap (Reduction_Wrap) = 1, "U64x2 independent wrapping reduction boundary");
+      Check (Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Backends.Scalar.Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Backends.Native.Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000# and then Backends.Scalar.Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000# and then Backends.Native.Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000#, "U64x2 independent top-bit reduction boundary");
       Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), "U64x2 not");
       Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), "U64x2 reverse");
       Check (Same (Backends.Native.Permute_Lanes (A, Fixed_Map), Permute_Lanes (A, Fixed_Map)), "U64x2 native fixed lane permutation");
@@ -1612,9 +1617,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_64x2 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U64x2 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "U64x2 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A), "U64x2 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_U64x2 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U64x2 (A), "U64x2 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_U64x2 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U64x2 (A), "U64x2 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U64x2 (A), "U64x2 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_U64x2 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_U64x2 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U64x2 (A), "U64x2 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_U64x2 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_U64x2 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U64x2 (A), "U64x2 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U64x2 full memory");
       for Lane in Lane_Index_64x2 loop Check (Data (1 + Lane) = Extract (A, Lane), "U64x2 independent full store" & Lane'Image); end loop;
@@ -1667,7 +1672,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U64x2 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U64x2 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U64x2 (R_A, Mask_From_Bit_Mask (Pattern))), "U64x2 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U64x2 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
@@ -1813,6 +1818,7 @@ procedure Family_Tests is
       Saturation_Right_2 : constant I64x2 := From_Lanes ([-1, 1]);
       Saturating_Add_Expected_2 : constant Lane_Values_I64x2 := [I64'Last - 1, I64'First + 1];
       Saturating_Subtract_Expected_2 : constant Lane_Values_I64x2 := [I64'Last, I64'First];
+      Reduction_Order : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), Bits_To_I64x2 (16#0000_0001_0000_0000#)]);
       Multiply_Edge_Left : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFF_0000_0001#)]);
       Multiply_Edge_Right : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#FFFF_FFFF_FFFF_FFFF#), Bits_To_I64x2 (16#FFFF_FFFE_0000_0003#)]);
       Multiply_Edge_Expected : constant Lane_Values_I64x2 := [Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFB_0000_0003#)];
@@ -1845,6 +1851,7 @@ procedure Family_Tests is
       Check (Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, "I64x2 independent 32-bit partial-product boundaries");
       Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, "I64x2 independent fixed saturation boundaries");
       Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2, "I64x2 opposite fixed saturation boundaries");
+      Check (Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Scalar.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Native.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Scalar.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Native.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), "I64x2 independent equal-high-word reduction boundary");
       Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), "I64x2 not");
       Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), "I64x2 reverse");
       Check (Same (Backends.Native.Permute_Lanes (A, Fixed_Map), Permute_Lanes (A, Fixed_Map)), "I64x2 native fixed lane permutation");
@@ -1906,9 +1913,9 @@ procedure Family_Tests is
          for Lane in Lane_Index_64x2 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "I64x2 independent scalar and native select" & Pattern'Image & Lane'Image); end loop;
       end loop;
       Check (Backends.Native.To_Bit_Mask (Mask_64x2'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_8'Last))) = Interfaces.Unsigned_8 (2 ** 2 - 1), "I64x2 native masks unused storage bits");
-      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A), "I64x2 independent reduce add");
-      Check (Reduce_Min (A) = Reference_Reduce_Min_I64x2 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I64x2 (A), "I64x2 independent reduce min");
-      Check (Reduce_Max (A) = Reference_Reduce_Max_I64x2 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I64x2 (A), "I64x2 independent reduce max");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_I64x2 (A), "I64x2 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_I64x2 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_I64x2 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_I64x2 (A), "I64x2 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_I64x2 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_I64x2 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_I64x2 (A), "I64x2 independent reduce max");
       Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
       Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "I64x2 full memory");
       for Lane in Lane_Index_64x2 loop Check (Data (1 + Lane) = Extract (A, Lane), "I64x2 independent full store" & Lane'Image); end loop;
@@ -1962,7 +1969,7 @@ procedure Family_Tests is
             Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "I64x2 randomized native lane slides");
             Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "I64x2 randomized native select");
             Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_I64x2 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_I64x2 (R_A, Mask_From_Bit_Mask (Pattern))), "I64x2 randomized native compression");
-            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized native reductions");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I64x2 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);

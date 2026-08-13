@@ -614,8 +614,31 @@ def native_support_doc(name: str, declaration: str) -> str:
                 "selects zero"
             )
     elif name == "Reduce_Add_Wrap":
-        aarch = "a dedicated NEON packed reduction"
-        x86 = "a dedicated SSE2 packed-add reduction tree"
+        x86_add = {
+            "U8x16": "paddb instruction in a four-stage fixed-shuffle tree",
+            "I8x16": "paddb instruction in a four-stage fixed-shuffle tree",
+            "U16x8": "paddw instruction in a three-stage fixed-shuffle tree",
+            "I16x8": "paddw instruction in a three-stage fixed-shuffle tree",
+            "U32x4": "paddd instruction in a two-stage fixed-shuffle tree",
+            "I32x4": "paddd instruction in a two-stage fixed-shuffle tree",
+            "U64x2": "paddq instruction in a one-stage fixed-shuffle tree",
+            "I64x2": "paddq instruction in a one-stage fixed-shuffle tree",
+        }
+        vector = next(vector for vector in x86_add if vector in declaration)
+        if "U8x16" in declaration:
+            aarch = (
+                "the NEON uaddlv instruction to form a widening sum and "
+                "retains its low eight bits"
+            )
+        elif "I8x16" in declaration:
+            aarch = "the NEON addv instruction over 16 byte lanes"
+        elif "16x8" in declaration:
+            aarch = "the NEON addv instruction over eight 16-bit lanes"
+        elif "32x4" in declaration:
+            aarch = "the NEON addv instruction over four 32-bit lanes"
+        else:
+            aarch = "the NEON addp instruction over two 64-bit lanes"
+        x86 = f"the SSE2 {x86_add[vector]}"
     elif name == "Reduce_Add" and (
         "F32x4" in declaration or "F64x2" in declaration
     ):
@@ -644,12 +667,53 @@ def native_support_doc(name: str, declaration: str) -> str:
                 "sequence that folds lanes in ascending order"
             )
     elif name in {"Reduce_Min", "Reduce_Max"}:
-        aarch = "a dedicated NEON packed reduction"
         result = "minimum" if name == "Reduce_Min" else "maximum"
-        if "U8x16" in declaration or "I16x8" in declaration:
-            x86 = f"a dedicated SSE2 packed {result} reduction over fixed shuffles"
+        vector = next(
+            vector for vector in (
+                "U8x16", "I8x16", "U16x8", "I16x8",
+                "U32x4", "I32x4", "U64x2", "I64x2",
+            ) if vector in declaration
+        )
+        if "64x2" in declaration:
+            compare = "cmgt" if "I64x2" in declaration else "cmhi"
+            select = "bit" if name == "Reduce_Min" else "bif"
+            aarch = (
+                "a dedicated NEON sequence that broadcasts the high lane, "
+                f"compares with {compare}, and selects the {result} with {select}"
+            )
         else:
-            x86 = f"a dedicated SSE2 comparison-and-selection {result} reduction over fixed shuffles"
+            prefix = "s" if re.search(r"Value : I(?:8x16|16x8|32x4)", declaration) else "u"
+            lane_shape = (
+                "16 byte lanes" if "8x16" in declaration
+                else "eight 16-bit lanes" if "16x8" in declaration
+                else "four 32-bit lanes"
+            )
+            instruction = f"{prefix}{'minv' if name == 'Reduce_Min' else 'maxv'}"
+            aarch = f"the NEON {instruction} instruction over {lane_shape}"
+        if vector == "U8x16":
+            instruction = "pminub" if name == "Reduce_Min" else "pmaxub"
+            x86 = f"the SSE2 {instruction} instruction in a four-stage fixed-shuffle tree"
+        elif vector == "I16x8":
+            instruction = "pminsw" if name == "Reduce_Min" else "pmaxsw"
+            x86 = f"the SSE2 {instruction} instruction in a three-stage fixed-shuffle tree"
+        elif vector in {"I8x16", "U16x8", "U32x4", "I32x4"}:
+            instruction = {
+                "I8x16": "pcmpgtb",
+                "U16x8": "pcmpgtw with a sign-bit bias",
+                "U32x4": "pcmpgtd with a sign-bit bias",
+                "I32x4": "pcmpgtd",
+            }[vector]
+            stages = {"I8x16": 4, "U16x8": 3, "U32x4": 2, "I32x4": 2}[vector]
+            x86 = (
+                f"a dedicated SSE2 {instruction} comparison-and-selection "
+                f"{result} reduction in a {stages}-stage fixed-shuffle tree"
+            )
+        else:
+            bias = " with a sign-bit bias" if vector == "U64x2" else ""
+            x86 = (
+                "a dedicated SSE2 equality-gated two-dword lexicographic "
+                f"comparison{bias} that selects the {result}"
+            )
     elif name in {"Widen_Low", "Widen_High"}:
         aarch = (
             f"a dedicated NEON instruction that converts the selected lanes with {'fcvtl' if name == 'Widen_Low' else 'fcvtl2'}"

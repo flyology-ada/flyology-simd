@@ -73,11 +73,109 @@ def declaration_blocks(text: str, name: str) -> list[str]:
     return blocks
 
 
+def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
+    """Return the exact operation/type-specific AArch64 reduction phrase."""
+    if operation == "Reduce_Add_Wrap":
+        return {
+            "U8x16": "NEON uaddlv instruction to form a widening sum and retains its low eight bits",
+            "I8x16": "NEON addv instruction over 16 byte lanes",
+            "U16x8": "NEON addv instruction over eight 16-bit lanes",
+            "I16x8": "NEON addv instruction over eight 16-bit lanes",
+            "U32x4": "NEON addv instruction over four 32-bit lanes",
+            "I32x4": "NEON addv instruction over four 32-bit lanes",
+            "U64x2": "NEON addp instruction over two 64-bit lanes",
+            "I64x2": "NEON addp instruction over two 64-bit lanes",
+        }[vector]
+    extreme = "minimum" if operation == "Reduce_Min" else "maximum"
+    if vector in {"U64x2", "I64x2"}:
+        compare = "cmhi" if vector == "U64x2" else "cmgt"
+        select = "bit" if operation == "Reduce_Min" else "bif"
+        return (
+            "broadcasts the high lane, compares with " + compare
+            + ", and selects the " + extreme + " with " + select
+        )
+    prefix = "s" if vector.startswith("I") else "u"
+    instruction = prefix + ("minv" if operation == "Reduce_Min" else "maxv")
+    shape = (
+        "16 byte lanes" if "8x16" in vector
+        else "eight 16-bit lanes" if "16x8" in vector
+        else "four 32-bit lanes"
+    )
+    return f"NEON {instruction} instruction over {shape}"
+
+
+def integer_reduction_x86_phrase(operation: str, vector: str) -> str:
+    """Return the exact operation/type-specific x86 reduction phrase."""
+    if operation == "Reduce_Add_Wrap":
+        instruction, stages = {
+            "U8x16": ("paddb", "four"), "I8x16": ("paddb", "four"),
+            "U16x8": ("paddw", "three"), "I16x8": ("paddw", "three"),
+            "U32x4": ("paddd", "two"), "I32x4": ("paddd", "two"),
+            "U64x2": ("paddq", "one"), "I64x2": ("paddq", "one"),
+        }[vector]
+        return f"SSE2 {instruction} instruction in a {stages}-stage fixed-shuffle tree"
+    extreme = "minimum" if operation == "Reduce_Min" else "maximum"
+    if vector == "U8x16":
+        instruction = "pminub" if operation == "Reduce_Min" else "pmaxub"
+        return f"SSE2 {instruction} instruction in a four-stage fixed-shuffle tree"
+    if vector == "I16x8":
+        instruction = "pminsw" if operation == "Reduce_Min" else "pmaxsw"
+        return f"SSE2 {instruction} instruction in a three-stage fixed-shuffle tree"
+    if vector in {"I8x16", "U16x8", "U32x4", "I32x4"}:
+        instruction = {
+            "I8x16": "pcmpgtb",
+            "U16x8": "pcmpgtw with a sign-bit bias",
+            "U32x4": "pcmpgtd with a sign-bit bias",
+            "I32x4": "pcmpgtd",
+        }[vector]
+        stages = {"I8x16": 4, "U16x8": 3, "U32x4": 2, "I32x4": 2}[vector]
+        return (
+            f"SSE2 {instruction} comparison-and-selection {extreme} reduction "
+            f"in a {stages}-stage fixed-shuffle tree"
+        )
+    bias = " with a sign-bit bias" if vector == "U64x2" else ""
+    return (
+        "SSE2 equality-gated two-dword lexicographic comparison"
+        f"{bias} that selects the {extreme}"
+    )
+
+
 def invalid_support(path: Path) -> list[str]:
     text = path.read_text()
     invalid: list[str] = []
     if "A target backend can use scalar composition" in text:
         invalid.append(f"{path.relative_to(ROOT)}: generic Native fallback wording")
+    if path.name in {"flyology_simd.ads", "flyology_simd-backends-native.ads"}:
+        integer_vectors = (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        )
+        for operation in ("Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"):
+            blocks = declaration_blocks(text, operation)
+            if len(blocks) != 8:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected eight exact {operation} "
+                    f"declarations, found {len(blocks)}"
+                )
+                continue
+            for vector in integer_vectors:
+                matching = [block for block in blocks if f"Value : {vector}" in block]
+                aarch_phrase = integer_reduction_aarch_phrase(operation, vector)
+                x86_phrase = integer_reduction_x86_phrase(operation, vector)
+                if (
+                    len(matching) != 1
+                    or aarch_phrase not in matching[0]
+                    or x86_phrase not in matching[0]
+                    or (
+                        path.name == "flyology_simd.ads"
+                        and "This overload uses the portable scalar implementation"
+                        not in matching[0]
+                    )
+                ):
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: incorrect exact {vector} "
+                        f"{operation} classification"
+                    )
     if path.name == "flyology_simd-wide.ads":
         contextual_compact = (
             "In a scalar build, the matching Wide.Native overload uses the same "
@@ -341,31 +439,6 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected ten exact Select_Value "
                 f"NEON classifications, found {selected}"
             )
-        reduction_support = {
-            "Reduce_Add_Wrap": (
-                "The x86-64 backend uses a dedicated SSE2 packed-add reduction tree.",
-                8,
-            ),
-            "Reduce_Min": (
-                "minimum reduction over fixed shuffles",
-                8,
-            ),
-            "Reduce_Max": (
-                "maximum reduction over fixed shuffles",
-                8,
-            ),
-        }
-        for operation, (phrase, expected) in reduction_support.items():
-            blocks = [
-                block.split("function ", 1)[0].split("procedure ", 1)[0]
-                for block in text.split(f"function {operation}")[1:]
-            ]
-            found = sum(phrase in block for block in blocks)
-            if found != expected:
-                invalid.append(
-                    f"{path.relative_to(ROOT)}: expected {expected} exact "
-                    f"{operation} SSE2 classifications, found {found}"
-                )
         floating_add_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Reduce_Add")[1:]

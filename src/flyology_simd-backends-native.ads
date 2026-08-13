@@ -165,17 +165,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U8x16) return U8;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uaddlv instruction to form a widening sum and retains its low eight bits. The x86-64 backend uses the SSE2 paddb instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : U8x16) return U8;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uminv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pminub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : U8x16) return U8;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON umaxv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pmaxub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 
@@ -910,17 +910,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I8x16) return I8;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 paddb instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : I8x16) return I8;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sminv instruction over 16 byte lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtb comparison-and-selection minimum reduction in a 4-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : I8x16) return I8;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON smaxv instruction over 16 byte lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtb comparison-and-selection maximum reduction in a 4-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : I8x16) return I8x16;
@@ -1203,17 +1203,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U16x8) return U16;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addv instruction over eight 16-bit lanes. The x86-64 backend uses the SSE2 paddw instruction in a three-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : U16x8) return U16;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uminv instruction over eight 16-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtw with a sign-bit bias comparison-and-selection minimum reduction in a 3-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : U16x8) return U16;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON umaxv instruction over eight 16-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtw with a sign-bit bias comparison-and-selection maximum reduction in a 3-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : U16x8) return U16x8;
@@ -1502,17 +1502,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I16x8) return I16;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addv instruction over eight 16-bit lanes. The x86-64 backend uses the SSE2 paddw instruction in a three-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : I16x8) return I16;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sminv instruction over eight 16-bit lanes. The x86-64 backend uses the SSE2 pminsw instruction in a three-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : I16x8) return I16;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON smaxv instruction over eight 16-bit lanes. The x86-64 backend uses the SSE2 pmaxsw instruction in a three-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : I16x8) return I16x8;
@@ -1795,17 +1795,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U32x4) return U32;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addv instruction over four 32-bit lanes. The x86-64 backend uses the SSE2 paddd instruction in a two-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : U32x4) return U32;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uminv instruction over four 32-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtd with a sign-bit bias comparison-and-selection minimum reduction in a 2-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : U32x4) return U32;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON umaxv instruction over four 32-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtd with a sign-bit bias comparison-and-selection maximum reduction in a 2-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : U32x4) return U32x4;
@@ -2094,17 +2094,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I32x4) return I32;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addv instruction over four 32-bit lanes. The x86-64 backend uses the SSE2 paddd instruction in a two-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : I32x4) return I32;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sminv instruction over four 32-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtd comparison-and-selection minimum reduction in a 2-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : I32x4) return I32;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON smaxv instruction over four 32-bit lanes. The x86-64 backend uses a dedicated SSE2 pcmpgtd comparison-and-selection maximum reduction in a 2-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : I32x4) return I32x4;
@@ -2387,17 +2387,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : U64x2) return U64;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addp instruction over two 64-bit lanes. The x86-64 backend uses the SSE2 paddq instruction in a one-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : U64x2) return U64;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that broadcasts the high lane, compares with cmhi, and selects the minimum with bit. The x86-64 backend uses a dedicated SSE2 equality-gated two-dword lexicographic comparison with a sign-bit bias that selects the minimum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : U64x2) return U64;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that broadcasts the high lane, compares with cmhi, and selects the maximum with bif. The x86-64 backend uses a dedicated SSE2 equality-gated two-dword lexicographic comparison with a sign-bit bias that selects the maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : U64x2) return U64x2;
@@ -2686,17 +2686,17 @@ is
    --  @return The operation result.
    function Reduce_Add_Wrap (Value : I64x2) return I64;
    --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 packed-add reduction tree. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON addp instruction over two 64-bit lanes. The x86-64 backend uses the SSE2 paddq instruction in a one-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min (Value : I64x2) return I64;
    --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection minimum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that broadcasts the high lane, compares with cmgt, and selects the minimum with bit. The x86-64 backend uses a dedicated SSE2 equality-gated two-dword lexicographic comparison that selects the minimum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Max (Value : I64x2) return I64;
    --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON packed reduction. The x86-64 backend uses a dedicated SSE2 comparison-and-selection maximum reduction over fixed shuffles. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that broadcasts the high lane, compares with cmgt, and selects the maximum with bif. The x86-64 backend uses a dedicated SSE2 equality-gated two-dword lexicographic comparison that selects the maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reverse_Lanes (Value : I64x2) return I64x2;

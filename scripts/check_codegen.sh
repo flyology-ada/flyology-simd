@@ -44,6 +44,7 @@ bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
 alignment_probe_object="$probe_root/alignment_codegen_probe.o"
 table_lookup_probe_object="$probe_root/table_lookup_codegen_probe.o"
 u8_value_probe_object="$probe_root/u8_value_codegen_probe.o"
+integer_reduction_probe_object="$probe_root/integer_reduction_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -119,6 +120,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$u8_value_probe_object" >"$temporary/u8-value-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$integer_reduction_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/integer-reduction-probe.txt"
+else
+    objdump -dr "$integer_reduction_probe_object" \
+      >"$temporary/integer-reduction-probe.txt"
+fi
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
     nm -u "$wide_byte_object" >"$temporary/wide-byte-undefined.txt"
@@ -160,6 +168,8 @@ nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
 nm -u "$alignment_probe_object" >"$temporary/alignment-undefined.txt"
 nm -u "$table_lookup_probe_object" >"$temporary/table-lookup-undefined.txt"
 nm -u "$u8_value_probe_object" >"$temporary/u8-value-undefined.txt"
+nm -u "$integer_reduction_probe_object" \
+  >"$temporary/integer-reduction-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -993,6 +1003,44 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
   "$temporary/wide-reduction-undefined.txt" \
   'Wide dispatcher or portable scalar reduction retained in caller probe'
 
+integer_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_reduction_codegen_cases.txt | wc -l | tr -d ' ')
+integer_reduction_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_reduction_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$integer_reduction_case_count" -ne 24 ] || \
+   [ "$integer_reduction_unique_count" -ne 24 ]; then
+    echo '128-bit integer-reduction manifest must contain 24 unique operations' >&2
+    exit 1
+fi
+
+while read -r lane_kind operation suffix bits lanes signedness; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/integer-reduction-${lane_kind}-${operation}.txt"
+    extract_symbol "integer_reduction_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/integer-reduction-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected operation in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide reduction in ${lane_kind} ${operation} caller"
+done <scripts/probes/integer_reduction_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__reduce_(add_wrap|min|max)(__[2-8])?$' 24 \
+  "$temporary/integer-reduction-undefined.txt" \
+  'all 24 selected 128-bit integer-reduction overloads'
+require_count 'flyology_simd__' 24 \
+  "$temporary/integer-reduction-undefined.txt" \
+  'only the 24 intended reductions remain unresolved from the caller probe'
+forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide__' \
+  "$temporary/integer-reduction-undefined.txt" \
+  'portable, Scalar, or Wide reduction retained in the 128-bit caller probe'
+
 case "$architecture" in
     aarch64)
         for direction in low high; do
@@ -1294,6 +1342,82 @@ EOF
         require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 reduction lane broadcast'
         require_pattern 'cmhi.*2d' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum comparison'
         require_pattern 'bif.*16b' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum selection'
+        #  Inspect every 128-bit integer-reduction leaf.  The public caller
+        #  probe above binds each overload to one exact selected symbol; these
+        #  checks bind every selected symbol to its operation-specific NEON
+        #  instruction sequence.
+        while read -r lane_kind suffix shape lane_letter prefix; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            for operation in reduce_add_wrap reduce_min reduce_max; do
+                output="$temporary/integer_reduction_leaf_${lane_kind}_${operation}.txt"
+                extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                  "$temporary/native.txt" "$output"
+                forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide__' \
+                  "$output" "portable, Scalar, or Wide helper in ${lane_kind} ${operation} leaf"
+                forbid_pattern '(^|[[:space:]])(b|bl)[[:space:]].*flyology_simd__' \
+                  "$output" "out-of-line Flyology helper in ${lane_kind} ${operation} leaf"
+            done
+            if [ "$lane_kind" = u8 ]; then
+                require_count '(^|[[:space:]])(uaddlv\.16b[[:space:]]|uaddlv[[:space:]].*16b([^[:alnum:]]|$))' 1 \
+                  "$temporary/integer_reduction_leaf_u8_reduce_add_wrap.txt" \
+                  'one exact unsigned-byte widening sum in U8 Reduce_Add_Wrap'
+                require_pattern '(^|[[:space:]])and[[:space:]].*#(0x)?ff([^[:xdigit:]]|$)' \
+                  "$temporary/integer_reduction_leaf_u8_reduce_add_wrap.txt" \
+                  'low-byte modulo result in U8 Reduce_Add_Wrap'
+            elif [ "$shape" = 2d ]; then
+                require_count '(^|[[:space:]])(addp\.2d[[:space:]]|addp[[:space:]].*2d([^[:alnum:]]|$))' 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_add_wrap.txt" \
+                  "one exact 64-bit pairwise sum in ${lane_kind} Reduce_Add_Wrap"
+            else
+                require_count "(^|[[:space:]])(addv\\.${shape}[[:space:]]|addv[[:space:]].*${shape}([^[:alnum:]]|$))" 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_add_wrap.txt" \
+                  "one exact packed sum in ${lane_kind} Reduce_Add_Wrap"
+            fi
+            if [ "$shape" = 2d ]; then
+                compare=cmhi
+                [ "$prefix" = s ] && compare=cmgt
+                for operation in reduce_min reduce_max; do
+                    output="$temporary/integer_reduction_leaf_${lane_kind}_${operation}.txt"
+                    require_count '(^|[[:space:]])(dup\.2d[[:space:]].*\[1\]|dup[[:space:]].*2d.*\[1\])' 1 \
+                      "$output" "one high-lane broadcast in ${lane_kind} ${operation}"
+                    require_count "(^|[[:space:]])(${compare}\\.2d[[:space:]]|${compare}[[:space:]].*2d([^[:alnum:]]|$))" 1 \
+                      "$output" "one 64-bit comparison in ${lane_kind} ${operation}"
+                done
+                require_count '(^|[[:space:]])(bit\.16b[[:space:]]|bit[[:space:]].*16b([^[:alnum:]]|$))' 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_min.txt" \
+                  "one minimum selection in ${lane_kind} Reduce_Min"
+                require_count '(^|[[:space:]])(bif\.16b[[:space:]]|bif[[:space:]].*16b([^[:alnum:]]|$))' 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_max.txt" \
+                  "one maximum selection in ${lane_kind} Reduce_Max"
+            else
+                require_count "(^|[[:space:]])(${prefix}minv\\.${shape}[[:space:]]|${prefix}minv[[:space:]].*${shape}([^[:alnum:]]|$))" 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_min.txt" \
+                  "one exact packed minimum in ${lane_kind} Reduce_Min"
+                require_count "(^|[[:space:]])(${prefix}maxv\\.${shape}[[:space:]]|${prefix}maxv[[:space:]].*${shape}([^[:alnum:]]|$))" 1 \
+                  "$temporary/integer_reduction_leaf_${lane_kind}_reduce_max.txt" \
+                  "one exact packed maximum in ${lane_kind} Reduce_Max"
+            fi
+            for operation in reduce_add_wrap reduce_min reduce_max; do
+                output="$temporary/integer_reduction_leaf_${lane_kind}_${operation}.txt"
+                if [ "$lane_kind:$operation" = u8:reduce_add_wrap ]; then
+                    require_pattern '(^|[[:space:]])umov(\.h)?[[:space:]]' \
+                      "$output" 'widened sum transfer in U8 Reduce_Add_Wrap'
+                else
+                    require_pattern "(^|[[:space:]])(str[[:space:]]+${lane_letter}0|umov(\\.${lane_letter})?[[:space:]])" \
+                      "$output" "result transfer in ${lane_kind} ${operation}"
+                fi
+            done
+        done <<'EOF'
+u8  none 16b b u
+i8  2    16b b s
+u16 3    8h  h u
+i16 4    8h  h s
+u32 5    4s  s u
+i32 6    4s  s s
+u64 7    2d  d u
+i64 8    2d  d s
+EOF
         extract_symbol 'native_multiply_wrap_u64x2' "$temporary/native.txt" "$temporary/multiply_u64.txt"
         extract_symbol 'native_multiply_wrap_i64x2' "$temporary/native.txt" "$temporary/multiply_i64.txt"
         for multiply_probe in multiply_u64 multiply_i64; do
@@ -1946,7 +2070,7 @@ EOF
                 symbol="flyology_simd__backends__native__${operation}${suffix}"
                 output="$temporary/reduction_${lane_kind}_${operation}.txt"
                 extract_symbol "$symbol" "$temporary/native.txt" "$output"
-                forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__reduce_' \
+                forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]|flyology_simd__reduce_' \
                   "$output" \
                   "portable or out-of-line helper in ${lane_kind} ${operation}"
             done
@@ -1978,9 +2102,100 @@ EOF
                         require_count '(^|[[:space:]])pandn[[:space:]]' "$stages" \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "complete SSE2 ${lane_kind} ${operation} selection tree"
-                        require_pattern '(^|[[:space:]])por[[:space:]]' \
+                        if [ "$lane_kind" != u64 ] && [ "$lane_kind" != i64 ]; then
+                            require_count '(^|[[:space:]])pand[[:space:]]' "$stages" \
+                              "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                              "complete SSE2 ${lane_kind} ${operation} true-value selection tree"
+                            require_count '(^|[[:space:]])por[[:space:]]' "$stages" \
+                              "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                              "complete SSE2 ${lane_kind} ${operation} selected-value merge tree"
+                        fi
+                    done
+                    ;;
+            esac
+            case "$lane_kind" in
+                u8|i8|u32|i32)
+                    for operation in reduce_add_wrap reduce_min reduce_max; do
+                        require_pattern '(^|[[:space:]])movd[[:space:]]' \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
-                          "SSE2 selected-value merge in ${lane_kind} ${operation}"
+                          "SSE2 ${lane_kind} ${operation} result extraction"
+                        if [ "$lane_kind" = u8 ] || [ "$lane_kind" = i8 ]; then
+                            require_count '(^|[[:space:]])movb[[:space:]]' 1 \
+                              "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                              "SSE2 ${lane_kind} ${operation} byte result store"
+                        fi
+                    done
+                    ;;
+                u16|i16)
+                    for operation in reduce_add_wrap reduce_min reduce_max; do
+                        require_pattern '(^|[[:space:]])pextrw[[:space:]]' \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "SSE2 ${lane_kind} ${operation} result extraction"
+                        require_count '(^|[[:space:]])movw[[:space:]]' 1 \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "SSE2 ${lane_kind} ${operation} word result store"
+                    done
+                    ;;
+                u64|i64)
+                    for operation in reduce_add_wrap reduce_min reduce_max; do
+                        require_pattern '(^|[[:space:]])movq[[:space:]]' \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "SSE2 ${lane_kind} ${operation} result extraction"
+                    done
+                    ;;
+            esac
+            case "$lane_kind" in
+                i8)
+                    for operation in reduce_min reduce_max; do
+                        require_count '(^|[[:space:]])pcmpgtb[[:space:]]' "$stages" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "complete signed-byte comparison tree in ${lane_kind} ${operation}"
+                    done
+                    ;;
+                u16)
+                    for operation in reduce_min reduce_max; do
+                        require_count '(^|[[:space:]])pcmpgtw[[:space:]]' "$stages" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "complete unsigned-word comparison tree in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pxor[[:space:]]' "$((2 * stages))" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "sign-bit bias in every ${lane_kind} ${operation} comparison stage"
+                    done
+                    ;;
+                u32|i32)
+                    for operation in reduce_min reduce_max; do
+                        require_count '(^|[[:space:]])pcmpgtd[[:space:]]' "$stages" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "complete dword comparison tree in ${lane_kind} ${operation}"
+                        if [ "$lane_kind" = u32 ]; then
+                            require_count '(^|[[:space:]])pxor[[:space:]]' "$((2 * stages))" \
+                              "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                              "sign-bit bias in every ${lane_kind} ${operation} comparison stage"
+                        fi
+                    done
+                    ;;
+                u64|i64)
+                    for operation in reduce_min reduce_max; do
+                        require_count '(^|[[:space:]])pcmpgtd[[:space:]]' "$((2 * stages))" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "high- and low-dword comparisons in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pcmpeqd[[:space:]]' "$stages" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "high-dword equality gate in ${lane_kind} ${operation}"
+                        if [ "$lane_kind" = u64 ]; then
+                            bias_count=$((4 * stages))
+                        else
+                            bias_count=$((2 * stages))
+                        fi
+                        require_count '(^|[[:space:]])pxor[[:space:]]' "$bias_count" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "unsigned low-dword comparison bias in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pand[[:space:]]' "$((2 * stages))" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "equality-gated low comparison and selected-value mask in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])por[[:space:]]' "$((2 * stages))" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "lexicographic comparison and selected-value merge in ${lane_kind} ${operation}"
                     done
                     ;;
             esac

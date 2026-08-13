@@ -2634,7 +2634,8 @@ def test_program() -> str:
     lines = [
         "with Ada.Command_Line;", "with Ada.Exceptions;", "with Ada.Text_IO;",
         "with Ada.Unchecked_Conversion;", "with Interfaces;", "with Flyology_SIMD;",
-        "with Flyology_SIMD.Backends.Native;", "",
+        "with Flyology_SIMD.Backends.Native;",
+        "with Flyology_SIMD.Backends.Scalar;", "",
         "procedure Family_Tests is", "   use Ada.Text_IO;", "   use Flyology_SIMD;",
         "   use type Interfaces.Unsigned_8;", "   use type Interfaces.Unsigned_16;",
         "   use type Interfaces.Unsigned_32;", "   use type Interfaces.Unsigned_64;",
@@ -2773,6 +2774,15 @@ def test_program() -> str:
                 "      Saturating_Subtract_Expected_2 : constant Lane_Values_I64x2 := [I64'Last, I64'First];",
             ],
         }.get(vector, [])
+        reduction_edges = {
+            "U64x2": [
+                "      Reduction_Wrap : constant U64x2 := From_Lanes ([U64'Last, 2]);",
+                "      Reduction_Order : constant U64x2 := From_Lanes ([16#7FFF_FFFF_FFFF_FFFF#, 16#8000_0000_0000_0000#]);",
+            ],
+            "I64x2": [
+                "      Reduction_Order : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), Bits_To_I64x2 (16#0000_0001_0000_0000#)]);",
+            ],
+        }.get(vector, [])
         lines += [
             *helpers,
             f"   function Reference_Add_Saturate_{vector} (Left, Right : {scalar}) return {scalar} is",
@@ -2890,6 +2900,7 @@ def test_program() -> str:
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
             f"      Maximum_Index_Data : {arr} (Natural'Last .. Natural'Last) := [others => {scalar} (1)];",
             *saturation_edges,
+            *reduction_edges,
             *(
                 [
                     "      Multiply_Edge_Left : constant U64x2 := From_Lanes ([16#FFFF_FFFF_0000_0001#, 16#8000_0001_0000_0001#]);",
@@ -2937,6 +2948,15 @@ def test_program() -> str:
         if vector == "I64x2":
             lines.append(
                 "      Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2, \"I64x2 opposite fixed saturation boundaries\");"
+            )
+        if vector == "U64x2":
+            lines += [
+                "      Check (Reduce_Add_Wrap (Reduction_Wrap) = 1 and then Backends.Scalar.Reduce_Add_Wrap (Reduction_Wrap) = 1 and then Backends.Native.Reduce_Add_Wrap (Reduction_Wrap) = 1, \"U64x2 independent wrapping reduction boundary\");",
+                "      Check (Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Backends.Scalar.Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Backends.Native.Reduce_Min (Reduction_Order) = 16#7FFF_FFFF_FFFF_FFFF# and then Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000# and then Backends.Scalar.Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000# and then Backends.Native.Reduce_Max (Reduction_Order) = 16#8000_0000_0000_0000#, \"U64x2 independent top-bit reduction boundary\");",
+            ]
+        if vector == "I64x2":
+            lines.append(
+                "      Check (Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Scalar.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Native.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Scalar.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Native.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), \"I64x2 independent equal-high-word reduction boundary\");"
             )
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
@@ -3005,9 +3025,9 @@ def test_program() -> str:
             f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Select_Value (Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask ({mask_storage} (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent scalar and native select\" & Pattern'Image & Lane'Image); end loop;",
             "      end loop;",
             f"      Check (Backends.Native.To_Bit_Mask ({mask}'(Backends.Native.Mask_From_Bit_Mask ({mask_storage}'Last))) = {mask_storage} (2 ** {lanes} - 1), \"{vector} native masks unused storage bits\");",
-            f"      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A), \"{vector} independent reduce add\");",
-            f"      Check (Reduce_Min (A) = Reference_Reduce_Min_{vector} (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_{vector} (A), \"{vector} independent reduce min\");",
-            f"      Check (Reduce_Max (A) = Reference_Reduce_Max_{vector} (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_{vector} (A), \"{vector} independent reduce max\");",
+            f"      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_{vector} (A), \"{vector} independent reduce add\");",
+            f"      Check (Reduce_Min (A) = Reference_Reduce_Min_{vector} (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_{vector} (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_{vector} (A), \"{vector} independent reduce min\");",
+            f"      Check (Reduce_Max (A) = Reference_Reduce_Max_{vector} (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_{vector} (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_{vector} (A), \"{vector} independent reduce max\");",
             f"      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);",
             f"      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), \"{vector} full memory\");",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Data (1 + Lane) = Extract (A, Lane), \"{vector} independent full store\" & Lane'Image); end loop;",
@@ -3063,7 +3083,7 @@ def test_program() -> str:
             f"            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), \"{vector} randomized native lane slides\");",
             f"            Check (Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), \"{vector} randomized native select\");",
             f"            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_{vector} (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_{vector} (R_A, Mask_From_Bit_Mask (Pattern))), \"{vector} randomized native compression\");",
-            f"            Check (Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized native reductions\");",
+            f"            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized root, scalar, and native reductions\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",

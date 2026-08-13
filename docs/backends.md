@@ -244,10 +244,33 @@ they also reject portable `Zero`, `Shift_Left_Logical`, and
 `Shift_Right_Logical` calls. The Native-object gate rejects retained portable
 logical-shift and arithmetic-right-shift calls.
 
-All 24 integer
-reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
-Minimum and maximum reductions use packed minimum or maximum where SSE2 has
-the lane operation, and comparison plus bit selection otherwise. Floating
+All 24 integer-reduction overloads use dedicated target sequences. On AArch64,
+the backend uses NEON packed reductions for overloads with lane widths up to
+32 bits. The two 64-bit `Reduce_Add_Wrap` overloads use pairwise addition. The
+four 64-bit `Reduce_Min` and `Reduce_Max` overloads compare the two lanes and
+select the result.
+
+On x86-64, all 24 integer reductions use SSE2 fixed-shuffle trees. Wrapping
+sums use packed addition. Minimum and maximum reductions use packed minimum or
+maximum where SSE2 has the lane operation, and comparison plus bit selection
+otherwise.
+
+Independent lane oracles check the root, `Backends.Scalar`, and
+`Backends.Native` results. The seven families other than `U8x16` use fixed
+inputs and 250 deterministic full-width inputs. Fixed 64-bit cases cover
+unsigned wrapping and top-bit boundaries. They also cover signed values with
+equal high words and different low words. The focused `U8x16` suite uses 2,000
+deterministic inputs.
+
+A generated public caller gate covers all 24 overloads on AArch64 and x86-64.
+Each caller must call its matching selected `Backends.Native` reduction. The
+gate rejects calls to `Flyology_SIMD` root reductions, `Backends.Scalar`
+reductions, mismatched `Backends.Native` reductions, and `Wide` or
+`Wide.Native` reductions. Exact-leaf gates cover every operation and integer
+type. They require the operation-specific target sequence and reject portable
+reduction helpers.
+
+Floating
 `Reduce_Add` uses a dedicated SSE2 sequence. It starts from positive zero and
 adds one lane at a time in ascending order.
 Floating `Min_Number` and `Max_Number` use integer-only SSE2 classification
