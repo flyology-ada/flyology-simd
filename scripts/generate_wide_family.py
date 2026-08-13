@@ -199,9 +199,16 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "this overload calls the portable Wide implementation."
         )
     elif summary.startswith("Stably pack") or summary.startswith("Place consecutive"):
-        mechanism = (
-            "AArch64 derives a byte map and uses two-register NEON tbl for each "
-            "result half; x86-64 uses the Wide scalar implementation"
+        movement = "compression" if summary.startswith("Stably pack") else "expansion"
+        return (
+            "Cross-platform support: The AArch64 backend derives one 32-byte "
+            f"{movement} map and runs one two-register NEON tbl operation for "
+            "each result half. The x86-64 composed and optional AVX2 backends "
+            f"derive two selected-128-bit {movement} maps. They run one SSE2 "
+            "two-source permutation for each result half and apply the "
+            "selected 128-bit mask and zero operations for defined zero fill. "
+            "In a scalar build, this overload uses the same two-part "
+            "composition through the portable 128-bit implementation."
         )
     elif summary.startswith("Select each result byte"):
         mechanism = (
@@ -364,6 +371,12 @@ def wide_portable_support(summary: str, declaration: str) -> str:
         "In a scalar build, this overload calls the portable Wide implementation.",
         "In a scalar build, the matching Wide.Native overload calls the "
         "portable Wide implementation.",
+    )
+    native = native.replace(
+        "In a scalar build, this overload uses the same two-part composition "
+        "through the portable 128-bit implementation.",
+        "In a scalar build, the matching Wide.Native overload uses the same "
+        "two-part composition through the portable 128-bit implementation.",
     )
     if native.startswith("The "):
         native = "the " + native.removeprefix("The ")
@@ -2083,6 +2096,117 @@ end Flyology_SIMD.Wide.Compact_Mechanism;
 """
 
 
+def compact_x86_body_text() -> str:
+    bodies = []
+    for f in FAMILIES:
+        half_index = f"Lane_Index_{f.bits}x{f.half_lanes}"
+        half_selectors = f"Two_Source_Lane_Selectors_{f.bits}x{f.half_lanes}"
+        half_mask_bits = half_mask_storage(f)
+        lane_bytes = f.bits // 8
+        truth = (
+            f"(Bits and Interfaces.Shift_Left ({f.mask_bits}'(1), Lane)) /= 0"
+        )
+
+        common_declarations = (
+            f"      Bits : constant {f.mask_bits} :=\n"
+            f"        {f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))\n"
+            f"        or Interfaces.Shift_Left\n"
+            f"             ({f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),\n"
+            f"              {f.half_lanes});\n"
+            f"      Low_Selectors : {half_selectors} :=\n"
+            f"        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];\n"
+            f"      High_Selectors : {half_selectors} :=\n"
+            f"        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];\n"
+            f"      Low_Valid : {half_mask_bits} := 0;\n"
+            f"      High_Valid : {half_mask_bits} := 0;"
+        )
+
+        def selector_assignment(result_lane: str, source_lane: str) -> str:
+            return (
+                f"            if {result_lane} < {f.half_lanes} then\n"
+                f"               Low_Selectors ({result_lane}) :=\n"
+                f"                 (if {source_lane} < {f.half_lanes}\n"
+                f"                  then Flyology_SIMD.Select_Left_Lane\n"
+                f"                         ({source_lane})\n"
+                f"                  else Flyology_SIMD.Select_Right_Lane\n"
+                f"                         ({source_lane} - {f.half_lanes}));\n"
+                f"               Low_Valid := Low_Valid or Interfaces.Shift_Left\n"
+                f"                 ({half_mask_bits}'(1), {result_lane});\n"
+                "            else\n"
+                f"               High_Selectors ({result_lane} - {f.half_lanes}) :=\n"
+                f"                 (if {source_lane} < {f.half_lanes}\n"
+                f"                  then Flyology_SIMD.Select_Left_Lane\n"
+                f"                         ({source_lane})\n"
+                f"                  else Flyology_SIMD.Select_Right_Lane\n"
+                f"                         ({source_lane} - {f.half_lanes}));\n"
+                f"               High_Valid := High_Valid or Interfaces.Shift_Left\n"
+                f"                 ({half_mask_bits}'(1), {result_lane} - {f.half_lanes});\n"
+                "            end if;"
+            )
+
+        result_expression = (
+            f"      declare\n"
+            f"         Low_Selected : constant {f.half} :=\n"
+            f"           Flyology_SIMD.Backends.Native.Permute_Lanes\n"
+            f"             (Value.Low, Value.High,\n"
+            f"              Flyology_SIMD.Make_Two_Source_Lane_Map (Low_Selectors));\n"
+            f"         High_Selected : constant {f.half} :=\n"
+            f"           Flyology_SIMD.Backends.Native.Permute_Lanes\n"
+            f"             (Value.Low, Value.High,\n"
+            f"              Flyology_SIMD.Make_Two_Source_Lane_Map (High_Selectors));\n"
+            f"         Zero_Value : constant {f.half} :=\n"
+            f"           Flyology_SIMD.Backends.Native.Zero;\n"
+            f"      begin\n"
+            f"         return\n"
+            f"           (Low => Flyology_SIMD.Backends.Native.Select_Value\n"
+            f"              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Low_Valid),\n"
+            f"               Low_Selected, Zero_Value),\n"
+            f"            High => Flyology_SIMD.Backends.Native.Select_Value\n"
+            f"              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (High_Valid),\n"
+            f"               High_Selected, Zero_Value));\n"
+            f"      end;"
+        )
+
+        bodies.append(
+            f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
+            f"{common_declarations}\n"
+            "      Result_Lane : Natural := 0;\n"
+            "   begin\n"
+            f"      for Lane in {f.index} loop\n"
+            f"         if {truth} then\n"
+            f"{selector_assignment('Result_Lane', 'Lane')}\n"
+            "            Result_Lane := Result_Lane + 1;\n"
+            "         end if;\n"
+            "      end loop;\n"
+            f"{result_expression}\n"
+            "   end Compress;"
+        )
+        bodies.append(
+            f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
+            f"{common_declarations}\n"
+            "      Source_Lane : Natural := 0;\n"
+            "   begin\n"
+            f"      for Lane in {f.index} loop\n"
+            f"         if {truth} then\n"
+            f"{selector_assignment('Lane', 'Source_Lane')}\n"
+            "            Source_Lane := Source_Lane + 1;\n"
+            "         end if;\n"
+            "      end loop;\n"
+            f"{result_expression}\n"
+            "   end Expand;"
+        )
+    return f"""with Flyology_SIMD.Backends.Native;
+
+package body Flyology_SIMD.Wide.Compact_Mechanism is
+   use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Compact_Mechanism;
+"""
+
+
 def compact_aarch64_body_text() -> str:
     instantiations = []
     bodies = []
@@ -2194,8 +2318,8 @@ def main() -> None:
         NATIVE_SPEC: native_spec_text(), NATIVE_BODY: native_body_text(),
         COMPACT_SPEC: compact_spec_text(),
         COMPACT_AARCH64: compact_aarch64_body_text(),
-        COMPACT_COMPOSED: compact_composed_body_text(),
-        COMPACT_AVX2: compact_composed_body_text(),
+        COMPACT_COMPOSED: compact_x86_body_text(),
+        COMPACT_AVX2: compact_x86_body_text(),
         COMPACT_INVALID: compact_composed_body_text(),
         FLOAT_REDUCE_SPEC: float_reduce_spec_text(),
         FLOAT_REDUCE_AARCH64: float_reduce_aarch64_body_text(),

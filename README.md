@@ -160,8 +160,10 @@ The complete artifact is written to the ignored `build/site/` directory.
   fixed-width Ada code. Wide `Compress` and `Expand` use the target-selected compression
   and expansion mechanism. On AArch64, the mechanism derives a 32-byte index
   map from the mask. It runs one two-register `tbl` operation for each 128-bit
-  result half. The x86-64 composed and AVX2 selections call the Wide scalar
-  implementation for these operations. The lane-movement operations and both
+  result half. The x86-64 composed and AVX2 mechanisms each derive one
+  two-source lane map for each 128-bit result half. Each mechanism calls
+  selected 128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value`
+  twice. `Select_Value` selects `Zero` for each zero-fill lane. The lane-movement operations and both
   `Permute_Lanes` overloads use one target-selected mechanism. Reverse, slides,
   and the one-source `Permute_Lanes` overload use one
   two-register `tbl` operation for each result half on AArch64. Interleave,

@@ -221,8 +221,10 @@ The target-selected compression and expansion mechanism implements Wide Native
 remains the semantic authority. On AArch64, Ada code derives a 32-byte index
 map from the mask. One isolated assembly subprogram runs one two-register
 `tbl` operation for each 128-bit result half. An index of 32 produces the
-defined zero fill. The x86-64 composed and AVX2 selections currently call the
-Wide scalar implementation for these operations.
+defined zero fill. The x86-64 composed and AVX2 mechanisms each derive one
+two-source lane map for each 128-bit result half. Each mechanism calls selected
+128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value` twice.
+`Select_Value` selects `Zero` for each zero-fill lane.
 
 The AArch64 backend lowers 128-bit and Wide lane movement, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON
@@ -238,9 +240,10 @@ Same-width conversion between signed and unsigned integer types uses SSE2
 comparisons, sign-mask construction, and bit selection.
 For 128-bit variable lane permutation, mask compression, and mask expansion,
 Ada code derives byte-selector maps. Dedicated SSE2 sequences apply
-those maps with byte comparisons, broadcasts, masks, and merges. The x86-64
-Wide composed backend still uses the Wide scalar implementations for these
-operations.
+those maps with byte comparisons, broadcasts, masks, and merges. Wide
+compression and expansion compose these selected 128-bit permutation and
+selection operations on x86-64. Wide lane permutation still uses the Wide
+scalar implementation in the composed x86-64 backend.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
 The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.

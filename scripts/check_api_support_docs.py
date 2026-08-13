@@ -58,6 +58,16 @@ def invalid_support(path: Path) -> list[str]:
     invalid: list[str] = []
     if "A target backend can use scalar composition" in text:
         invalid.append(f"{path.relative_to(ROOT)}: generic Native fallback wording")
+    if path.name == "flyology_simd-wide.ads":
+        contextual_compact = (
+            "In a scalar build, the matching Wide.Native overload uses the same "
+            "two-part composition through the portable 128-bit implementation."
+        )
+        if text.count(contextual_compact) != 20:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: expected 20 contextualized portable "
+                f"Compact support notes, found {text.count(contextual_compact)}"
+            )
     if path.name == "flyology_simd.ads":
         shared = (
             "Cross-platform support: this fixed-width Ada operation is available "
@@ -673,6 +683,8 @@ def invalid_support(path: Path) -> list[str]:
             "function Reduce_Max_Number": "scalar fmaxnm operations that visits lanes in ascending order",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
+            "function Compress": "derive two selected-128-bit compression maps",
+            "function Expand": "derive two selected-128-bit expansion maps",
         }
         for declaration, phrase in required.items():
             count = sum(
@@ -705,6 +717,8 @@ def invalid_support(path: Path) -> list[str]:
                 "function Last_True": 4,
                 "function Table_Lookup": 1,
                 "function Permute_Lanes": 20,
+                "function Compress": 10,
+                "function Expand": 10,
                 "function Test": 4,
                 "function Reduce_Add_Wrap": 8,
                 "function Reduce_Min": 8,

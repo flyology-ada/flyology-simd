@@ -181,13 +181,13 @@ is
    --  @return The operation result.
    function Compress (Value : U8x32; Mask : Mask_8x32) return U8x32 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : U8x32; Mask : Mask_8x32) return U8x32 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -549,13 +549,13 @@ is
    --  @return The operation result.
    function Compress (Value : I8x32; Mask : Mask_8x32) return I8x32 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : I8x32; Mask : Mask_8x32) return I8x32 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -857,13 +857,13 @@ is
    --  @return The operation result.
    function Compress (Value : U16x16; Mask : Mask_16x16) return U16x16 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : U16x16; Mask : Mask_16x16) return U16x16 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -1220,13 +1220,13 @@ is
    --  @return The operation result.
    function Compress (Value : I16x16; Mask : Mask_16x16) return I16x16 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : I16x16; Mask : Mask_16x16) return I16x16 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -1533,13 +1533,13 @@ is
    --  @return The operation result.
    function Compress (Value : U32x8; Mask : Mask_32x8) return U32x8 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : U32x8; Mask : Mask_32x8) return U32x8 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -1901,13 +1901,13 @@ is
    --  @return The operation result.
    function Compress (Value : I32x8; Mask : Mask_32x8) return I32x8 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : I32x8; Mask : Mask_32x8) return I32x8 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -2214,13 +2214,13 @@ is
    --  @return The operation result.
    function Compress (Value : U64x4; Mask : Mask_64x4) return U64x4 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : U64x4; Mask : Mask_64x4) return U64x4 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -2582,13 +2582,13 @@ is
    --  @return The operation result.
    function Compress (Value : I64x4; Mask : Mask_64x4) return I64x4 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : I64x4; Mask : Mask_64x4) return I64x4 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -2840,13 +2840,13 @@ is
    --  @return The operation result.
    function Compress (Value : F32x8; Mask : Mask_32x8) return F32x8 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : F32x8; Mask : Mask_32x8) return F32x8 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
@@ -3098,13 +3098,13 @@ is
    --  @return The operation result.
    function Compress (Value : F64x4; Mask : Mask_64x4) return F64x4 with Inline_Always;
    --  Stably pack true-mask lanes toward lane zero and zero-fill the remainder.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte compression map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit compression maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Expand (Value : F64x4; Mask : Mask_64x4) return F64x4 with Inline_Always;
    --  Place consecutive low input lanes into true-mask positions and zero-fill false positions.
-   --  Cross-platform support: The AArch64 backend derives a byte map and uses two-register NEON tbl for each result half. The x86-64 backend uses the Wide scalar implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend derives one 32-byte expansion map and runs one two-register NEON tbl operation for each result half. The x86-64 composed and optional AVX2 backends derive two selected-128-bit expansion maps. They run one SSE2 two-source permutation for each result half and apply the selected 128-bit mask and zero operations for defined zero fill. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Mask The mask input.
    --  @return The operation result.

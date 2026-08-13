@@ -222,7 +222,10 @@ The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
 defines the result. AArch64 derives a 32-byte index map from the mask. It runs
 one two-register `tbl` operation for each 128-bit result half. The x86-64
-composed and AVX2 selections call the Wide scalar implementation.
+composed and AVX2 mechanisms each derive one two-source lane map for each
+128-bit result half. Each mechanism calls selected 128-bit `Permute_Lanes`
+twice and selected 128-bit `Select_Value` twice. `Select_Value` selects `Zero`
+for each zero-fill lane.
 
 The target-selected permutation mechanism implements Wide `Reverse_Lanes`,
 both interleave operations, both deinterleave operations, both lane-slide

@@ -27,6 +27,7 @@ permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
+wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
@@ -58,6 +59,7 @@ disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
 disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
+disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
@@ -88,6 +90,7 @@ disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
+nm -u "$wide_compact_probe_object" >"$temporary/wide-compact-undefined.txt"
 nm -u "$slide_probe_object" >"$temporary/slide-undefined.txt"
 nm "$slide_probe_object" >"$temporary/slide-symbols.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
@@ -232,6 +235,15 @@ forbid_pattern 'flyology_simd__table_lookup' \
   'portable Table_Lookup call in the Native caller probe'
 forbid_pattern 'flyology_simd__table_lookup' "$temporary/native-undefined.txt" \
   'portable Table_Lookup call retained in the Native backend object'
+forbid_pattern 'flyology_simd__wide__(compress|expand)|flyology_simd__wide__native__(compress|expand)' \
+  "$temporary/wide-compact-undefined.txt" \
+  'portable or public Wide compact call in the all-family caller probe'
+forbid_pattern 'flyology_simd__wide__(compress|expand)' \
+  "$temporary/wide-undefined.txt" \
+  'portable Wide compact call retained in the representative Wide caller probe'
+forbid_pattern 'flyology_simd__wide__(compress|expand)' \
+  "$temporary/wide-compact-probe.txt" \
+  'portable Wide compact relocation in the all-family caller probe'
 require_count 'slide_codegen_probe__(u8|i8|u16|i16|u32|i32|u64|i64|f32|f64)_low$' 10 \
   "$temporary/slide-symbols.txt" \
   'all ten dynamic slide-toward-low public caller probes'
@@ -705,6 +717,19 @@ case "$architecture" in
             forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
               "$temporary/${compact_probe}.txt" \
               "per-lane or dispatcher call in AArch64 ${compact_probe} caller"
+        done
+        for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+            for operation in compress expand; do
+                extract_symbol "wide_compact_codegen_probe__${lane_kind}_${operation}" \
+                  "$temporary/wide-compact-probe.txt" \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt"
+                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "two-register TBL operations in AArch64 ${lane_kind} ${operation} caller"
+                forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "per-lane or dispatcher call in AArch64 ${lane_kind} ${operation} caller"
+            done
         done
         require_count 'cmeq.*16b' 2 "$temporary/wide_u8_equal.txt" \
           'two NEON equality operations in the composed Wide U8 caller'
@@ -1602,6 +1627,52 @@ EOF
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
         require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum operations in wide caller'
+        for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+            case "$lane_kind" in
+                u8) half_kind=u8x16; select_leaf='backends__native__select_value'; zero_leaf= ;;
+                i8) half_kind=i8x16; select_leaf='backends__native__native_select_i8x16'; zero_leaf='backends__native__native_zero_i8x16' ;;
+                u16) half_kind=u16x8; select_leaf='backends__native__native_select_u16x8'; zero_leaf='backends__native__native_zero_u16x8' ;;
+                i16) half_kind=i16x8; select_leaf='backends__native__native_select_i16x8'; zero_leaf='backends__native__native_zero_i16x8' ;;
+                u32) half_kind=u32x4; select_leaf='backends__native__native_select_u32x4'; zero_leaf='backends__native__native_zero_u32x4' ;;
+                i32) half_kind=i32x4; select_leaf='backends__native__native_select_i32x4'; zero_leaf='backends__native__native_zero_i32x4' ;;
+                u64) half_kind=u64x2; select_leaf='backends__native__native_select_u64x2'; zero_leaf='backends__native__native_zero_u64x2' ;;
+                i64) half_kind=i64x2; select_leaf='backends__native__native_select_i64x2'; zero_leaf='backends__native__native_zero_i64x2' ;;
+                f32) half_kind=f32x4; select_leaf='backends__native__native_select_f32x4'; zero_leaf='backends__native__native_zero_f32x4' ;;
+                f64) half_kind=f64x2; select_leaf='backends__native__native_select_f64x2'; zero_leaf='backends__native__native_zero_f64x2' ;;
+            esac
+            for operation in compress expand; do
+                extract_symbol "wide_compact_codegen_probe__${lane_kind}_${operation}" \
+                  "$temporary/wide-compact-probe.txt" \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt"
+                require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "two selected SSE2 permutations in Wide ${lane_kind} ${operation} caller"
+                require_count 'backends__native__native_permute_2_' 2 \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "no mismatched selected permutation leaf in Wide ${lane_kind} ${operation} caller"
+                require_count "$select_leaf" 2 \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "two selected SSE2 zero-fill selections in Wide ${lane_kind} ${operation} caller"
+                require_count 'backends__native(__select_value|__native_select_)' 2 \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "no mismatched selected zero-fill leaf in Wide ${lane_kind} ${operation} caller"
+                if [ -n "$zero_leaf" ]; then
+                    require_count "$zero_leaf" 1 \
+                      "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                      "one selected SSE2 zero construction in Wide ${lane_kind} ${operation} caller"
+                else
+                    require_pattern '(^|[[:space:]])pxor[[:space:]]' \
+                      "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                      "inline selected SSE2 zero construction in Wide ${lane_kind} ${operation} caller"
+                fi
+                forbid_pattern 'flyology_simd__(__wide)?__(to_bit_mask|mask_from_bit_mask|zero)|flyology_simd__backends__native__(to_bit_mask|mask_from_bit_mask|zero)' \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "portable mask or zero helper in ${lane_kind} ${operation} caller"
+                forbid_pattern '(^|[[:space:]])(call|jmp).*flyology_simd__wide__(compress|expand|native__)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "portable or public Wide compact helper in ${lane_kind} ${operation} caller"
+            done
+        done
         if [ "$wide_backend" = avx2 ]; then
             for lane_kind in u8 i8; do
                 for operation in equal less less_equal greater greater_equal select; do
