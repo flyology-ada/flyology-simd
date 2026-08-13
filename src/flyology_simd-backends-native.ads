@@ -615,42 +615,42 @@ is
    --  @return The operation result.
    function Convert_Round (Value : I32x4) return F32x4;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. The x86-64 backend converts the lanes with the dedicated SSE2 cvtdq2ps instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : U32x4) return F32x4;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. Under the required default round-to-nearest, ties-to-even mode, the x86-64 backend adjusts unsigned values above the signed maximum. It then converts the lanes with cvtdq2ps. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : I64x2) return F64x2;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : U64x2) return F64x2;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F32x4) return I32x4;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. The x86-64 backend truncates the lanes with cvttps2dq. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F32x4) return U32x4;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. The x86-64 backend truncates the lanes with cvttps2dq. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return I64x2;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : I8x16) return U8x16;

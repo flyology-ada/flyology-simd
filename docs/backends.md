@@ -80,12 +80,15 @@ the lane operation, and comparison plus bit selection otherwise. Floating
 minimum-number and maximum-number reductions also use scalar composition. The
 integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
 overloads use SSE2 unpack, shuffle, clamp, and pack sequences. The current bit
-casts and numeric conversions between integer and floating types use scalar
-composition on x86-64. Same-width conversion between signed and unsigned
-integer types uses SSE2 sign-mask and bit-selection sequences.
+casts use scalar composition on x86-64. Conversions between 32-bit integer and
+binary32 lanes use packed SSE2 sequences. Conversions between 64-bit integer
+and binary64 lanes still use scalar composition. Same-width conversion
+between signed and unsigned integer types uses SSE2 sign-mask and bit-selection
+sequences.
 Floating widening uses `cvtps2pd`; high-half widening first selects the upper
 binary32 lanes. Floating narrowing uses two `cvtpd2ps` conversions and merges
-their result lanes. The scalar-composed operations are implemented and
+their result lanes. The scalar-composed bit casts and conversions between
+64-bit integer and binary64 lanes are implemented and
 differentially tested, but they do not yet have an SSE2 code-generation claim.
 The x86-64 byte-table lookup and one-source or two-source variable lane
 permutations use scalar composition because SSE2 has no equivalent indexed

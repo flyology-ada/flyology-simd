@@ -163,7 +163,8 @@ the result clamps to the destination range. An unsigned result maps every
 negative input to zero. Positive infinity becomes the destination maximum.
 Negative infinity becomes the destination minimum for a signed result and zero
 for an unsigned result. A NaN becomes zero. The operation does not depend on or
-modify the floating-point rounding mode.
+modify the floating-point rounding mode. It can update floating-point
+exception-status flags.
 
 `Convert_Saturate` preserves lane positions and converts between signed and
 unsigned lanes of the same width. For a signed-to-unsigned conversion, a

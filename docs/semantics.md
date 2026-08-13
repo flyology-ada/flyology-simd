@@ -137,7 +137,8 @@ above the range becomes the maximum value. For an unsigned result, every
 negative value becomes zero. Positive infinity becomes the destination
 maximum. Negative infinity becomes the destination minimum for a signed result
 and zero for an unsigned result. A NaN becomes zero. The operation does not
-depend on or modify the floating-point rounding mode.
+depend on or modify the floating-point rounding mode. It can update
+floating-point exception-status flags.
 
 `Convert_Saturate` converts between signed and unsigned integer vectors with
 the same lane width. Lane positions do not change. A negative signed input

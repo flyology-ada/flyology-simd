@@ -3,12 +3,14 @@ with Ada.Command_Line;
 with Ada.Text_IO;
 with Ada.Unchecked_Conversion;
 with Interfaces;
+with Conversion_Test_Floating_Control;
 with Flyology_SIMD;
 with Flyology_SIMD.Backends.Native;
 
 procedure Conversion_Tests is
    use Ada.Text_IO;
    use Flyology_SIMD;
+   use Conversion_Test_Floating_Control;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
@@ -542,6 +544,8 @@ procedure Conversion_Tests is
       I32_A : constant I32x4 := From_Lanes ([0, 1, 16_777_216, 16_777_217]);
       I32_B : constant I32x4 := From_Lanes ([I32'First, -16_777_217, -1, I32'Last]);
       U32_A : constant U32x4 := From_Lanes ([0, 16_777_216, 16_777_217, U32'Last]);
+      U32_B : constant U32x4 := From_Lanes ([2_147_483_775, 2_147_483_776, 2_147_483_777, 4_294_967_167]);
+      U32_C : constant U32x4 := From_Lanes ([4_294_967_168, 4_294_967_169, 4_294_967_294, 4_294_967_295]);
       I64_A : constant I64x2 := From_Lanes ([0, 9_007_199_254_740_993]);
       I64_B : constant I64x2 := From_Lanes ([I64'First, I64'Last]);
       U64_A : constant U64x2 := From_Lanes ([9_007_199_254_740_992, 9_007_199_254_740_993]);
@@ -550,6 +554,8 @@ procedure Conversion_Tests is
       Expected_I32_A : constant Lane_Values_U32x4 := [16#0000_0000#, 16#3F80_0000#, 16#4B80_0000#, 16#4B80_0000#];
       Expected_I32_B : constant Lane_Values_U32x4 := [16#CF00_0000#, 16#CB80_0000#, 16#BF80_0000#, 16#4F00_0000#];
       Expected_U32_A : constant Lane_Values_U32x4 := [16#0000_0000#, 16#4B80_0000#, 16#4B80_0000#, 16#4F80_0000#];
+      Expected_U32_B : constant Lane_Values_U32x4 := [16#4F00_0000#, 16#4F00_0000#, 16#4F00_0001#, 16#4F7F_FFFF#];
+      Expected_U32_C : constant Lane_Values_U32x4 := [16#4F80_0000#, 16#4F80_0000#, 16#4F80_0000#, 16#4F80_0000#];
       Expected_I64_A : constant Lane_Values_U64x2 := [16#0000_0000_0000_0000#, 16#4340_0000_0000_0000#];
       Expected_I64_B : constant Lane_Values_U64x2 := [16#C3E0_0000_0000_0000#, 16#43E0_0000_0000_0000#];
       Expected_U64_A : constant Lane_Values_U64x2 := [16#4340_0000_0000_0000#, 16#4340_0000_0000_0000#];
@@ -599,6 +605,8 @@ procedure Conversion_Tests is
       Check_I32 (I32_A, Expected_I32_A);
       Check_I32 (I32_B, Expected_I32_B);
       Check_U32 (U32_A, Expected_U32_A);
+      Check_U32 (U32_B, Expected_U32_B);
+      Check_U32 (U32_C, Expected_U32_C);
       Check_I64 (I64_A, Expected_I64_A);
       Check_I64 (I64_B, Expected_I64_B);
       Check_U64 (U64_A, Expected_U64_A);
@@ -623,6 +631,9 @@ procedure Conversion_Tests is
       F32_U32_B : constant F32x4 := From_Lanes
         ([F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
           F32_Of_Bits (16#7FC0_0001#), F32_Of_Bits (16#0000_0001#)]);
+      F32_U32_C : constant F32x4 := From_Lanes
+        ([F32_Of_Bits (16#4EFF_FFFF#), F32_Of_Bits (16#4F00_0000#),
+          F32_Of_Bits (16#4F00_0001#), F32_Of_Bits (16#4F7F_FFFF#)]);
       F64_I64_A : constant F64x2 := From_Lanes
         ([F64_Of_Bits (16#0000_0000_0000_0000#), F64_Of_Bits (16#7FF8_0000_0000_0001#)]);
       F64_I64_A2 : constant F64x2 := From_Lanes
@@ -689,6 +700,7 @@ procedure Conversion_Tests is
       Check_F32_I32 (F32_I32_D, [-2_147_483_520, 0, 0, 0]);
       Check_F32_U32 (F32_U32_A, [0, 1, 4_294_967_040, U32'Last]);
       Check_F32_U32 (F32_U32_B, [U32'Last, 0, 0, 0]);
+      Check_F32_U32 (F32_U32_C, [2_147_483_520, 2_147_483_648, 2_147_483_904, 4_294_967_040]);
       Check_F64_I64 (F64_I64_A, [0, 0]);
       Check_F64_I64 (F64_I64_A2, [0, 0]);
       Check_F64_I64 (F64_I64_A3, [0, 0]);
@@ -703,6 +715,72 @@ procedure Conversion_Tests is
       Check_F64_U64 (F64_U64_D, [0, 0]);
    end Test_Float_To_Integer_Edges;
 
+   procedure Test_Float_To_Integer_Rounding_Modes is
+      Rounding_Mask : constant Control_Word := 16#0000_6000#;
+      I32_Input : constant F32x4 := From_Lanes
+        ([1.75, -1.75, F32_Of_Bits (16#4EFF_FFFF#),
+          F32_Of_Bits (16#CF00_0000#)]);
+      U32_Input : constant F32x4 := From_Lanes
+        ([1.75, -1.75, F32_Of_Bits (16#4F00_0001#),
+          F32_Of_Bits (16#4F7F_FFFF#)]);
+      Expected_I32 : constant Lane_Values_I32x4 :=
+        [1, -1, 2_147_483_520, I32'First];
+      Expected_U32 : constant Lane_Values_U32x4 :=
+        [1, 0, 2_147_483_904, 4_294_967_040];
+
+      function Mode_Bits (Mode : Rounding_Mode) return Control_Word is
+        (case Mode is
+            when Round_To_Nearest  => 16#0000_0000#,
+            when Round_Down        => 16#0000_2000#,
+            when Round_Up          => 16#0000_4000#,
+            when Round_Toward_Zero => 16#0000_6000#);
+
+      procedure Check_Mode (Mode : Rounding_Mode) is
+         Scalar_I32 : I32x4;
+         Native_I32 : I32x4;
+         Scalar_U32 : U32x4;
+         Native_U32 : U32x4;
+      begin
+         Set_Rounding_Mode (Mode);
+         Check ((Current and Rounding_Mask) = Mode_Bits (Mode),
+                "set MXCSR rounding mode");
+         Scalar_I32 := Convert_Truncate_Saturate (I32_Input);
+         Native_I32 := Backends.Native.Convert_Truncate_Saturate (I32_Input);
+         Scalar_U32 := Convert_Truncate_Saturate (U32_Input);
+         Native_U32 := Backends.Native.Convert_Truncate_Saturate (U32_Input);
+         for Lane in Lane_Index_32x4 loop
+            Check (Extract (Scalar_I32, Lane) = Expected_I32 (Lane),
+                   "scalar F32 to I32 rounding-mode independence");
+            Check (Extract (Native_I32, Lane) = Expected_I32 (Lane),
+                   "native F32 to I32 rounding-mode independence");
+            Check (Extract (Scalar_U32, Lane) = Expected_U32 (Lane),
+                   "scalar F32 to U32 rounding-mode independence");
+            Check (Extract (Native_U32, Lane) = Expected_U32 (Lane),
+                   "native F32 to U32 rounding-mode independence");
+         end loop;
+         Check ((Current and Rounding_Mask) = Mode_Bits (Mode),
+                "conversion preserves MXCSR rounding mode");
+      end Check_Mode;
+   begin
+      if Supported then
+         declare
+            Original : constant Control_Word := Current;
+         begin
+            begin
+               for Mode in Rounding_Mode loop
+                  Check_Mode (Mode);
+               end loop;
+            exception
+               when others =>
+                  Restore (Original);
+                  raise;
+            end;
+            Restore (Original);
+            Check (Current = Original, "restore original MXCSR control word");
+         end;
+      end if;
+   end Test_Float_To_Integer_Rounding_Modes;
+
 
 begin
    Put_Line ("conversion differential tests seed=0xC0457A5712800A11");
@@ -710,6 +788,7 @@ begin
    Test_F64_Narrow_Edges;
    Test_Integer_To_Float_Edges;
    Test_Float_To_Integer_Edges;
+   Test_Float_To_Integer_Rounding_Modes;
       declare
          Source : constant I8x16 := From_Lanes ([-128, -1, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127]);
          Expected : constant Lane_Values_8x16 := [0, 0, 0, 1, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127];

@@ -10,7 +10,12 @@ project Tests is
    Wide_Backend : Wide_Backend_Kind :=
      external ("FLYOLOGY_SIMD_WIDE_BACKEND", "composed");
 
-   for Source_Dirs use (".");
+   case Architecture is
+      when "x86_64" =>
+         for Source_Dirs use (".", "support", "support/x86_64");
+      when others =>
+         for Source_Dirs use (".", "support", "support/portable");
+   end case;
    for Object_Dir use
      "../obj/tests/" & Architecture & "/" & AVX2 & "/" & Wide_Backend;
    for Exec_Dir use "../bin";

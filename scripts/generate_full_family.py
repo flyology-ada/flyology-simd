@@ -225,7 +225,8 @@ OPERATION_DOCS = {
     "Convert_Truncate_Saturate": (
         "Truncate each floating-point lane toward zero, then clamp it to the "
         "integer result range. A NaN becomes zero. The operation does not "
-        "depend on or modify the floating-point rounding mode."
+        "depend on or modify the floating-point rounding mode. It can update "
+        "floating-point exception-status flags."
     ),
 }
 
@@ -293,12 +294,52 @@ def native_support_doc(name: str, declaration: str) -> str:
     x86_scalar = (
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
-            "Bit_Cast", "Convert_Round",
-            "Convert_Truncate_Saturate",
+            "Bit_Cast",
             "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
+        or (name in {"Convert_Round", "Convert_Truncate_Saturate"}
+            and "64x2" in declaration)
     )
+    if name == "Convert_Round" and "I32x4" in declaration:
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON instruction that converts the integer lanes to floating-point "
+            "lanes. The x86-64 backend converts the lanes with the dedicated "
+            "SSE2 cvtdq2ps instruction. A scalar build uses the portable scalar "
+            "implementation."
+        )
+    if name == "Convert_Round" and "U32x4" in declaration:
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON instruction that converts the integer lanes to floating-point "
+            "lanes. Under the required default round-to-nearest, ties-to-even "
+            "mode, the x86-64 backend adjusts unsigned values above the signed "
+            "maximum. It then converts the lanes with cvtdq2ps. A scalar build "
+            "uses the portable scalar implementation."
+        )
+    if name == "Convert_Truncate_Saturate":
+        signed_result = "return I32x4" in declaration or "return I64x2" in declaration
+        outcome = (
+            "It selects zero for NaN, the signed maximum for positive overflow, "
+            "and the signed minimum for negative overflow."
+            if signed_result else
+            "It selects zero for NaN or a negative input and the unsigned "
+            "maximum for positive overflow."
+        )
+        if "F32x4" in declaration:
+            return (
+                "Cross-platform support: The AArch64 backend uses a dedicated NEON "
+                "sequence that truncates floating-point lanes toward zero. "
+                f"{outcome} The x86-64 backend truncates the lanes with cvttps2dq. "
+                f"{outcome} A scalar build uses the portable scalar implementation."
+            )
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated NEON "
+            "sequence that truncates floating-point lanes toward zero. "
+            f"{outcome} The x86-64 backend uses scalar composition. A scalar "
+            "build uses the portable scalar implementation."
+        )
     if name in fixed_ada:
         return (
             "Cross-platform support: The AArch64, x86-64, and scalar backends use "
@@ -367,6 +408,11 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Convert_Saturate":
         aarch = "a dedicated NEON sequence that clamps each lane to the destination type's range"
         x86 = "a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes"
+    elif name == "Convert_Round":
+        aarch = "a dedicated NEON instruction that converts the integer lanes to floating-point lanes"
+        x86 = (
+            "scalar composition"
+        )
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"

@@ -1518,6 +1518,121 @@ def x86_convert_saturate_instruction(bits: int, signed_source: bool) -> str:
     )
 
 
+def x86_convert_round_32_instruction(signed_source: bool) -> str:
+    """Convert four 32-bit integer lanes to binary32 with SSE2."""
+    if signed_source:
+        return "cvtdq2ps %%xmm0, %%xmm0"
+
+    # cvtdq2ps accepts signed lanes.  Values with their high bit clear can use
+    # it directly.  For the upper unsigned half, round (Value >> 1) with its
+    # discarded bit folded in, then double the floating result.  This is the
+    # standard exact round-to-nearest construction for all U32 inputs.
+    return (
+        "pxor %%xmm2, %%xmm2\n"
+        "pcmpgtd %%xmm0, %%xmm2\n"
+        "movdqa %%xmm0, %%xmm1\n"
+        "psrld $1, %%xmm1\n"
+        "pcmpeqd %%xmm3, %%xmm3\n"
+        "psrld $31, %%xmm3\n"
+        "movdqa %%xmm0, %%xmm4\n"
+        "pand %%xmm3, %%xmm4\n"
+        "por %%xmm4, %%xmm1\n"
+        "cvtdq2ps %%xmm1, %%xmm1\n"
+        "addps %%xmm1, %%xmm1\n"
+        "cvtdq2ps %%xmm0, %%xmm0\n"
+        "movdqa %%xmm2, %%xmm4\n"
+        "pand %%xmm1, %%xmm4\n"
+        "pandn %%xmm0, %%xmm2\n"
+        "por %%xmm4, %%xmm2\n"
+        "movdqa %%xmm2, %%xmm0"
+    )
+
+
+def x86_f32_limit_2_31(register: str, scratch: str) -> str:
+    """Construct packed binary32 2**31 without a data-table dependency."""
+    return (
+        f"pcmpeqd %%{register}, %%{register}\n"
+        f"movdqa %%{register}, %%{scratch}\n"
+        f"psrld $28, %%{scratch}\n"
+        f"pslld $24, %%{scratch}\n"
+        f"psrld $31, %%{register}\n"
+        f"pslld $30, %%{register}\n"
+        f"por %%{scratch}, %%{register}"
+    )
+
+
+def x86_convert_truncate_saturate_f32_instruction(signed_target: bool) -> str:
+    """Truncate four binary32 lanes and clamp them to a 32-bit range."""
+    limit = x86_f32_limit_2_31("xmm6", "xmm7")
+    if signed_target:
+        # cvttps2dq supplies every in-range truncated result.  Packed compares
+        # identify both saturation boundaries independently; unordered lanes
+        # are cleared last so every NaN maps to zero.
+        return (
+            "movdqa %%xmm0, %%xmm1\n"
+            "cvttps2dq %%xmm1, %%xmm1\n"
+            f"{limit}\n"
+            "movdqa %%xmm6, %%xmm2\n"
+            "cmpleps %%xmm0, %%xmm2\n"
+            "pcmpeqd %%xmm7, %%xmm7\n"
+            "pslld $31, %%xmm7\n"
+            "movdqa %%xmm6, %%xmm3\n"
+            "por %%xmm7, %%xmm3\n"
+            "movdqa %%xmm0, %%xmm4\n"
+            "cmpleps %%xmm3, %%xmm4\n"
+            "movdqa %%xmm0, %%xmm5\n"
+            "cmpunordps %%xmm5, %%xmm5\n"
+            "pcmpeqd %%xmm6, %%xmm6\n"
+            "psrld $1, %%xmm6\n"
+            "movdqa %%xmm6, %%xmm3\n"
+            "pand %%xmm2, %%xmm3\n"
+            "pandn %%xmm1, %%xmm2\n"
+            "por %%xmm3, %%xmm2\n"
+            "movdqa %%xmm7, %%xmm3\n"
+            "pand %%xmm4, %%xmm3\n"
+            "pandn %%xmm2, %%xmm4\n"
+            "por %%xmm3, %%xmm4\n"
+            "pandn %%xmm4, %%xmm5\n"
+            "movdqa %%xmm5, %%xmm0"
+        )
+
+    # Split the unsigned range at 2**31.  The upper half is converted after
+    # subtracting 2**31 and then has its integer high bit restored.  Negative
+    # and unordered lanes become zero; lanes at or above 2**32 become U32'Last.
+    return (
+        f"{limit}\n"
+        "movdqa %%xmm6, %%xmm2\n"
+        "cmpleps %%xmm0, %%xmm2\n"
+        "movdqa %%xmm6, %%xmm3\n"
+        "addps %%xmm3, %%xmm3\n"
+        "cmpleps %%xmm0, %%xmm3\n"
+        "movdqa %%xmm0, %%xmm4\n"
+        "cmpunordps %%xmm4, %%xmm4\n"
+        "pxor %%xmm7, %%xmm7\n"
+        "movdqa %%xmm0, %%xmm5\n"
+        "cmpltps %%xmm7, %%xmm5\n"
+        "por %%xmm5, %%xmm4\n"
+        "movdqa %%xmm0, %%xmm1\n"
+        "cvttps2dq %%xmm1, %%xmm1\n"
+        "movdqa %%xmm0, %%xmm5\n"
+        "subps %%xmm6, %%xmm5\n"
+        "cvttps2dq %%xmm5, %%xmm5\n"
+        "pcmpeqd %%xmm7, %%xmm7\n"
+        "pslld $31, %%xmm7\n"
+        "paddd %%xmm7, %%xmm5\n"
+        "movdqa %%xmm2, %%xmm6\n"
+        "pand %%xmm5, %%xmm6\n"
+        "pandn %%xmm1, %%xmm2\n"
+        "por %%xmm6, %%xmm2\n"
+        "pcmpeqd %%xmm6, %%xmm6\n"
+        "pand %%xmm3, %%xmm6\n"
+        "pandn %%xmm2, %%xmm3\n"
+        "por %%xmm6, %%xmm3\n"
+        "pandn %%xmm3, %%xmm4\n"
+        "movdqa %%xmm4, %%xmm0"
+    )
+
+
 def x86_body() -> str:
     out = x86_helpers()
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
@@ -1590,17 +1705,39 @@ def x86_body() -> str:
             f"   function {native} is new SSE2_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
             f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
         ]
-    for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
-        out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
-    for source_vector, _, target_vector, _, _, _, _ in FLOAT_TO_INTEGER_CONVERSIONS:
-        out.append(
-            call(
-                "Convert_Truncate_Saturate",
-                target_vector,
-                "Value",
-                f"Value : {source_vector}",
+    for source_vector, _, target_vector, _, bits, _, signed in INTEGER_TO_FLOAT_CONVERSIONS:
+        if bits == 32:
+            native = f"Native_Convert_Round_{source_vector}_To_{target_vector}"
+            instruction = x86_ada_instruction(
+                x86_convert_round_32_instruction(signed)
             )
-        )
+            out += [
+                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function Convert_Round (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
+        else:
+            out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
+    for source_vector, _, target_vector, _, bits, _, signed in FLOAT_TO_INTEGER_CONVERSIONS:
+        if bits == 32:
+            native = (
+                f"Native_Convert_Truncate_Saturate_{source_vector}_To_{target_vector}"
+            )
+            instruction = x86_ada_instruction(
+                x86_convert_truncate_saturate_f32_instruction(signed)
+            )
+            out += [
+                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
+        else:
+            out.append(
+                call(
+                    "Convert_Truncate_Saturate",
+                    target_vector,
+                    "Value",
+                    f"Value : {source_vector}",
+                )
+            )
     for source_vector, _, target_vector, _, bits, _, signed in SIGNED_UNSIGNED_CONVERSIONS:
         native = f"Native_Convert_Saturate_{source_vector}_To_{target_vector}"
         instruction = x86_ada_instruction(

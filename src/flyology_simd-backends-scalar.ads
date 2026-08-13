@@ -708,25 +708,25 @@ is
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F32x4) return I32x4
      renames Flyology_SIMD.Convert_Truncate_Saturate;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F32x4) return U32x4
      renames Flyology_SIMD.Convert_Truncate_Saturate;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return I64x2
      renames Flyology_SIMD.Convert_Truncate_Saturate;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2
      renames Flyology_SIMD.Convert_Truncate_Saturate;
-   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode.
+   --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
    --  Cross-platform support: this scalar implementation is available on every supported GNAT target.
    --  @param Value The input value.
    --  @return The operation result.

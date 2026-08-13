@@ -614,6 +614,31 @@ EOF
         require_count '(^|[[:space:]])cvtpd2ps[[:space:]]' 2 \
           "$temporary/conversion_narrow_round_f64x2_f32x4.txt" \
           'two SSE2 binary64-to-binary32 conversions in Narrow_Round'
+        while read -r symbol source target convert count required; do
+            output="$temporary/conversion_${symbol}_${source}_${target}.txt"
+            extract_symbol "flyology_simd__backends__native__${symbol}" \
+              "$temporary/native.txt" "$output"
+            require_count "(^|[[:space:]])${convert}[[:space:]]" "$count" \
+              "$output" \
+              "complete packed conversion in ${source} to ${target} ${symbol}"
+            old_ifs=$IFS
+            IFS=,
+            set -- $required
+            IFS=$old_ifs
+            for instruction in "$@"; do
+                require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+                  "$output" \
+                  "SSE2 ${instruction} in ${source} to ${target} ${symbol}"
+            done
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__convert_|(ld|st)mxcsr' \
+              "$output" \
+              "scalar helper or floating-control write in ${source} to ${target} ${symbol}"
+        done <<'EOF'
+convert_round                         i32x4 f32x4 cvtdq2ps  1 cvtdq2ps
+convert_round__2                      u32x4 f32x4 cvtdq2ps  2 pcmpgtd,psrld,addps,pandn
+convert_truncate_saturate             f32x4 i32x4 cvttps2dq 1 cmpleps,cmpunordps,pandn
+convert_truncate_saturate__2          f32x4 u32x4 cvttps2dq 2 cmpleps,cmpltps,subps,paddd,pandn
+EOF
         while read -r suffix source target compare shift; do
             if [ "$suffix" = base ]; then
                 operation=convert_saturate

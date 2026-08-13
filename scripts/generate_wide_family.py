@@ -613,7 +613,7 @@ def conversion_declarations(native: bool = False) -> str:
     for source, _, target, *_ in FLOAT_TO_INTEGER_CONVERSIONS:
         add(
             f"   function Convert_Truncate_Saturate (Value : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
-            "Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode.",
+            "Truncate finite floating lanes toward zero and clamp to the integer result range. Map NaN to zero. Map positive infinity to the destination maximum. Map negative infinity to the signed minimum or unsigned zero. Do not depend on or modify the floating-point rounding mode. Floating-point exception-status flags can change.",
             ("Value",),
         )
 

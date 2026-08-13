@@ -200,6 +200,38 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected eight exact "
                 f"Convert_Saturate SSE2 classifications, found {found}"
             )
+        numeric_conversion_support = {
+            ("Convert_Round", "Value : I32x4"): (
+                "The x86-64 backend converts the lanes with the dedicated "
+                "SSE2 cvtdq2ps instruction."
+            ),
+            ("Convert_Round", "Value : U32x4"): (
+                "Under the required default round-to-nearest, ties-to-even "
+                "mode, the x86-64 backend adjusts unsigned values above the "
+                "signed maximum. It then converts the lanes with cvtdq2ps."
+            ),
+            ("Convert_Truncate_Saturate", "return I32x4"): (
+                "The x86-64 backend truncates the lanes with cvttps2dq. It "
+                "selects zero for NaN, the signed maximum for positive "
+                "overflow, and the signed minimum for negative overflow."
+            ),
+            ("Convert_Truncate_Saturate", "return U32x4"): (
+                "The x86-64 backend truncates the lanes with cvttps2dq. It "
+                "selects zero for NaN or a negative input and the unsigned "
+                "maximum for positive overflow."
+            ),
+        }
+        for (operation, signature_part), phrase in numeric_conversion_support.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+                if signature_part in block.split(";", 1)[0]
+            ]
+            if len(blocks) != 1 or phrase not in blocks[0]:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"{signature_part} SSE2 classification"
+                )
         saturation_support = {
             ("Add_Saturate", "U32x4"): "derives a carry mask and selects the unsigned maximum",
             ("Add_Saturate", "I32x4"): "derives a signed-overflow mask and selects the signed minimum or maximum",
