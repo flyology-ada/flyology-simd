@@ -73,6 +73,7 @@
         <section id="terms">
           <h2>Distinguish scalar source, operations, and backends</h2>
           <p>A scalar operation acts on one value. An ordinary Ada dot-product loop multiplies and adds one pair of <a data-api="Flyology_SIMD.F32"><code>F32</code></a> elements in each source iteration.</p>
+          <p>A lane is one scalar value at a fixed position in a vector.</p>
           <p>The <strong>scalar reference backend</strong> implements each vector result with portable lane-by-lane Ada. It is the semantic authority for optimized backends, but it is not the ordinary source loop. The reported backend name <code>scalar</code> identifies a scalar-only build.</p>
           <p><strong>Generated machine code</strong> is the compiler output. GNAT can auto-vectorize an ordinary Ada source loop. Therefore, scalar source does not prove that the executable contains only scalar instructions.</p>
           <p>This guide uses <strong>explicit vector loop</strong> for source that calls fixed-width vector operations. The backend can implement an explicit operation with one instruction, several instructions, or scalar composition.</p>

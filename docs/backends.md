@@ -67,18 +67,19 @@ x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full
 memory operations across every 128-bit integer and floating family. Lane
 slides use the immediate-byte `psrldq` and `pslldq` instructions. Saturating
-arithmetic uses scalar composition for 32- and 64-bit lanes. `Reduce_Min` and
-`Reduce_Max` use scalar composition for all integer families. Except for the
-byte exact-sum implementation, integer `Reduce_Add_Wrap` also uses scalar
-composition. Floating `Min_Number`, `Max_Number`, and `Reduce_Add` use scalar
-composition. Floating minimum-number and maximum-number reductions also use
-scalar composition. The current bit casts, widening, narrowing, and numeric
-conversion operations use scalar composition on x86-64. These operations are
-implemented and differentially tested, but they do not yet have an SSE2
-code-generation claim. The x86-64 byte-table lookup and one-source or
-two-source variable lane permutations use scalar composition because SSE2 has
-no equivalent indexed byte-table instruction. Mask compression and expansion
-also use scalar composition on x86-64.
+arithmetic uses scalar composition for 32- and 64-bit lanes. All 24 integer
+reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
+Minimum and maximum reductions use packed minimum or maximum where SSE2 has
+the lane operation, and comparison plus bit selection otherwise. Floating
+`Min_Number`, `Max_Number`, and `Reduce_Add` use scalar composition. Floating
+minimum-number and maximum-number reductions also use scalar composition. The
+current bit casts, widening, narrowing, and numeric conversion operations use
+scalar composition on x86-64. These operations are implemented and
+differentially tested, but they do not yet have an SSE2 code-generation claim.
+The x86-64 byte-table lookup and one-source or two-source variable lane
+permutations use scalar composition because SSE2 has no equivalent indexed
+byte-table instruction. Mask compression and expansion also use scalar
+composition on x86-64.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

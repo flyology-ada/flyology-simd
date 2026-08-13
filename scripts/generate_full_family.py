@@ -293,12 +293,11 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Bit_Cast", "Widen_Low", "Widen_High", "Narrow_Truncate",
             "Narrow_Saturate", "Narrow_Round", "Convert_Round",
             "Convert_Truncate_Saturate", "Convert_Saturate",
-            "Reduce_Min", "Reduce_Max", "Min_Number", "Max_Number",
+            "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
         or (name in {"Add_Saturate", "Subtract_Saturate"}
             and ("32x4" in declaration or "64x2" in declaration))
-        or (name == "Reduce_Add_Wrap" and "8x16" not in declaration)
     )
     if name in fixed_ada:
         return (
@@ -311,6 +310,16 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"
+    elif name == "Reduce_Add_Wrap":
+        aarch = "a dedicated NEON packed reduction"
+        x86 = "a dedicated SSE2 packed-add reduction tree"
+    elif name in {"Reduce_Min", "Reduce_Max"}:
+        aarch = "a dedicated NEON packed reduction"
+        result = "minimum" if name == "Reduce_Min" else "maximum"
+        if "U8x16" in declaration or "I16x8" in declaration:
+            x86 = f"a dedicated SSE2 packed {result} reduction over fixed shuffles"
+        else:
+            x86 = f"a dedicated SSE2 comparison-and-selection {result} reduction over fixed shuffles"
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"

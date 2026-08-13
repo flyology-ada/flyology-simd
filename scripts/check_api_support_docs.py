@@ -99,6 +99,31 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected ten exact Select_Value "
                 f"NEON classifications, found {selected}"
             )
+        reduction_support = {
+            "Reduce_Add_Wrap": (
+                "The x86-64 backend uses a dedicated SSE2 packed-add reduction tree.",
+                8,
+            ),
+            "Reduce_Min": (
+                "minimum reduction over fixed shuffles",
+                8,
+            ),
+            "Reduce_Max": (
+                "maximum reduction over fixed shuffles",
+                8,
+            ),
+        }
+        for operation, (phrase, expected) in reduction_support.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            found = sum(phrase in block for block in blocks)
+            if found != expected:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected {expected} exact "
+                    f"{operation} SSE2 classifications, found {found}"
+                )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

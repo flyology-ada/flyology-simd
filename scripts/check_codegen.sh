@@ -502,6 +502,67 @@ case "$architecture" in
         require_pattern 'paddw' "$temporary/native.txt" 'SSE2 wrapping 16-bit add'
         require_pattern 'paddd' "$temporary/native.txt" 'SSE2 wrapping 32-bit add'
         require_pattern 'paddq' "$temporary/native.txt" 'SSE2 wrapping 64-bit add'
+        #  Inspect every public integer-reduction overload.  Aggregate object
+        #  searches can pass when an unrelated operation contains the same
+        #  instruction, so each reduction must retain its complete packed
+        #  tree and must not call the portable scalar authority.
+        while read -r lane_kind suffix add_instruction stages extreme_kind; do
+            [ -n "$lane_kind" ] || continue
+            if [ "$suffix" = none ]; then
+                suffix=
+            fi
+            for operation in reduce_add_wrap reduce_min reduce_max; do
+                symbol="flyology_simd__backends__native__${operation}${suffix}"
+                output="$temporary/reduction_${lane_kind}_${operation}.txt"
+                extract_symbol "$symbol" "$temporary/native.txt" "$output"
+                forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__reduce_' \
+                  "$output" \
+                  "portable or out-of-line helper in ${lane_kind} ${operation}"
+            done
+            require_count "(^|[[:space:]])${add_instruction}[[:space:]]" "$stages" \
+              "$temporary/reduction_${lane_kind}_reduce_add_wrap.txt" \
+              "complete SSE2 ${lane_kind} wrapping-add reduction tree"
+            case "$extreme_kind" in
+                byte_unsigned)
+                    require_count '(^|[[:space:]])pminub[[:space:]]' "$stages" \
+                      "$temporary/reduction_${lane_kind}_reduce_min.txt" \
+                      "complete SSE2 ${lane_kind} minimum reduction tree"
+                    require_count '(^|[[:space:]])pmaxub[[:space:]]' "$stages" \
+                      "$temporary/reduction_${lane_kind}_reduce_max.txt" \
+                      "complete SSE2 ${lane_kind} maximum reduction tree"
+                    ;;
+                word_signed)
+                    require_count '(^|[[:space:]])pminsw[[:space:]]' "$stages" \
+                      "$temporary/reduction_${lane_kind}_reduce_min.txt" \
+                      "complete SSE2 ${lane_kind} minimum reduction tree"
+                    require_count '(^|[[:space:]])pmaxsw[[:space:]]' "$stages" \
+                      "$temporary/reduction_${lane_kind}_reduce_max.txt" \
+                      "complete SSE2 ${lane_kind} maximum reduction tree"
+                    ;;
+                compare_select)
+                    for operation in reduce_min reduce_max; do
+                        require_pattern '(^|[[:space:]])pcmpgt(b|w|d)[[:space:]]' \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "SSE2 comparison in ${lane_kind} ${operation} reduction"
+                        require_count '(^|[[:space:]])pandn[[:space:]]' "$stages" \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "complete SSE2 ${lane_kind} ${operation} selection tree"
+                        require_pattern '(^|[[:space:]])por[[:space:]]' \
+                          "$temporary/reduction_${lane_kind}_${operation}.txt" \
+                          "SSE2 selected-value merge in ${lane_kind} ${operation}"
+                    done
+                    ;;
+            esac
+        done <<'EOF'
+u8   none paddb 4 byte_unsigned
+i8   __2 paddb 4 compare_select
+u16  __3 paddw 3 compare_select
+i16  __4 paddw 3 word_signed
+u32  __5 paddd 2 compare_select
+i32  __6 paddd 2 compare_select
+u64  __7 paddq 1 compare_select
+i64  __8 paddq 1 compare_select
+EOF
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'

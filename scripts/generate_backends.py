@@ -1092,6 +1092,20 @@ def x86_helpers() -> list[str]:
         "      return Result;",
         "   end SSE2_Select_128;",
         "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Instruction : String;",
+        "      Store_Instruction : String;",
+        "      Load_Sign : Boolean;",
+        "   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type;",
+        "   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type is",
+        "      Result : Scalar_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & (if Load_Sign then \"movdqu (%2), %%xmm7\" & ASCII.LF & ASCII.HT else \"\") & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Sign)], Clobber => \"eax,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Integer_Reduce_128;",
+        "",
     ]
 
 
@@ -1117,6 +1131,83 @@ def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
 
 def x86_ada_instruction(instruction: str) -> str:
     return instruction.replace("\n", '" & ASCII.LF & ASCII.HT & "')
+
+
+def x86_reduction_shuffles(bits: int) -> list[str]:
+    """Return fixed SSE2 permutations for an associative lane reduction."""
+    shuffles = [
+        "pshufd $0x4E, %%xmm6, %%xmm1",
+    ]
+    if bits <= 32:
+        shuffles.append("pshufd $0xB1, %%xmm6, %%xmm1")
+    if bits <= 16:
+        shuffles.append(
+            "movdqa %%xmm6, %%xmm1\n"
+            "pshuflw $0xB1, %%xmm1, %%xmm1\n"
+            "pshufhw $0xB1, %%xmm1, %%xmm1"
+        )
+    if bits == 8:
+        shuffles.append(
+            "movdqa %%xmm6, %%xmm1\n"
+            "movdqa %%xmm1, %%xmm3\n"
+            "psrlw $8, %%xmm1\n"
+            "psllw $8, %%xmm3\n"
+            "por %%xmm3, %%xmm1"
+        )
+    return shuffles
+
+
+def x86_reduce_add_instruction(bits: int) -> str:
+    lane = {8: "b", 16: "w", 32: "d", 64: "q"}[bits]
+    shifts = {8: (8, 4, 2, 1), 16: (8, 4, 2), 32: (8, 4), 64: (8,)}[bits]
+    return "\n".join(
+        f"movdqa %%xmm0, %%xmm1\npsrldq ${shift}, %%xmm1\npadd{lane} %%xmm1, %%xmm0"
+        for shift in shifts
+    )
+
+
+def x86_reduce_extreme_instruction(
+    bits: int, compare: str, maximum: bool, native_instruction: str | None = None
+) -> str:
+    stages: list[str] = []
+    for shuffle in x86_reduction_shuffles(bits):
+        if native_instruction is not None:
+            stages.extend([
+                "movdqa %%xmm0, %%xmm6",
+                shuffle,
+                f"{native_instruction} %%xmm1, %%xmm0",
+            ])
+            continue
+        stages.extend([
+            "movdqa %%xmm0, %%xmm6",
+            shuffle,
+            compare,
+            "movdqa %%xmm0, %%xmm2",
+            "movdqa %%xmm0, %%xmm4",
+            "movdqa %%xmm6, %%xmm0",
+            shuffle,
+        ])
+        if maximum:
+            stages.extend([
+                "pand %%xmm0, %%xmm4",
+                "pandn %%xmm1, %%xmm2",
+            ])
+        else:
+            stages.extend([
+                "pandn %%xmm0, %%xmm2",
+                "pand %%xmm1, %%xmm4",
+            ])
+        stages.extend(["por %%xmm4, %%xmm2", "movdqa %%xmm2, %%xmm0"])
+    return "\n".join(stages)
+
+
+def x86_reduce_store(bits: int) -> str:
+    return {
+        8: "movd %%xmm0, %%eax\nmovb %%al, (%0)",
+        16: "pextrw $0, %%xmm0, %%eax\nmovw %%ax, (%0)",
+        32: "movd %%xmm0, (%0)",
+        64: "movq %%xmm0, (%0)",
+    }[bits]
 
 
 def x86_body() -> str:
@@ -1344,11 +1435,24 @@ def x86_body() -> str:
                 f"   function Min (Left, Right : {vector}) return {vector} is (Select_Value (Less_Than (Left, Right), Left, Right));",
                 f"   function Max (Left, Right : {vector}) return {vector} is (Select_Value (Greater_Than (Left, Right), Left, Right));",
             ]
-        out += [
-            call("Reduce_Add_Wrap", scalar, "Value", f"Value : {vector}"),
-            call("Reduce_Min", scalar, "Value", f"Value : {vector}"),
-            call("Reduce_Max", scalar, "Value", f"Value : {vector}"),
-        ]
+        reduction_sign = (
+            "Sign_8'Address" if bits == 8
+            else "Sign_16'Address" if bits == 16
+            else "Sign_32'Address"
+        )
+        reduction_compare = (signed_gt if signed else unsigned_gt)[bits]
+        native_min = "pminsw" if signed and bits == 16 else None
+        native_max = "pmaxsw" if signed and bits == 16 else None
+        for name, instruction, load_sign in (
+            ("Reduce_Add_Wrap", x86_reduce_add_instruction(bits), False),
+            ("Reduce_Min", x86_reduce_extreme_instruction(bits, reduction_compare, False, native_min), (not signed or bits == 64) and native_min is None),
+            ("Reduce_Max", x86_reduce_extreme_instruction(bits, reduction_compare, True, native_max), (not signed or bits == 64) and native_max is None),
+        ):
+            native = f"Native_{name}_{vector}"
+            out += [
+                f"   function {native} is new SSE2_Integer_Reduce_128 ({vector}, {scalar}, \"{x86_ada_instruction(instruction)}\", \"{x86_ada_instruction(x86_reduce_store(bits))}\", {str(load_sign)});",
+                f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value, {reduction_sign}));",
+            ]
         out += x86_memory_body(vector, arr, count)
 
     for vector, scalar, bits, lanes in FLOAT_TYPES:

@@ -323,11 +323,87 @@ package body Flyology_SIMD.Backends.Native is
       return Natural (Result);
    end Horizontal_Sum;
    function Reduce_Add_Wrap (Value : U8x16) return U8 is
-     (U8 (Horizontal_Sum (Value) mod 256));
+      Result : U8;
+   begin
+      Asm
+        (Template =>
+           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT &
+           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT &
+           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT &
+           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psrldq $1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
+           "movb %%al, (%0)",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "eax,xmm0,xmm1,memory", Volatile => True);
+      return Result;
+   end Reduce_Add_Wrap;
    function Reduce_Min (Value : U8x16) return U8 is
-     (Flyology_SIMD.Reduce_Min (Value));
+      Result : U8;
+   begin
+      Asm
+        (Template =>
+           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
+           "pshufd $0x4E, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "pshufd $0xB1, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT &
+           "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
+           "movb %%al, (%0)",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "eax,xmm0,xmm1,xmm2,memory", Volatile => True);
+      return Result;
+   end Reduce_Min;
    function Reduce_Max (Value : U8x16) return U8 is
-     (Flyology_SIMD.Reduce_Max (Value));
+      Result : U8;
+   begin
+      Asm
+        (Template =>
+           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
+           "pshufd $0x4E, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "pshufd $0xB1, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
+           "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT &
+           "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
+           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
+           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
+           "movb %%al, (%0)",
+         Inputs =>
+           [System.Address'Asm_Input ("r", Result'Address),
+            System.Address'Asm_Input ("r", Value'Address)],
+         Clobber => "eax,xmm0,xmm1,xmm2,memory", Volatile => True);
+      return Result;
+   end Reduce_Max;
    function Reverse_Bytes (Value : U8x16) return U8x16 is (U8_Reverse (Value));
    function Reverse_Lanes (Value : U8x16) return U8x16 is
      (Reverse_Bytes (Value));
@@ -499,6 +575,20 @@ package body Flyology_SIMD.Backends.Native is
       Asm (Template => "movd (%1), %%xmm2" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT & "pand (%2), %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & Compare & " %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & Replicate_64 & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand (%3), %%xmm3" & ASCII.LF & ASCII.HT & "pandn (%4), %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Local_Bits'Address), System.Address'Asm_Input ("r", Weights), System.Address'Asm_Input ("r", If_True'Address), System.Address'Asm_Input ("r", If_False'Address)], Clobber => "xmm2,xmm3,memory", Volatile => True);
       return Result;
    end SSE2_Select_128;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Instruction : String;
+      Store_Instruction : String;
+      Load_Sign : Boolean;
+   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type;
+   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type is
+      Result : Scalar_Type;
+   begin
+      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & (if Load_Sign then "movdqu (%2), %%xmm7" & ASCII.LF & ASCII.HT else "") & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address), System.Address'Asm_Input ("r", Sign)], Clobber => "eax,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
+      return Result;
+   end SSE2_Integer_Reduce_128;
 
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
@@ -1154,12 +1244,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is (Native_Select_I8x16 (To_Bit_Mask (Mask), Weights_X86_8'Address, If_True, If_False));
    function Min (Left, Right : I8x16) return I8x16 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I8x16) return I8x16 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I8x16) return I8 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I8x16 is new SSE2_Integer_Reduce_128 (I8x16, I8, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0", "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movb %%al, (%0)", False);
+   function Reduce_Add_Wrap (Value : I8x16) return I8 is (Native_Reduce_Add_Wrap_I8x16 (Value, Sign_8'Address));
+   function Native_Reduce_Min_I8x16 is new SSE2_Integer_Reduce_128 (I8x16, I8, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movb %%al, (%0)", False);
+   function Reduce_Min (Value : I8x16) return I8 is (Native_Reduce_Min_I8x16 (Value, Sign_8'Address));
+   function Native_Reduce_Max_I8x16 is new SSE2_Integer_Reduce_128 (I8x16, I8, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movb %%al, (%0)", False);
+   function Reduce_Max (Value : I8x16) return I8 is (Native_Reduce_Max_I8x16 (Value, Sign_8'Address));
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
@@ -1239,12 +1329,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is (Native_Select_U16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_16'Address, If_True, If_False));
    function Min (Left, Right : U16x8) return U16x8 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U16x8) return U16x8 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U16x8) return U16 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U16x8 is new SSE2_Integer_Reduce_128 (U16x8, U16, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
+   function Reduce_Add_Wrap (Value : U16x8) return U16 is (Native_Reduce_Add_Wrap_U16x8 (Value, Sign_16'Address));
+   function Native_Reduce_Min_U16x8 is new SSE2_Integer_Reduce_128 (U16x8, U16, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", True);
+   function Reduce_Min (Value : U16x8) return U16 is (Native_Reduce_Min_U16x8 (Value, Sign_16'Address));
+   function Native_Reduce_Max_U16x8 is new SSE2_Integer_Reduce_128 (U16x8, U16, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", True);
+   function Reduce_Max (Value : U16x8) return U16 is (Native_Reduce_Max_U16x8 (Value, Sign_16'Address));
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
@@ -1328,12 +1418,12 @@ package body Flyology_SIMD.Backends.Native is
    function Less_Than (Left, Right : I16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
    function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is (Native_Select_I16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_16'Address, If_True, If_False));
-   function Reduce_Add_Wrap (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I16x8) return I16 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I16x8 is new SSE2_Integer_Reduce_128 (I16x8, I16, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
+   function Reduce_Add_Wrap (Value : I16x8) return I16 is (Native_Reduce_Add_Wrap_I16x8 (Value, Sign_16'Address));
+   function Native_Reduce_Min_I16x8 is new SSE2_Integer_Reduce_128 (I16x8, I16, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
+   function Reduce_Min (Value : I16x8) return I16 is (Native_Reduce_Min_I16x8 (Value, Sign_16'Address));
+   function Native_Reduce_Max_I16x8 is new SSE2_Integer_Reduce_128 (I16x8, I16, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pmaxsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pmaxsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pmaxsw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
+   function Reduce_Max (Value : I16x8) return I16 is (Native_Reduce_Max_I16x8 (Value, Sign_16'Address));
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
@@ -1413,12 +1503,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is (Native_Select_U32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
    function Min (Left, Right : U32x4) return U32x4 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U32x4) return U32x4 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U32x4) return U32 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U32x4 is new SSE2_Integer_Reduce_128 (U32x4, U32, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0", "movd %%xmm0, (%0)", False);
+   function Reduce_Add_Wrap (Value : U32x4) return U32 is (Native_Reduce_Add_Wrap_U32x4 (Value, Sign_32'Address));
+   function Native_Reduce_Min_U32x4 is new SSE2_Integer_Reduce_128 (U32x4, U32, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, (%0)", True);
+   function Reduce_Min (Value : U32x4) return U32 is (Native_Reduce_Min_U32x4 (Value, Sign_32'Address));
+   function Native_Reduce_Max_U32x4 is new SSE2_Integer_Reduce_128 (U32x4, U32, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, (%0)", True);
+   function Reduce_Max (Value : U32x4) return U32 is (Native_Reduce_Max_U32x4 (Value, Sign_32'Address));
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
@@ -1500,12 +1590,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is (Native_Select_I32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
    function Min (Left, Right : I32x4) return I32x4 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I32x4) return I32x4 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I32x4) return I32 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I32x4 is new SSE2_Integer_Reduce_128 (I32x4, I32, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0", "movd %%xmm0, (%0)", False);
+   function Reduce_Add_Wrap (Value : I32x4) return I32 is (Native_Reduce_Add_Wrap_I32x4 (Value, Sign_32'Address));
+   function Native_Reduce_Min_I32x4 is new SSE2_Integer_Reduce_128 (I32x4, I32, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, (%0)", False);
+   function Reduce_Min (Value : I32x4) return I32 is (Native_Reduce_Min_I32x4 (Value, Sign_32'Address));
+   function Native_Reduce_Max_I32x4 is new SSE2_Integer_Reduce_128 (I32x4, I32, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movd %%xmm0, (%0)", False);
+   function Reduce_Max (Value : I32x4) return I32 is (Native_Reduce_Max_I32x4 (Value, Sign_32'Address));
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
@@ -1585,12 +1675,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is (Native_Select_U64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
    function Min (Left, Right : U64x2) return U64x2 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U64x2) return U64x2 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U64x2) return U64 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_U64x2 is new SSE2_Integer_Reduce_128 (U64x2, U64, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0", "movq %%xmm0, (%0)", False);
+   function Reduce_Add_Wrap (Value : U64x2) return U64 is (Native_Reduce_Add_Wrap_U64x2 (Value, Sign_32'Address));
+   function Native_Reduce_Min_U64x2 is new SSE2_Integer_Reduce_128 (U64x2, U64, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movq %%xmm0, (%0)", True);
+   function Reduce_Min (Value : U64x2) return U64 is (Native_Reduce_Min_U64x2 (Value, Sign_32'Address));
+   function Native_Reduce_Max_U64x2 is new SSE2_Integer_Reduce_128 (U64x2, U64, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movq %%xmm0, (%0)", True);
+   function Reduce_Max (Value : U64x2) return U64 is (Native_Reduce_Max_U64x2 (Value, Sign_32'Address));
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
@@ -1672,12 +1762,12 @@ package body Flyology_SIMD.Backends.Native is
    function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is (Native_Select_I64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
    function Min (Left, Right : I64x2) return I64x2 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I64x2) return I64x2 is (Select_Value (Greater_Than (Left, Right), Left, Right));
-   function Reduce_Add_Wrap (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : I64x2) return I64 is
-     (Flyology_SIMD.Reduce_Max (Value));
+   function Native_Reduce_Add_Wrap_I64x2 is new SSE2_Integer_Reduce_128 (I64x2, I64, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0", "movq %%xmm0, (%0)", False);
+   function Reduce_Add_Wrap (Value : I64x2) return I64 is (Native_Reduce_Add_Wrap_I64x2 (Value, Sign_32'Address));
+   function Native_Reduce_Min_I64x2 is new SSE2_Integer_Reduce_128 (I64x2, I64, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movq %%xmm0, (%0)", True);
+   function Reduce_Min (Value : I64x2) return I64 is (Native_Reduce_Min_I64x2 (Value, Sign_32'Address));
+   function Native_Reduce_Max_I64x2 is new SSE2_Integer_Reduce_128 (I64x2, I64, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0", "movq %%xmm0, (%0)", True);
+   function Reduce_Max (Value : I64x2) return I64 is (Native_Reduce_Max_I64x2 (Value, Sign_32'Address));
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is
      (Flyology_SIMD.Is_Aligned_16 (Data, Start));
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
