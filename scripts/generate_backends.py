@@ -174,6 +174,64 @@ def native_mask_body(bits: int, lanes: int, storage: str) -> list[str]:
     ]
 
 
+def direct_construction_body(vector: str, scalar: str) -> list[str]:
+    """Construct private target values without crossing the root API."""
+    zero = "0.0" if scalar in {"F32", "F64"} else "0"
+    return [
+        f"   function Zero return {vector} is (Lanes => [others => {zero}]);",
+        f"   function Splat (Value : {scalar}) return {vector} is",
+        "     (Lanes => [others => Value]);",
+    ]
+
+
+def target_construction_body(
+    architecture: str, vector: str, scalar: str, bits: int, lanes: int
+) -> list[str]:
+    """Instantiate exact target zero and bit-preserving splat leaves."""
+    zero = f"Native_Zero_{vector}"
+    splat = f"Native_Splat_{vector}"
+    if architecture == "aarch64":
+        element = {8: "b", 16: "h", 32: "s", 64: "d"}[bits]
+        load = f"ldr {element}0, [%1]"
+        duplicate = f"dup v0.{lanes}{element}, v0.{element}[0]"
+        helper_zero = "NEON_Zero_128"
+        helper_splat = "NEON_Splat_128"
+        instructions = f'"{load}", "{duplicate}"'
+    else:
+        if bits == 8:
+            load = "movzbl (%1), %%eax"
+            duplicate = (
+                "imull $0x01010101, %%eax, %%eax\n"
+                "movd %%eax, %%xmm0\n"
+                "pshufd $0, %%xmm0, %%xmm0"
+            )
+        elif bits == 16:
+            load = "movzwl (%1), %%eax"
+            duplicate = (
+                "imull $0x00010001, %%eax, %%eax\n"
+                "movd %%eax, %%xmm0\n"
+                "pshufd $0, %%xmm0, %%xmm0"
+            )
+        elif bits == 32:
+            load = "movl (%1), %%eax"
+            duplicate = "movd %%eax, %%xmm0\npshufd $0, %%xmm0, %%xmm0"
+        else:
+            load = "movq (%1), %%rax"
+            duplicate = "movq %%rax, %%xmm0\npunpcklqdq %%xmm0, %%xmm0"
+        helper_zero = "SSE2_Zero_128"
+        helper_splat = "SSE2_Splat_128"
+        instructions = (
+            f'"{x86_ada_instruction(load)}", '
+            f'"{x86_ada_instruction(duplicate)}"'
+        )
+    return [
+        f"   function {zero} is new {helper_zero} ({vector});",
+        f"   function Zero return {vector} is ({zero});",
+        f"   function {splat} is new {helper_splat} ({vector}, {scalar}, {instructions});",
+        f"   function Splat (Value : {scalar}) return {vector} is ({splat} (Value));",
+    ]
+
+
 def fallback_body() -> str:
     out: list[str] = [
         call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
@@ -222,8 +280,7 @@ def fallback_body() -> str:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
         out += [
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"),
+            *direct_construction_body(vector, scalar),
             call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
@@ -268,8 +325,7 @@ def fallback_body() -> str:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
         out += [
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"),
+            *direct_construction_body(vector, scalar),
             call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
@@ -412,6 +468,33 @@ def neon_helpers() -> list[str]:
         "           Clobber => \"v0,v1,memory\", Volatile => True);",
         "      return Result;",
         "   end NEON_Unary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "   function NEON_Zero_128 return Vector_Type;",
+        "   function NEON_Zero_128 return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        '      Asm (Template => "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "str q0, [%0]",',
+        '           Inputs => System.Address\'Asm_Input ("r", Result\'Address),',
+        '           Clobber => "v0,memory", Volatile => True);',
+        "      return Result;",
+        "   end NEON_Zero_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Load_Instruction : String;",
+        "      Duplicate_Instruction : String;",
+        "   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        '      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",',
+        '           Inputs => [System.Address\'Asm_Input ("r", Result\'Address), System.Address\'Asm_Input ("r", Value\'Address)],',
+        '           Clobber => "v0,memory", Volatile => True);',
+        "      return Result;",
+        "   end NEON_Splat_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
@@ -867,8 +950,7 @@ def neon_body() -> str:
         out += [
             f"   function Native_Reverse_{vector} is new NEON_Unary_128 ({vector}, \"{reverse_instruction}\");",
             f"   function Reverse_Lanes (Value : {vector}) return {vector} is (Native_Reverse_{vector} (Value));",
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"),
+            *target_construction_body("aarch64", vector, scalar, bits, lanes),
             call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
@@ -995,8 +1077,8 @@ def neon_body() -> str:
             f"   function Unordered (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Compare_Unordered_{vector} (Left, Right, {weight})));",
             f"   function Less_Than (Left, Right : {vector}) return {mask} is (Greater_Than (Left => Right, Right => Left));",
             f"   function Less_Equal (Left, Right : {vector}) return {mask} is (Greater_Equal (Left => Right, Right => Left));",
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"), call("From_Lanes", vector, "Values", f"Values : {vals}"),
+            *target_construction_body("aarch64", vector, scalar, bits, lanes),
+            call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"), call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             f"   function Native_Permute_{vector} is new NEON_Permute_128 ({vector}, {lane_map(bits, lanes)});",
@@ -1098,6 +1180,33 @@ def x86_helpers() -> list[str]:
         "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
         "      return Result;",
         "   end SSE2_Unary_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "   function SSE2_Zero_128 return Vector_Type;",
+        "   function SSE2_Zero_128 return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        '      Asm (Template => "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",',
+        '           Inputs => System.Address\'Asm_Input ("r", Result\'Address),',
+        '           Clobber => "xmm0,memory", Volatile => True);',
+        "      return Result;",
+        "   end SSE2_Zero_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Load_Instruction : String;",
+        "      Duplicate_Instruction : String;",
+        "   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        '      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",',
+        '           Inputs => [System.Address\'Asm_Input ("r", Result\'Address), System.Address\'Asm_Input ("r", Value\'Address)],',
+        '           Clobber => "rax,xmm0,memory", Volatile => True);',
+        "      return Result;",
+        "   end SSE2_Splat_128;",
         "",
         "   generic",
         "      type Source_Type is private;",
@@ -2252,8 +2361,7 @@ def x86_body() -> str:
             f"   function Compare_Equal_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction(eq_instruction[bits])}\");",
             f"   function Compare_Greater_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction((signed_gt if signed else unsigned_gt)[bits])}\");",
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"),
+            *target_construction_body("x86_64", vector, scalar, bits, lanes),
             call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"),
             call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
@@ -2367,8 +2475,8 @@ def x86_body() -> str:
             f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), {weights}, If_True, If_False));",
-            f"   function Zero return {vector} is (Flyology_SIMD.Zero);",
-            call("Splat", vector, "Value", f"Value : {scalar}"), call("From_Lanes", vector, "Values", f"Values : {vals}"),
+            *target_construction_body("x86_64", vector, scalar, bits, lanes),
+            call("From_Lanes", vector, "Values", f"Values : {vals}"),
             call("To_Lanes", vals, "Value", f"Value : {vector}"), call("Extract", scalar, "Value, Lane", f"Value : {vector}; Lane : {idx}"),
             call("Replace", vector, "Value, Lane, With_Value", f"Value : {vector}; Lane : {idx}; With_Value : {scalar}"),
             call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
@@ -2653,7 +2761,13 @@ def test_program() -> str:
             ),
             "   begin",
             f"      Check (To_Lanes (A) = [{agg_a}], \"{vector} scalar lane construction\");",
-            f"      Check (Same ({vector}'(Backends.Native.Zero), {vector}'(Zero)) and then Same ({vector}'(Backends.Native.Splat (To_Lanes (A) (0))), {vector}'(Splat (To_Lanes (A) (0)))), \"{vector} native construction\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract ({vector}'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), \"{vector} independent native construction\" & Lane'Image); end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Splat ({scalar}'Last), Lane) = {scalar}'Last, \"{vector} maximum-value native splat\" & Lane'Image); end loop;",
+            *(
+                [f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Splat ({scalar}'First), Lane) = {scalar}'First, \"{vector} minimum-value native splat\" & Lane'Image); end loop;"]
+                if signed
+                else []
+            ),
             f"      Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), \"{vector} native lane roundtrip\");",
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Extract (A, Lane) = To_Lanes (A) (Lane), \"{vector} scalar extract\" & Lane'Image);",
@@ -2778,7 +2892,8 @@ def test_program() -> str:
             f"            R_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (R_Selectors);",
             f"            R_Two_Source_Map : constant {two_source_lane_map(bits, lanes)} := Make_Two_Source_Lane_Map ([for Lane in {lane_index(bits, lanes)} => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane ({lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})) else Select_Right_Lane ({lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})))]);",
             "         begin",
-            f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
+            f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, \"{vector} randomized native lane construction\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), \"{vector} randomized independent native splat\" & Lane'Image); end loop;",
             f"            Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), \"{vector} randomized arithmetic\");",
             f"            Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), \"{vector} randomized native saturation\");",
             f"            Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), \"{vector} randomized native bitwise\");",
@@ -2905,7 +3020,7 @@ def test_program() -> str:
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;", "   begin",
             f"      Check (Same (A, From_Lanes (To_Lanes (A))), \"{vector} scalar lane roundtrip\");",
-            f"      Check (Same ({vector}'(Backends.Native.Zero), {vector}'(Zero)) and then Same ({vector}'(Backends.Native.Splat (To_Lanes (A) (0))), {vector}'(Splat (To_Lanes (A) (0)))), \"{vector} native construction\");",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract ({vector}'(Backends.Native.Zero), Lane)) = 0 and then Bits_{vector} (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_{vector} (To_Lanes (A) (0)), \"{vector} independent native construction\" & Lane'Image); end loop;",
             f"      Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Same (Backends.Native.From_Lanes (Backends.Native.To_Lanes (A)), A), \"{vector} native lane roundtrip\");",
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Bits_{vector} (Extract (A, Lane)) = Bits_{vector} (To_Lanes (A) (Lane)), \"{vector} scalar extract\" & Lane'Image);",
@@ -2998,7 +3113,8 @@ def test_program() -> str:
             f"            R_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (R_Selectors);",
             f"            R_Two_Source_Map : constant {two_source_lane_map(bits, lanes)} := Make_Two_Source_Lane_Map ([for Lane in {lane_index(bits, lanes)} => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane ({lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})) else Select_Right_Lane ({lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})))]);",
             "         begin",
-            f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), \"{vector} randomized native construction\");",
+            f"            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, \"{vector} randomized native lane construction\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Splat (R_Lanes (0)), Lane)) = Bits_{vector} (R_Lanes (0)), \"{vector} randomized independent native splat\" & Lane'Image); end loop;",
             f"            Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), \"{vector} randomized native arithmetic\");",
             f"            Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), \"{vector} randomized native min/max\");",
             f"            Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), \"{vector} randomized native comparisons\");",
@@ -3048,6 +3164,7 @@ def test_program() -> str:
         "      SNaN32_B : constant F32 := To_F32 (16#FF80_0021#);",
         "      Inf32 : constant F32 := To_F32 (16#7F80_0000#);",
         "      Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);",
+        "      Subnormal32 : constant F32 := To_F32 (16#0000_0001#);",
         "      A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);",
         "      B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);",
         "      Slide32 : constant F32x4 := From_Lanes ([NaN32, SNaN32, Inf32, Neg_Zero32]);",
@@ -3061,6 +3178,7 @@ def test_program() -> str:
         "      SNaN64_B : constant F64 := To_F64 (16#FFF0_0000_0000_0021#);",
         "      Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);",
         "      Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);",
+        "      Subnormal64 : constant F64 := To_F64 (16#0000_0000_0000_0001#);",
         "      A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);",
         "      B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);",
         "      Slide64_A : constant F64x2 := From_Lanes ([NaN64, SNaN64]);",
@@ -3104,6 +3222,14 @@ def test_program() -> str:
         "      Unordered64_Both : constant F64x2 := From_Lanes ([SNaN64, Inf64]);",
         "      Unordered64_Both_Right : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);",
         "   begin",
+        "      for Lane in Lane_Index_32x4 loop",
+        "         Check (F32_Bits (Extract (F32x4'(Backends.Native.Zero), Lane)) = 0, \"F32 native positive-zero construction\" & Lane'Image);",
+        "         Check (F32_Bits (Extract (Backends.Native.Splat (Neg_Zero32), Lane)) = F32_Bits (Neg_Zero32) and then F32_Bits (Extract (Backends.Native.Splat (NaN32), Lane)) = F32_Bits (NaN32) and then F32_Bits (Extract (Backends.Native.Splat (SNaN32_B), Lane)) = F32_Bits (SNaN32_B) and then F32_Bits (Extract (Backends.Native.Splat (Inf32), Lane)) = F32_Bits (Inf32) and then F32_Bits (Extract (Backends.Native.Splat (Subnormal32), Lane)) = F32_Bits (Subnormal32), \"F32 native special-bit splat\" & Lane'Image);",
+        "      end loop;",
+        "      for Lane in Lane_Index_64x2 loop",
+        "         Check (F64_Bits (Extract (F64x2'(Backends.Native.Zero), Lane)) = 0, \"F64 native positive-zero construction\" & Lane'Image);",
+        "         Check (F64_Bits (Extract (Backends.Native.Splat (Neg_Zero64), Lane)) = F64_Bits (Neg_Zero64) and then F64_Bits (Extract (Backends.Native.Splat (NaN64), Lane)) = F64_Bits (NaN64) and then F64_Bits (Extract (Backends.Native.Splat (SNaN64_B), Lane)) = F64_Bits (SNaN64_B) and then F64_Bits (Extract (Backends.Native.Splat (Inf64), Lane)) = F64_Bits (Inf64) and then F64_Bits (Extract (Backends.Native.Splat (Subnormal64), Lane)) = F64_Bits (Subnormal64), \"F64 native special-bit splat\" & Lane'Image);",
+        "      end loop;",
         "      for Lane in Lane_Index_32x4 loop",
         "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), \"F32 special lane permutation\" & Lane'Image);",
         "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)), \"F32 special two-source permutation A\" & Lane'Image);",

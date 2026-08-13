@@ -139,7 +139,9 @@ procedure Family_Tests is
       Aligned_Data : I8_Array (0 .. 15) := [others => 0] with Alignment => 16;
    begin
       Check (To_Lanes (A) = [I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First], "I8x16 scalar lane construction");
-      Check (Same (I8x16'(Backends.Native.Zero), I8x16'(Zero)) and then Same (I8x16'(Backends.Native.Splat (To_Lanes (A) (0))), I8x16'(Splat (To_Lanes (A) (0)))), "I8x16 native construction");
+      for Lane in Lane_Index_8x16 loop Check (Extract (I8x16'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I8x16 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (I8'Last), Lane) = I8'Last, "I8x16 maximum-value native splat" & Lane'Image); end loop;
+      for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (I8'First), Lane) = I8'First, "I8x16 minimum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "I8x16 native lane roundtrip");
       for Lane in Lane_Index_8x16 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "I8x16 scalar extract" & Lane'Image);
@@ -254,7 +256,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_8x16 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_8x16 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_8x16 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)) else Select_Right_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I8x16 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "I8x16 randomized native lane construction");
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "I8x16 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I8x16 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I8x16 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I8x16 randomized native bitwise");
@@ -367,7 +370,8 @@ procedure Family_Tests is
       Aligned_Data : U16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
       Check (To_Lanes (A) = [0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last], "U16x8 scalar lane construction");
-      Check (Same (U16x8'(Backends.Native.Zero), U16x8'(Zero)) and then Same (U16x8'(Backends.Native.Splat (To_Lanes (A) (0))), U16x8'(Splat (To_Lanes (A) (0)))), "U16x8 native construction");
+      for Lane in Lane_Index_16x8 loop Check (Extract (U16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U16x8 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (U16'Last), Lane) = U16'Last, "U16x8 maximum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "U16x8 native lane roundtrip");
       for Lane in Lane_Index_16x8 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "U16x8 scalar extract" & Lane'Image);
@@ -479,7 +483,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_16x8 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U16x8 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "U16x8 randomized native lane construction");
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "U16x8 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U16x8 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U16x8 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U16x8 randomized native bitwise");
@@ -595,7 +600,9 @@ procedure Family_Tests is
       Aligned_Data : I16_Array (0 .. 7) := [others => 0] with Alignment => 16;
    begin
       Check (To_Lanes (A) = [I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0], "I16x8 scalar lane construction");
-      Check (Same (I16x8'(Backends.Native.Zero), I16x8'(Zero)) and then Same (I16x8'(Backends.Native.Splat (To_Lanes (A) (0))), I16x8'(Splat (To_Lanes (A) (0)))), "I16x8 native construction");
+      for Lane in Lane_Index_16x8 loop Check (Extract (I16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I16x8 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (I16'Last), Lane) = I16'Last, "I16x8 maximum-value native splat" & Lane'Image); end loop;
+      for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (I16'First), Lane) = I16'First, "I16x8 minimum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "I16x8 native lane roundtrip");
       for Lane in Lane_Index_16x8 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "I16x8 scalar extract" & Lane'Image);
@@ -710,7 +717,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_16x8 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_16x8 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_16x8 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)) else Select_Right_Lane (Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I16x8 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "I16x8 randomized native lane construction");
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "I16x8 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I16x8 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I16x8 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I16x8 randomized native bitwise");
@@ -827,7 +835,8 @@ procedure Family_Tests is
       Saturating_Subtract_Expected : constant Lane_Values_U32x4 := [U32'Last - 1, 0, 0, 0];
    begin
       Check (To_Lanes (A) = [0, 1, U32'Last, 2 ** (31)], "U32x4 scalar lane construction");
-      Check (Same (U32x4'(Backends.Native.Zero), U32x4'(Zero)) and then Same (U32x4'(Backends.Native.Splat (To_Lanes (A) (0))), U32x4'(Splat (To_Lanes (A) (0)))), "U32x4 native construction");
+      for Lane in Lane_Index_32x4 loop Check (Extract (U32x4'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U32x4 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (U32'Last), Lane) = U32'Last, "U32x4 maximum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "U32x4 native lane roundtrip");
       for Lane in Lane_Index_32x4 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "U32x4 scalar extract" & Lane'Image);
@@ -940,7 +949,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U32x4 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "U32x4 randomized native lane construction");
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "U32x4 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U32x4 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U32x4 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U32x4 randomized native bitwise");
@@ -1060,7 +1070,9 @@ procedure Family_Tests is
       Saturating_Subtract_Expected : constant Lane_Values_I32x4 := [I32'Last - 1, I32'First + 1, I32'Last, I32'First];
    begin
       Check (To_Lanes (A) = [I32'First, -1, 0, 1], "I32x4 scalar lane construction");
-      Check (Same (I32x4'(Backends.Native.Zero), I32x4'(Zero)) and then Same (I32x4'(Backends.Native.Splat (To_Lanes (A) (0))), I32x4'(Splat (To_Lanes (A) (0)))), "I32x4 native construction");
+      for Lane in Lane_Index_32x4 loop Check (Extract (I32x4'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I32x4 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (I32'Last), Lane) = I32'Last, "I32x4 maximum-value native splat" & Lane'Image); end loop;
+      for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (I32'First), Lane) = I32'First, "I32x4 minimum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "I32x4 native lane roundtrip");
       for Lane in Lane_Index_32x4 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "I32x4 scalar extract" & Lane'Image);
@@ -1176,7 +1188,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I32x4 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "I32x4 randomized native lane construction");
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "I32x4 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I32x4 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I32x4 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I32x4 randomized native bitwise");
@@ -1296,7 +1309,8 @@ procedure Family_Tests is
       Multiply_Edge_Expected : constant Lane_Values_U64x2 := [16#0000_0003_FFFF_FFFF#, 16#8000_0002_0000_0003#];
    begin
       Check (To_Lanes (A) = [0, 1], "U64x2 scalar lane construction");
-      Check (Same (U64x2'(Backends.Native.Zero), U64x2'(Zero)) and then Same (U64x2'(Backends.Native.Splat (To_Lanes (A) (0))), U64x2'(Splat (To_Lanes (A) (0)))), "U64x2 native construction");
+      for Lane in Lane_Index_64x2 loop Check (Extract (U64x2'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U64x2 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (U64'Last), Lane) = U64'Last, "U64x2 maximum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "U64x2 native lane roundtrip");
       for Lane in Lane_Index_64x2 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "U64x2 scalar extract" & Lane'Image);
@@ -1410,7 +1424,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "U64x2 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "U64x2 randomized native lane construction");
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "U64x2 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U64x2 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U64x2 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U64x2 randomized native bitwise");
@@ -1551,7 +1566,9 @@ procedure Family_Tests is
       Multiply_Edge_Expected : constant Lane_Values_I64x2 := [Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFB_0000_0003#)];
    begin
       Check (To_Lanes (A) = [I64'First, -1], "I64x2 scalar lane construction");
-      Check (Same (I64x2'(Backends.Native.Zero), I64x2'(Zero)) and then Same (I64x2'(Backends.Native.Splat (To_Lanes (A) (0))), I64x2'(Splat (To_Lanes (A) (0)))), "I64x2 native construction");
+      for Lane in Lane_Index_64x2 loop Check (Extract (I64x2'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I64x2 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (I64'Last), Lane) = I64'Last, "I64x2 maximum-value native splat" & Lane'Image); end loop;
+      for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (I64'First), Lane) = I64'First, "I64x2 minimum-value native splat" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "I64x2 native lane roundtrip");
       for Lane in Lane_Index_64x2 loop
          Check (Extract (A, Lane) = To_Lanes (A) (Lane), "I64x2 scalar extract" & Lane'Image);
@@ -1669,7 +1686,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "I64x2 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "I64x2 randomized native lane construction");
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "I64x2 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "I64x2 randomized arithmetic");
             Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "I64x2 randomized native saturation");
             Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "I64x2 randomized native bitwise");
@@ -1785,7 +1803,7 @@ procedure Family_Tests is
       Aligned_Data : F32_Array (0 .. 3) := [others => 0.0] with Alignment => 16;
    begin
       Check (Same (A, From_Lanes (To_Lanes (A))), "F32x4 scalar lane roundtrip");
-      Check (Same (F32x4'(Backends.Native.Zero), F32x4'(Zero)) and then Same (F32x4'(Backends.Native.Splat (To_Lanes (A) (0))), F32x4'(Splat (To_Lanes (A) (0)))), "F32x4 native construction");
+      for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (F32x4'(Backends.Native.Zero), Lane)) = 0 and then Bits_F32x4 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F32x4 (To_Lanes (A) (0)), "F32x4 independent native construction" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Same (Backends.Native.From_Lanes (Backends.Native.To_Lanes (A)), A), "F32x4 native lane roundtrip");
       for Lane in Lane_Index_32x4 loop
          Check (Bits_F32x4 (Extract (A, Lane)) = Bits_F32x4 (To_Lanes (A) (Lane)), "F32x4 scalar extract" & Lane'Image);
@@ -1884,7 +1902,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_32x4 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_32x4 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_32x4 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)) else Select_Right_Lane (Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F32x4 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "F32x4 randomized native lane construction");
+            for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Splat (R_Lanes (0)), Lane)) = Bits_F32x4 (R_Lanes (0)), "F32x4 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F32x4 randomized native arithmetic");
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F32x4 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F32x4 randomized native comparisons");
@@ -1993,7 +2012,7 @@ procedure Family_Tests is
       Aligned_Data : F64_Array (0 .. 1) := [others => 0.0] with Alignment => 16;
    begin
       Check (Same (A, From_Lanes (To_Lanes (A))), "F64x2 scalar lane roundtrip");
-      Check (Same (F64x2'(Backends.Native.Zero), F64x2'(Zero)) and then Same (F64x2'(Backends.Native.Splat (To_Lanes (A) (0))), F64x2'(Splat (To_Lanes (A) (0)))), "F64x2 native construction");
+      for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (F64x2'(Backends.Native.Zero), Lane)) = 0 and then Bits_F64x2 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F64x2 (To_Lanes (A) (0)), "F64x2 independent native construction" & Lane'Image); end loop;
       Check (Same (Backends.Native.From_Lanes (To_Lanes (A)), A) and then Same (Backends.Native.From_Lanes (Backends.Native.To_Lanes (A)), A), "F64x2 native lane roundtrip");
       for Lane in Lane_Index_64x2 loop
          Check (Bits_F64x2 (Extract (A, Lane)) = Bits_F64x2 (To_Lanes (A) (Lane)), "F64x2 scalar extract" & Lane'Image);
@@ -2092,7 +2111,8 @@ procedure Family_Tests is
             R_Map : constant Lane_Map_64x2 := Make_Lane_Map (R_Selectors);
             R_Two_Source_Map : constant Two_Source_Lane_Map_64x2 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_64x2 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)) else Select_Right_Lane (Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)))]);
          begin
-            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes and then Same (Backends.Native.Splat (R_Lanes (0)), Splat (R_Lanes (0))), "F64x2 randomized native construction");
+            Check (Same (Backends.Native.From_Lanes (R_Lanes), R_A) and then Backends.Native.To_Lanes (R_A) = R_Lanes, "F64x2 randomized native lane construction");
+            for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Splat (R_Lanes (0)), Lane)) = Bits_F64x2 (R_Lanes (0)), "F64x2 randomized independent native splat" & Lane'Image); end loop;
             Check (Same (Backends.Native.Add (R_A, R_B), Add (R_A, R_B)) and then Same (Backends.Native.Subtract (R_A, R_B), Subtract (R_A, R_B)) and then Same (Backends.Native.Multiply (R_A, R_B), Multiply (R_A, R_B)) and then Same (Backends.Native.Divide (R_A, R_B), Divide (R_A, R_B)), "F64x2 randomized native arithmetic");
             Check (Same (Backends.Native.Min_Number (R_A, R_B), Min_Number (R_A, R_B)) and then Same (Backends.Native.Max_Number (R_A, R_B), Max_Number (R_A, R_B)), "F64x2 randomized native min/max");
             Check (Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Less_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Than (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Greater_Equal (R_A, R_B)) and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (R_A, R_B)) = Flyology_SIMD.To_Bit_Mask (Unordered (R_A, R_B)), "F64x2 randomized native comparisons");
@@ -2141,6 +2161,7 @@ procedure Family_Tests is
       SNaN32_B : constant F32 := To_F32 (16#FF80_0021#);
       Inf32 : constant F32 := To_F32 (16#7F80_0000#);
       Neg_Zero32 : constant F32 := To_F32 (16#8000_0000#);
+      Subnormal32 : constant F32 := To_F32 (16#0000_0001#);
       A32 : constant F32x4 := From_Lanes ([NaN32, Inf32, Neg_Zero32, 0.0]);
       B32 : constant F32x4 := From_Lanes ([1.0, Inf32, 0.0, Neg_Zero32]);
       Slide32 : constant F32x4 := From_Lanes ([NaN32, SNaN32, Inf32, Neg_Zero32]);
@@ -2154,6 +2175,7 @@ procedure Family_Tests is
       SNaN64_B : constant F64 := To_F64 (16#FFF0_0000_0000_0021#);
       Inf64 : constant F64 := To_F64 (16#7FF0_0000_0000_0000#);
       Neg_Zero64 : constant F64 := To_F64 (16#8000_0000_0000_0000#);
+      Subnormal64 : constant F64 := To_F64 (16#0000_0000_0000_0001#);
       A64 : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);
       B64 : constant F64x2 := From_Lanes ([1.0, 0.0]);
       Slide64_A : constant F64x2 := From_Lanes ([NaN64, SNaN64]);
@@ -2197,6 +2219,14 @@ procedure Family_Tests is
       Unordered64_Both : constant F64x2 := From_Lanes ([SNaN64, Inf64]);
       Unordered64_Both_Right : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);
    begin
+      for Lane in Lane_Index_32x4 loop
+         Check (F32_Bits (Extract (F32x4'(Backends.Native.Zero), Lane)) = 0, "F32 native positive-zero construction" & Lane'Image);
+         Check (F32_Bits (Extract (Backends.Native.Splat (Neg_Zero32), Lane)) = F32_Bits (Neg_Zero32) and then F32_Bits (Extract (Backends.Native.Splat (NaN32), Lane)) = F32_Bits (NaN32) and then F32_Bits (Extract (Backends.Native.Splat (SNaN32_B), Lane)) = F32_Bits (SNaN32_B) and then F32_Bits (Extract (Backends.Native.Splat (Inf32), Lane)) = F32_Bits (Inf32) and then F32_Bits (Extract (Backends.Native.Splat (Subnormal32), Lane)) = F32_Bits (Subnormal32), "F32 native special-bit splat" & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (F64_Bits (Extract (F64x2'(Backends.Native.Zero), Lane)) = 0, "F64 native positive-zero construction" & Lane'Image);
+         Check (F64_Bits (Extract (Backends.Native.Splat (Neg_Zero64), Lane)) = F64_Bits (Neg_Zero64) and then F64_Bits (Extract (Backends.Native.Splat (NaN64), Lane)) = F64_Bits (NaN64) and then F64_Bits (Extract (Backends.Native.Splat (SNaN64_B), Lane)) = F64_Bits (SNaN64_B) and then F64_Bits (Extract (Backends.Native.Splat (Inf64), Lane)) = F64_Bits (Inf64) and then F64_Bits (Extract (Backends.Native.Splat (Subnormal64), Lane)) = F64_Bits (Subnormal64), "F64 native special-bit splat" & Lane'Image);
+      end loop;
       for Lane in Lane_Index_32x4 loop
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), "F32 special lane permutation" & Lane'Image);
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Two32_Right, Two32_Map_A), Lane)) = F32_Bits (Extract ((if Lane mod 2 = 0 then Slide32 else Two32_Right), Lane)), "F32 special two-source permutation A" & Lane'Image);

@@ -605,6 +605,33 @@ package body Flyology_SIMD.Backends.Native is
    end SSE2_Unary_128;
 
    generic
+      type Vector_Type is private;
+   function SSE2_Zero_128 return Vector_Type;
+   function SSE2_Zero_128 return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",
+           Inputs => System.Address'Asm_Input ("r", Result'Address),
+           Clobber => "xmm0,memory", Volatile => True);
+      return Result;
+   end SSE2_Zero_128;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Load_Instruction : String;
+      Duplicate_Instruction : String;
+   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type;
+   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "rax,xmm0,memory", Volatile => True);
+      return Result;
+   end SSE2_Splat_128;
+
+   generic
       type Source_Type is private;
       type Result_Type is private;
       Instruction : String;
@@ -1319,9 +1346,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpeqb %%xmm1, %%xmm0");
    function Compare_Greater_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpgtb %%xmm1, %%xmm0");
    function Native_Select_I8x16 is new SSE2_Select_128 (I8x16, 8);
-   function Zero return I8x16 is (Flyology_SIMD.Zero);
-   function Splat (Value : I8) return I8x16 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I8x16 is new SSE2_Zero_128 (I8x16);
+   function Zero return I8x16 is (Native_Zero_I8x16);
+   function Native_Splat_I8x16 is new SSE2_Splat_128 (I8x16, I8, "movzbl (%1), %%eax", "imull $0x01010101, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : I8) return I8x16 is (Native_Splat_I8x16 (Value));
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is
@@ -1406,9 +1434,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pcmpeqw %%xmm1, %%xmm0");
    function Compare_Greater_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0");
    function Native_Select_U16x8 is new SSE2_Select_128 (U16x8, 16);
-   function Zero return U16x8 is (Flyology_SIMD.Zero);
-   function Splat (Value : U16) return U16x8 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U16x8 is new SSE2_Zero_128 (U16x8);
+   function Zero return U16x8 is (Native_Zero_U16x8);
+   function Native_Splat_U16x8 is new SSE2_Splat_128 (U16x8, U16, "movzwl (%1), %%eax", "imull $0x00010001, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : U16) return U16x8 is (Native_Splat_U16x8 (Value));
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is
@@ -1495,9 +1524,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpeqw %%xmm1, %%xmm0");
    function Compare_Greater_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpgtw %%xmm1, %%xmm0");
    function Native_Select_I16x8 is new SSE2_Select_128 (I16x8, 16);
-   function Zero return I16x8 is (Flyology_SIMD.Zero);
-   function Splat (Value : I16) return I16x8 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I16x8 is new SSE2_Zero_128 (I16x8);
+   function Zero return I16x8 is (Native_Zero_I16x8);
+   function Native_Splat_I16x8 is new SSE2_Splat_128 (I16x8, I16, "movzwl (%1), %%eax", "imull $0x00010001, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : I16) return I16x8 is (Native_Splat_I16x8 (Value));
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is
@@ -1580,9 +1610,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pcmpeqd %%xmm1, %%xmm0");
    function Compare_Greater_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0");
    function Native_Select_U32x4 is new SSE2_Select_128 (U32x4, 32);
-   function Zero return U32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : U32) return U32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U32x4 is new SSE2_Zero_128 (U32x4);
+   function Zero return U32x4 is (Native_Zero_U32x4);
+   function Native_Splat_U32x4 is new SSE2_Splat_128 (U32x4, U32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : U32) return U32x4 is (Native_Splat_U32x4 (Value));
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is
@@ -1665,9 +1696,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpeqd %%xmm1, %%xmm0");
    function Compare_Greater_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpgtd %%xmm1, %%xmm0");
    function Native_Select_I32x4 is new SSE2_Select_128 (I32x4, 32);
-   function Zero return I32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : I32) return I32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I32x4 is new SSE2_Zero_128 (I32x4);
+   function Zero return I32x4 is (Native_Zero_I32x4);
+   function Native_Splat_I32x4 is new SSE2_Splat_128 (I32x4, I32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : I32) return I32x4 is (Native_Splat_I32x4 (Value));
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is
@@ -1752,9 +1784,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_U64x2 is new SSE2_Compare_128 (U64x2, 64, "pcmpeqd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0");
    function Compare_Greater_U64x2 is new SSE2_Compare_128 (U64x2, 64, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0");
    function Native_Select_U64x2 is new SSE2_Select_128 (U64x2, 64);
-   function Zero return U64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : U64) return U64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U64x2 is new SSE2_Zero_128 (U64x2);
+   function Zero return U64x2 is (Native_Zero_U64x2);
+   function Native_Splat_U64x2 is new SSE2_Splat_128 (U64x2, U64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Splat (Value : U64) return U64x2 is (Native_Splat_U64x2 (Value));
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is
@@ -1837,9 +1870,10 @@ package body Flyology_SIMD.Backends.Native is
    function Compare_Equal_I64x2 is new SSE2_Compare_128 (I64x2, 64, "pcmpeqd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0");
    function Compare_Greater_I64x2 is new SSE2_Compare_128 (I64x2, 64, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm0");
    function Native_Select_I64x2 is new SSE2_Select_128 (I64x2, 64);
-   function Zero return I64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : I64) return I64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I64x2 is new SSE2_Zero_128 (I64x2);
+   function Zero return I64x2 is (Native_Zero_I64x2);
+   function Native_Splat_I64x2 is new SSE2_Splat_128 (I64x2, I64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Splat (Value : I64) return I64x2 is (Native_Splat_I64x2 (Value));
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is
@@ -1923,9 +1957,10 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : F32x4) return Mask_32x4 is (Less_Equal (Left => Right, Right => Left));
    function Native_Select_F32x4 is new SSE2_Select_128 (F32x4, 32);
    function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
-   function Zero return F32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : F32) return F32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_F32x4 is new SSE2_Zero_128 (F32x4);
+   function Zero return F32x4 is (Native_Zero_F32x4);
+   function Native_Splat_F32x4 is new SSE2_Splat_128 (F32x4, F32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Splat (Value : F32) return F32x4 is (Native_Splat_F32x4 (Value));
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is
@@ -1999,9 +2034,10 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Equal (Left, Right : F64x2) return Mask_64x2 is (Less_Equal (Left => Right, Right => Left));
    function Native_Select_F64x2 is new SSE2_Select_128 (F64x2, 64);
    function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
-   function Zero return F64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : F64) return F64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_F64x2 is new SSE2_Zero_128 (F64x2);
+   function Zero return F64x2 is (Native_Zero_F64x2);
+   function Native_Splat_F64x2 is new SSE2_Splat_128 (F64x2, F64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Splat (Value : F64) return F64x2 is (Native_Splat_F64x2 (Value));
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is

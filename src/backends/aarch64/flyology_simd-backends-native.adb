@@ -525,6 +525,33 @@ package body Flyology_SIMD.Backends.Native is
 
    generic
       type Vector_Type is private;
+   function NEON_Zero_128 return Vector_Type;
+   function NEON_Zero_128 return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => System.Address'Asm_Input ("r", Result'Address),
+           Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end NEON_Zero_128;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Load_Instruction : String;
+      Duplicate_Instruction : String;
+   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type;
+   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type is
+      Result : Vector_Type;
+   begin
+      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",
+           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
+           Clobber => "v0,memory", Volatile => True);
+      return Result;
+   end NEON_Splat_128;
+
+   generic
+      type Vector_Type is private;
       type Scalar_Type is private;
       Instruction : String;
       Store_Instruction : String;
@@ -1326,9 +1353,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : I8x16) return I8x16 is (Native_Not_I8x16 (Value));
    function Native_Reverse_I8x16 is new NEON_Unary_128 (I8x16, "rev64 v0.16b, v0.16b" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : I8x16) return I8x16 is (Native_Reverse_I8x16 (Value));
-   function Zero return I8x16 is (Flyology_SIMD.Zero);
-   function Splat (Value : I8) return I8x16 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I8x16 is new NEON_Zero_128 (I8x16);
+   function Zero return I8x16 is (Native_Zero_I8x16);
+   function Native_Splat_I8x16 is new NEON_Splat_128 (I8x16, I8, "ldr b0, [%1]", "dup v0.16b, v0.b[0]");
+   function Splat (Value : I8) return I8x16 is (Native_Splat_I8x16 (Value));
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is
@@ -1467,9 +1495,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : U16x8) return U16x8 is (Native_Not_U16x8 (Value));
    function Native_Reverse_U16x8 is new NEON_Unary_128 (U16x8, "rev64 v0.8h, v0.8h" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : U16x8) return U16x8 is (Native_Reverse_U16x8 (Value));
-   function Zero return U16x8 is (Flyology_SIMD.Zero);
-   function Splat (Value : U16) return U16x8 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U16x8 is new NEON_Zero_128 (U16x8);
+   function Zero return U16x8 is (Native_Zero_U16x8);
+   function Native_Splat_U16x8 is new NEON_Splat_128 (U16x8, U16, "ldr h0, [%1]", "dup v0.8h, v0.h[0]");
+   function Splat (Value : U16) return U16x8 is (Native_Splat_U16x8 (Value));
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is
@@ -1602,9 +1631,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : I16x8) return I16x8 is (Native_Not_I16x8 (Value));
    function Native_Reverse_I16x8 is new NEON_Unary_128 (I16x8, "rev64 v0.8h, v0.8h" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : I16x8) return I16x8 is (Native_Reverse_I16x8 (Value));
-   function Zero return I16x8 is (Flyology_SIMD.Zero);
-   function Splat (Value : I16) return I16x8 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I16x8 is new NEON_Zero_128 (I16x8);
+   function Zero return I16x8 is (Native_Zero_I16x8);
+   function Native_Splat_I16x8 is new NEON_Splat_128 (I16x8, I16, "ldr h0, [%1]", "dup v0.8h, v0.h[0]");
+   function Splat (Value : I16) return I16x8 is (Native_Splat_I16x8 (Value));
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is
@@ -1740,9 +1770,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : U32x4) return U32x4 is (Native_Not_U32x4 (Value));
    function Native_Reverse_U32x4 is new NEON_Unary_128 (U32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : U32x4) return U32x4 is (Native_Reverse_U32x4 (Value));
-   function Zero return U32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : U32) return U32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U32x4 is new NEON_Zero_128 (U32x4);
+   function Zero return U32x4 is (Native_Zero_U32x4);
+   function Native_Splat_U32x4 is new NEON_Splat_128 (U32x4, U32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
+   function Splat (Value : U32) return U32x4 is (Native_Splat_U32x4 (Value));
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is
@@ -1875,9 +1906,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : I32x4) return I32x4 is (Native_Not_I32x4 (Value));
    function Native_Reverse_I32x4 is new NEON_Unary_128 (I32x4, "rev64 v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : I32x4) return I32x4 is (Native_Reverse_I32x4 (Value));
-   function Zero return I32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : I32) return I32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I32x4 is new NEON_Zero_128 (I32x4);
+   function Zero return I32x4 is (Native_Zero_I32x4);
+   function Native_Splat_I32x4 is new NEON_Splat_128 (I32x4, I32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
+   function Splat (Value : I32) return I32x4 is (Native_Splat_I32x4 (Value));
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is
@@ -2011,9 +2043,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
    function Native_Reverse_U64x2 is new NEON_Unary_128 (U64x2, "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : U64x2) return U64x2 is (Native_Reverse_U64x2 (Value));
-   function Zero return U64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : U64) return U64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_U64x2 is new NEON_Zero_128 (U64x2);
+   function Zero return U64x2 is (Native_Zero_U64x2);
+   function Native_Splat_U64x2 is new NEON_Splat_128 (U64x2, U64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
+   function Splat (Value : U64) return U64x2 is (Native_Splat_U64x2 (Value));
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is
@@ -2146,9 +2179,10 @@ package body Flyology_SIMD.Backends.Native is
    function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
    function Native_Reverse_I64x2 is new NEON_Unary_128 (I64x2, "ext v0.16b, v0.16b, v0.16b, #8");
    function Reverse_Lanes (Value : I64x2) return I64x2 is (Native_Reverse_I64x2 (Value));
-   function Zero return I64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : I64) return I64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_I64x2 is new NEON_Zero_128 (I64x2);
+   function Zero return I64x2 is (Native_Zero_I64x2);
+   function Native_Splat_I64x2 is new NEON_Splat_128 (I64x2, I64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
+   function Splat (Value : I64) return I64x2 is (Native_Splat_I64x2 (Value));
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is
@@ -2283,9 +2317,10 @@ package body Flyology_SIMD.Backends.Native is
    function Unordered (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Unordered_F32x4 (Left, Right, Weights_32x4'Address)));
    function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
-   function Zero return F32x4 is (Flyology_SIMD.Zero);
-   function Splat (Value : F32) return F32x4 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_F32x4 is new NEON_Zero_128 (F32x4);
+   function Zero return F32x4 is (Native_Zero_F32x4);
+   function Native_Splat_F32x4 is new NEON_Splat_128 (F32x4, F32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
+   function Splat (Value : F32) return F32x4 is (Native_Splat_F32x4 (Value));
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is
@@ -2404,9 +2439,10 @@ package body Flyology_SIMD.Backends.Native is
    function Unordered (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Unordered_F64x2 (Left, Right, Weights_64x2'Address)));
    function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
-   function Zero return F64x2 is (Flyology_SIMD.Zero);
-   function Splat (Value : F64) return F64x2 is
-     (Flyology_SIMD.Splat (Value));
+   function Native_Zero_F64x2 is new NEON_Zero_128 (F64x2);
+   function Zero return F64x2 is (Native_Zero_F64x2);
+   function Native_Splat_F64x2 is new NEON_Splat_128 (F64x2, F64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
+   function Splat (Value : F64) return F64x2 is (Native_Splat_F64x2 (Value));
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is

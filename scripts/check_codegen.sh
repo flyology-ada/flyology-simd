@@ -32,6 +32,7 @@ conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 shift64_probe_object="$probe_root/shift64_codegen_probe.o"
 unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
+construction_probe_object="$probe_root/construction_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -58,6 +59,7 @@ disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
 disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
+disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -83,6 +85,7 @@ nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
+nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
 require_pattern() {
@@ -228,6 +231,18 @@ forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|
 forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|test|any_true|all_true|none_true)' \
   "$temporary/native-undefined.txt" \
   'portable compact-mask call retained in the Native backend object'
+require_count 'flyology_simd__backends__native__zero' 10 \
+  "$temporary/construction-undefined.txt" \
+  'ten Native Zero calls in the public caller probe'
+require_count 'flyology_simd__backends__native__splat' 9 \
+  "$temporary/construction-undefined.txt" \
+  'nine out-of-line Native Splat calls in the public caller probe'
+forbid_pattern 'flyology_simd__(zero|splat)' \
+  "$temporary/construction-undefined.txt" \
+  'portable construction call in the Native caller probe'
+forbid_pattern 'flyology_simd__splat' \
+  "$temporary/native-undefined.txt" \
+  'portable Splat call retained in the Native backend object'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -254,6 +269,35 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        extract_symbol 'construction_codegen_probe__splat_u8' \
+          "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
+        require_pattern 'dup\.16b' "$temporary/construction-splat-u8.txt" \
+          'inlined AArch64 U8x16 broadcast in the public caller probe'
+        forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__(backends__native__)?splat' \
+          "$temporary/construction-splat-u8.txt" \
+          'out-of-line U8x16 broadcast in the AArch64 public caller probe'
+        extract_symbol 'flyology_simd__backends__native__zero' \
+          "$temporary/native.txt" "$temporary/construction-zero-u8.txt"
+        require_count 'mov[[:space:]]+x(0|1),[[:space:]]*#0x?0' 2 \
+          "$temporary/construction-zero-u8.txt" \
+          'two zero result registers in AArch64 U8x16 Zero'
+        for suffix in 2 3 4 5 6 7 8 9 10; do
+            extract_symbol "flyology_simd__backends__native__zero__${suffix}" \
+              "$temporary/native.txt" "$temporary/construction-zero-${suffix}.txt"
+            require_pattern 'movi\.16b.*#0x?0' \
+              "$temporary/construction-zero-${suffix}.txt" \
+              "AArch64 vector zero construction in overload ${suffix}"
+        done
+        for entry in '2 16b' '3 8h' '4 8h' '5 4s' '6 4s' '7 2d' '8 2d' '9 4s' '10 2d'; do
+            set -- $entry
+            suffix=$1
+            shape=$2
+            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
+              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
+            require_pattern "dup\.${shape}" \
+              "$temporary/construction-splat-${suffix}.txt" \
+              "AArch64 ${shape} lane broadcast in overload ${suffix}"
+        done
         extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
           "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
         require_pattern 'uaddlv.*16b' \
@@ -635,6 +679,40 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        extract_symbol 'construction_codegen_probe__splat_u8' \
+          "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
+        require_pattern 'punpcklbw' "$temporary/construction-splat-u8.txt" \
+          'inlined x86-64 byte duplication in the U8x16 public caller probe'
+        require_pattern 'punpcklwd' "$temporary/construction-splat-u8.txt" \
+          'inlined x86-64 word duplication in the U8x16 public caller probe'
+        require_pattern 'pshufd' "$temporary/construction-splat-u8.txt" \
+          'inlined x86-64 dword broadcast in the U8x16 public caller probe'
+        forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__(backends__native__)?splat' \
+          "$temporary/construction-splat-u8.txt" \
+          'out-of-line U8x16 broadcast in the x86-64 public caller probe'
+        extract_symbol 'flyology_simd__backends__native__zero' \
+          "$temporary/native.txt" "$temporary/construction-zero-u8.txt"
+        require_pattern 'xor(l)?[[:space:]]+%e(ax|dx)' \
+          "$temporary/construction-zero-u8.txt" \
+          'direct x86-64 U8x16 zero result construction'
+        for suffix in 2 3 4 5 6 7 8 9 10; do
+            extract_symbol "flyology_simd__backends__native__zero__${suffix}" \
+              "$temporary/native.txt" "$temporary/construction-zero-${suffix}.txt"
+            require_pattern 'pxor' "$temporary/construction-zero-${suffix}.txt" \
+              "x86-64 SSE2 zero construction in overload ${suffix}"
+        done
+        for suffix in 2 3 4 5 6 9; do
+            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
+              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
+            require_pattern 'pshufd' "$temporary/construction-splat-${suffix}.txt" \
+              "x86-64 SSE2 8/16/32-bit broadcast in overload ${suffix}"
+        done
+        for suffix in 7 8 10; do
+            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
+              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
+            require_pattern 'punpcklqdq' "$temporary/construction-splat-${suffix}.txt" \
+              "x86-64 SSE2 64-bit broadcast in overload ${suffix}"
+        done
         extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
           "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
         require_pattern '(^|[[:space:]])psadbw[[:space:]]' \

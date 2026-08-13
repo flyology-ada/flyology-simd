@@ -87,6 +87,18 @@ integer expectations. Fixed cases set unused high bits in the
 Target-backend public-caller and Native-object gates reject calls to the
 portable mask operations.
 
+For all ten 128-bit value types, `Zero` and `Splat` construct the result
+directly in the selected backend. AArch64 constructs zero in target registers and uses
+NEON `dup` to broadcast a lane's complete bit encoding. x86-64 uses direct
+result-register zeroing for `U8x16` and SSE2 `pxor` for the other zero
+overloads. It broadcasts with SSE2 unpack-and-shuffle, `pshufd`, or
+`punpcklqdq` sequences selected by lane width. A scalar build uses the
+portable scalar implementation. Fixed integer cases cover the minimum and
+maximum lane values. Floating cases bit-compare signed zero, infinity,
+subnormal values, and quiet and signaling NaNs. Deterministic full-width
+inputs check every result lane. A public caller probe and exact-symbol gates
+cover all ten types and reject calls to portable construction operations.
+
 The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
 AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
 64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom

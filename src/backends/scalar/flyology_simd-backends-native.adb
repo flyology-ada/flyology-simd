@@ -219,9 +219,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Convert_Saturate (Value));
    function Convert_Saturate (Value : U64x2) return I64x2 is
      (Flyology_SIMD.Convert_Saturate (Value));
-   function Zero return I8x16 is (Flyology_SIMD.Zero);
+   function Zero return I8x16 is (Lanes => [others => 0]);
    function Splat (Value : I8) return I8x16 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is
@@ -316,9 +316,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return U16x8 is (Flyology_SIMD.Zero);
+   function Zero return U16x8 is (Lanes => [others => 0]);
    function Splat (Value : U16) return U16x8 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is
@@ -411,9 +411,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return I16x8 is (Flyology_SIMD.Zero);
+   function Zero return I16x8 is (Lanes => [others => 0]);
    function Splat (Value : I16) return I16x8 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is
@@ -508,9 +508,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return U32x4 is (Flyology_SIMD.Zero);
+   function Zero return U32x4 is (Lanes => [others => 0]);
    function Splat (Value : U32) return U32x4 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is
@@ -603,9 +603,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return I32x4 is (Flyology_SIMD.Zero);
+   function Zero return I32x4 is (Lanes => [others => 0]);
    function Splat (Value : I32) return I32x4 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is
@@ -700,9 +700,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return U64x2 is (Flyology_SIMD.Zero);
+   function Zero return U64x2 is (Lanes => [others => 0]);
    function Splat (Value : U64) return U64x2 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is
@@ -795,9 +795,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return I64x2 is (Flyology_SIMD.Zero);
+   function Zero return I64x2 is (Lanes => [others => 0]);
    function Splat (Value : I64) return I64x2 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is
@@ -892,9 +892,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return F32x4 is (Flyology_SIMD.Zero);
+   function Zero return F32x4 is (Lanes => [others => 0.0]);
    function Splat (Value : F32) return F32x4 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is
@@ -975,9 +975,9 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
-   function Zero return F64x2 is (Flyology_SIMD.Zero);
+   function Zero return F64x2 is (Lanes => [others => 0.0]);
    function Splat (Value : F64) return F64x2 is
-     (Flyology_SIMD.Splat (Value));
+     (Lanes => [others => Value]);
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
      (Flyology_SIMD.From_Lanes (Values));
    function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is

@@ -64,11 +64,11 @@ is
 
    function Zero return U8x16;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends construct the all-zero U8x16 result directly in result registers. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : U8) return U8x16;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend unpacks the input byte through word width and broadcasts the result with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_8x16) return U8x16;
@@ -1009,11 +1009,11 @@ is
 
    function Zero return I8x16;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : I8) return I8x16;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend replicates the input bits through 32-bit width and broadcasts them with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16;
@@ -1308,11 +1308,11 @@ is
 
    function Zero return U16x8;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : U16) return U16x8;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend replicates the input bits through 32-bit width and broadcasts them with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8;
@@ -1601,11 +1601,11 @@ is
 
    function Zero return I16x8;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : I16) return I16x8;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend replicates the input bits through 32-bit width and broadcasts them with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8;
@@ -1900,11 +1900,11 @@ is
 
    function Zero return U32x4;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : U32) return U32x4;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4;
@@ -2193,11 +2193,11 @@ is
 
    function Zero return I32x4;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : I32) return I32x4;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4;
@@ -2492,11 +2492,11 @@ is
 
    function Zero return U64x2;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : U64) return U64x2;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2;
@@ -2785,11 +2785,11 @@ is
 
    function Zero return I64x2;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : I64) return I64x2;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2;
@@ -3084,11 +3084,11 @@ is
 
    function Zero return F32x4;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : F32) return F32x4;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4;
@@ -3343,11 +3343,11 @@ is
 
    function Zero return F64x2;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : F64) return F64x2;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend broadcasts the input bits with the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2;

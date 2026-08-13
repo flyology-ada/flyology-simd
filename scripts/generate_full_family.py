@@ -280,7 +280,7 @@ LEGACY_NATIVE_SUPPORT_PREFIXES = (
 def native_support_doc(name: str, declaration: str) -> str:
     """Describe the verified implementation class of one exact overload."""
     fixed_ada = {
-        "Zero", "Splat", "From_Lanes", "To_Lanes", "Extract", "Replace",
+        "From_Lanes", "To_Lanes", "Extract", "Replace",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
         "None_True",
@@ -293,6 +293,46 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Bit_Cast",
         }
     )
+    if name == "Zero":
+        if "U8x16" in declaration:
+            target = (
+                "The AArch64 and x86-64 backends construct the all-zero "
+                "U8x16 result directly in result registers."
+            )
+        else:
+            target = (
+                "The AArch64 backend constructs the all-zero result with "
+                "the NEON movi instruction. The x86-64 backend uses the "
+                "SSE2 pxor instruction."
+            )
+        return (
+            f"Cross-platform support: {target} A scalar build uses the "
+            "portable scalar implementation."
+        )
+    if name == "Splat":
+        if "U8x16" in declaration:
+            x86 = (
+                "unpacks the input byte through word width and broadcasts "
+                "the result with the SSE2 pshufd instruction"
+            )
+        elif "I8x16" in declaration or "U16x8" in declaration or "I16x8" in declaration:
+            x86 = (
+                "replicates the input bits through 32-bit width and "
+                "broadcasts them with the SSE2 pshufd instruction"
+            )
+        elif any(vector in declaration for vector in ("U32x4", "I32x4", "F32x4")):
+            x86 = "broadcasts the input bits with the SSE2 pshufd instruction"
+        else:
+            x86 = (
+                "broadcasts the input bits with the SSE2 punpcklqdq "
+                "instruction"
+            )
+        return (
+            "Cross-platform support: The AArch64 backend broadcasts the "
+            "input bit encoding to every lane with the NEON dup instruction. "
+            f"The x86-64 backend {x86}. A scalar build uses the portable "
+            "scalar implementation."
+        )
     if name == "Shift_Right_Arithmetic" and "I64x2" in declaration:
         return (
             "Cross-platform support: The AArch64 backend uses a dedicated "

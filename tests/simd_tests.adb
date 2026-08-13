@@ -525,11 +525,18 @@ procedure SIMD_Tests is
                       (Lane_Index_8x16
                          ((Iteration * 3 + Lane * 5) mod 16)))]);
          begin
-            Check (Same (Flyology_SIMD.Backends.Native.Zero, Zero),
-                   "native zero" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Splat (U8 (Iteration mod 256)),
-                         Splat (U8 (Iteration mod 256))),
-                   "native splat" & Iteration'Image);
+            for Lane in Lane_Index_8x16 loop
+               Check
+                 (Flyology_SIMD.Backends.Native.Extract
+                    (U8x16'(Flyology_SIMD.Backends.Native.Zero), Lane) = 0,
+                  "independent native zero" & Iteration'Image & Lane'Image);
+               Check
+                 (Flyology_SIMD.Backends.Native.Extract
+                    (Flyology_SIMD.Backends.Native.Splat
+                       (U8 (Iteration mod 256)),
+                     Lane) = U8 (Iteration mod 256),
+                  "independent native splat" & Iteration'Image & Lane'Image);
+            end loop;
             Check
               (Same
                  (Flyology_SIMD.Backends.Native.From_Lanes
