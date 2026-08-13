@@ -1358,13 +1358,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_I8x16 is new NEON_Splat_128 (I8x16, I8, "ldr b0, [%1]", "dup v0.16b, v0.b[0]");
    function Splat (Value : I8) return I8x16 is (Native_Splat_I8x16 (Value));
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : I8x16) return Lane_Values_I8x16 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : I8x16; Lane : Lane_Index_8x16) return I8 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : I8x16; Lane : Lane_Index_8x16; With_Value : I8) return I8x16 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : I8x16 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_I8x16 is new NEON_Permute_128 (I8x16, Lane_Map_8x16);
    pragma Inline_Always (Native_Permute_I8x16);
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16 is (Native_Permute_I8x16 (Value, Map));
@@ -1500,13 +1504,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_U16x8 is new NEON_Splat_128 (U16x8, U16, "ldr h0, [%1]", "dup v0.8h, v0.h[0]");
    function Splat (Value : U16) return U16x8 is (Native_Splat_U16x8 (Value));
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : U16x8) return Lane_Values_U16x8 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : U16x8; Lane : Lane_Index_16x8) return U16 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : U16x8; Lane : Lane_Index_16x8; With_Value : U16) return U16x8 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : U16x8 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_U16x8 is new NEON_Permute_128 (U16x8, Lane_Map_16x8);
    pragma Inline_Always (Native_Permute_U16x8);
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8 is (Native_Permute_U16x8 (Value, Map));
@@ -1636,13 +1644,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_I16x8 is new NEON_Splat_128 (I16x8, I16, "ldr h0, [%1]", "dup v0.8h, v0.h[0]");
    function Splat (Value : I16) return I16x8 is (Native_Splat_I16x8 (Value));
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : I16x8) return Lane_Values_I16x8 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : I16x8; Lane : Lane_Index_16x8) return I16 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : I16x8; Lane : Lane_Index_16x8; With_Value : I16) return I16x8 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : I16x8 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_I16x8 is new NEON_Permute_128 (I16x8, Lane_Map_16x8);
    pragma Inline_Always (Native_Permute_I16x8);
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8 is (Native_Permute_I16x8 (Value, Map));
@@ -1775,13 +1787,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_U32x4 is new NEON_Splat_128 (U32x4, U32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
    function Splat (Value : U32) return U32x4 is (Native_Splat_U32x4 (Value));
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : U32x4) return Lane_Values_U32x4 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : U32x4; Lane : Lane_Index_32x4) return U32 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : U32x4; Lane : Lane_Index_32x4; With_Value : U32) return U32x4 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : U32x4 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_U32x4 is new NEON_Permute_128 (U32x4, Lane_Map_32x4);
    pragma Inline_Always (Native_Permute_U32x4);
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4 is (Native_Permute_U32x4 (Value, Map));
@@ -1911,13 +1927,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_I32x4 is new NEON_Splat_128 (I32x4, I32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
    function Splat (Value : I32) return I32x4 is (Native_Splat_I32x4 (Value));
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : I32x4) return Lane_Values_I32x4 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : I32x4; Lane : Lane_Index_32x4) return I32 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : I32x4; Lane : Lane_Index_32x4; With_Value : I32) return I32x4 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : I32x4 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_I32x4 is new NEON_Permute_128 (I32x4, Lane_Map_32x4);
    pragma Inline_Always (Native_Permute_I32x4);
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4 is (Native_Permute_I32x4 (Value, Map));
@@ -2048,13 +2068,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_U64x2 is new NEON_Splat_128 (U64x2, U64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
    function Splat (Value : U64) return U64x2 is (Native_Splat_U64x2 (Value));
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : U64x2) return Lane_Values_U64x2 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : U64x2; Lane : Lane_Index_64x2) return U64 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : U64x2; Lane : Lane_Index_64x2; With_Value : U64) return U64x2 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : U64x2 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_U64x2 is new NEON_Permute_128 (U64x2, Lane_Map_64x2);
    pragma Inline_Always (Native_Permute_U64x2);
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2 is (Native_Permute_U64x2 (Value, Map));
@@ -2184,13 +2208,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_I64x2 is new NEON_Splat_128 (I64x2, I64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
    function Splat (Value : I64) return I64x2 is (Native_Splat_I64x2 (Value));
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : I64x2) return Lane_Values_I64x2 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : I64x2; Lane : Lane_Index_64x2) return I64 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : I64x2; Lane : Lane_Index_64x2; With_Value : I64) return I64x2 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : I64x2 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_I64x2 is new NEON_Permute_128 (I64x2, Lane_Map_64x2);
    pragma Inline_Always (Native_Permute_I64x2);
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2 is (Native_Permute_I64x2 (Value, Map));
@@ -2322,13 +2350,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_F32x4 is new NEON_Splat_128 (F32x4, F32, "ldr s0, [%1]", "dup v0.4s, v0.s[0]");
    function Splat (Value : F32) return F32x4 is (Native_Splat_F32x4 (Value));
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : F32x4) return Lane_Values_F32x4 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : F32x4; Lane : Lane_Index_32x4) return F32 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : F32x4; Lane : Lane_Index_32x4; With_Value : F32) return F32x4 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : F32x4 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_F32x4 is new NEON_Permute_128 (F32x4, Lane_Map_32x4);
    pragma Inline_Always (Native_Permute_F32x4);
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4 is (Native_Permute_F32x4 (Value, Map));
@@ -2444,13 +2476,17 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Splat_F64x2 is new NEON_Splat_128 (F64x2, F64, "ldr d0, [%1]", "dup v0.2d, v0.d[0]");
    function Splat (Value : F64) return F64x2 is (Native_Splat_F64x2 (Value));
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
-     (Flyology_SIMD.From_Lanes (Values));
+     (Lanes => Values);
    function To_Lanes (Value : F64x2) return Lane_Values_F64x2 is
-     (Flyology_SIMD.To_Lanes (Value));
+     (Value.Lanes);
    function Extract (Value : F64x2; Lane : Lane_Index_64x2) return F64 is
-     (Flyology_SIMD.Extract (Value, Lane));
+     (Value.Lanes (Lane));
    function Replace (Value : F64x2; Lane : Lane_Index_64x2; With_Value : F64) return F64x2 is
-     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+      Result : F64x2 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
    function Native_Permute_F64x2 is new NEON_Permute_128 (F64x2, Lane_Map_64x2);
    pragma Inline_Always (Native_Permute_F64x2);
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2 is (Native_Permute_F64x2 (Value, Map));

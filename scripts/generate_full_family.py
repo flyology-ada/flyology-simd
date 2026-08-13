@@ -280,7 +280,6 @@ LEGACY_NATIVE_SUPPORT_PREFIXES = (
 def native_support_doc(name: str, declaration: str) -> str:
     """Describe the verified implementation class of one exact overload."""
     fixed_ada = {
-        "From_Lanes", "To_Lanes", "Extract", "Replace",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
         "None_True",
@@ -293,6 +292,19 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Bit_Cast",
         }
     )
+    if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
+        action = {
+            "From_Lanes": "copy the supplied lane array into private vector storage",
+            "To_Lanes": "copy private vector storage into the result lane array",
+            "Extract": "read the selected position from private vector storage",
+            "Replace": "copy private vector storage and write the selected position",
+        }[name]
+        return (
+            f"Cross-platform support: The AArch64 and x86-64 backends {action} "
+            "directly with fixed-width Ada code. They do not call the portable "
+            "root operation. A scalar build uses the portable scalar "
+            "implementation."
+        )
     if name == "Zero":
         if "U8x16" in declaration:
             target = (

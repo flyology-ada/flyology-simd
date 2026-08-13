@@ -73,24 +73,24 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_8x16) return U8x16;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : U8x16) return Lane_Values_8x16;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace
      (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -1018,23 +1018,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : I8x16) return Lane_Values_I8x16;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : I8x16; Lane : Lane_Index_8x16) return I8;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : I8x16; Lane : Lane_Index_8x16; With_Value : I8) return I8x16;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -1317,23 +1317,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : U16x8) return Lane_Values_U16x8;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : U16x8; Lane : Lane_Index_16x8) return U16;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : U16x8; Lane : Lane_Index_16x8; With_Value : U16) return U16x8;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -1610,23 +1610,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : I16x8) return Lane_Values_I16x8;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : I16x8; Lane : Lane_Index_16x8) return I16;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : I16x8; Lane : Lane_Index_16x8; With_Value : I16) return I16x8;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -1909,23 +1909,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : U32x4) return Lane_Values_U32x4;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : U32x4; Lane : Lane_Index_32x4) return U32;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : U32x4; Lane : Lane_Index_32x4; With_Value : U32) return U32x4;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -2202,23 +2202,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : I32x4) return Lane_Values_I32x4;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : I32x4; Lane : Lane_Index_32x4) return I32;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : I32x4; Lane : Lane_Index_32x4; With_Value : I32) return I32x4;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -2501,23 +2501,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : U64x2) return Lane_Values_U64x2;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : U64x2; Lane : Lane_Index_64x2) return U64;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : U64x2; Lane : Lane_Index_64x2; With_Value : U64) return U64x2;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -2794,23 +2794,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : I64x2) return Lane_Values_I64x2;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : I64x2; Lane : Lane_Index_64x2) return I64;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : I64x2; Lane : Lane_Index_64x2; With_Value : I64) return I64x2;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -3093,23 +3093,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : F32x4) return Lane_Values_F32x4;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : F32x4; Lane : Lane_Index_32x4) return F32;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : F32x4; Lane : Lane_Index_32x4; With_Value : F32) return F32x4;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.
@@ -3352,23 +3352,23 @@ is
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2;
    --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Values Lane values in logical lane order.
    --  @return The operation result.
    function To_Lanes (Value : F64x2) return Lane_Values_F64x2;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Extract (Value : F64x2; Lane : Lane_Index_64x2) return F64;
    --  Return one logical lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @return The operation result.
    function Replace (Value : F64x2; Lane : Lane_Index_64x2; With_Value : F64) return F64x2;
    --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Lane The logical lane index.
    --  @param With_Value The replacement lane value.

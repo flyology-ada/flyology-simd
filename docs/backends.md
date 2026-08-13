@@ -99,6 +99,16 @@ subnormal values, and quiet and signaling NaNs. Deterministic full-width
 inputs check every result lane. A public caller probe and exact-symbol gates
 cover all ten types and reject calls to portable construction operations.
 
+For all ten 128-bit value types, `From_Lanes`, `To_Lanes`, `Extract`, and
+`Replace` access private fixed-width lane storage directly in the selected
+backend. The AArch64 and x86-64 bodies do not call the portable root
+operations. Independent expectations check constructed and returned lane
+arrays, extracted positions, and the preserved and replaced lanes of each
+`Replace` result.
+Floating checks compare the complete bit encoding. Deterministic full-width
+inputs cover each lane position. A public caller probe covers all 40
+overloads, and a Native-object gate rejects portable lane-access calls.
+
 The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
 AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
 64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom

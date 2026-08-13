@@ -537,22 +537,36 @@ procedure SIMD_Tests is
                      Lane) = U8 (Iteration mod 256),
                   "independent native splat" & Iteration'Image & Lane'Image);
             end loop;
-            Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.From_Lanes
-                    (Flyology_SIMD.Backends.Native.To_Lanes (A)),
-                  A),
-               "native lane round trip" & Iteration'Image);
-            Check
-              (Flyology_SIMD.Backends.Native.Extract (A, Count mod 16) =
-                 Extract (A, Count mod 16),
-               "native extract" & Iteration'Image);
-            Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.Replace
-                    (A, Count mod 16, U8 (Iteration mod 256)),
-                  Replace (A, Count mod 16, U8 (Iteration mod 256))),
-               "native replace" & Iteration'Image);
+            declare
+               Native_From : constant U8x16 :=
+                 Flyology_SIMD.Backends.Native.From_Lanes (A_Lanes);
+               Native_To : constant Lane_Values_8x16 :=
+                 Flyology_SIMD.Backends.Native.To_Lanes (A);
+               Replaced_Lane : constant Lane_Index_8x16 := Count mod 16;
+               Replacement : constant U8 := U8 (Iteration mod 256);
+               Native_Replaced : constant U8x16 :=
+                 Flyology_SIMD.Backends.Native.Replace
+                   (A, Replaced_Lane, Replacement);
+            begin
+               for Lane in Lane_Index_8x16 loop
+                  Check
+                    (Flyology_SIMD.Backends.Native.Extract
+                       (Native_From, Lane) = A_Lanes (Lane)
+                     and then Native_To (Lane) = A_Lanes (Lane)
+                     and then Flyology_SIMD.Backends.Native.Extract
+                       (A, Lane) = A_Lanes (Lane),
+                     "independent native lane access" &
+                       Iteration'Image & Lane'Image);
+                  Check
+                    (Flyology_SIMD.Backends.Native.Extract
+                       (Native_Replaced, Lane) =
+                         (if Lane = Replaced_Lane
+                          then Replacement
+                          else A_Lanes (Lane)),
+                     "independent native replace" &
+                       Iteration'Image & Lane'Image);
+               end loop;
+            end;
             Check (Same (Flyology_SIMD.Backends.Native.Add_Wrap (A, B),
                          Add_Wrap (A, B)), "native add" & Iteration'Image);
             Check (Same (Flyology_SIMD.Backends.Native.Subtract_Wrap (A, B),

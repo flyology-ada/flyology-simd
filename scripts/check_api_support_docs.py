@@ -77,6 +77,26 @@ def invalid_support(path: Path) -> list[str]:
                 f"{text.count(multiply_support)}"
             )
     if path.name == "flyology_simd-backends-native.ads":
+        lane_access_support = {
+            "From_Lanes": "copy the supplied lane array into private vector storage",
+            "To_Lanes": "copy private vector storage into the result lane array",
+            "Extract": "read the selected position from private vector storage",
+            "Replace": "copy private vector storage and write the selected position",
+        }
+        for operation, phrase in lane_access_support.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            found = sum(
+                phrase in block and "do not call the portable root operation" in block
+                for block in blocks
+            )
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact {operation} "
+                    f"direct-lane-access classifications, found {found}"
+                )
         zero_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Zero")[1:]

@@ -240,6 +240,17 @@ require_count 'flyology_simd__backends__native__splat' 9 \
 forbid_pattern 'flyology_simd__(zero|splat)' \
   "$temporary/construction-undefined.txt" \
   'portable construction call in the Native caller probe'
+for operation in from_lanes to_lanes extract replace; do
+  require_count "flyology_simd__backends__native__${operation}" 10 \
+    "$temporary/construction-undefined.txt" \
+    "ten Native ${operation} calls in the public caller probe"
+done
+forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
+  "$temporary/construction-undefined.txt" \
+  'portable lane-access call in the Native caller probe'
+forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
+  "$temporary/native-undefined.txt" \
+  'portable lane-access call retained in the Native backend object'
 forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'
