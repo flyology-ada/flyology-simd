@@ -325,8 +325,13 @@ operations and both `Permute_Lanes` overloads use a target-selected permutation
 mechanism. On AArch64, reverse, slides, and the one-source `Permute_Lanes`
 overload use one two-register `tbl` operation for each result half. Interleave,
 deinterleave, and the two-source `Permute_Lanes` overload use one four-register
-`tbl` operation for each result half. The composed x86-64 backend calls the
-Wide scalar implementation. The optional AVX2 implementation uses two
+`tbl` operation for each result half. On composed x86-64, reverse and the
+one-source overload call selected 128-bit two-source `Permute_Lanes` twice.
+Interleave, deinterleave, and the two-source overload call selected 128-bit
+two-source `Permute_Lanes` four times and selected `Select_Value` twice to
+choose between the two sources. Slides call selected 128-bit two-source
+`Permute_Lanes` twice and selected
+`Select_Value` twice against `Zero`. The optional AVX2 implementation uses two
 `vpshufb` instructions and one `vperm2i128` instruction for each one-source
 operation. It uses four `vpshufb` instructions and two `vperm2i128`
 instructions for each two-source operation. Each AVX2 path also performs mask
@@ -335,6 +340,11 @@ Independent lane-array oracles check scalar and Native results for all ten
 value types. Tests cover fixed cases, every slide count, and 128 deterministic
 pseudorandom inputs per family. Floating cases compare raw lane encodings bit
 for bit.
+Caller-level code-generation gates cover all 90 overloads: seven lane-movement
+operations and both `Permute_Lanes` overloads across ten value types. The gates
+run on AArch64 and both x86-64 Wide selections. They require the applicable
+selected 128-bit calls or target instruction sequences and reject Wide scalar
+operation calls.
 Wide conversion operations compose the corresponding selected 128-bit
 operations. For each of the 46 Wide conversion overloads, tests use fixed
 vectors and 32 deterministic pseudorandom inputs. They compare scalar and

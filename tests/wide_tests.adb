@@ -346,6 +346,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -1423,6 +1433,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -2398,6 +2418,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -3171,6 +3201,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -3942,6 +3982,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -4747,6 +4797,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -5550,6 +5610,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -6355,6 +6425,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0],
+            "slide high Natural'Last");
       end Check_Movements;
 
 
@@ -7361,6 +7441,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0.0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0.0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0.0],
+            "slide high Natural'Last");
       end Check_Movements;
 
       A_Lanes : constant Wide.Lane_Values_F32x8 := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
@@ -8448,6 +8538,16 @@ procedure Wide_Tests is
                    then Left_Values (Lane - Count) else 0.0)],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => 0.0],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => 0.0],
+            "slide high Natural'Last");
       end Check_Movements;
 
       A_Lanes : constant Wide.Lane_Values_F64x4 := [1.0, 2.0, 3.0, 4.0];

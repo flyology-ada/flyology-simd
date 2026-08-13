@@ -28,6 +28,7 @@ wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
+wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
@@ -60,6 +61,7 @@ disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
 disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
+disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
@@ -91,6 +93,7 @@ nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 nm -u "$wide_compact_probe_object" >"$temporary/wide-compact-undefined.txt"
+nm -u "$wide_movement_probe_object" >"$temporary/wide-movement-undefined.txt"
 nm -u "$slide_probe_object" >"$temporary/slide-undefined.txt"
 nm "$slide_probe_object" >"$temporary/slide-symbols.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
@@ -244,6 +247,9 @@ forbid_pattern 'flyology_simd__wide__(compress|expand)' \
 forbid_pattern 'flyology_simd__wide__(compress|expand)' \
   "$temporary/wide-compact-probe.txt" \
   'portable Wide compact relocation in the all-family caller probe'
+forbid_pattern 'flyology_simd__wide__(permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)|flyology_simd__wide__native__(permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
+  "$temporary/wide-movement-undefined.txt" \
+  'portable or public Wide movement call in the all-family caller probe'
 require_count 'slide_codegen_probe__(u8|i8|u16|i16|u32|i32|u64|i64|f32|f64)_low$' 10 \
   "$temporary/slide-symbols.txt" \
   'all ten dynamic slide-toward-low public caller probes'
@@ -729,6 +735,30 @@ case "$architecture" in
                 forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "per-lane or dispatcher call in AArch64 ${lane_kind} ${operation} caller"
+            done
+        done
+        for vector_kind in u8x32 i8x32 u16x16 i16x16 u32x8 i32x8 u64x4 i64x4 f32x8 f64x4; do
+            for operation in permute_1 reverse slide_low slide_high; do
+                extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                  "$temporary/wide-movement-probe.txt" \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                  "two two-register TBL operations in AArch64 ${vector_kind} ${operation} caller"
+                forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                  "call or per-lane helper in AArch64 ${vector_kind} ${operation} caller"
+            done
+            for operation in permute_2 interleave_low interleave_high deinterleave_even deinterleave_odd; do
+                extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                  "$temporary/wide-movement-probe.txt" \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                  "two four-register TBL operations in AArch64 ${vector_kind} ${operation} caller"
+                forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
+                  "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                  "call or per-lane helper in AArch64 ${vector_kind} ${operation} caller"
             done
         done
         require_count 'cmeq.*16b' 2 "$temporary/wide_u8_equal.txt" \
@@ -1542,6 +1572,137 @@ EOF
                   "$temporary/wide_${lane_kind}_${operation}.txt"
             done
         done
+        if [ "$wide_backend" = composed ]; then
+            for vector_kind in u8x32 i8x32 u16x16 i16x16 u32x8 i32x8 u64x4 i64x4 f32x8 f64x4; do
+                case "$vector_kind" in
+                    u8x32) half_kind=u8x16; select_leaf='backends__native__select_value'; zero_leaf= ;;
+                    i8x32) half_kind=i8x16; select_leaf='backends__native__native_select_i8x16'; zero_leaf='backends__native__native_zero_i8x16' ;;
+                    u16x16) half_kind=u16x8; select_leaf='backends__native__native_select_u16x8'; zero_leaf='backends__native__native_zero_u16x8' ;;
+                    i16x16) half_kind=i16x8; select_leaf='backends__native__native_select_i16x8'; zero_leaf='backends__native__native_zero_i16x8' ;;
+                    u32x8) half_kind=u32x4; select_leaf='backends__native__native_select_u32x4'; zero_leaf='backends__native__native_zero_u32x4' ;;
+                    i32x8) half_kind=i32x4; select_leaf='backends__native__native_select_i32x4'; zero_leaf='backends__native__native_zero_i32x4' ;;
+                    u64x4) half_kind=u64x2; select_leaf='backends__native__native_select_u64x2'; zero_leaf='backends__native__native_zero_u64x2' ;;
+                    i64x4) half_kind=i64x2; select_leaf='backends__native__native_select_i64x2'; zero_leaf='backends__native__native_zero_i64x2' ;;
+                    f32x8) half_kind=f32x4; select_leaf='backends__native__native_select_f32x4'; zero_leaf='backends__native__native_zero_f32x4' ;;
+                    f64x4) half_kind=f64x2; select_leaf='backends__native__native_select_f64x2'; zero_leaf='backends__native__native_zero_f64x2' ;;
+                esac
+                for operation in permute_1 reverse; do
+                    extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                      "$temporary/wide-movement-probe.txt" \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                    require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two exact selected permutations in ${vector_kind} ${operation} caller"
+                    require_count 'backends__native__native_permute_2_' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "no mismatched permutation in ${vector_kind} ${operation} caller"
+                done
+                for operation in permute_2 interleave_low interleave_high deinterleave_even deinterleave_odd; do
+                    extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                      "$temporary/wide-movement-probe.txt" \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                    require_count "backends__native__native_permute_2_${half_kind}" 4 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "four exact selected permutations in ${vector_kind} ${operation} caller"
+                    require_count "$select_leaf" 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two exact selected source choices in ${vector_kind} ${operation} caller"
+                    require_count 'backends__native__native_permute_2_' 4 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "no mismatched permutation in ${vector_kind} ${operation} caller"
+                    require_count 'backends__native(__select_value|__native_select_)' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "no mismatched source choice in ${vector_kind} ${operation} caller"
+                done
+                for operation in slide_low slide_high; do
+                    extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                      "$temporary/wide-movement-probe.txt" \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                    require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two exact selected permutations in ${vector_kind} ${operation} caller"
+                    require_count "$select_leaf" 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two exact selected zero-fill choices in ${vector_kind} ${operation} caller"
+                    require_count 'backends__native__native_permute_2_' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "no mismatched permutation in ${vector_kind} ${operation} caller"
+                    require_count 'backends__native(__select_value|__native_select_)' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "no mismatched zero-fill choice in ${vector_kind} ${operation} caller"
+                    if [ -n "$zero_leaf" ]; then
+                        require_count "$zero_leaf" 1 \
+                          "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                          "one exact selected zero in ${vector_kind} ${operation} caller"
+                        require_count 'backends__native__native_zero_' 1 \
+                          "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                          "no mismatched zero constructor in ${vector_kind} ${operation} caller"
+                    else
+                        require_count '(^|[[:space:]])pxor[[:space:]]+%?xmm0,[[:space:]]*%?xmm0' 2 \
+                          "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                          "exact selector and value zeroing in ${vector_kind} ${operation} caller"
+                        require_count 'backends__native__native_zero_' 0 \
+                          "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                          "no out-of-line zero constructor in ${vector_kind} ${operation} caller"
+                    fi
+                done
+            done
+        else
+            for vector_kind in u8x32 i8x32 u16x16 i16x16 u32x8 i32x8 u64x4 i64x4 f32x8 f64x4; do
+                for operation in permute_1 reverse slide_low slide_high; do
+                    extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                      "$temporary/wide-movement-probe.txt" \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                    require_count '(^|[[:space:]])vpshufb[[:space:]]' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two byte shuffles in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vperm2i128[[:space:]]' 1 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "one cross-half selection in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpcmpeqb[[:space:]]' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two mask comparisons in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpandn[[:space:]]' 1 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "one false-side mask selection in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpor[[:space:]]' 1 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "one mask merge in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vzeroupper([[:space:]]|$)' 1 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "one vzeroupper in AVX2 ${vector_kind} ${operation} caller"
+                    forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "call or portable helper in AVX2 ${vector_kind} ${operation} caller"
+                done
+                for operation in permute_2 interleave_low interleave_high deinterleave_even deinterleave_odd; do
+                    extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
+                      "$temporary/wide-movement-probe.txt" \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt"
+                    require_count '(^|[[:space:]])vpshufb[[:space:]]' 4 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "four byte shuffles in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vperm2i128[[:space:]]' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two cross-half selections in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpcmpeqb[[:space:]]' 2 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "two mask comparisons in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpandn[[:space:]]' 3 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "three false-side mask selections in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vpor[[:space:]]' 3 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "three mask merges in AVX2 ${vector_kind} ${operation} caller"
+                    require_count '(^|[[:space:]])vzeroupper([[:space:]]|$)' 1 \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "one vzeroupper in AVX2 ${vector_kind} ${operation} caller"
+                    forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
+                      "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
+                      "call or portable helper in AVX2 ${vector_kind} ${operation} caller"
+                done
+            done
+        fi
         if [ "$wide_backend" = avx2 ]; then
             require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
             for precision in f32 f64; do

@@ -47,6 +47,8 @@ FLOAT_ARITH_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_ar
 FLOAT_ARITH_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
 FLOAT_ARITH_AVX2_LEAF_SPEC = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.ads"
 FLOAT_ARITH_AVX2_LEAF_BODY = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_avx2_leaf.adb"
+MOVEMENT_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.ads"
+MOVEMENT_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.adb"
 
 
 @dataclass(frozen=True)
@@ -156,14 +158,21 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     if operation in {
         "Reverse_Lanes", "Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High",
     }:
+        composed = (
+            "two selected 128-bit two-source Permute_Lanes operations"
+            if operation == "Reverse_Lanes"
+            else "two selected 128-bit two-source Permute_Lanes operations and "
+                 "two selected Select_Value operations against Zero"
+        )
         return (
             "Cross-platform support: The AArch64 backend derives a 32-byte "
             "index map and runs one two-register NEON tbl operation for each "
-            "result half. The composed x86-64 backend calls the Wide scalar "
-            "implementation. The optional AVX2 backend derives a 32-byte "
+            f"result half. The composed x86-64 backend uses {composed}. "
+            "The optional AVX2 backend derives a 32-byte "
             "index map and uses two vpshufb instructions, one vperm2i128 "
             "instruction, mask selection, and vzeroupper. In a scalar build, "
-            "this overload calls the portable Wide implementation."
+            f"this overload uses {composed} through the portable 128-bit "
+            "implementation."
         )
     if operation in {
         "Interleave_Low", "Interleave_High", "Deinterleave_Even",
@@ -172,31 +181,37 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         return (
             "Cross-platform support: The AArch64 backend derives a 32-byte "
             "index map and runs one four-register NEON tbl operation for each "
-            "result half. The composed x86-64 backend calls the Wide scalar "
-            "implementation. The optional AVX2 backend derives a 32-byte "
+            "result half. The composed x86-64 backend uses four selected "
+            "128-bit two-source Permute_Lanes operations and two selected "
+            "Select_Value operations. "
+            "The optional AVX2 backend derives a 32-byte "
             "index map and uses four vpshufb instructions, two vperm2i128 "
             "instructions, mask selection, and vzeroupper. In a scalar build, "
-            "this overload calls the portable Wide implementation."
+            "this overload uses the same four permutations and two selections "
+            "through the portable 128-bit implementation."
         )
     if summary.startswith("Select each result lane through"):
         return (
             "Cross-platform support: The AArch64 backend derives a 32-byte "
             "index map and runs one two-register NEON tbl operation for each "
-            "result half. The composed x86-64 backend calls the Wide scalar "
-            "implementation. The optional AVX2 backend derives a 32-byte index "
+            "result half. The composed x86-64 backend uses two selected 128-bit "
+            "two-source Permute_Lanes operations. The optional AVX2 backend derives a 32-byte index "
             "map and uses two vpshufb instructions, one vperm2i128 instruction, "
             "mask selection, and vzeroupper. In a scalar build, this overload "
-            "calls the portable Wide implementation."
+            "uses the same two Permute_Lanes operations through the portable "
+            "128-bit implementation."
         )
     elif summary.startswith("Select each result lane from one lane of either"):
         return (
             "Cross-platform support: The AArch64 backend derives a 32-byte "
             "index map and runs one four-register NEON tbl operation for each "
-            "result half. The composed x86-64 backend calls the Wide scalar "
-            "implementation. The optional AVX2 backend derives a 32-byte index "
+            "result half. The composed x86-64 backend uses four selected 128-bit "
+            "two-source Permute_Lanes operations and two selected Select_Value "
+            "operations. The optional AVX2 backend derives a 32-byte index "
             "map and uses four vpshufb instructions, two vperm2i128 "
             "instructions, mask selection, and vzeroupper. In a scalar build, "
-            "this overload calls the portable Wide implementation."
+            "this overload uses the same four permutations and two selections "
+            "through the portable 128-bit implementation."
         )
     elif summary.startswith("Stably pack") or summary.startswith("Place consecutive"):
         movement = "compression" if summary.startswith("Stably pack") else "expansion"
@@ -377,6 +392,10 @@ def wide_portable_support(summary: str, declaration: str) -> str:
         "through the portable 128-bit implementation.",
         "In a scalar build, the matching Wide.Native overload uses the same "
         "two-part composition through the portable 128-bit implementation.",
+    )
+    native = native.replace(
+        "In a scalar build, this overload uses",
+        "In a scalar build, the matching Wide.Native overload uses",
     )
     if native.startswith("The "):
         native = "the " + native.removeprefix("The ")
@@ -1667,7 +1686,59 @@ end Flyology_SIMD.Wide.Permute_Mechanism;
 """
 
 
-def permute_composed_body_text() -> str:
+def movement_probe_text() -> tuple[str, str]:
+    """Generate one public caller probe for every Wide movement overload."""
+    declarations = []
+    bodies = []
+    for f in FAMILIES:
+        prefix = f.vector.lower()
+        operations = (
+            ("permute_1", f"Value : Wide.{f.vector}; Map : Wide.{f.lane_map}",
+             "Native.Permute_Lanes (Value, Map)"),
+            ("permute_2", f"Left, Right : Wide.{f.vector}; Map : Wide.{f.two_map}",
+             "Native.Permute_Lanes (Left, Right, Map)"),
+            ("reverse", f"Value : Wide.{f.vector}", "Native.Reverse_Lanes (Value)"),
+            ("interleave_low", f"Left, Right : Wide.{f.vector}",
+             "Native.Interleave_Low (Left, Right)"),
+            ("interleave_high", f"Left, Right : Wide.{f.vector}",
+             "Native.Interleave_High (Left, Right)"),
+            ("deinterleave_even", f"Left, Right : Wide.{f.vector}",
+             "Native.Deinterleave_Even (Left, Right)"),
+            ("deinterleave_odd", f"Left, Right : Wide.{f.vector}",
+             "Native.Deinterleave_Odd (Left, Right)"),
+            ("slide_low", f"Value : Wide.{f.vector}; Count : Natural",
+             "Native.Slide_Lanes_Toward_Low (Value, Count)"),
+            ("slide_high", f"Value : Wide.{f.vector}; Count : Natural",
+             "Native.Slide_Lanes_Toward_High (Value, Count)"),
+        )
+        for name, params, expression in operations:
+            function = f"{prefix}_{name}"
+            declarations.append(
+                f"   function {function} ({params}) return Wide.{f.vector};"
+            )
+            bodies.append(
+                f"   function {function} ({params}) return Wide.{f.vector} is\n"
+                f"     ({expression});"
+            )
+    spec = f"""with Flyology_SIMD.Wide;
+
+package Wide_Movement_Codegen_Probe is
+   package Wide renames Flyology_SIMD.Wide;
+{chr(10).join(declarations)}
+end Wide_Movement_Codegen_Probe;
+"""
+    body = f"""with Flyology_SIMD.Wide.Native;
+
+package body Wide_Movement_Codegen_Probe is
+   package Native renames Flyology_SIMD.Wide.Native;
+{chr(10).join(bodies)}
+end Wide_Movement_Codegen_Probe;
+"""
+    return spec, body
+
+
+def permute_portable_body_text() -> str:
+    """Generate the unreachable invalid-selection fallback body."""
     bodies = []
     for f in FAMILIES:
         bodies.extend((
@@ -1691,6 +1762,230 @@ def permute_composed_body_text() -> str:
             "     (Flyology_SIMD.Wide.Slide_Lanes_Toward_High (Value, Count));",
         ))
     return f"""package body Flyology_SIMD.Wide.Permute_Mechanism is
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Permute_Mechanism;
+"""
+
+
+def permute_composed_body_text() -> str:
+    bodies = []
+    for f in FAMILIES:
+        half_index = f"Lane_Index_{f.bits}x{f.half_lanes}"
+        half_selectors = f"Two_Source_Lane_Selectors_{f.bits}x{f.half_lanes}"
+        half_mask_bits = half_mask_storage(f)
+
+        def source_selector(source: str) -> str:
+            return (
+                f"(if {source} < {f.half_lanes}\n"
+                "                  then Flyology_SIMD.Select_Left_Lane\n"
+                f"                         ({half_index}'({source}))\n"
+                "                  else Flyology_SIMD.Select_Right_Lane\n"
+                f"                         ({half_index}'({source} - {f.half_lanes})))"
+            )
+
+        one_source = f"""   function Permute_Lanes
+     (Value : {f.vector}; Map : {f.lane_map}) return {f.vector}
+   is
+      Low_Selectors : {half_selectors};
+      High_Selectors : {half_selectors};
+   begin
+      for Lane in {half_index} loop
+         declare
+            Low_Source : constant {f.index} := Map.Selectors (Lane);
+            High_Source : constant {f.index} :=
+              Map.Selectors (Lane + {f.half_lanes});
+         begin
+            Low_Selectors (Lane) :=
+              {source_selector('Low_Source')};
+            High_Selectors (Lane) :=
+              {source_selector('High_Source')};
+         end;
+      end loop;
+      return
+        (Low => Flyology_SIMD.Backends.Native.Permute_Lanes
+           (Value.Low, Value.High,
+            Flyology_SIMD.Make_Two_Source_Lane_Map (Low_Selectors)),
+         High => Flyology_SIMD.Backends.Native.Permute_Lanes
+           (Value.Low, Value.High,
+            Flyology_SIMD.Make_Two_Source_Lane_Map (High_Selectors)));
+   end Permute_Lanes;"""
+
+        two_source = f"""   function Permute_Lanes
+     (Left, Right : {f.vector}; Map : {f.two_map}) return {f.vector}
+   is
+      Left_Low_Selectors : {half_selectors} :=
+        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];
+      Left_High_Selectors : {half_selectors} :=
+        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];
+      Right_Low_Selectors : {half_selectors} :=
+        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];
+      Right_High_Selectors : {half_selectors} :=
+        [others => Flyology_SIMD.Select_Left_Lane ({half_index}'First)];
+      Low_Right_Bits : {half_mask_bits} := 0;
+      High_Right_Bits : {half_mask_bits} := 0;
+   begin
+      for Lane in {half_index} loop
+         declare
+            Low_Selector : constant {f.two_selector} := Map.Selectors (Lane);
+            High_Selector : constant {f.two_selector} :=
+              Map.Selectors (Lane + {f.half_lanes});
+         begin
+            if Low_Selector.From_Right then
+               Right_Low_Selectors (Lane) :=
+                 {source_selector('Low_Selector.Lane')};
+               Low_Right_Bits := Low_Right_Bits or Interfaces.Shift_Left
+                 ({half_mask_bits}'(1), Lane);
+            else
+               Left_Low_Selectors (Lane) :=
+                 {source_selector('Low_Selector.Lane')};
+            end if;
+            if High_Selector.From_Right then
+               Right_High_Selectors (Lane) :=
+                 {source_selector('High_Selector.Lane')};
+               High_Right_Bits := High_Right_Bits or Interfaces.Shift_Left
+                 ({half_mask_bits}'(1), Lane);
+            else
+               Left_High_Selectors (Lane) :=
+                 {source_selector('High_Selector.Lane')};
+            end if;
+         end;
+      end loop;
+      declare
+         Left_Low : constant {f.half} :=
+           Flyology_SIMD.Backends.Native.Permute_Lanes
+             (Left.Low, Left.High, Flyology_SIMD.Make_Two_Source_Lane_Map
+                (Left_Low_Selectors));
+         Left_High : constant {f.half} :=
+           Flyology_SIMD.Backends.Native.Permute_Lanes
+             (Left.Low, Left.High, Flyology_SIMD.Make_Two_Source_Lane_Map
+                (Left_High_Selectors));
+         Right_Low : constant {f.half} :=
+           Flyology_SIMD.Backends.Native.Permute_Lanes
+             (Right.Low, Right.High, Flyology_SIMD.Make_Two_Source_Lane_Map
+                (Right_Low_Selectors));
+         Right_High : constant {f.half} :=
+           Flyology_SIMD.Backends.Native.Permute_Lanes
+             (Right.Low, Right.High, Flyology_SIMD.Make_Two_Source_Lane_Map
+                (Right_High_Selectors));
+      begin
+         return
+           (Low => Flyology_SIMD.Backends.Native.Select_Value
+              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask
+                 (Low_Right_Bits), Right_Low, Left_Low),
+            High => Flyology_SIMD.Backends.Native.Select_Value
+              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask
+                 (High_Right_Bits), Right_High, Left_High));
+      end;
+   end Permute_Lanes;"""
+
+        reverse = f"""   function Reverse_Lanes (Value : {f.vector}) return {f.vector} is
+     (Permute_Lanes
+        (Value, (Selectors =>
+           [for Lane in {f.index} => {f.lanes - 1} - Lane])));"""
+
+        def two_movement(name: str, selector: str) -> str:
+            return f"""   function {name}
+     (Left, Right : {f.vector}) return {f.vector}
+   is
+      Selectors : constant {f.two_selectors} :=
+        [for Lane in {f.index} => {selector}];
+   begin
+      return Permute_Lanes
+        (Left, Right, (Selectors => Selectors));
+   end {name};"""
+
+        interleave_low = two_movement(
+            "Interleave_Low",
+            "(if Lane mod 2 = 0 then Flyology_SIMD.Wide.Select_Left_Lane "
+            "(Lane / 2) else Flyology_SIMD.Wide.Select_Right_Lane (Lane / 2))",
+        )
+        interleave_high = two_movement(
+            "Interleave_High",
+            f"(if Lane mod 2 = 0 then Flyology_SIMD.Wide.Select_Left_Lane "
+            f"({f.half_lanes} + Lane / 2) else Flyology_SIMD.Wide.Select_Right_Lane "
+            f"({f.half_lanes} + Lane / 2))",
+        )
+        deinterleave_even = two_movement(
+            "Deinterleave_Even",
+            f"(if Lane < {f.half_lanes} then Flyology_SIMD.Wide.Select_Left_Lane "
+            f"(2 * Lane) else Flyology_SIMD.Wide.Select_Right_Lane "
+            f"(2 * (Lane - {f.half_lanes})))",
+        )
+        deinterleave_odd = two_movement(
+            "Deinterleave_Odd",
+            f"(if Lane < {f.half_lanes} then Flyology_SIMD.Wide.Select_Left_Lane "
+            f"(2 * Lane + 1) else Flyology_SIMD.Wide.Select_Right_Lane "
+            f"(2 * (Lane - {f.half_lanes}) + 1))",
+        )
+
+        def slide(name: str, valid: str, source: str) -> str:
+            wide_mask_bits = mask_storage(f)
+            low_bits = (
+                "Valid_Bits" if f.lanes <= 8
+                else f"{half_mask_bits} (Valid_Bits and {wide_mask_bits} ({(1 << f.half_lanes) - 1}))"
+            )
+            high_shift = f"Interfaces.Shift_Right (Valid_Bits, {f.half_lanes})"
+            high_bits = (
+                high_shift if f.lanes <= 8
+                else f"{half_mask_bits} ({high_shift})"
+            )
+            return f"""   function {name}
+     (Value : {f.vector}; Count : Natural) return {f.vector}
+   is
+      Selectors : {f.selectors} := [others => 0];
+      Valid_Bits : {wide_mask_bits} := 0;
+   begin
+      if Count < {f.lanes} then
+         for Lane in {f.index} loop
+            if {valid} then
+               Selectors (Lane) := {source};
+               Valid_Bits := Valid_Bits or Interfaces.Shift_Left
+                 ({wide_mask_bits}'(1), Lane);
+            end if;
+         end loop;
+      end if;
+      declare
+         Selected : constant {f.vector} :=
+           Permute_Lanes (Value, (Selectors => Selectors));
+         Zero_Value : constant {f.half} :=
+           Flyology_SIMD.Backends.Native.Zero;
+      begin
+         return
+           (Low => Flyology_SIMD.Backends.Native.Select_Value
+              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask ({low_bits}),
+               Selected.Low, Zero_Value),
+            High => Flyology_SIMD.Backends.Native.Select_Value
+              (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask ({high_bits}),
+               Selected.High, Zero_Value));
+      end;
+   end {name};"""
+
+        bodies.extend((
+            one_source,
+            two_source,
+            reverse,
+            interleave_low,
+            interleave_high,
+            deinterleave_even,
+            deinterleave_odd,
+            slide(
+                "Slide_Lanes_Toward_Low",
+                f"Lane < {f.lanes} - Count",
+                "Lane + Count",
+            ),
+            slide(
+                "Slide_Lanes_Toward_High",
+                "Lane >= Count",
+                "Lane - Count",
+            ),
+        ))
+    return f"""with Flyology_SIMD.Backends.Native;
+
+package body Flyology_SIMD.Wide.Permute_Mechanism is
+   use type Interfaces.Unsigned_8;
+   use type Interfaces.Unsigned_16;
+   use type Interfaces.Unsigned_32;
+
 {chr(10).join(bodies)}
 end Flyology_SIMD.Wide.Permute_Mechanism;
 """
@@ -2313,6 +2608,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    movement_probe_spec, movement_probe_body = movement_probe_text()
     outputs = {
         SPEC: spec_text(), BODY: body_text(),
         NATIVE_SPEC: native_spec_text(), NATIVE_BODY: native_body_text(),
@@ -2337,7 +2633,9 @@ def main() -> None:
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),
         PERMUTE_AVX2: permute_avx2_body_text(),
-        PERMUTE_INVALID: permute_composed_body_text(),
+        PERMUTE_INVALID: permute_portable_body_text(),
+        MOVEMENT_PROBE_SPEC: movement_probe_spec,
+        MOVEMENT_PROBE_BODY: movement_probe_body,
     }
     for path, content in outputs.items():
         write_or_check(path, content, args.check)

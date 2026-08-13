@@ -422,6 +422,16 @@ def movement_declarations(f: Family) -> str:
                    then Left_Values (Lane - Count) else {('0.0' if f.floating else '0')})],
                "slide high" & Count'Image);
          end loop;
+         Check_Result
+           (Wide.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_Low (Left, Natural'Last),
+            [others => {('0.0' if f.floating else '0')}],
+            "slide low Natural'Last");
+         Check_Result
+           (Wide.Slide_Lanes_Toward_High (Left, Natural'Last),
+            Native.Slide_Lanes_Toward_High (Left, Natural'Last),
+            [others => {('0.0' if f.floating else '0')}],
+            "slide high Natural'Last");
       end Check_Movements;
 '''
 

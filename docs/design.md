@@ -158,12 +158,17 @@ operations and both `Permute_Lanes` overloads use a target-selected permutation
 mechanism. On AArch64, reverse, slides, and the one-source `Permute_Lanes`
 overload use a two-register `tbl` table for each result half. Interleave,
 deinterleave, and the two-source `Permute_Lanes` overload use a four-register
-table for each result half. The composed x86-64 backend calls the Wide scalar
-implementation. The optional AVX2 implementation uses two byte shuffles and
-one cross-half selection for each one-source operation. It uses four byte
-shuffles and two cross-half selections for each two-source operation. The
-AArch64 and AVX2 implementations derive a 32-byte index map and support all ten
-Wide value types.
+table for each result half. On composed x86-64, reverse and the one-source
+overload call selected 128-bit two-source `Permute_Lanes` twice. Interleave,
+deinterleave, and the two-source overload call selected 128-bit two-source
+`Permute_Lanes` four times and selected `Select_Value` twice to choose between
+the two sources. Slides call selected
+128-bit two-source `Permute_Lanes` twice and selected `Select_Value` twice
+against `Zero`. The optional AVX2 implementation uses two byte shuffles and one
+cross-half selection for each one-source operation. It uses four byte shuffles
+and two cross-half selections for each two-source operation. The AArch64 and
+AVX2 implementations derive a 32-byte index map and support all ten Wide value
+types.
 Wide conversion operations compose the corresponding 128-bit conversion
 operations. Widening applies the 128-bit `Widen_Low` and `Widen_High`
 operations to the selected private part. Narrowing converts both private parts
@@ -242,8 +247,8 @@ For 128-bit variable lane permutation, mask compression, and mask expansion,
 Ada code derives byte-selector maps. Dedicated SSE2 sequences apply
 those maps with byte comparisons, broadcasts, masks, and merges. Wide
 compression and expansion compose these selected 128-bit permutation and
-selection operations on x86-64. Wide lane permutation still uses the Wide
-scalar implementation in the composed x86-64 backend.
+selection operations on x86-64. Wide lane movement and permutation also compose
+selected 128-bit permutation and selection operations on x86-64.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
 The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.

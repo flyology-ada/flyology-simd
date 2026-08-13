@@ -234,11 +234,16 @@ ten value types. The Wide scalar body defines each result. AArch64 derives one
 32-byte index map for each operation. Reverse, slides, and the one-source
 `Permute_Lanes` overload run one two-register `tbl` operation for each 128-bit
 result half. Interleave, deinterleave, and the two-source `Permute_Lanes`
-overload run one four-register `tbl` operation for each result half. The
-composed x86-64 backend calls the Wide scalar implementation. The optional
-AVX2 implementation derives a 32-byte index map for each operation. It uses
-256-bit byte shuffles and cross-half selection for the lane-movement operations
-and both `Permute_Lanes` overloads.
+overload run one four-register `tbl` operation for each result half. On composed
+x86-64, reverse and the one-source overload call selected 128-bit two-source
+`Permute_Lanes` twice. Interleave, deinterleave, and the two-source overload
+call selected 128-bit two-source `Permute_Lanes` four times and selected
+`Select_Value` twice to choose between the two sources. Slides call selected
+128-bit two-source `Permute_Lanes` twice and
+selected `Select_Value` twice against `Zero`. The optional AVX2 implementation
+derives a 32-byte index map for each operation. It uses 256-bit byte shuffles
+and cross-half selection for the lane-movement operations and both
+`Permute_Lanes` overloads.
 
 Wide two-source maps use the same selector rule as the 128-bit maps. Result
 lane `n` reads the lane selected at map position `n` from `Left` or `Right`.

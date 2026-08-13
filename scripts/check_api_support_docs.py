@@ -68,6 +68,50 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected 20 contextualized portable "
                 f"Compact support notes, found {text.count(contextual_compact)}"
             )
+        movement_context = "In a scalar build, the matching Wide.Native overload uses"
+        movement_operations = {
+            "Reverse_Lanes": (10, "two selected 128-bit two-source Permute_Lanes operations"),
+            "Permute_Lanes": (20, None),
+            "Interleave_Low": (10, "four selected 128-bit two-source Permute_Lanes operations"),
+            "Interleave_High": (10, "four selected 128-bit two-source Permute_Lanes operations"),
+            "Deinterleave_Even": (10, "four selected 128-bit two-source Permute_Lanes operations"),
+            "Deinterleave_Odd": (10, "four selected 128-bit two-source Permute_Lanes operations"),
+            "Slide_Lanes_Toward_Low": (10, "two selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations against Zero"),
+            "Slide_Lanes_Toward_High": (10, "two selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations against Zero"),
+        }
+        for operation, (expected, phrase) in movement_operations.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            contextual = sum(movement_context in block for block in blocks)
+            classified = sum(phrase in block for block in blocks) if phrase else expected
+            if len(blocks) != expected or contextual != expected or classified != expected:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"movement classifications ({len(blocks)} declarations, "
+                    f"{contextual} contextual, {classified} mechanism notes)"
+                )
+        permute_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Permute_Lanes")[1:]
+        ]
+        one_source = sum(
+            "two selected 128-bit two-source Permute_Lanes operations" in block
+            and "four selected 128-bit two-source Permute_Lanes operations" not in block
+            for block in permute_blocks
+        )
+        two_source = sum(
+            "four selected 128-bit two-source Permute_Lanes operations" in block
+            and "two selected Select_Value operations" in block
+            for block in permute_blocks
+        )
+        if one_source != 10 or two_source != 10:
+            invalid.append(
+                f"{path.relative_to(ROOT)}: expected ten one-source and ten "
+                f"two-source Permute_Lanes classifications, found "
+                f"{one_source} and {two_source}"
+            )
     if path.name == "flyology_simd.ads":
         shared = (
             "Cross-platform support: this fixed-width Ada operation is available "
@@ -683,6 +727,13 @@ def invalid_support(path: Path) -> list[str]:
             "function Reduce_Max_Number": "scalar fmaxnm operations that visits lanes in ascending order",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
+            "function Reverse_Lanes": "composed x86-64 backend uses two selected 128-bit two-source Permute_Lanes operations",
+            "function Interleave_Low": "four selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations",
+            "function Interleave_High": "four selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations",
+            "function Deinterleave_Even": "four selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations",
+            "function Deinterleave_Odd": "four selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations",
+            "function Slide_Lanes_Toward_Low": "two selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations against Zero",
+            "function Slide_Lanes_Toward_High": "two selected 128-bit two-source Permute_Lanes operations and two selected Select_Value operations against Zero",
             "function Compress": "derive two selected-128-bit compression maps",
             "function Expand": "derive two selected-128-bit expansion maps",
         }
@@ -717,6 +768,13 @@ def invalid_support(path: Path) -> list[str]:
                 "function Last_True": 4,
                 "function Table_Lookup": 1,
                 "function Permute_Lanes": 20,
+                "function Reverse_Lanes": 10,
+                "function Interleave_Low": 10,
+                "function Interleave_High": 10,
+                "function Deinterleave_Even": 10,
+                "function Deinterleave_Odd": 10,
+                "function Slide_Lanes_Toward_Low": 10,
+                "function Slide_Lanes_Toward_High": 10,
                 "function Compress": 10,
                 "function Expand": 10,
                 "function Test": 4,
