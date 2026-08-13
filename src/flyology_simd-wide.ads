@@ -385,50 +385,50 @@ is
    --  @return The operation result.
    function Load (Data : Byte_Array; Start : Natural) return U8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x32) return U8x32 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out Byte_Array; Start : Natural; Count : Lane_Count_8x32; Value : U8x32) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -682,50 +682,50 @@ is
    --  @return The operation result.
    function Load (Data : I8_Array; Start : Natural) return I8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I8_Array; Start : Natural; Value : I8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : I8_Array; Start : Natural) return I8x32 with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x32) with Pre => Start in Data'Range and then 31 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x32) return I8x32 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x32; Value : I8x32) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -1080,50 +1080,50 @@ is
    --  @return The operation result.
    function Load (Data : U16_Array; Start : Natural) return U16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U16_Array; Start : Natural; Value : U16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : U16_Array; Start : Natural) return U16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x16) return U16x16 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x16; Value : U16x16) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -1377,50 +1377,50 @@ is
    --  @return The operation result.
    function Load (Data : I16_Array; Start : Natural) return I16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I16_Array; Start : Natural; Value : I16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : I16_Array; Start : Natural) return I16x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x16) return I16x16 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x16; Value : I16x16) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -1780,50 +1780,50 @@ is
    --  @return The operation result.
    function Load (Data : U32_Array; Start : Natural) return U32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U32_Array; Start : Natural; Value : U32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : U32_Array; Start : Natural) return U32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x8) return U32x8 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x8; Value : U32x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -2082,50 +2082,50 @@ is
    --  @return The operation result.
    function Load (Data : I32_Array; Start : Natural) return I32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I32_Array; Start : Natural; Value : I32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : I32_Array; Start : Natural) return I32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x8) return I32x8 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x8; Value : I32x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -2485,50 +2485,50 @@ is
    --  @return The operation result.
    function Load (Data : U64_Array; Start : Natural) return U64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U64_Array; Start : Natural; Value : U64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : U64_Array; Start : Natural) return U64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x4) return U64x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x4; Value : U64x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -2787,50 +2787,50 @@ is
    --  @return The operation result.
    function Load (Data : I64_Array; Start : Natural) return I64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I64_Array; Start : Natural; Value : I64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : I64_Array; Start : Natural) return I64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x4) return I64x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x4; Value : I64x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -3048,50 +3048,50 @@ is
    --  @return The operation result.
    function Load (Data : F32_Array; Start : Natural) return F32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out F32_Array; Start : Natural; Value : F32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : F32_Array; Start : Natural) return F32x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x8) return F32x8 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x8; Value : F32x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
@@ -3309,50 +3309,50 @@ is
    --  @return The operation result.
    function Load (Data : F64_Array; Start : Natural) return F64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out F64_Array; Start : Natural; Value : F64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Aligned (Data : F64_Array; Start : Natural) return F64x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Load one complete vector from a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Load_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_32 (Data, Start);
    --  Store one complete vector to a 32-byte-aligned address.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit Store_Aligned operation at Start and Start plus the private lane count. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Value The value input.
    function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x4) return F64x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and zero-fill remaining lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Load_Partial operation for the low result part and the selected Zero operation for the high result part. When Count exceeds the private lane count, they call the selected Load operation for the low result part and the selected Load_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x4; Value : F64x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all others unchanged.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends conditionally compose selected 128-bit full and partial memory operations. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, when Count does not exceed the private lane count, the AArch64 and x86-64 backends call the selected 128-bit Store_Partial operation for the low value part. When Count exceeds the private lane count, they call the selected Store operation for the low value part and the selected Store_Partial operation for the remaining high lanes. A zero count does not evaluate an element address. In a scalar build, the matching Wide.Native overload uses the same conditional composition through the portable 128-bit implementation.
    --  @param Data The data input.
    --  @param Start The start input.
    --  @param Count The count input.

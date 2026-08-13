@@ -241,6 +241,13 @@ two-source lane map for each 128-bit result half. Each mechanism calls selected
 128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value` twice.
 `Select_Value` selects `Zero` for each zero-fill lane.
 
+Wide Native memory operations retain the same private two-part composition in
+every backend selection. Full, unaligned, and aligned operations call the
+matching selected 128-bit operation for both parts. Partial loads and stores
+choose selected full and partial operations from `Count`. When `Count` does
+not exceed the private lane count, a partial load also constructs a zero high
+part. The public extent and alignment contracts do not expose this composition.
+
 The AArch64 backend lowers 128-bit and Wide lane movement, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON
 assembly subprograms. The x86-64 SSE2 backend uses immediate byte-shift leaves

@@ -214,7 +214,12 @@ YMM register state.
 
 An operation with the same name in the 128-bit and Wide packages has the same
 lane semantics. A Wide full operation uses 256 bits of elements. A Wide
-aligned operation requires 32-byte alignment. Other Wide operations have no
+aligned operation requires 32-byte alignment. The 80 Wide Native memory
+overloads compose selected 128-bit operations across both private parts.
+Partial loads and stores choose selected full and partial operations from
+`Count`. When `Count` does not exceed the private lane count, a partial load
+uses selected `Zero` for the high part. A scalar build uses the same composition through the portable
+128-bit implementation. Other Wide operations have no
 AVX2-specific 256-bit implementation or code-generation claim outside the
 documented byte, floating-arithmetic, table-lookup, and lane-movement groups.
 

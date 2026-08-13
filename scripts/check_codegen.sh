@@ -30,6 +30,7 @@ wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_prob
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
 wide_numeric_conversion_probe_object="$probe_root/wide_numeric_conversion_codegen_probe.o"
+wide_memory_probe_object="$probe_root/wide_memory_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
@@ -73,6 +74,12 @@ else
     objdump -dr "$wide_numeric_conversion_probe_object" \
       >"$temporary/wide-numeric-conversion-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_memory_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-memory-probe.txt"
+else
+    objdump -dr "$wide_memory_probe_object" >"$temporary/wide-memory-probe.txt"
+fi
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
@@ -111,6 +118,7 @@ nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-und
 nm -u "$wide_compact_probe_object" >"$temporary/wide-compact-undefined.txt"
 nm -u "$wide_movement_probe_object" >"$temporary/wide-movement-undefined.txt"
 nm -u "$wide_numeric_conversion_probe_object" >"$temporary/wide-numeric-conversion-undefined.txt"
+nm -u "$wide_memory_probe_object" >"$temporary/wide-memory-undefined.txt"
 nm -u "$slide_probe_object" >"$temporary/slide-undefined.txt"
 nm "$slide_probe_object" >"$temporary/slide-symbols.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
@@ -293,6 +301,138 @@ require_count 'flyology_simd__backends__native__(widen_(low|high)|narrow_(trunca
 require_count 'flyology_simd__' 46 \
   "$temporary/wide-numeric-conversion-undefined.txt" \
   'only the 38 non-numeric and eight numeric conversion symbols remain unresolved'
+wide_memory_cases='scripts/probes/wide_memory_codegen_cases.txt'
+symbol_end='([+-]0x[[:xdigit:]]+)?$'
+while read -r caller operation overload; do
+    extract_symbol "wide_memory_codegen_probe__${caller}" \
+      "$temporary/wide-memory-probe.txt" \
+      "$temporary/wide_memory_${caller}.txt"
+    suffix='($|[^_])'
+    if [ "$overload" -gt 1 ]; then
+        suffix="__${overload}($|[^0-9])"
+    fi
+    case "$operation" in
+        load|store)
+            require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "two matching selected 128-bit ${operation} calls in Wide ${caller}"
+            require_count "flyology_simd__backends__native__${operation}" 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no extra or mismatched selected ${operation} call in Wide ${caller}"
+            ;;
+        load_unaligned|store_unaligned|load_aligned|store_aligned)
+            if [ "$caller" != u8_load_unaligned ]; then
+                require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "two matching selected 128-bit ${operation} calls in Wide ${caller}"
+                require_count "flyology_simd__backends__native__${operation}" 2 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "no extra or mismatched selected ${operation} call in Wide ${caller}"
+            elif [ "$architecture" = scalar ]; then
+                require_count "flyology_simd__load_unaligned${symbol_end}" 2 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "two portable 128-bit unaligned loads in scalar Wide ${caller}"
+                require_count 'flyology_simd__backends__native__load_unaligned' 0 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "scalar Wide ${caller} resolves the selected rename directly"
+            elif [ "$architecture" = aarch64 ]; then
+                require_count 'flyology_simd__backends__native__load_unaligned' 0 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "selected unaligned load is fully inlined in Wide ${caller}"
+                require_count '(^|[[:space:]])ldr[[:space:]]+q[0-9]+' 2 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "two inlined 128-bit loads in Wide ${caller}"
+                require_count '(^|[[:space:]])str[[:space:]]+q[0-9]+' 2 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "two inlined 128-bit result stores in Wide ${caller}"
+            else
+                require_count "flyology_simd__backends__native__${operation}" 0 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "selected ${operation} is fully inlined in Wide ${caller}"
+                require_count '(^|[[:space:]])movdqu[[:space:]]' 4 \
+                  "$temporary/wide_memory_${caller}.txt" \
+                  "two inlined SSE2 unaligned transfers in Wide ${caller}"
+            fi
+            ;;
+        load_partial)
+            require_count "flyology_simd__backends__native__load_partial${suffix}" 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "both branches use the matching selected partial load in Wide ${caller}"
+            require_count "flyology_simd__backends__native__load${suffix}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "one matching selected full load in Wide ${caller}"
+            require_count "flyology_simd__backends__native__zero${suffix}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "one matching selected zero in Wide ${caller}"
+            require_count 'flyology_simd__backends__native__load_partial' 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no mismatched partial load in Wide ${caller}"
+            require_count "flyology_simd__backends__native__load(__[0-9]+)?${symbol_end}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no mismatched full load in Wide ${caller}"
+            require_count "flyology_simd__backends__native__zero(__[0-9]+)?${symbol_end}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no mismatched zero in Wide ${caller}"
+            ;;
+        store_partial)
+            require_count "flyology_simd__backends__native__store_partial${suffix}" 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "both branches use the matching selected partial store in Wide ${caller}"
+            require_count "flyology_simd__backends__native__store${suffix}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "one matching selected full store in Wide ${caller}"
+            require_count 'flyology_simd__backends__native__store_partial' 2 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no mismatched partial store in Wide ${caller}"
+            require_count "flyology_simd__backends__native__store(__[0-9]+)?${symbol_end}" 1 \
+              "$temporary/wide_memory_${caller}.txt" \
+              "no mismatched full store in Wide ${caller}"
+            ;;
+    esac
+    if [ "$architecture" = scalar ] && [ "$caller" = u8_load_unaligned ]; then
+        forbid_pattern 'flyology_simd__wide__(load|store)|flyology_simd__wide__native__' \
+          "$temporary/wide_memory_${caller}.txt" \
+          "Wide or public memory dispatcher call in scalar Wide ${caller}"
+    else
+        forbid_pattern 'flyology_simd__(wide__)?(load|store)|flyology_simd__wide__native__' \
+          "$temporary/wide_memory_${caller}.txt" \
+          "portable or public memory dispatcher call in Wide ${caller}"
+    fi
+done <"$wide_memory_cases"
+for operation in load store load_partial store_partial; do
+    require_count "flyology_simd__backends__native__${operation}($|__)" 10 \
+      "$temporary/wide-memory-undefined.txt" \
+      "all ten selected ${operation} symbols in the Wide memory probe"
+done
+require_count 'flyology_simd__backends__native__load_unaligned($|__)' 9 \
+  "$temporary/wide-memory-undefined.txt" \
+  'nine out-of-line selected unaligned loads plus the inlined U8 load path'
+for operation in store_unaligned load_aligned store_aligned; do
+    require_count "flyology_simd__backends__native__${operation}($|__)" 10 \
+      "$temporary/wide-memory-undefined.txt" \
+      "all ten selected ${operation} symbols in the Wide memory probe"
+done
+require_count 'flyology_simd__backends__native__zero($|__)' 10 \
+  "$temporary/wide-memory-undefined.txt" \
+  'all ten selected zero symbols for Wide partial loads'
+if [ "$architecture" = scalar ]; then
+    require_count "flyology_simd__load_unaligned${symbol_end}" 1 \
+      "$temporary/wide-memory-undefined.txt" \
+      'one portable U8 unaligned-load rename in the scalar Wide probe'
+    require_count 'flyology_simd__' 90 \
+      "$temporary/wide-memory-undefined.txt" \
+      'only the selected memory and zero symbols remain unresolved in the scalar probe'
+    forbid_pattern 'flyology_simd__wide__(load|store)|flyology_simd__wide__native__' \
+      "$temporary/wide-memory-undefined.txt" \
+      'Wide or public memory symbols in the all-family scalar probe'
+else
+    require_count 'flyology_simd__' 89 \
+      "$temporary/wide-memory-undefined.txt" \
+      'only the selected memory and zero symbols remain unresolved'
+    forbid_pattern 'flyology_simd__(wide__)?(load|store)|flyology_simd__wide__native__' \
+      "$temporary/wide-memory-undefined.txt" \
+      'portable or public memory symbols in the all-family Wide probe'
+fi
 require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
   "$temporary/integer-shift-undefined.txt" \
   'all four Native arithmetic-right-shift calls in the public caller probe'

@@ -6,7 +6,7 @@
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>4. Memory operations</li></ol><h1>Match each memory operation to its extent and alignment</h1></div><p class="doc-hero-copy">Chapter 4 processes the dot product's three-element tail and states the contracts for all typed memory forms.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#typed">Typed arrays</a></li><li><a href="#full">Full operations</a></li><li><a href="#aligned">Aligned operations</a></li><li><a href="#partial">Partial operations</a></li><li><a href="#tail">Dot-product tail</a></li><li><a href="#tests">Boundary tests</a></li></ul></aside>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#typed">Typed arrays</a></li><li><a href="#full">Full operations</a></li><li><a href="#aligned">Aligned operations</a></li><li><a href="#partial">Partial operations</a></li><li><a href="#wide">Wide operations</a></li><li><a href="#tail">Dot-product tail</a></li><li><a href="#tests">Boundary tests</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">The dot-product arrays have seven elements. One full <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> load consumes four. The final iteration must read exactly three elements from each array.</p>
         <section id="typed">
@@ -29,6 +29,12 @@
           <p><a data-api="Flyology_SIMD.Load_Partial" data-api-signature="F32_Array"><code>Load_Partial</code></a> reads exactly <code>Count</code> elements and fills remaining lanes with zero. <a data-api="Flyology_SIMD.Store_Partial" data-api-signature="F32_Array"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements.</p>
           <p>If <code>Count</code> is zero, a partial operation does not evaluate an element address or touch memory. It does not perform an out-of-bounds full-vector access and mask the result.</p>
         </section>
+        <section id="wide">
+          <h2>Apply the same rules to Wide vectors</h2>
+          <p>A full <a data-api="Flyology_SIMD.Wide.F32x8"><code>F32x8</code></a> operation requires eight valid binary32 elements. An aligned Wide operation requires a 32-byte-aligned address. <a data-api="Flyology_SIMD.Wide.Is_Aligned_32" data-api-signature="F32_Array"><code>Is_Aligned_32</code></a> checks that address.</p>
+          <p>Wide <a data-api="Flyology_SIMD.Wide.Native.Load_Partial" data-api-signature="F32_Array"><code>Load_Partial</code></a> reads exactly <code>Count</code> elements and zero-fills the remaining lanes. Wide <a data-api="Flyology_SIMD.Wide.Native.Store_Partial" data-api-signature="F32_Array"><code>Store_Partial</code></a> writes exactly <code>Count</code> elements. For <code>F32x8</code>, <code>Count</code> is in the range 0 through 8. Both operations retain the 128-bit zero-count rule.</p>
+          <p>The Native implementation composes selected 128-bit memory operations across private parts. This composition does not change the public lane order, extent, or alignment contract.</p>
+        </section>
         <section id="tail">
           <h2>Load the final three dot-product elements</h2>
           <p>A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> value is in the range 0 through 4. The loop selects the smaller of four lanes and the remaining array extent.</p>
@@ -44,8 +50,8 @@ Right_Block : constant F32x4 :=
         </section>
         <section id="tests">
           <h2>Verify extent separately from values</h2>
-          <p><code>guard_page_tests</code> places byte tails next to an inaccessible page. It exercises scalar and native partial byte loads and stores for counts 0 through 16.</p>
-          <p>The family tests cover typed partial operations and every valid count for all lane shapes. AddressSanitizer builds provide another out-of-bounds check where the toolchain supports them.</p>
+          <p><code>guard_page_tests</code> places byte tails next to an inaccessible page. It exercises 128-bit partial byte operations for counts 0 through 16 and Wide partial byte operations for counts 0 through 32.</p>
+          <p>The Wide tests cover every memory form for all ten value types. Independent expectations check fixed inputs and 128 deterministic inputs per type. Floating cases use raw bit encodings. Partial tests cover every valid count, preserve sentinel elements outside the store extent, and use <code>Start = Natural'Last</code> when <code>Count</code> is zero. AddressSanitizer builds provide another out-of-bounds check where the toolchain supports them.</p>
           <p>A store consumes its vector value before it writes the destination. The API has no raw-address overload in v0.1.</p>
           <div class="next-links"><a href="../masks/"><span>Chapter 3</span>Review masks</a><a href="../conversions/"><span>Chapter 5</span>Convert lane values</a></div>
         </section>

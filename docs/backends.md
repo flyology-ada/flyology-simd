@@ -130,6 +130,29 @@ Protected-page tests place every byte tail at an inaccessible boundary. A
 public caller probe covers all 20 overloads, and a Native-object gate rejects
 calls to the portable partial-memory operations.
 
+All 80 Wide Native memory overloads compose selected 128-bit operations. The
+six complete-vector forms—`Load`, `Store`, `Load_Unaligned`, `Store_Unaligned`,
+`Load_Aligned`, and `Store_Aligned`—call the matching operation at `Start` and
+at `Start` plus the private lane count. A partial load
+uses selected `Load_Partial` and `Zero` when `Count` does not exceed the private
+lane count. For a larger count, it uses selected `Load` for the low part and
+selected `Load_Partial` for the remaining high lanes. A partial store uses the
+corresponding selected store operations. A scalar build uses the same
+composition through the portable 128-bit implementation.
+
+Independent lane and array oracles check fixed inputs and 128 deterministic
+inputs for every Wide value type. Floating checks compare raw lane encodings.
+The tests cover every partial count, preserve sentinel elements outside a
+store extent, and use `Start = Natural'Last` for zero-count operations. The
+protected-page suite covers every Wide byte count from 0 through 32. A
+generated caller gate covers all 80 overloads. Each caller must use only the
+matching selected 128-bit operation families and overload suffixes, without a
+Wide dispatcher. The AArch64 and x86-64 gates also reject portable root
+operations. In a scalar build, the selected `U8x16` `Load_Unaligned` rename
+resolves to the portable root operation. The exact AArch64 check for the inlined
+`U8x32` `Load_Unaligned` caller requires two `ldr q` loads and two `str q`
+result stores.
+
 The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
 AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
 64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom

@@ -57,6 +57,9 @@ MOVEMENT_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe
 NUMERIC_CONVERSION_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.ads"
 NUMERIC_CONVERSION_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.adb"
 NON_NUMERIC_CONVERSION_CASES = ROOT / "scripts" / "probes" / "wide_non_numeric_conversion_codegen_cases.txt"
+MEMORY_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_memory_codegen_probe.ads"
+MEMORY_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_memory_codegen_probe.adb"
+MEMORY_CASES = ROOT / "scripts" / "probes" / "wide_memory_codegen_cases.txt"
 
 
 @dataclass(frozen=True)
@@ -273,8 +276,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         )
     elif operation in {
         "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
-        "Unordered", "Bit_Cast", "Load", "Store",
-        "Load_Unaligned", "Store_Unaligned", "Load_Aligned", "Store_Aligned",
+        "Unordered", "Bit_Cast",
         "Horizontal_Sum", "Narrow_Truncate",
         "Narrow_Saturate", "Narrow_Round", "Convert_Round",
         "Convert_Truncate_Saturate", "Convert_Saturate",
@@ -352,10 +354,41 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "For a valid Start, they test the selected element address modulo "
             "32 directly with fixed-width Ada code"
         )
-    elif operation in {"Load_Partial", "Store_Partial"}:
-        mechanism = (
-            "AArch64 and x86-64 conditionally compose selected 128-bit full "
-            "and partial memory operations"
+    elif operation in {
+        "Load", "Store", "Load_Unaligned", "Store_Unaligned",
+        "Load_Aligned", "Store_Aligned",
+    }:
+        address = "Start and Start plus the private lane count"
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call the "
+            f"selected 128-bit {operation} operation at {address}. In a scalar "
+            "build, this overload uses the same two-part composition through "
+            "the portable 128-bit implementation."
+        )
+    elif operation == "Load_Partial":
+        return (
+            "Cross-platform support: When Count does not exceed the private "
+            "lane count, the AArch64 and x86-64 backends call the selected "
+            "128-bit Load_Partial operation for the low result part and the "
+            "selected Zero operation for the high result part. When Count "
+            "exceeds the private lane count, they call the selected Load "
+            "operation for the low result part and the selected Load_Partial "
+            "operation for the remaining high lanes. A zero count does not "
+            "evaluate an element address. In a scalar build, this overload "
+            "uses the same conditional composition through the portable "
+            "128-bit implementation."
+        )
+    elif operation == "Store_Partial":
+        return (
+            "Cross-platform support: When Count does not exceed the private "
+            "lane count, the AArch64 and x86-64 backends call the selected "
+            "128-bit Store_Partial operation for the low value part. When "
+            "Count exceeds the private lane count, they call the selected "
+            "Store operation for the low value part and the selected "
+            "Store_Partial operation for the remaining high lanes. A zero "
+            "count does not evaluate an element address. In a scalar build, "
+            "this overload uses the same conditional composition through the "
+            "portable 128-bit implementation."
         )
     elif operation in {"Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"}:
         combine = {
@@ -410,6 +443,8 @@ def wide_portable_support(summary: str, declaration: str) -> str:
     native = wide_native_support(summary, declaration).removeprefix(
         "Cross-platform support: "
     )
+    if native.startswith("When "):
+        native = "when " + native.removeprefix("When ")
     native = native.replace(
         "In a scalar build, this overload calls the portable Wide implementation.",
         "In a scalar build, the matching Wide.Native overload calls the "
@@ -1983,6 +2018,73 @@ def non_numeric_conversion_cases_text() -> str:
     return "\n".join(rows) + "\n"
 
 
+def memory_probe_text() -> tuple[str, str, str]:
+    """Generate one public caller and one exact gate row per Wide memory overload."""
+    declarations = []
+    bodies = []
+    rows = []
+    operations = (
+        ("load", "function", "Data : {array}; Start : Natural", "{vector}",
+         "Native.Load (Data, Start)"),
+        ("store", "procedure", "Data : in out {array}; Start : Natural; Value : {vector}", None,
+         "Native.Store (Data, Start, Value)"),
+        ("load_unaligned", "function", "Data : {array}; Start : Natural", "{vector}",
+         "Native.Load_Unaligned (Data, Start)"),
+        ("store_unaligned", "procedure", "Data : in out {array}; Start : Natural; Value : {vector}", None,
+         "Native.Store_Unaligned (Data, Start, Value)"),
+        ("load_aligned", "function", "Data : {array}; Start : Natural", "{vector}",
+         "Native.Load_Aligned (Data, Start)"),
+        ("store_aligned", "procedure", "Data : in out {array}; Start : Natural; Value : {vector}", None,
+         "Native.Store_Aligned (Data, Start, Value)"),
+        ("load_partial", "function", "Data : {array}; Start : Natural; Count : {count}", "{vector}",
+         "Native.Load_Partial (Data, Start, Count)"),
+        ("store_partial", "procedure", "Data : in out {array}; Start : Natural; Count : {count}; Value : {vector}", None,
+         "Native.Store_Partial (Data, Start, Count, Value)"),
+    )
+    for overload, f in enumerate(FAMILIES, 1):
+        stem = f.scalar.lower()
+        values = {
+            "array": f"SIMD.{f.array}",
+            "vector": f"Wide.{f.vector}",
+            "count": f"Wide.{f.count}",
+        }
+        for operation, kind, params, result, expression in operations:
+            name = f"{stem}_{operation}"
+            actual_params = params.format(**values)
+            if kind == "function":
+                declarations.append(
+                    f"   function {name} ({actual_params}) return {result.format(**values)};"
+                )
+                bodies.append(
+                    f"   function {name} ({actual_params}) return {result.format(**values)} is\n"
+                    f"     ({expression});"
+                )
+            else:
+                declarations.append(f"   procedure {name} ({actual_params});")
+                bodies.append(
+                    f"   procedure {name} ({actual_params}) is\n"
+                    f"   begin\n      {expression};\n   end {name};"
+                )
+            rows.append(f"{name} {operation} {overload}")
+    assert len(rows) == 80
+    spec = f"""with Flyology_SIMD.Wide;
+
+package Wide_Memory_Codegen_Probe is
+   package SIMD renames Flyology_SIMD;
+   package Wide renames Flyology_SIMD.Wide;
+{chr(10).join(declarations)}
+end Wide_Memory_Codegen_Probe;
+"""
+    body = f"""with Flyology_SIMD.Wide.Native;
+
+package body Wide_Memory_Codegen_Probe is
+   package Native renames Flyology_SIMD.Wide.Native;
+{chr(10).join(bodies)}
+end Wide_Memory_Codegen_Probe;
+"""
+    return spec, body, "\n".join(rows) + "\n"
+
+
 def permute_spec_text() -> str:
     declarations = []
     for f in FAMILIES:
@@ -2984,6 +3086,7 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     movement_probe_spec, movement_probe_body = movement_probe_text()
+    memory_probe_spec, memory_probe_body, memory_cases = memory_probe_text()
     outputs = {
         SPEC: spec_text(), BODY: body_text(),
         NATIVE_SPEC: native_spec_text(), NATIVE_BODY: native_body_text(),
@@ -3019,6 +3122,9 @@ def main() -> None:
         PERMUTE_INVALID: permute_portable_body_text(),
         MOVEMENT_PROBE_SPEC: movement_probe_spec,
         MOVEMENT_PROBE_BODY: movement_probe_body,
+        MEMORY_PROBE_SPEC: memory_probe_spec,
+        MEMORY_PROBE_BODY: memory_probe_body,
+        MEMORY_CASES: memory_cases,
     }
     for path, content in outputs.items():
         write_or_check(path, content, args.check)

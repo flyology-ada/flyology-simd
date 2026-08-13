@@ -359,6 +359,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_U8x32; Context : String)
+      is
+         Value : constant Wide.U8x32 := Wide.From_Lanes (Values);
+         Fill : constant U8 := U8'Last;
+         Scalar_Data : Byte_Array (3 .. 42) := [others => Fill];
+         Native_Data : Byte_Array (3 .. 42) := [others => Fill];
+         Scalar_Aligned : Byte_Array (0 .. 31) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : Byte_Array (0 .. 31) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : U8) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : Byte_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.U8x32; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 32)
+           and then Array_Matches (Native_Data, Start, 32)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 32)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 32),
+           "U8x32 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 32)
+           and then Array_Matches (Native_Data, Start, 32)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 32)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 32),
+           "U8x32 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 32)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 32)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 32)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 32),
+           "U8x32 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_8x32 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "U8x32 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_8x32'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_8x32'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_8x32'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_8x32'First), 0),
+           "U8x32 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       function Reference_Table_Lookup
         (Table, Indices : Wide.Lane_Values_U8x32)
          return Wide.Lane_Values_U8x32
@@ -414,6 +522,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U8x32'[others => 0],
@@ -924,6 +1033,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 11);
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                declare
                   One_Lane : constant Wide.Lane_Index_8x32 :=
@@ -1446,6 +1556,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_I8x32; Context : String)
+      is
+         Value : constant Wide.I8x32 := Wide.From_Lanes (Values);
+         Fill : constant I8 := I8'Last;
+         Scalar_Data : I8_Array (3 .. 42) := [others => Fill];
+         Native_Data : I8_Array (3 .. 42) := [others => Fill];
+         Scalar_Aligned : I8_Array (0 .. 31) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : I8_Array (0 .. 31) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : I8) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : I8_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.I8x32; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 32)
+           and then Array_Matches (Native_Data, Start, 32)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 32)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 32),
+           "I8x32 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 32)
+           and then Array_Matches (Native_Data, Start, 32)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 32)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 32),
+           "I8x32 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 32)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 32)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 32)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 32),
+           "I8x32 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_8x32 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "I8x32 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_8x32'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_8x32'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_8x32'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_8x32'First), 0),
+           "I8x32 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#))];
@@ -1468,6 +1686,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I8x32'[others => 0],
@@ -1953,6 +2172,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 11);
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                declare
                   One_Lane : constant Wide.Lane_Index_8x32 :=
@@ -2431,6 +2651,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_U16x16; Context : String)
+      is
+         Value : constant Wide.U16x16 := Wide.From_Lanes (Values);
+         Fill : constant U16 := U16'Last;
+         Scalar_Data : U16_Array (3 .. 26) := [others => Fill];
+         Native_Data : U16_Array (3 .. 26) := [others => Fill];
+         Scalar_Aligned : U16_Array (0 .. 15) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : U16_Array (0 .. 15) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : U16) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : U16_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.U16x16; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 16)
+           and then Array_Matches (Native_Data, Start, 16)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 16)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 16),
+           "U16x16 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 16)
+           and then Array_Matches (Native_Data, Start, 16)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 16)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 16),
+           "U16x16 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 16)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 16)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 16)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 16),
+           "U16x16 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_16x16 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "U16x16 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_16x16'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_16x16'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_16x16'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_16x16'First), 0),
+           "U16x16 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
@@ -2453,6 +2781,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U16x16'[others => 0],
@@ -2827,6 +3156,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                declare
                   One_Lane : constant Wide.Lane_Index_16x16 :=
@@ -3214,6 +3544,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_I16x16; Context : String)
+      is
+         Value : constant Wide.I16x16 := Wide.From_Lanes (Values);
+         Fill : constant I16 := I16'Last;
+         Scalar_Data : I16_Array (3 .. 26) := [others => Fill];
+         Native_Data : I16_Array (3 .. 26) := [others => Fill];
+         Scalar_Aligned : I16_Array (0 .. 15) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : I16_Array (0 .. 15) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : I16) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : I16_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.I16x16; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 16)
+           and then Array_Matches (Native_Data, Start, 16)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 16)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 16),
+           "I16x16 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 16)
+           and then Array_Matches (Native_Data, Start, 16)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 16)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 16),
+           "I16x16 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 16)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 16)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 16)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 16),
+           "I16x16 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_16x16 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "I16x16 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_16x16'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_16x16'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_16x16'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_16x16'First), 0),
+           "I16x16 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
@@ -3236,6 +3674,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I16x16'[others => 0],
@@ -3609,6 +4048,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 19);
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                declare
                   One_Lane : constant Wide.Lane_Index_16x16 :=
@@ -3995,6 +4435,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_U32x8; Context : String)
+      is
+         Value : constant Wide.U32x8 := Wide.From_Lanes (Values);
+         Fill : constant U32 := U32'Last;
+         Scalar_Data : U32_Array (3 .. 18) := [others => Fill];
+         Native_Data : U32_Array (3 .. 18) := [others => Fill];
+         Scalar_Aligned : U32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : U32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : U32) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : U32_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.U32x8; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 8)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 8),
+           "U32x8 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 8)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 8),
+           "U32x8 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 8)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 8)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 8)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 8),
+           "U32x8 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_32x8 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "U32x8 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0),
+           "U32x8 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
@@ -4017,6 +4565,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U32x8'[others => 0],
@@ -4407,6 +4956,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -4810,6 +5360,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_I32x8; Context : String)
+      is
+         Value : constant Wide.I32x8 := Wide.From_Lanes (Values);
+         Fill : constant I32 := I32'Last;
+         Scalar_Data : I32_Array (3 .. 18) := [others => Fill];
+         Native_Data : I32_Array (3 .. 18) := [others => Fill];
+         Scalar_Aligned : I32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : I32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : I32) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : I32_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.I32x8; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 8)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 8),
+           "I32x8 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 8)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 8),
+           "I32x8 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 8)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 8)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 8)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 8),
+           "I32x8 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_32x8 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "I32x8 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0),
+           "I32x8 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
@@ -4832,6 +5490,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I32x8'[others => 0],
@@ -5221,6 +5880,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 35);
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -5623,6 +6283,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_U64x4; Context : String)
+      is
+         Value : constant Wide.U64x4 := Wide.From_Lanes (Values);
+         Fill : constant U64 := U64'Last;
+         Scalar_Data : U64_Array (3 .. 14) := [others => Fill];
+         Native_Data : U64_Array (3 .. 14) := [others => Fill];
+         Scalar_Aligned : U64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : U64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : U64) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : U64_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.U64x4; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 4)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 4),
+           "U64x4 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 4)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 4),
+           "U64x4 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 4)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 4)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 4)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 4),
+           "U64x4 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_64x4 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "U64x4 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0),
+           "U64x4 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
@@ -5645,6 +6413,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U64x4'[others => 0],
@@ -6035,6 +6804,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=
@@ -6438,6 +7208,114 @@ procedure Wide_Tests is
       end Check_Movements;
 
 
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_I64x4; Context : String)
+      is
+         Value : constant Wide.I64x4 := Wide.From_Lanes (Values);
+         Fill : constant I64 := I64'Last;
+         Scalar_Data : I64_Array (3 .. 14) := [others => Fill];
+         Native_Data : I64_Array (3 .. 14) := [others => Fill];
+         Scalar_Aligned : I64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : I64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : I64) return Boolean is
+           (Left = Right);
+         function Array_Matches
+           (Data : I64_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.I64x4; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 4)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 4),
+           "I64x4 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 4)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 4),
+           "I64x4 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 4)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 4)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 4)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 4),
+           "I64x4 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_64x4 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "I64x4 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0),
+           "I64x4 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
+
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
@@ -6460,6 +7338,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I64x4'[others => 0],
@@ -6849,6 +7728,7 @@ procedure Wide_Tests is
             Shift : constant Natural := Natural (Next_U64 mod 67);
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=
@@ -7453,6 +8333,114 @@ procedure Wide_Tests is
             "slide high Natural'Last");
       end Check_Movements;
 
+
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_F32x8; Context : String)
+      is
+         Value : constant Wide.F32x8 := Wide.From_Lanes (Values);
+         Fill : constant F32 := F32 (3.25);
+         Scalar_Data : F32_Array (3 .. 18) := [others => Fill];
+         Native_Data : F32_Array (3 .. 18) := [others => Fill];
+         Scalar_Aligned : F32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : F32_Array (0 .. 7) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : F32) return Boolean is
+           (Value_To_Bits (Left) = Value_To_Bits (Right));
+         function Array_Matches
+           (Data : F32_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.F32x8; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0.0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 8)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 8),
+           "F32x8 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 8)
+           and then Array_Matches (Native_Data, Start, 8)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 8)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 8),
+           "F32x8 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 8)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 8)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 8)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 8),
+           "F32x8 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_32x8 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "F32x8 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_32x8'First), 0),
+           "F32x8 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
       A_Lanes : constant Wide.Lane_Values_F32x8 := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
       A : constant Wide.F32x8 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F32x8 := Wide.Splat (2.0);
@@ -7478,6 +8466,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
+      Check_Memory (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "F32x8 lane round trip");
       Check ((for all Lane in Wide.Lane_Index_32x8 =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -7952,6 +8941,7 @@ procedure Wide_Tests is
               (Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
+            Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -8550,6 +9540,114 @@ procedure Wide_Tests is
             "slide high Natural'Last");
       end Check_Movements;
 
+
+      procedure Check_Memory
+        (Values : Wide.Lane_Values_F64x4; Context : String)
+      is
+         Value : constant Wide.F64x4 := Wide.From_Lanes (Values);
+         Fill : constant F64 := F64 (3.25);
+         Scalar_Data : F64_Array (3 .. 14) := [others => Fill];
+         Native_Data : F64_Array (3 .. 14) := [others => Fill];
+         Scalar_Aligned : F64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : F64_Array (0 .. 3) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : F64) return Boolean is
+           (Value_To_Bits (Left) = Value_To_Bits (Right));
+         function Array_Matches
+           (Data : F64_Array; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.F64x4; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else 0.0))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), 4)
+           and then Vector_Matches (Native.Load (Native_Data, Start), 4),
+           "F64x4 independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, 4)
+           and then Array_Matches (Native_Data, Start, 4)
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), 4)
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), 4),
+           "F64x4 independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, 4)
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, 4)
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), 4)
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), 4),
+           "F64x4 independent aligned memory " & Context);
+
+         for Count in Wide.Lane_Count_64x4 loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "F64x4 independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.Lane_Count_64x4'First), 0),
+           "F64x4 zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+
       A_Lanes : constant Wide.Lane_Values_F64x4 := [1.0, 2.0, 3.0, 4.0];
       A : constant Wide.F64x4 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F64x4 := Wide.Splat (2.0);
@@ -8575,6 +9673,7 @@ procedure Wide_Tests is
       Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
+      Check_Memory (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "F64x4 lane round trip");
       Check ((for all Lane in Wide.Lane_Index_64x4 =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -9049,6 +10148,7 @@ procedure Wide_Tests is
               (Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
+            Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=

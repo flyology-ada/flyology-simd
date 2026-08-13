@@ -436,6 +436,124 @@ def movement_declarations(f: Family) -> str:
 '''
 
 
+def memory_declarations(f: Family) -> str:
+    """Independent full/partial array oracle for one Wide shape."""
+    zero = "0.0" if f.floating else "0"
+    fill = f"{f.scalar} (3.25)" if f.floating else f"{f.scalar}'Last"
+    same = (
+        "Value_To_Bits (Left) = Value_To_Bits (Right)"
+        if f.floating else "Left = Right"
+    )
+    return f'''
+      procedure Check_Memory
+        (Values : Wide.{f.values}; Context : String)
+      is
+         Value : constant Wide.{f.vector} := Wide.From_Lanes (Values);
+         Fill : constant {f.scalar} := {fill};
+         Scalar_Data : {f.array} (3 .. {f.lanes + 10}) := [others => Fill];
+         Native_Data : {f.array} (3 .. {f.lanes + 10}) := [others => Fill];
+         Scalar_Aligned : {f.array} (0 .. {f.lanes - 1}) := [others => Fill]
+           with Alignment => 32;
+         Native_Aligned : {f.array} (0 .. {f.lanes - 1}) := [others => Fill]
+           with Alignment => 32;
+         Start : constant Natural := Scalar_Data'First + 1;
+         function Same (Left, Right : {f.scalar}) return Boolean is
+           ({same});
+         function Array_Matches
+           (Data : {f.array}; First : Natural; Count : Natural)
+            return Boolean
+         is
+         begin
+            for Index in Data'Range loop
+               if Index >= First and then Index - First < Count then
+                  if not Same (Data (Index), Values (Index - First)) then
+                     return False;
+                  end if;
+               elsif not Same (Data (Index), Fill) then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Array_Matches;
+         function Vector_Matches
+           (Actual : Wide.{f.vector}; Count : Natural) return Boolean
+         is
+         begin
+            for Lane in Wide.{f.index} loop
+               if not Same
+                 (Wide.Extract (Actual, Lane),
+                  (if Lane < Count then Values (Lane) else {zero}))
+               then
+                  return False;
+               end if;
+            end loop;
+            return True;
+         end Vector_Matches;
+      begin
+         Wide.Store (Scalar_Data, Start, Value);
+         Native.Store (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, {f.lanes})
+           and then Array_Matches (Native_Data, Start, {f.lanes})
+           and then Vector_Matches (Wide.Load (Scalar_Data, Start), {f.lanes})
+           and then Vector_Matches (Native.Load (Native_Data, Start), {f.lanes}),
+           "{f.vector} independent ordinary memory " & Context);
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Unaligned (Scalar_Data, Start, Value);
+         Native.Store_Unaligned (Native_Data, Start, Value);
+         Check (Array_Matches (Scalar_Data, Start, {f.lanes})
+           and then Array_Matches (Native_Data, Start, {f.lanes})
+           and then Vector_Matches
+             (Wide.Load_Unaligned (Scalar_Data, Start), {f.lanes})
+           and then Vector_Matches
+             (Native.Load_Unaligned (Native_Data, Start), {f.lanes}),
+           "{f.vector} independent unaligned memory " & Context);
+
+         Wide.Store_Aligned (Scalar_Aligned, Scalar_Aligned'First, Value);
+         Native.Store_Aligned (Native_Aligned, Native_Aligned'First, Value);
+         Check (Array_Matches (Scalar_Aligned, Scalar_Aligned'First, {f.lanes})
+           and then Array_Matches
+             (Native_Aligned, Native_Aligned'First, {f.lanes})
+           and then Vector_Matches
+             (Wide.Load_Aligned (Scalar_Aligned, Scalar_Aligned'First), {f.lanes})
+           and then Vector_Matches
+             (Native.Load_Aligned (Native_Aligned, Native_Aligned'First), {f.lanes}),
+           "{f.vector} independent aligned memory " & Context);
+
+         for Count in Wide.{f.count} loop
+            Scalar_Data := [others => Fill];
+            Native_Data := [others => Fill];
+            Wide.Store_Partial (Scalar_Data, Start, Count, Value);
+            Native.Store_Partial (Native_Data, Start, Count, Value);
+            Check (Array_Matches (Scalar_Data, Start, Count)
+              and then Array_Matches (Native_Data, Start, Count)
+              and then Vector_Matches
+                (Wide.Load_Partial (Scalar_Data, Start, Count), Count)
+              and then Vector_Matches
+                (Native.Load_Partial (Native_Data, Start, Count), Count),
+              "{f.vector} independent partial memory " & Context & Count'Image);
+         end loop;
+
+         Scalar_Data := [others => Fill];
+         Native_Data := [others => Fill];
+         Wide.Store_Partial
+           (Scalar_Data, Natural'Last, Wide.{f.count}'First, Value);
+         Native.Store_Partial
+           (Native_Data, Natural'Last, Wide.{f.count}'First, Value);
+         Check (Array_Matches (Scalar_Data, Start, 0)
+           and then Array_Matches (Native_Data, Start, 0)
+           and then Vector_Matches
+             (Wide.Load_Partial
+                (Scalar_Data, Natural'Last, Wide.{f.count}'First), 0)
+           and then Vector_Matches
+             (Native.Load_Partial
+                (Native_Data, Natural'Last, Wide.{f.count}'First), 0),
+           "{f.vector} zero-count memory avoids element addresses " & Context);
+      end Check_Memory;
+'''
+
+
 def random_conversion_helpers() -> str:
     out: list[str] = []
     for family in FAMILIES:
@@ -1720,6 +1838,7 @@ def integer_test(f: Family) -> str:
 {mask_position_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
+{memory_declarations(f)}
 {lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
@@ -1743,6 +1862,7 @@ def integer_test(f: Family) -> str:
       Two_Selectors : Wide.{f.two_selectors};
       Native_Two_Selectors : Wide.{f.two_selectors};
    begin
+      Check_Memory (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.{f.values}'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.{f.values}'[others => 0],
@@ -2058,6 +2178,7 @@ def integer_test(f: Family) -> str:
             Shift : constant Natural := Natural (Next_U64 mod {f.bits + 3});
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
+            Check_Memory (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.{f.index} loop
                declare
                   One_Lane : constant Wide.{f.index} :=
@@ -2403,6 +2524,7 @@ def float_test(f: Family) -> str:
 {mask_position_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
+{memory_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.{f.vector} := Wide.Splat (2.0);
@@ -2428,6 +2550,7 @@ def float_test(f: Family) -> str:
       Two_Selectors : Wide.{f.two_selectors};
       Native_Two_Selectors : Wide.{f.two_selectors};
    begin
+      Check_Memory (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       Check ((for all Lane in Wide.{f.index} =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -2742,6 +2865,7 @@ def float_test(f: Family) -> str:
               ({f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
+            Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.{f.index} loop
                declare
                   One_Lane : constant Wide.{f.index} :=

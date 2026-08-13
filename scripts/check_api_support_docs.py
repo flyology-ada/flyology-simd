@@ -53,6 +53,26 @@ def missing_support(path: Path) -> list[str]:
     return missing
 
 
+def declaration_blocks(text: str, name: str) -> list[str]:
+    """Return exact declaration-plus-documentation blocks for one public name."""
+    lines = text.splitlines()
+    blocks: list[str] = []
+    index = 0
+    while index < len(lines):
+        match = DECLARATION.match(lines[index])
+        if match is None:
+            index += 1
+            continue
+        end = declaration_end(lines, index)
+        comment = end + 1
+        while comment < len(lines) and lines[comment].startswith("   --"):
+            comment += 1
+        if match.group(1) == name:
+            blocks.append("\n".join(lines[index:comment]))
+        index = comment
+    return blocks
+
+
 def invalid_support(path: Path) -> list[str]:
     text = path.read_text()
     invalid: list[str] = []
@@ -63,10 +83,12 @@ def invalid_support(path: Path) -> list[str]:
             "In a scalar build, the matching Wide.Native overload uses the same "
             "two-part composition through the portable 128-bit implementation."
         )
-        if text.count(contextual_compact) != 20:
+        compact_blocks = declaration_blocks(text, "Compress") + declaration_blocks(text, "Expand")
+        contextual_count = sum(contextual_compact in block for block in compact_blocks)
+        if contextual_count != 20:
             invalid.append(
                 f"{path.relative_to(ROOT)}: expected 20 contextualized portable "
-                f"Compact support notes, found {text.count(contextual_compact)}"
+                f"Compact support notes, found {contextual_count}"
             )
         movement_context = "In a scalar build, the matching Wide.Native overload uses"
         movement_operations = {
@@ -713,8 +735,6 @@ def invalid_support(path: Path) -> list[str]:
             "function Reverse_Lanes": "two-register NEON tbl operation",
             "function Slide_Lanes_Toward_Low": "two-register NEON tbl operation",
             "function Slide_Lanes_Toward_High": "two-register NEON tbl operation",
-            "function Load_Partial": "conditionally compose selected 128-bit full and partial memory operations",
-            "procedure Store_Partial": "conditionally compose selected 128-bit full and partial memory operations",
             "function Add (": "optional AVX2 backend uses one isolated 256-bit vadd",
             "function Subtract (": "optional AVX2 backend uses one isolated 256-bit vsub",
             "function Multiply (": "optional AVX2 backend uses one isolated 256-bit vmul",
@@ -810,6 +830,52 @@ def invalid_support(path: Path) -> list[str]:
                 invalid.append(
                     f"{path.relative_to(ROOT)}: {declaration} classification "
                     f"appears {count} times, expected {expected}"
+                )
+    if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        full_memory_support = {
+            "Load": "selected 128-bit Load operation at Start and Start plus the private lane count",
+            "Store": "selected 128-bit Store operation at Start and Start plus the private lane count",
+            "Load_Unaligned": "selected 128-bit Load_Unaligned operation at Start and Start plus the private lane count",
+            "Store_Unaligned": "selected 128-bit Store_Unaligned operation at Start and Start plus the private lane count",
+            "Load_Aligned": "selected 128-bit Load_Aligned operation at Start and Start plus the private lane count",
+            "Store_Aligned": "selected 128-bit Store_Aligned operation at Start and Start plus the private lane count",
+        }
+        for operation, phrase in full_memory_support.items():
+            blocks = declaration_blocks(text, operation)
+            found = sum(
+                phrase in block
+                and "same two-part composition through the portable 128-bit implementation" in block
+                for block in blocks
+            )
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact {operation} "
+                    f"Wide memory classifications, found {found}"
+                )
+        partial_memory_support = {
+            "Load_Partial": (
+                "selected 128-bit Load_Partial operation for the low result part",
+                "selected Load operation for the low result part",
+                "selected Zero operation for the high result part",
+            ),
+            "Store_Partial": (
+                "selected 128-bit Store_Partial operation for the low value part",
+                "selected Store operation for the low value part",
+                "selected Store_Partial operation for the remaining high lanes",
+            ),
+        }
+        for operation, phrases in partial_memory_support.items():
+            blocks = declaration_blocks(text, operation)
+            found = sum(
+                all(phrase in block for phrase in phrases)
+                and "A zero count does not evaluate an element address" in block
+                and "same conditional composition through the portable 128-bit implementation" in block
+                for block in blocks
+            )
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact {operation} "
+                    f"Wide memory classifications, found {found}"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
         for operation in ("Compress", "Expand"):
