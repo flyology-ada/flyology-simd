@@ -285,7 +285,6 @@ def native_support_doc(name: str, declaration: str) -> str:
         "None_True",
         "Is_Aligned_16", "Has_Extent",
     }
-    x86_scalar = name in {"Compress", "Expand"}
     if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
         action = {
             "From_Lanes": "copy the supplied lane array into private vector storage",
@@ -693,9 +692,25 @@ def native_support_doc(name: str, declaration: str) -> str:
             "with each valid source position, broadcasts matching source "
             "bytes, and merges them into the result"
         )
+    elif name in {"Compress", "Expand"}:
+        map_action = (
+            "a stable compression byte map from the mask"
+            if name == "Compress"
+            else "an expansion byte map from the mask"
+        )
+        aarch = (
+            f"fixed-width Ada code to derive {map_action}, followed by a "
+            "dedicated NEON tbl sequence"
+        )
+        x86 = (
+            f"fixed-width Ada code to derive {map_action}, followed by a "
+            "dedicated SSE2 sequence that compares every byte selector with "
+            "each valid source position, broadcasts matching source bytes, "
+            "and merges them into the result"
+        )
     else:
         aarch = "a dedicated NEON implementation"
-        x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
+        x86 = "a dedicated SSE2 implementation"
     return (
         f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
         f"backend uses {x86}. A scalar build uses the portable scalar implementation."

@@ -757,8 +757,8 @@ def native_lane_slides(architecture: str) -> list[str]:
     return out
 
 
-def neon_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
-    """Build a semantic byte map in Ada and perform lane movement with TBL."""
+def native_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
+    """Build semantic byte maps in Ada and apply the target permutation leaf."""
     idx = lane_index(bits, lanes)
     mask = mask_for(bits, lanes)
     mapping = lane_map(bits, lanes)
@@ -954,7 +954,7 @@ def neon_body() -> str:
         "   pragma Inline_Always (Native_Permute_2_U8x16);",
         "   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));",
     ]
-    out += neon_compress_expand("U8x16", 8, 16)
+    out += native_compress_expand("U8x16", 8, 16)
     out.append("")
     out += native_lane_slides("aarch64")
 
@@ -1022,7 +1022,7 @@ def neon_body() -> str:
             f"   pragma Inline_Always (Native_Permute_2_{vector});",
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
         ]
-        out += neon_compress_expand(vector, bits, lanes)
+        out += native_compress_expand(vector, bits, lanes)
         if bits == 64:
             out += [
                 f"   function Native_Multiply_Wrap_{vector} is new NEON_Multiply_64_128 ({vector});",
@@ -1150,7 +1150,7 @@ def neon_body() -> str:
             f"   function Native_Reduce_Add_{vector} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {add_instruction}, \"{add_store}\");",
             f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
         ]
-        out += neon_compress_expand(vector, bits, lanes)
+        out += native_compress_expand(vector, bits, lanes)
         for name, opcode in (("Reduce_Min_Number", "fminnm"), ("Reduce_Max_Number", "fmaxnm")):
             if bits == 32:
                 instruction = (
@@ -2254,8 +2254,7 @@ def x86_body() -> str:
         ]
 
     out += native_permute("U8x16", 8, 16)
-    out.append(call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
-    out.append(call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
+    out += native_compress_expand("U8x16", 8, 16)
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out += native_bit_cast_body(source_vector, target_vector)
@@ -2500,10 +2499,9 @@ def x86_body() -> str:
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
-            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
-            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
         out += native_permute(vector, bits, lanes)
+        out += native_compress_expand(vector, bits, lanes)
         out += [
             f"   function Native_SHL_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_left[bits])}\");",
             f"   function Native_SHR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_right[bits])}\");",
@@ -2610,8 +2608,6 @@ def x86_body() -> str:
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), {weights}, If_True, If_False));",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
-            call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
-            call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             f"   function Native_Min_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{min_instruction}\");",
             f"   function Min_Number (Left, Right : {vector}) return {vector} is (Native_Min_Number_{vector} (Left, Right));",
             f"   function Native_Max_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{max_instruction}\");",
@@ -2624,6 +2620,7 @@ def x86_body() -> str:
             f"   function Reduce_Max_Number (Value : {vector}) return {scalar} is (Native_Reduce_Max_Number_{vector} (Value));",
         ]
         out += native_permute(vector, bits, lanes)
+        out += native_compress_expand(vector, bits, lanes)
         out += x86_memory_body(vector, arr, count)
 
     for bits, lanes, storage in MASKS:

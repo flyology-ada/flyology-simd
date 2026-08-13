@@ -246,7 +246,13 @@ byte positions. The two-source sequence compares them with 32 byte positions
 from `Left` followed by `Right`. Each step broadcasts a matching source byte,
 masks it, and merges it into an initially zero result. The sequence moves every
 byte of a selected lane and preserves its complete bit encoding. Mask
-compression and expansion still use scalar composition on x86-64.
+compression and expansion derive a byte-selector map from the mask with
+fixed-width Ada code. The x86-64 backend applies that map with the same
+dedicated SSE2 selector comparison, byte broadcast, mask, and merge sequence.
+Compression keeps selected lanes in ascending source order. Expansion places
+packed lanes into true result positions. The maps select zero bytes for fill
+lanes, so floating fill lanes contain positive zero. Moved lanes preserve their
+complete bit encoding.
 
 The table-lookup tests exhaustively cover index values from zero through 255.
 Deterministic pseudorandom cases compare every scalar and Native result lane
@@ -256,14 +262,26 @@ the AArch64 `tbl` instruction or all 16 x86-64 comparison, broadcast, mask, and
 merge steps. The x86-64 gate also requires zero initialization. Both
 exact-symbol gates reject portable and out-of-line lookup calls. The
 Native-object gate rejects a retained portable lookup call.
+
 The permutation tests apply independent lane oracles directly to scalar and
 Native results. They cover fixed, default, broadcast, and special floating
 encodings. Each value type also uses 250 pseudorandom one-source maps and
 varied deterministic two-source maps. The x86-64 caller-relocation gate
-requires all 20 Native leaves and rejects dispatcher and portable-root calls. Exact-symbol gates
-require 16 or 32 comparison and selector-increment stages, as applicable, and
-reject calls. AArch64 gates cover all ten value types and require one-register
-or two-register `tbl`.
+requires all 20 Native leaves and rejects dispatcher and portable-root calls.
+Exact-symbol gates require 16 or 32 comparison and selector-increment stages,
+as applicable, and reject calls. AArch64 gates cover all ten value types and
+require one-register or two-register `tbl`.
+
+The compression and expansion tests exhaust every mask for all ten value
+types. Independent lane oracles check scalar and Native results with
+deterministic inputs. Floating cases cover special encodings and compare moved
+lanes and positive-zero fill lanes bit for bit. The x86-64 public caller gate
+covers all 20 overloads. It requires a relocation to the matching shared SSE2
+permutation leaf and rejects public Native or portable compact-operation calls.
+Separate exact-leaf gates cover the ten shared SSE2 selector sequences and
+reject calls. The Native-object gate rejects retained portable compression or
+expansion calls.
+
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

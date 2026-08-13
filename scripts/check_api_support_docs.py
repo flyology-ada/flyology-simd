@@ -445,6 +445,30 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact all-family "
                 "Permute_Lanes target classifications"
             )
+        for operation, map_phrase in (
+            ("Compress", "stable compression byte map from the mask"),
+            ("Expand", "expansion byte map from the mask"),
+        ):
+            compact_blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            if (
+                len(compact_blocks) != 10
+                or any(
+                    map_phrase not in block
+                    or "dedicated NEON tbl sequence" not in block
+                    or "compares every byte selector with each valid source position"
+                    not in block
+                    or "broadcasts matching source bytes" not in block
+                    or "merges them into the result" not in block
+                    for block in compact_blocks
+                )
+            ):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact all-family "
+                    f"{operation} target classifications"
+                )
         shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]

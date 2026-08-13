@@ -236,10 +236,11 @@ currently composes conversions between 64-bit integer and binary64 lanes with
 the scalar implementation.
 Same-width conversion between signed and unsigned integer types uses SSE2
 comparisons, sign-mask construction, and bit selection.
-It also composes 128-bit and Wide variable lane permutation, mask compression,
-and mask expansion because SSE2 has no indexed-byte table instruction.
-This preserves the contract but does not claim an SSE2 instruction sequence
-for those operations.
+For 128-bit variable lane permutation, mask compression, and mask expansion,
+Ada code derives byte-selector maps. Dedicated SSE2 sequences apply
+those maps with byte comparisons, broadcasts, masks, and merges. The x86-64
+Wide composed backend still uses the Wide scalar implementations for these
+operations.
 
 The scalar and 128-bit implementations never receive AVX2 compiler switches.
 The x86 detector is a baseline Ada machine-code leaf using CPUID and XGETBV.

@@ -46,7 +46,7 @@ disassemble() {
     if command -v otool >/dev/null 2>&1; then
         otool -tvV "$1"
     else
-        objdump -d "$1"
+        objdump -dr "$1"
     fi
 }
 
@@ -1344,6 +1344,33 @@ EOF
         forbid_pattern 'flyology_simd__backends__native__permute_lanes|flyology_simd__permute_lanes' \
           "$temporary/permute-undefined.txt" \
           'Native dispatcher or portable permutation retained in x86 caller probes'
+        while read -r lane_kind lane_shape; do
+            for operation in compress expand; do
+                output="$temporary/${lane_kind}_${operation}.txt"
+                extract_symbol "permute_codegen_probe__${lane_kind}_${operation}" \
+                  "$temporary/permute-probe.txt" "$output"
+                require_pattern "flyology_simd__backends__native__native_permute_${lane_shape}" \
+                  "$output" \
+                  "matching SSE2 permutation leaf in ${lane_kind} ${operation} caller"
+                forbid_pattern 'flyology_simd__backends__native__(compress|expand)|flyology_simd__(compress|expand)' \
+                  "$output" \
+                  "public Native or portable compact operation in ${lane_kind} ${operation} caller"
+            done
+        done <<'EOF'
+u8 u8x16
+i8 i8x16
+u16 u16x8
+i16 i16x8
+u32 u32x4
+i32 i32x4
+f32 f32x4
+u64 u64x2
+i64 i64x2
+f64 f64x2
+EOF
+        forbid_pattern 'flyology_simd__(compress|expand)' \
+          "$temporary/native-undefined.txt" \
+          'portable compact operation retained in x86 Native object'
         for direction in low high; do
             instruction=psrldq
             if [ "$direction" = high ]; then instruction=pslldq; fi

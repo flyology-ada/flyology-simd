@@ -206,13 +206,13 @@ is
    --  @return The operation result.
    function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -1149,13 +1149,13 @@ is
    --  @return The operation result.
    function Compress (Value : I8x16; Mask : Mask_8x16) return I8x16;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : I8x16; Mask : Mask_8x16) return I8x16;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -1442,13 +1442,13 @@ is
    --  @return The operation result.
    function Compress (Value : U16x8; Mask : Mask_16x8) return U16x8;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : U16x8; Mask : Mask_16x8) return U16x8;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -1741,13 +1741,13 @@ is
    --  @return The operation result.
    function Compress (Value : I16x8; Mask : Mask_16x8) return I16x8;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : I16x8; Mask : Mask_16x8) return I16x8;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -2034,13 +2034,13 @@ is
    --  @return The operation result.
    function Compress (Value : U32x4; Mask : Mask_32x4) return U32x4;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : U32x4; Mask : Mask_32x4) return U32x4;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -2333,13 +2333,13 @@ is
    --  @return The operation result.
    function Compress (Value : I32x4; Mask : Mask_32x4) return I32x4;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : I32x4; Mask : Mask_32x4) return I32x4;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -2626,13 +2626,13 @@ is
    --  @return The operation result.
    function Compress (Value : U64x2; Mask : Mask_64x2) return U64x2;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : U64x2; Mask : Mask_64x2) return U64x2;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -2925,13 +2925,13 @@ is
    --  @return The operation result.
    function Compress (Value : I64x2; Mask : Mask_64x2) return I64x2;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : I64x2; Mask : Mask_64x2) return I64x2;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -3183,13 +3183,13 @@ is
    --  @return The operation result.
    function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : F32x4; Mask : Mask_32x4) return F32x4;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
@@ -3442,13 +3442,13 @@ is
    --  @return The operation result.
    function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2;
    --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Expand (Value : F64x2; Mask : Mask_64x2) return F64x2;
    --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Mask The input mask.
    --  @return The operation result.
