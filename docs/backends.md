@@ -45,10 +45,11 @@ low-by-high and high-by-low cross-products. It adds the cross-products, shifts
 that sum left by 32 bits, and adds the shifted value to the low-by-low product.
 The sequence keeps the low 64 bits. The high-by-high product cannot affect
 those bits. All ten 128-bit `Select_Value` overloads expand the compact mask
-with `cmtst` and select lane bits with `bsl`. `Reduce_Add` and `Unordered` use
-scalar composition for `F32x4` and `F64x2`. Floating minimum-number and
-maximum-number reductions use scalar Advanced SIMD leaves in ascending lane
-order.
+with `cmtst` and select lane bits with `bsl`. Floating `Reduce_Add` uses a
+dedicated Advanced SIMD sequence. It starts from positive zero and adds one
+lane at a time in ascending order. `Unordered` uses scalar composition for `F32x4` and `F64x2`.
+Floating minimum-number and maximum-number reductions use scalar Advanced SIMD
+leaves in ascending lane order.
 
 Fixed test cases for signed and unsigned lanes cover 32-bit partial-product
 boundaries. For each type, 250 deterministic pseudorandom cases use an
@@ -76,8 +77,10 @@ All 24 integer
 reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
 Minimum and maximum reductions use packed minimum or maximum where SSE2 has
 the lane operation, and comparison plus bit selection otherwise. Floating
-`Min_Number`, `Max_Number`, and `Reduce_Add` use scalar composition. Floating
-minimum-number and maximum-number reductions also use scalar composition. The
+`Reduce_Add` uses a dedicated SSE2 sequence. It starts from positive zero and
+adds one lane at a time in ascending order.
+Floating `Min_Number`, `Max_Number`, `Reduce_Min_Number`, and
+`Reduce_Max_Number` use scalar composition. The
 integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
 overloads use SSE2 unpack, shuffle, clamp, and pack sequences. The current bit
 casts use scalar composition on x86-64. Conversions between 32-bit integer and

@@ -2143,6 +2143,8 @@ procedure Family_Tests is
       Signal32 : constant F32x4 := From_Lanes ([SNaN32, SNaN32, SNaN32, SNaN32]);
       Number32 : constant F32x4 := From_Lanes ([1.0, 1.0, 1.0, 1.0]);
       Fold_Order32 : constant F32x4 := From_Lanes ([2.0, 1.0, SNaN32, 3.0]);
+      Add_Order32 : constant F32x4 := From_Lanes ([1.0E20, 1.0, -1.0E20, 1.0]);
+      Add_Negative_Zero32 : constant F32x4 := From_Lanes ([Neg_Zero32, Neg_Zero32, Neg_Zero32, Neg_Zero32]);
       Positive_Zero_First32 : constant F32x4 := From_Lanes ([0.0, Neg_Zero32, 0.0, Neg_Zero32]);
       Negative_Zero_First32 : constant F32x4 := From_Lanes ([Neg_Zero32, 0.0, Neg_Zero32, 0.0]);
       Quiet_Left32 : constant F32x4 := From_Lanes ([NaN32, 5.0, NaN32, NaN32]);
@@ -2162,6 +2164,7 @@ procedure Family_Tests is
       Quiet_Right64 : constant F64x2 := From_Lanes ([5.0, NaN64]);
       Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);
       Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);
+      Add_Negative_Zero64 : constant F64x2 := From_Lanes ([Neg_Zero64, Neg_Zero64]);
    begin
       for Lane in Lane_Index_32x4 loop
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), "F32 special lane permutation" & Lane'Image);
@@ -2245,6 +2248,9 @@ procedure Family_Tests is
       Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, "F32 infinity multiplication");
       Check (F32_Bits (Extract (Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then Is_NaN (Extract (Divide (Numerator32, Zero32), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator32, Zero32), 1)), "F32 division edge cases");
       Check (Is_NaN (Reduce_Add (A32)) and then Is_NaN (Backends.Native.Reduce_Add (A32)), "F32 NaN reduction");
+      Check (Is_Quiet_NaN (Reduce_Add (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Add (Signal32)), "F32 signaling NaN addition reduction");
+      Check (F32_Bits (Reduce_Add (Add_Negative_Zero32)) = 0 and then F32_Bits (Backends.Native.Reduce_Add (Add_Negative_Zero32)) = 0, "F32 positive-zero reduction start");
+      Check (Reduce_Add (Add_Order32) = 1.0 and then Backends.Native.Reduce_Add (Add_Order32) = 1.0, "F32 ascending addition order");
       Check (F32_Bits (Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (A32)) = 16#7F80_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (A32)) = 16#7F80_0000#, "F32 min/max reduction NaN and signed zero");
       Check (Is_Quiet_NaN (Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal32)), "F32 signaling NaN reductions");
       Check (Reduce_Min_Number (Fold_Order32) = 3.0 and then Reduce_Max_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Min_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Max_Number (Fold_Order32) = 3.0, "F32 ascending fold order");
@@ -2266,6 +2272,8 @@ procedure Family_Tests is
       Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, "F64 infinity multiplication");
       Check (F64_Bits (Extract (Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then Is_NaN (Extract (Divide (Numerator64, Zero64), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator64, Zero64), 1)), "F64 division edge cases");
       Check (Is_NaN (Reduce_Add (A64)) and then Is_NaN (Backends.Native.Reduce_Add (A64)), "F64 NaN reduction");
+      Check (Is_Quiet_NaN (Reduce_Add (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Add (Signal64)), "F64 signaling NaN addition reduction");
+      Check (F64_Bits (Reduce_Add (Add_Negative_Zero64)) = 0 and then F64_Bits (Backends.Native.Reduce_Add (Add_Negative_Zero64)) = 0, "F64 positive-zero reduction start");
       Check (F64_Bits (Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000#, "F64 min/max reduction NaN and signed zero");
       Check (Is_Quiet_NaN (Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal64)), "F64 signaling NaN reductions");
       Check (F64_Bits (Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Negative_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Negative_Zero_First64)) = 0, "F64 reduction signed-zero orders");

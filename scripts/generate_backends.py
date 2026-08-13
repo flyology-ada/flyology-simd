@@ -935,6 +935,18 @@ def neon_body() -> str:
         arr, count = array_name(scalar), lane_count(bits, lanes)
         shape = f"{lanes}{'s' if bits == 32 else 'd'}"
         weight = f"Weights_{bits}x{lanes}'Address"
+        add_lane = "s" if bits == 32 else "d"
+        add_steps = [
+            '"mov v2.16b, v0.16b"',
+            '"movi v0.16b, #0"',
+        ]
+        for lane in range(lanes):
+            add_steps.extend([
+                f'"dup v1.{shape}, v2.{add_lane}[{lane}]"',
+                f'"fadd {add_lane}0, {add_lane}0, {add_lane}1"',
+            ])
+        add_instruction = " & ASCII.LF & ASCII.HT & ".join(add_steps)
+        add_store = f"str {add_lane}0, [%0]"
         for name, op in (("Add", "fadd"), ("Subtract", "fsub"), ("Multiply", "fmul"), ("Divide", "fdiv"), ("Min_Number", "fminnm"), ("Max_Number", "fmaxnm"), ("Interleave_Low", "zip1"), ("Interleave_High", "zip2"), ("Deinterleave_Even", "uzp1"), ("Deinterleave_Odd", "uzp2")):
             instruction = f"{op} v0.{shape}, v0.{shape}, v1.{shape}"
             out += [f"   function Native_{name}_{vector} is new NEON_Binary_128 ({vector}, \"{instruction}\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
@@ -958,7 +970,8 @@ def neon_body() -> str:
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
             f"   function Native_Select_{vector} is new NEON_Select_128 ({vector}, \"dup v2.{shape}, %{'1' if bits == 64 else 'w1'}\", \"cmtst v2.{shape}, v2.{shape}, v3.{shape}\");",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_{bits}x{lanes}'Address, If_True, If_False));",
-            call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
+            f"   function Native_Reduce_Add_{vector} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {add_instruction}, \"{add_store}\");",
+            f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
         ]
         out += neon_compress_expand(vector, bits, lanes)
         for name, opcode in (("Reduce_Min_Number", "fminnm"), ("Reduce_Max_Number", "fmaxnm")):
@@ -1130,6 +1143,19 @@ def x86_helpers() -> list[str]:
         "      return Result;",
         "   end SSE2_Integer_Reduce_128;",
         "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Instruction : String;",
+        "      Store_Instruction : String;",
+        "   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
+        "   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
+        "      Result : Scalar_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Float_Reduce_128;",
+        "",
     ]
 
 
@@ -1290,6 +1316,18 @@ def x86_reduce_add_instruction(bits: int) -> str:
         f"movdqa %%xmm0, %%xmm1\npsrldq ${shift}, %%xmm1\npadd{lane} %%xmm1, %%xmm0"
         for shift in shifts
     )
+
+
+def x86_float_reduce_add_instruction(bits: int, lanes: int) -> str:
+    """Return an ordered floating reduction that starts from positive zero."""
+    operation = "addss" if bits == 32 else "addsd"
+    shift = 4 if bits == 32 else 8
+    steps = ["movdqa %%xmm0, %%xmm2", "pxor %%xmm0, %%xmm0"]
+    for lane in range(lanes):
+        steps.append(f"{operation} %%xmm2, %%xmm0")
+        if lane + 1 < lanes:
+            steps.append(f"psrldq ${shift}, %%xmm2")
+    return "\n".join(steps)
 
 
 def x86_reduce_extreme_instruction(
@@ -1972,6 +2010,10 @@ def x86_body() -> str:
                 f"   function Compare_{name}_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{op}{suffix} %%xmm1, %%xmm0\");",
                 f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_{name}_{vector} (Left, Right, Sign_32'Address))));",
             ]
+        reduce_instruction = x86_ada_instruction(
+            x86_float_reduce_add_instruction(bits, lanes)
+        )
+        reduce_store = "movss %%xmm0, (%0)" if bits == 32 else "movsd %%xmm0, (%0)"
         out += [
             f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Less_Than (Left => Right, Right => Left));",
             f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
@@ -1987,7 +2029,8 @@ def x86_body() -> str:
             call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Min_Number", vector, "Left, Right", f"Left, Right : {vector}"),
             call("Max_Number", vector, "Left, Right", f"Left, Right : {vector}"),
-            call("Reduce_Add", scalar, "Value", f"Value : {vector}"),
+            f"   function Native_Reduce_Add_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_instruction}\", \"{reduce_store}\");",
+            f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
             call("Reduce_Min_Number", scalar, "Value", f"Value : {vector}"),
             call("Reduce_Max_Number", scalar, "Value", f"Value : {vector}"),
         ]
@@ -2650,6 +2693,8 @@ def test_program() -> str:
         "      Signal32 : constant F32x4 := From_Lanes ([SNaN32, SNaN32, SNaN32, SNaN32]);",
         "      Number32 : constant F32x4 := From_Lanes ([1.0, 1.0, 1.0, 1.0]);",
         "      Fold_Order32 : constant F32x4 := From_Lanes ([2.0, 1.0, SNaN32, 3.0]);",
+        "      Add_Order32 : constant F32x4 := From_Lanes ([1.0E20, 1.0, -1.0E20, 1.0]);",
+        "      Add_Negative_Zero32 : constant F32x4 := From_Lanes ([Neg_Zero32, Neg_Zero32, Neg_Zero32, Neg_Zero32]);",
         "      Positive_Zero_First32 : constant F32x4 := From_Lanes ([0.0, Neg_Zero32, 0.0, Neg_Zero32]);",
         "      Negative_Zero_First32 : constant F32x4 := From_Lanes ([Neg_Zero32, 0.0, Neg_Zero32, 0.0]);",
         "      Quiet_Left32 : constant F32x4 := From_Lanes ([NaN32, 5.0, NaN32, NaN32]);",
@@ -2669,6 +2714,7 @@ def test_program() -> str:
         "      Quiet_Right64 : constant F64x2 := From_Lanes ([5.0, NaN64]);",
         "      Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);",
         "      Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);",
+        "      Add_Negative_Zero64 : constant F64x2 := From_Lanes ([Neg_Zero64, Neg_Zero64]);",
         "   begin",
         "      for Lane in Lane_Index_32x4 loop",
         "         Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), \"F32 special lane permutation\" & Lane'Image);",
@@ -2752,6 +2798,9 @@ def test_program() -> str:
         "      Check (F32_Bits (Extract (Multiply (A32, B32), 1)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Multiply (A32, B32), 1)) = 16#7F80_0000#, \"F32 infinity multiplication\");",
         "      Check (F32_Bits (Extract (Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then F32_Bits (Extract (Backends.Native.Divide (Numerator32, Zero32), 0)) = 16#7F80_0000# and then Is_NaN (Extract (Divide (Numerator32, Zero32), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator32, Zero32), 1)), \"F32 division edge cases\");",
         "      Check (Is_NaN (Reduce_Add (A32)) and then Is_NaN (Backends.Native.Reduce_Add (A32)), \"F32 NaN reduction\");",
+        "      Check (Is_Quiet_NaN (Reduce_Add (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Add (Signal32)), \"F32 signaling NaN addition reduction\");",
+        "      Check (F32_Bits (Reduce_Add (Add_Negative_Zero32)) = 0 and then F32_Bits (Backends.Native.Reduce_Add (Add_Negative_Zero32)) = 0, \"F32 positive-zero reduction start\");",
+        "      Check (Reduce_Add (Add_Order32) = 1.0 and then Backends.Native.Reduce_Add (Add_Order32) = 1.0, \"F32 ascending addition order\");",
         "      Check (F32_Bits (Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Min_Number (A32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (A32)) = 16#7F80_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (A32)) = 16#7F80_0000#, \"F32 min/max reduction NaN and signed zero\");",
         "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal32)), \"F32 signaling NaN reductions\");",
         "      Check (Reduce_Min_Number (Fold_Order32) = 3.0 and then Reduce_Max_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Min_Number (Fold_Order32) = 3.0 and then Backends.Native.Reduce_Max_Number (Fold_Order32) = 3.0, \"F32 ascending fold order\");",
@@ -2773,6 +2822,8 @@ def test_program() -> str:
         "      Check (F64_Bits (Extract (Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Multiply (Infinity64, Twice64), 0)) = 16#7FF0_0000_0000_0000#, \"F64 infinity multiplication\");",
         "      Check (F64_Bits (Extract (Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Divide (Numerator64, Zero64), 0)) = 16#7FF0_0000_0000_0000# and then Is_NaN (Extract (Divide (Numerator64, Zero64), 1)) and then Is_NaN (Extract (Backends.Native.Divide (Numerator64, Zero64), 1)), \"F64 division edge cases\");",
         "      Check (Is_NaN (Reduce_Add (A64)) and then Is_NaN (Backends.Native.Reduce_Add (A64)), \"F64 NaN reduction\");",
+        "      Check (Is_Quiet_NaN (Reduce_Add (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Add (Signal64)), \"F64 signaling NaN addition reduction\");",
+        "      Check (F64_Bits (Reduce_Add (Add_Negative_Zero64)) = 0 and then F64_Bits (Backends.Native.Reduce_Add (Add_Negative_Zero64)) = 0, \"F64 positive-zero reduction start\");",
         "      Check (F64_Bits (Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Min_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (A64)) = 16#8000_0000_0000_0000#, \"F64 min/max reduction NaN and signed zero\");",
         "      Check (Is_Quiet_NaN (Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal64)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal64)), \"F64 signaling NaN reductions\");",
         "      Check (F64_Bits (Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Reduce_Max_Number (Negative_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Positive_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Positive_Zero_First64)) = 0 and then F64_Bits (Backends.Native.Reduce_Min_Number (Negative_Zero_First64)) = 16#8000_0000_0000_0000# and then F64_Bits (Backends.Native.Reduce_Max_Number (Negative_Zero_First64)) = 0, \"F64 reduction signed-zero orders\");",

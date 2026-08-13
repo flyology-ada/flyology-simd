@@ -124,6 +124,24 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: expected {expected} exact "
                     f"{operation} SSE2 classifications, found {found}"
                 )
+        floating_add_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Reduce_Add")[1:]
+            if not block.startswith("_Wrap")
+        ]
+        floating_add_phrase = (
+            "dedicated SSE2 sequence that starts from positive zero and "
+            "adds one binary"
+        )
+        if (
+            len(floating_add_blocks) != 2
+            or sum(floating_add_phrase in block for block in floating_add_blocks) != 2
+            or sum("dedicated NEON sequence that starts from positive zero" in block for block in floating_add_blocks) != 2
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact floating "
+                "Reduce_Add backend classifications"
+            )
         conversion_support = {
             "Widen_Low": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),
             "Widen_High": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),

@@ -614,6 +614,19 @@ package body Flyology_SIMD.Backends.Native is
       return Result;
    end SSE2_Integer_Reduce_128;
 
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Instruction : String;
+      Store_Instruction : String;
+   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;
+   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is
+      Result : Scalar_Type;
+   begin
+      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,xmm1,xmm2,memory", Volatile => True);
+      return Result;
+   end SSE2_Float_Reduce_128;
+
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
    function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is
@@ -1862,8 +1875,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Min_Number (Left, Right));
    function Max_Number (Left, Right : F32x4) return F32x4 is
      (Flyology_SIMD.Max_Number (Left, Right));
-   function Reduce_Add (Value : F32x4) return F32 is
-     (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Add_F32x4 is new SSE2_Float_Reduce_128 (F32x4, F32, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0", "movss %%xmm0, (%0)");
+   function Reduce_Add (Value : F32x4) return F32 is (Native_Reduce_Add_F32x4 (Value));
    function Reduce_Min_Number (Value : F32x4) return F32 is
      (Flyology_SIMD.Reduce_Min_Number (Value));
    function Reduce_Max_Number (Value : F32x4) return F32 is
@@ -1938,8 +1951,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Min_Number (Left, Right));
    function Max_Number (Left, Right : F64x2) return F64x2 is
      (Flyology_SIMD.Max_Number (Left, Right));
-   function Reduce_Add (Value : F64x2) return F64 is
-     (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Add_F64x2 is new SSE2_Float_Reduce_128 (F64x2, F64, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "addsd %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm2" & ASCII.LF & ASCII.HT & "addsd %%xmm2, %%xmm0", "movsd %%xmm0, (%0)");
+   function Reduce_Add (Value : F64x2) return F64 is (Native_Reduce_Add_F64x2 (Value));
    function Reduce_Min_Number (Value : F64x2) return F64 is
      (Flyology_SIMD.Reduce_Min_Number (Value));
    function Reduce_Max_Number (Value : F64x2) return F64 is

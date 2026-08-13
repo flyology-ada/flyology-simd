@@ -288,7 +288,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Bit_Cast",
     }
     aarch_scalar = (
-        (name in {"Reduce_Add", "Unordered"}
+        (name == "Unordered"
             and ("F32x4" in declaration or "F64x2" in declaration))
     )
     x86_scalar = (
@@ -296,7 +296,7 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
             "Bit_Cast",
             "Min_Number", "Max_Number",
-            "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
+            "Reduce_Min_Number", "Reduce_Max_Number",
         }
         or (name in {"Convert_Round", "Convert_Truncate_Saturate"}
             and "64x2" in declaration)
@@ -374,6 +374,18 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Reduce_Add_Wrap":
         aarch = "a dedicated NEON packed reduction"
         x86 = "a dedicated SSE2 packed-add reduction tree"
+    elif name == "Reduce_Add" and (
+        "F32x4" in declaration or "F64x2" in declaration
+    ):
+        lane_kind = "binary32" if "F32x4" in declaration else "binary64"
+        aarch = (
+            "a dedicated NEON sequence that starts from positive zero and "
+            f"adds one {lane_kind} lane at a time in ascending order"
+        )
+        x86 = (
+            "a dedicated SSE2 sequence that starts from positive zero and "
+            f"adds one {lane_kind} lane at a time in ascending order"
+        )
     elif name in {"Reduce_Min", "Reduce_Max"}:
         aarch = "a dedicated NEON packed reduction"
         result = "minimum" if name == "Reduce_Min" else "maximum"

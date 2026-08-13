@@ -2256,8 +2256,8 @@ package body Flyology_SIMD.Backends.Native is
    function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4 is (Native_Permute_2_F32x4 (Left, Right, Map));
    function Native_Select_F32x4 is new NEON_Select_128 (F32x4, "dup v2.4s, %w1", "cmtst v2.4s, v2.4s, v3.4s");
    function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_32x4'Address, If_True, If_False));
-   function Reduce_Add (Value : F32x4) return F32 is
-     (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Add_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[0]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1", "str s0, [%0]");
+   function Reduce_Add (Value : F32x4) return F32 is (Native_Reduce_Add_F32x4 (Value));
    function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4 is
       Map : Lane_Map_32x4;
       Bits : constant Interfaces.Unsigned_8 := Mask.Bits;
@@ -2377,8 +2377,8 @@ package body Flyology_SIMD.Backends.Native is
    function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2 is (Native_Permute_2_F64x2 (Left, Right, Map));
    function Native_Select_F64x2 is new NEON_Select_128 (F64x2, "dup v2.2d, %1", "cmtst v2.2d, v2.2d, v3.2d");
    function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_64x2'Address, If_True, If_False));
-   function Reduce_Add (Value : F64x2) return F64 is
-     (Flyology_SIMD.Reduce_Add (Value));
+   function Native_Reduce_Add_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[0]" & ASCII.LF & ASCII.HT & "fadd d0, d0, d1" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fadd d0, d0, d1", "str d0, [%0]");
+   function Reduce_Add (Value : F64x2) return F64 is (Native_Reduce_Add_F64x2 (Value));
    function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2 is
       Map : Lane_Map_64x2;
       Bits : constant Interfaces.Unsigned_8 := Mask.Bits;

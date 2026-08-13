@@ -27,6 +27,7 @@ permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
+float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -47,6 +48,7 @@ disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
 disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
 disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
+disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -60,6 +62,7 @@ disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
+nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -130,6 +133,13 @@ extract_symbol() {
     ' "$file" >"$output"
 }
 
+require_count 'flyology_simd__backends__native__reduce_add' 2 \
+  "$temporary/float-reduction-undefined.txt" \
+  'two Native floating Reduce_Add calls in the public caller probe'
+forbid_pattern 'flyology_simd__reduce_add' \
+  "$temporary/float-reduction-undefined.txt" \
+  'portable Reduce_Add call in the Native caller probe'
+
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
   'two selected 128-bit wrapping-sum reductions in the Wide caller'
@@ -155,6 +165,22 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        extract_symbol 'native_reduce_add_f32x4' "$temporary/native.txt" \
+          "$temporary/reduce-add-f32x4.txt"
+        extract_symbol 'native_reduce_add_f64x2' "$temporary/native.txt" \
+          "$temporary/reduce-add-f64x2.txt"
+        require_count 'fadd[[:space:]]+s0' 4 "$temporary/reduce-add-f32x4.txt" \
+          'four ascending scalar NEON additions in F32x4 Reduce_Add'
+        require_count 'fadd[[:space:]]+d0' 2 "$temporary/reduce-add-f64x2.txt" \
+          'two ascending scalar NEON additions in F64x2 Reduce_Add'
+        for reduction in reduce-add-f32x4 reduce-add-f64x2; do
+            require_pattern 'movi.*v0.*#(0x)?0+([^[:xdigit:]]|$)' \
+              "$temporary/${reduction}.txt" \
+              "positive-zero accumulator in ${reduction}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__reduce_add' \
+              "$temporary/${reduction}.txt" \
+              "out-of-line or portable reduction in ${reduction}"
+        done
         extract_symbol 'wide_float_reduction_codegen_probe__f32_reduce_add' \
           "$temporary/wide-float-reduction-probe.txt" \
           "$temporary/wide-f32-reduce-add.txt"
@@ -460,6 +486,21 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        extract_symbol 'native_reduce_add_f32x4' "$temporary/native.txt" \
+          "$temporary/reduce-add-f32x4.txt"
+        extract_symbol 'native_reduce_add_f64x2' "$temporary/native.txt" \
+          "$temporary/reduce-add-f64x2.txt"
+        require_count 'addss' 4 "$temporary/reduce-add-f32x4.txt" \
+          'four ascending scalar SSE2 additions in F32x4 Reduce_Add'
+        require_count 'addsd' 2 "$temporary/reduce-add-f64x2.txt" \
+          'two ascending scalar SSE2 additions in F64x2 Reduce_Add'
+        for reduction in reduce-add-f32x4 reduce-add-f64x2; do
+            require_pattern 'pxor.*xmm0.*xmm0' "$temporary/${reduction}.txt" \
+              "positive-zero accumulator in ${reduction}"
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__reduce_add' \
+              "$temporary/${reduction}.txt" \
+              "out-of-line or portable reduction in ${reduction}"
+        done
         require_pattern 'flyology_simd__wide__reduce_add' \
           "$temporary/wide-float-reduction-undefined.txt" \
           'portable ordered F32 addition reduction on x86-64'

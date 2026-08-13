@@ -3207,7 +3207,7 @@ is
    --  @return The operation result.
    function Reduce_Add (Value : F32x4) return F32;
    --  Add all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that starts from positive zero and adds one binary32 lane at a time in ascending order. The x86-64 backend uses a dedicated SSE2 sequence that starts from positive zero and adds one binary32 lane at a time in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F32x4) return F32;
@@ -3466,7 +3466,7 @@ is
    --  @return The operation result.
    function Reduce_Add (Value : F64x2) return F64;
    --  Add all floating lanes in ascending lane order.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses scalar composition. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that starts from positive zero and adds one binary64 lane at a time in ascending order. The x86-64 backend uses a dedicated SSE2 sequence that starts from positive zero and adds one binary64 lane at a time in ascending order. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Reduce_Min_Number (Value : F64x2) return F64;
