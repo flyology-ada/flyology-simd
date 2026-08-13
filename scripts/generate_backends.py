@@ -1070,7 +1070,7 @@ def x86_helpers() -> list[str]:
         "   function SSE2_Convert_128 (Value : Source_Type) return Result_Type is",
         "      Result : Result_Type;",
         "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"rax,rcx,rdx,r8,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,cc,memory\", Volatile => True);",
         "      return Result;",
         "   end SSE2_Convert_128;",
         "",
@@ -1328,6 +1328,117 @@ def x86_float_reduce_add_instruction(bits: int, lanes: int) -> str:
         if lane + 1 < lanes:
             steps.append(f"psrldq ${shift}, %%xmm2")
     return "\n".join(steps)
+
+
+def x86_convert_round_64_instruction(signed: bool) -> str:
+    """Convert two integer64 lanes to binary64 under the current MXCSR mode."""
+    if signed:
+        return "\n".join(
+            [
+                "movq %%xmm0, %%rax",
+                "cvtsi2sdq %%rax, %%xmm2",
+                "psrldq $8, %%xmm0",
+                "movq %%xmm0, %%rax",
+                "cvtsi2sdq %%rax, %%xmm3",
+                "unpcklpd %%xmm3, %%xmm2",
+                "movdqa %%xmm2, %%xmm0",
+            ]
+        )
+
+    def lane(target: str, high: bool, label: int) -> list[str]:
+        load = ["psrldq $8, %%xmm0"] if high else []
+        return load + [
+            "movq %%xmm0, %%rax",
+            "testq %%rax, %%rax",
+            f"js {label}f",
+            f"cvtsi2sdq %%rax, %%{target}",
+            f"jmp {label + 1}f",
+            f"{label}:",
+            "movq %%rax, %%rcx",
+            "shrq $1, %%rcx",
+            "andq $1, %%rax",
+            "orq %%rax, %%rcx",
+            f"cvtsi2sdq %%rcx, %%{target}",
+            f"addsd %%{target}, %%{target}",
+            f"{label + 1}:",
+        ]
+
+    return "\n".join(
+        lane("xmm2", False, 1)
+        + lane("xmm3", True, 3)
+        + ["unpcklpd %%xmm3, %%xmm2", "movdqa %%xmm2, %%xmm0"]
+    )
+
+
+def x86_convert_truncate_saturate_f64_instruction(signed: bool) -> str:
+    """Convert two binary64 lanes to saturated integer64 results."""
+
+    def signed_lane(target: str, high: bool, label: int) -> list[str]:
+        load = ["psrldq $8, %%xmm0"] if high else []
+        return load + [
+            "movq %%xmm0, %%rax",
+            "cvttsd2siq %%xmm0, %%rcx",
+            "movq %%rax, %%r8",
+            "movabsq $0x7fffffffffffffff, %%rdx",
+            "andq %%rdx, %%r8",
+            "movabsq $0x7ff0000000000000, %%rdx",
+            "cmpq %%rdx, %%r8",
+            f"ja {label}f",
+            "movabsq $0x8000000000000000, %%rdx",
+            "cmpq %%rdx, %%rcx",
+            f"jne {label + 2}f",
+            "testq %%rax, %%rax",
+            f"js {label + 2}f",
+            "movabsq $0x7fffffffffffffff, %%rcx",
+            f"jmp {label + 2}f",
+            f"{label}:",
+            "xorq %%rcx, %%rcx",
+            f"{label + 2}:",
+            f"movq %%rcx, %%{target}",
+        ]
+
+    def unsigned_lane(target: str, high: bool, label: int) -> list[str]:
+        load = ["psrldq $8, %%xmm0"] if high else []
+        return load + [
+            "movq %%xmm0, %%rax",
+            "testq %%rax, %%rax",
+            f"js {label}f",
+            "movabsq $0x7ff0000000000000, %%rdx",
+            "cmpq %%rdx, %%rax",
+            f"ja {label}f",
+            "movabsq $0x43f0000000000000, %%rdx",
+            "cmpq %%rdx, %%rax",
+            f"jae {label + 1}f",
+            "movabsq $0x43e0000000000000, %%rdx",
+            "cmpq %%rdx, %%rax",
+            f"jae {label + 2}f",
+            "cvttsd2siq %%xmm0, %%rcx",
+            f"jmp {label + 3}f",
+            f"{label + 2}:",
+            "movabsq $0x43e0000000000000, %%rdx",
+            "movq %%rdx, %%xmm2",
+            "movapd %%xmm0, %%xmm1",
+            "subsd %%xmm2, %%xmm1",
+            "cvttsd2siq %%xmm1, %%rcx",
+            "movabsq $0x8000000000000000, %%rdx",
+            "orq %%rdx, %%rcx",
+            f"jmp {label + 3}f",
+            f"{label + 1}:",
+            "movabsq $0xffffffffffffffff, %%rcx",
+            f"jmp {label + 3}f",
+            f"{label}:",
+            "xorq %%rcx, %%rcx",
+            f"{label + 3}:",
+            f"movq %%rcx, %%{target}",
+        ]
+
+    make_lane = signed_lane if signed else unsigned_lane
+    first_label, second_label = (1, 5) if signed else (1, 6)
+    return "\n".join(
+        make_lane("xmm4", False, first_label)
+        + make_lane("xmm5", True, second_label)
+        + ["punpcklqdq %%xmm5, %%xmm4", "movdqa %%xmm4, %%xmm0"]
+    )
 
 
 def x86_float_minmax_instruction(bits: int, maximum: bool) -> str:
@@ -1928,38 +2039,29 @@ def x86_body() -> str:
             f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
         ]
     for source_vector, _, target_vector, _, bits, _, signed in INTEGER_TO_FLOAT_CONVERSIONS:
-        if bits == 32:
-            native = f"Native_Convert_Round_{source_vector}_To_{target_vector}"
-            instruction = x86_ada_instruction(
-                x86_convert_round_32_instruction(signed)
-            )
-            out += [
-                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
-                f"   function Convert_Round (Value : {source_vector}) return {target_vector} is ({native} (Value));",
-            ]
-        else:
-            out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
+        native = f"Native_Convert_Round_{source_vector}_To_{target_vector}"
+        instruction = x86_ada_instruction(
+            x86_convert_round_32_instruction(signed)
+            if bits == 32
+            else x86_convert_round_64_instruction(signed)
+        )
+        out += [
+            f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Convert_Round (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+        ]
     for source_vector, _, target_vector, _, bits, _, signed in FLOAT_TO_INTEGER_CONVERSIONS:
-        if bits == 32:
-            native = (
-                f"Native_Convert_Truncate_Saturate_{source_vector}_To_{target_vector}"
-            )
-            instruction = x86_ada_instruction(
-                x86_convert_truncate_saturate_f32_instruction(signed)
-            )
-            out += [
-                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
-                f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
-            ]
-        else:
-            out.append(
-                call(
-                    "Convert_Truncate_Saturate",
-                    target_vector,
-                    "Value",
-                    f"Value : {source_vector}",
-                )
-            )
+        native = (
+            f"Native_Convert_Truncate_Saturate_{source_vector}_To_{target_vector}"
+        )
+        instruction = x86_ada_instruction(
+            x86_convert_truncate_saturate_f32_instruction(signed)
+            if bits == 32
+            else x86_convert_truncate_saturate_f64_instruction(signed)
+        )
+        out += [
+            f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Convert_Truncate_Saturate (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+        ]
     for source_vector, _, target_vector, _, bits, _, signed in SIGNED_UNSIGNED_CONVERSIONS:
         native = f"Native_Convert_Saturate_{source_vector}_To_{target_vector}"
         instruction = x86_ada_instruction(

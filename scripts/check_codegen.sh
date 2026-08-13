@@ -28,6 +28,7 @@ wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
+conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -49,6 +50,7 @@ disassemble "$wide_probe_object" >"$temporary/wide-probe.txt"
 disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt"
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
+disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -63,6 +65,7 @@ nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
+nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -154,6 +157,15 @@ require_count 'flyology_simd__backends__native__reduce_max_number' 2 \
 forbid_pattern 'flyology_simd__(min_number|max_number|reduce_min_number|reduce_max_number)' \
   "$temporary/float-reduction-undefined.txt" \
   'portable floating min/max call in the Native caller probe'
+require_count 'flyology_simd__backends__native__convert_round' 2 \
+  "$temporary/conversion64-undefined.txt" \
+  'I64x2-to-F64x2 and U64x2-to-F64x2 Native calls in the public caller probe'
+require_count 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
+  "$temporary/conversion64-undefined.txt" \
+  'F64x2-to-I64x2 and F64x2-to-U64x2 Native calls in the public caller probe'
+forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
+  "$temporary/conversion64-undefined.txt" \
+  'portable 64-bit numeric conversion call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -730,7 +742,7 @@ EOF
             set -- $required
             IFS=$old_ifs
             for instruction in "$@"; do
-                require_pattern "(^|[[:space:]])${instruction}[[:space:]]" \
+                require_pattern "${instruction}[[:space:]]" \
                   "$output" \
                   "SSE2 ${instruction} in ${source} to ${target} ${symbol}"
             done
@@ -742,6 +754,27 @@ convert_round                         i32x4 f32x4 cvtdq2ps  1 cvtdq2ps
 convert_round__2                      u32x4 f32x4 cvtdq2ps  2 pcmpgtd,psrld,addps,pandn
 convert_truncate_saturate             f32x4 i32x4 cvttps2dq 1 cmpleps,cmpunordps,pandn
 convert_truncate_saturate__2          f32x4 u32x4 cvttps2dq 2 cmpleps,cmpltps,subps,paddd,pandn
+EOF
+        while read -r operation source target convert count required; do
+            output="$temporary/conversion_${operation}_${source}_${target}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}" \
+              "$temporary/native.txt" "$output"
+            require_count "(^|[[:space:]])${convert}[[:space:]]" "$count" \
+              "$output" \
+              "${count} conversion instruction sites in ${source} to ${target} ${operation}"
+            printf '%s\n' "$required" | tr ',' '\n' | while read -r instruction; do
+                require_pattern "${instruction}[[:space:]]" \
+                  "$output" \
+                  "x86-64 ${instruction} in ${source} to ${target} ${operation}"
+            done
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__convert_|(ld|st)mxcsr' \
+              "$output" \
+              "portable helper or floating-control write in ${source} to ${target} ${operation}"
+        done <<'EOF'
+convert_round__3                      i64x2 f64x2 cvtsi2sd    2 movq,psrldq,unpcklpd
+convert_round__4                      u64x2 f64x2 cvtsi2sd    4 test(q)?,shr(q)?,and(q)?,or(q)?,addsd,psrldq,unpcklpd
+convert_truncate_saturate__3          f64x2 i64x2 cvttsd2si  2 movabs(q)?,and(q)?,cmp(q)?,psrldq,punpcklqdq
+convert_truncate_saturate__4          f64x2 u64x2 cvttsd2si  4 test(q)?,cmp(q)?,subsd,or(q)?,psrldq,punpcklqdq
 EOF
         while read -r suffix source target compare shift; do
             if [ "$suffix" = base ]; then

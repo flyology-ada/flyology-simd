@@ -55,6 +55,9 @@ Saturated : constant U8x16 := Narrow_Saturate (Wide, Empty);
 Unsigned_Result : constant U32x4 := Convert_Saturate (Signed_Input);
 
 --  Unsigned_Result: 0, 0, 1, 2_147_483_647</code></pre>
+          <p>The maintained example also crosses the 64-bit signed boundary. Its <code>U64x2</code>-to-<code>F64x2</code> input contains <code>2**63 + 1</code> and <code>U64'Last</code>. Its <code>F64x2</code>-to-<code>U64x2</code> input contains <code>2**63</code> and <code>2**64</code>; the first is exact and the second clamps to <code>U64'Last</code>.</p>
+          <pre><code>U64 rounded bits: 4890909195324358656 4895412794951729152
+F64 to U64 boundary: 9223372036854775808 18446744073709551615</code></pre>
         </section>
         <section id="wide">
           <h2>Apply the same rules to Wide values</h2>

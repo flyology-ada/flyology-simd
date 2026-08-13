@@ -938,12 +938,12 @@ is
    --  @return The operation result.
    function Convert_Round (Value : I64x2) return F64x2;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that converts both integer lanes. The x86-64 backend converts each signed lane with cvtsi2sdq and merges the two binary64 results. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : U64x2) return F64x2;
    --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that converts the integer lanes to floating-point lanes. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that converts both integer lanes. Under the required default round-to-nearest, ties-to-even mode, the x86-64 backend shifts each unsigned value above the signed maximum to the right by one bit and preserves its discarded low bit. It converts the adjusted value with cvtsi2sdq and doubles the binary64 result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F32x4) return I32x4;
@@ -958,12 +958,12 @@ is
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return I64x2;
    --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. The x86-64 backend truncates each lane with cvttsd2siq and classifies the binary64 encoding to select zero or a signed range limit. It selects zero for NaN, the signed maximum for positive overflow, and the signed minimum for negative overflow. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2;
    --  Truncate each floating-point lane toward zero, then clamp it to the integer result range. A NaN becomes zero. The operation does not depend on or modify the floating-point rounding mode. It can update floating-point exception-status flags.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that truncates floating-point lanes toward zero. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. For a value that is at least 2 to the power of 63 and less than 2 to the power of 64, the x86-64 backend subtracts 2 to the power of 63, truncates with cvttsd2siq, and restores the destination high bit. It classifies the binary64 encoding to select zero or the unsigned maximum. It selects zero for NaN or a negative input and the unsigned maximum for positive overflow. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : I8x16) return U8x16;

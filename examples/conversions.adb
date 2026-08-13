@@ -9,6 +9,7 @@ procedure Conversions is
    use type F64;
    use type I16;
    use type I32;
+   use type U64;
    package Native renames Flyology_SIMD.Backends.Native;
 
    Input : constant Byte_Array :=
@@ -64,6 +65,16 @@ procedure Conversions is
    Truncated_Unsigned : constant U32x4 :=
      Native.Convert_Truncate_Saturate (Floating_Inputs);
 
+   U64_Boundary_Input : constant U64x2 :=
+     Native.From_Lanes ([2**63 + 1, U64'Last]);
+   U64_Rounded : constant F64x2 := Native.Convert_Round (U64_Boundary_Input);
+   U64_Rounded_Bits : constant U64x2 := Native.Bit_Cast (U64_Rounded);
+   F64_Boundary_Bits : constant U64x2 :=
+     Native.From_Lanes ([16#43E0_0000_0000_0000#, 16#43F0_0000_0000_0000#]);
+   F64_Boundary_Input : constant F64x2 := Native.Bit_Cast (F64_Boundary_Bits);
+   F64_To_U64 : constant U64x2 :=
+     Native.Convert_Truncate_Saturate (F64_Boundary_Input);
+
    Signedness_Input : constant I32x4 :=
      Native.From_Lanes ([-1, 0, 1, I32'Last]);
    Signed_To_Unsigned : constant U32x4 :=
@@ -114,6 +125,16 @@ begin
    Put ("F32 to U32:");
    for Lane in Lane_Index_32x4 loop
       Put (U32'Image (Native.Extract (Truncated_Unsigned, Lane)));
+   end loop;
+   New_Line;
+   Put ("U64 rounded bits:");
+   for Lane in Lane_Index_64x2 loop
+      Put (U64'Image (Native.Extract (U64_Rounded_Bits, Lane)));
+   end loop;
+   New_Line;
+   Put ("F64 to U64 boundary:");
+   for Lane in Lane_Index_64x2 loop
+      Put (U64'Image (Native.Extract (F64_To_U64, Lane)));
    end loop;
    New_Line;
    Put ("I32 to U32:");

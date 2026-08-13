@@ -296,8 +296,6 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
             "Bit_Cast",
         }
-        or (name in {"Convert_Round", "Convert_Truncate_Saturate"}
-            and "64x2" in declaration)
     )
     if name == "Convert_Round" and "I32x4" in declaration:
         return (
@@ -316,6 +314,24 @@ def native_support_doc(name: str, declaration: str) -> str:
             "maximum. It then converts the lanes with cvtdq2ps. A scalar build "
             "uses the portable scalar implementation."
         )
+    if name == "Convert_Round" and "I64x2" in declaration:
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON instruction that converts both integer lanes. The x86-64 "
+            "backend converts each signed lane with cvtsi2sdq and merges the "
+            "two binary64 results. A scalar build uses the portable scalar "
+            "implementation."
+        )
+    if name == "Convert_Round" and "U64x2" in declaration:
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON instruction that converts both integer lanes. Under the "
+            "required default round-to-nearest, ties-to-even mode, the x86-64 "
+            "backend shifts each unsigned value above the signed maximum to "
+            "the right by one bit and preserves its discarded low bit. It converts the "
+            "adjusted value with cvtsi2sdq and doubles the binary64 result. A "
+            "scalar build uses the portable scalar implementation."
+        )
     if name == "Convert_Truncate_Saturate":
         signed_result = "return I32x4" in declaration or "return I64x2" in declaration
         outcome = (
@@ -332,11 +348,22 @@ def native_support_doc(name: str, declaration: str) -> str:
                 f"{outcome} The x86-64 backend truncates the lanes with cvttps2dq. "
                 f"{outcome} A scalar build uses the portable scalar implementation."
             )
+        x86 = (
+            "The x86-64 backend truncates each lane with cvttsd2siq and "
+            "classifies the binary64 encoding to select zero or a signed "
+            "range limit. "
+            if signed_result else
+            "For a value that is at least 2 to the power of 63 and less than "
+            "2 to the power of 64, "
+            "the x86-64 backend subtracts 2 to the power of 63, truncates with cvttsd2siq, "
+            "and restores the destination high bit. It classifies the binary64 "
+            "encoding to select zero or the unsigned maximum. "
+        )
         return (
             "Cross-platform support: The AArch64 backend uses a dedicated NEON "
             "sequence that truncates floating-point lanes toward zero. "
-            f"{outcome} The x86-64 backend uses scalar composition. A scalar "
-            "build uses the portable scalar implementation."
+            f"{outcome} {x86}{outcome} A scalar build uses the portable scalar "
+            "implementation."
         )
     if name in fixed_ada:
         return (

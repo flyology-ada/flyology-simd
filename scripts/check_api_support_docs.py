@@ -188,6 +188,20 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: expected {expected} exact "
                     f"{operation} SSE2 classifications, found {found}"
                 )
+        conversion64_support = {
+            "cvtsi2sdq and merges the two binary64 results": 1,
+            "shifts each unsigned value above the signed maximum to the right": 1,
+            "truncates each lane with cvttsd2siq and classifies the binary64 encoding": 1,
+            "For a value that is at least 2 to the power of 63 and less than 2 to the power of 64": 1,
+        }
+        for phrase, expected in conversion64_support.items():
+            found = text.count(phrase)
+            if found != expected:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected {expected} exact "
+                    f"64-bit numeric conversion classification for {phrase!r}, "
+                    f"found {found}"
+                )
         floating_widening_support = {
             "Widen_Low": (
                 "dedicated NEON instruction that converts the selected lanes with fcvtl",
