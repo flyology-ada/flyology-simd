@@ -17,7 +17,7 @@ from generate_full_family import (
     SIGNED_UNSIGNED_CONVERSIONS,
     WIDENINGS,
 )
-from generate_backends import x86_float_minmax_instruction
+from generate_backends import x86_ada_instruction, x86_float_minmax_instruction
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +40,10 @@ FLOAT_REDUCE_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-f
 FLOAT_REDUCE_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-float_reduce_mechanism.adb"
 FLOAT_REDUCE_AVX2 = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wide-float_reduce_mechanism.adb"
 FLOAT_REDUCE_INVALID = ROOT / "src" / "wide" / "invalid" / "flyology_simd-wide-float_reduce_mechanism.adb"
+FLOAT_REDUCE_LEAF_SPEC = ROOT / "src" / "flyology_simd-wide-float_reduce_selected_leaf.ads"
+FLOAT_REDUCE_LEAF_SCALAR = ROOT / "src" / "backends" / "scalar" / "flyology_simd-wide-float_reduce_selected_leaf.adb"
+FLOAT_REDUCE_LEAF_AARCH64 = ROOT / "src" / "backends" / "aarch64" / "flyology_simd-wide-float_reduce_selected_leaf.adb"
+FLOAT_REDUCE_LEAF_X86 = ROOT / "src" / "backends" / "x86_64" / "flyology_simd-wide-float_reduce_selected_leaf.adb"
 FLOAT_ARITH_SPEC = ROOT / "src" / "flyology_simd-wide-float_arithmetic_mechanism.ads"
 FLOAT_ARITH_AARCH64 = ROOT / "src" / "wide" / "aarch64" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
 FLOAT_ARITH_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-float_arithmetic_mechanism.adb"
@@ -348,16 +352,19 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     }:
         if operation == "Reduce_Add":
             mechanism = (
-                "AArch64 uses a dedicated ordered Advanced SIMD sequence "
-                "that starts from positive zero and visits lanes in ascending "
-                "order; x86-64 uses portable Ada composition"
+                "AArch64 uses a dedicated Advanced SIMD sequence that starts "
+                "from positive zero and adds one lane at a time in ascending "
+                "order; x86-64 uses a dedicated SSE2 sequence with the same "
+                "start value and lane order"
             )
         else:
             instruction = "fminnm" if operation == "Reduce_Min_Number" else "fmaxnm"
+            result = "minimum-number" if operation == "Reduce_Min_Number" else "maximum-number"
             mechanism = (
-                "AArch64 uses a dedicated ordered Advanced SIMD sequence with "
-                f"scalar {instruction} operations that visits lanes in ascending "
-                "order; x86-64 uses portable Ada composition"
+                "AArch64 uses a dedicated Advanced SIMD sequence that applies "
+                f"{instruction} to one lane at a time in ascending order; "
+                "x86-64 uses a dedicated integer-only SSE2 classification and "
+                f"bit-selection sequence that applies {result} in the same order"
             )
     else:
         mechanism = "AArch64 and x86-64 use portable Ada code"
@@ -1255,6 +1262,40 @@ end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 """
 
 
+def float_reduce_leaf_spec_text() -> str:
+    return """private package Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf
+  with Preelaborate
+is
+   --  Architecture-selected ordered Wide floating-point reduction leaf.
+
+   function Reduce_Add (Value : F32x8) return F32;
+   --  Add binary32 lanes from lane zero through lane seven.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 sum.
+   function Reduce_Min_Number (Value : F32x8) return F32;
+   --  Apply binary32 minimum-number from lane zero through lane seven.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 minimum-number result.
+   function Reduce_Max_Number (Value : F32x8) return F32;
+   --  Apply binary32 maximum-number from lane zero through lane seven.
+   --  @param Value The input lanes.
+   --  @return The ordered binary32 maximum-number result.
+   function Reduce_Add (Value : F64x4) return F64;
+   --  Add binary64 lanes from lane zero through lane three.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 sum.
+   function Reduce_Min_Number (Value : F64x4) return F64;
+   --  Apply binary64 minimum-number from lane zero through lane three.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 minimum-number result.
+   function Reduce_Max_Number (Value : F64x4) return F64;
+   --  Apply binary64 maximum-number from lane zero through lane three.
+   --  @param Value The input lanes.
+   --  @return The ordered binary64 maximum-number result.
+end Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
+"""
+
+
 def float_arithmetic_spec_text() -> str:
     declarations = []
     for vector in ("F32x8", "F64x4"):
@@ -1432,7 +1473,7 @@ end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 """
 
 
-def float_reduce_composed_body_text() -> str:
+def float_reduce_portable_body_text() -> str:
     return """package body Flyology_SIMD.Wide.Float_Reduce_Mechanism is
    function Reduce_Add (Value : F32x8) return F32 is
      (Flyology_SIMD.Wide.Reduce_Add (Value));
@@ -1447,6 +1488,118 @@ def float_reduce_composed_body_text() -> str:
    function Reduce_Max_Number (Value : F64x4) return F64 is
      (Flyology_SIMD.Wide.Reduce_Max_Number (Value));
 end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+"""
+
+
+def float_reduce_composed_body_text() -> str:
+    return """with Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
+
+package body Flyology_SIMD.Wide.Float_Reduce_Mechanism is
+   package Selected renames Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
+   function Reduce_Add (Value : F32x8) return F32 is
+     (Selected.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F32x8) return F32 is
+     (Selected.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F32x8) return F32 is
+     (Selected.Reduce_Max_Number (Value));
+   function Reduce_Add (Value : F64x4) return F64 is
+     (Selected.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F64x4) return F64 is
+     (Selected.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F64x4) return F64 is
+     (Selected.Reduce_Max_Number (Value));
+end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+"""
+
+
+def float_reduce_leaf_portable_body_text() -> str:
+    return """package body Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf is
+   function Reduce_Add (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F32x8) return F32 is
+     (Flyology_SIMD.Wide.Reduce_Max_Number (Value));
+   function Reduce_Add (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F64x4) return F64 is
+     (Flyology_SIMD.Wide.Reduce_Max_Number (Value));
+end Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
+"""
+
+
+def float_reduce_leaf_aarch64_body_text() -> str:
+    return """with Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+
+package body Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf is
+   package Selected renames Flyology_SIMD.Wide.Float_Reduce_Mechanism;
+   function Reduce_Add (Value : F32x8) return F32 is
+     (Selected.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F32x8) return F32 is
+     (Selected.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F32x8) return F32 is
+     (Selected.Reduce_Max_Number (Value));
+   function Reduce_Add (Value : F64x4) return F64 is
+     (Selected.Reduce_Add (Value));
+   function Reduce_Min_Number (Value : F64x4) return F64 is
+     (Selected.Reduce_Min_Number (Value));
+   function Reduce_Max_Number (Value : F64x4) return F64 is
+     (Selected.Reduce_Max_Number (Value));
+end Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
+"""
+
+
+def float_reduce_leaf_x86_body_text() -> str:
+    bodies: list[str] = []
+    for vector, scalar, bits, lanes in (
+        ("F32x8", "F32", 32, 8),
+        ("F64x4", "F64", 64, 4),
+    ):
+        suffix = "ss" if bits == 32 else "sd"
+        step = bits // 8
+        store = f"mov{suffix} %%xmm0, (%0)"
+        add_lines = ["pxor %%xmm0, %%xmm0"] + [
+            f"add{suffix} {offset}(%1), %%xmm0" if offset else
+            f"add{suffix} (%1), %%xmm0"
+            for offset in range(0, lanes * step, step)
+        ]
+        operations = {
+            "Reduce_Add": add_lines,
+            "Reduce_Min_Number": None,
+            "Reduce_Max_Number": None,
+        }
+        for operation, lines in operations.items():
+            if lines is None:
+                maximum = operation == "Reduce_Max_Number"
+                lines = [f"mov{suffix} (%1), %%xmm0"]
+                instruction = x86_float_minmax_instruction(bits, maximum)
+                for offset in range(step, lanes * step, step):
+                    lines.append(f"mov{suffix} {offset}(%1), %%xmm1")
+                    lines.extend(instruction.splitlines())
+            template = x86_ada_instruction("\n".join([*lines, store]))
+            bodies.append(
+                f"   function {operation} (Value : {vector}) return {scalar} is\n"
+                f"      Result : {scalar};\n"
+                "   begin\n"
+                "      Asm\n"
+                f"        (Template => \"{template}\",\n"
+                "         Inputs =>\n"
+                "           [System.Address'Asm_Input (\"r\", Result'Address),\n"
+                "            System.Address'Asm_Input (\"r\", Value'Address)],\n"
+                "         Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\",\n"
+                "         Volatile => True);\n"
+                "      return Result;\n"
+                f"   end {operation};"
+            )
+    return f"""with System.Machine_Code;
+
+package body Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf is
+   use System.Machine_Code;
+
+{chr(10).join(bodies)}
+end Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf;
 """
 
 
@@ -2621,7 +2774,11 @@ def main() -> None:
         FLOAT_REDUCE_AARCH64: float_reduce_aarch64_body_text(),
         FLOAT_REDUCE_COMPOSED: float_reduce_composed_body_text(),
         FLOAT_REDUCE_AVX2: float_reduce_composed_body_text(),
-        FLOAT_REDUCE_INVALID: float_reduce_composed_body_text(),
+        FLOAT_REDUCE_INVALID: float_reduce_portable_body_text(),
+        FLOAT_REDUCE_LEAF_SPEC: float_reduce_leaf_spec_text(),
+        FLOAT_REDUCE_LEAF_SCALAR: float_reduce_leaf_portable_body_text(),
+        FLOAT_REDUCE_LEAF_AARCH64: float_reduce_leaf_aarch64_body_text(),
+        FLOAT_REDUCE_LEAF_X86: float_reduce_leaf_x86_body_text(),
         FLOAT_ARITH_SPEC: float_arithmetic_spec_text(),
         FLOAT_ARITH_AARCH64: float_arithmetic_composed_body_text(),
         FLOAT_ARITH_COMPOSED: float_arithmetic_composed_body_text(),

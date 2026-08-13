@@ -184,10 +184,13 @@ The complete artifact is written to the ignored `build/site/` directory.
   extracts lane 0. This grouping applies only to associative integer
   reductions. Floating reductions retain the defined evaluation order: they
   combine lanes in ascending lane order and do not reduce the two private parts
-  independently. On AArch64, a dedicated Advanced SIMD sequence performs
-  scalar `fadd`, `fminnm`, or `fmaxnm` operations in ascending lane order. The
-  x86-64 backend and scalar build use the portable Wide implementation.
-  NaN, signed-zero, and rounding results can depend on this order.
+  independently. `Reduce_Add` starts from positive zero. `Reduce_Min_Number`
+  and `Reduce_Max_Number` start from lane 0. On AArch64, dedicated Advanced SIMD
+  sequences perform scalar `fadd`, `fminnm`, or `fmaxnm` operations in ascending
+  lane order. The x86-64 composed and AVX2 selections use dedicated SSE2
+  leaves that process lanes in ascending order. A scalar build uses the
+  portable Wide implementation. NaN, signed-zero, and rounding results can
+  depend on this order.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.

@@ -77,6 +77,10 @@ project Flyology_SIMD is
               Common_Ada &
                 ("-O3", "-ftree-vectorize", "-msse2", "-mno-avx",
                  "-mno-avx2");
+            for Switches
+              ("flyology_simd-wide-float_reduce_selected_leaf.adb") use
+                Common_Ada &
+                  ("-O3", "-msse2", "-mno-avx", "-mno-avx2");
             case AVX2 is
                when "enabled" =>
                   for Switches

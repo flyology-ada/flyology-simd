@@ -67,14 +67,23 @@ Products : constant Wide.F32x8 :=
   Native.Multiply (Sample_Vector, Weight_Vector);
 Product_Lanes : constant Wide.Lane_Values_F32x8 :=
   Native.To_Lanes (Products);
-Result : constant F32 := Native.Reduce_Add (Products);</code></pre>
-          <p>The two <a data-api="Flyology_SIMD.Wide.Native.Load_Unaligned" data-api-signature="F32_Array"><code>Load_Unaligned</code></a> calls form the vectors. <a data-api="Flyology_SIMD.Wide.Native.Multiply" data-api-signature="F32x8"><code>Multiply</code></a> calculates eight products. <a data-api="Flyology_SIMD.Wide.Native.To_Lanes" data-api-signature="F32x8"><code>To_Lanes</code></a> returns a <a data-api="Flyology_SIMD.Wide.Lane_Values_F32x8"><code>Lane_Values_F32x8</code></a> array for inspection. <a data-api="Flyology_SIMD.Wide.Native.Reduce_Add" data-api-signature="F32x8"><code>Reduce_Add</code></a> returns one <a data-api="Flyology_SIMD.F32"><code>F32</code></a> value.</p>
-          <p>The products are <code>[2, 6, 15, 28, 55, 78, 119, 152]</code>. The reduction starts with positive zero, adds lanes in ascending order, and returns 455.</p>
+Result : constant F32 := Native.Reduce_Add (Products);
+Smallest_Product : constant F32 := Native.Reduce_Min_Number (Products);
+Largest_Product : constant F32 := Native.Reduce_Max_Number (Products);</code></pre>
+          <p>The two <a data-api="Flyology_SIMD.Wide.Native.Load_Unaligned" data-api-signature="F32_Array"><code>Load_Unaligned</code></a> calls form the vectors. <a data-api="Flyology_SIMD.Wide.Native.Multiply" data-api-signature="F32x8"><code>Multiply</code></a> calculates eight products. <a data-api="Flyology_SIMD.Wide.Native.To_Lanes" data-api-signature="F32x8"><code>To_Lanes</code></a> returns a <a data-api="Flyology_SIMD.Wide.Lane_Values_F32x8"><code>Lane_Values_F32x8</code></a> array for inspection. <a data-api="Flyology_SIMD.Wide.Native.Reduce_Add" data-api-signature="F32x8"><code>Reduce_Add</code></a>, <a data-api="Flyology_SIMD.Wide.Native.Reduce_Min_Number" data-api-signature="F32x8"><code>Reduce_Min_Number</code></a>, and <a data-api="Flyology_SIMD.Wide.Native.Reduce_Max_Number" data-api-signature="F32x8"><code>Reduce_Max_Number</code></a> each return one <a data-api="Flyology_SIMD.F32"><code>F32</code></a> value.</p>
+          <p>The products are <code>[2, 6, 15, 28, 55, 78, 119, 152]</code>. The sum reduction starts with positive zero, adds lanes in ascending order, and returns 455. The number-minimum and number-maximum reductions start at lane 0 and return 2 and 152.</p>
+          <p>The <a data-api="Flyology_SIMD.Wide.Native.From_Lanes" data-api-signature="Lane_Values_F32x8"><code>From_Lanes</code></a> overload can also expose why order matters:</p>
+          <pre><code class="language-ada">Order_Sensitive : constant Wide.F32x8 := Native.From_Lanes
+  ([1.0E20, 1.0, 0.0, 0.0, -1.0E20, 1.0, 0.0, 0.0]);
+Ordered_Result : constant F32 := Native.Reduce_Add (Order_Sensitive);</code></pre>
+          <p>The ascending fold returns 1. The first addition of 1 is rounded away at the scale of <code>1.0E20</code>. The later <code>-1.0E20</code> cancels the large partial sum before the second 1 is added. Reducing the two private halves independently would change that grouping and can change rounding, NaN, and signed-zero results.</p>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P examples/examples.gpr
 ./bin/wide_dot_product</code></pre>
           <pre><code class="language-text">products: 2.00000E+00 6.00000E+00 1.50000E+01 2.80000E+01 5.50000E+01 7.80000E+01 1.19000E+02 1.52000E+02
-weighted sum: 4.55000E+02</code></pre>
-          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_dot_product.adb">Open the maintained Wide example.</a> The current implementation stores each Wide value as two private 128-bit parts. The two-part representation is private and does not define an ABI. The load, multiply, and reduction operations in this example compose selected 128-bit operations. This composition does not claim that one 256-bit instruction performs each operation.</p>
+weighted sum: 4.55000E+02
+product range: 2.00000E+00 .. 1.52000E+02
+order-sensitive sum: 1.00000E+00</code></pre>
+          <p><a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/wide_dot_product.adb">Open the maintained Wide example.</a> The current implementation stores each Wide value as two private 128-bit parts. The two-part representation is private and does not define an ABI. Loads and multiplication compose selected 128-bit operations. On AArch64 and x86-64, each floating reduction uses a dedicated target sequence that preserves the ascending fold. A scalar build uses the portable Wide implementation.</p>
         </section>
         <section id="neighbors">
           <h2>Slide lanes to use neighboring values</h2>

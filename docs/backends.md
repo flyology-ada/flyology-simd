@@ -429,14 +429,22 @@ sequences implement all six `F32x8` and `F64x4` reductions. `Reduce_Add` starts
 from positive zero and performs scalar `fadd` operations in ascending lane
 order. The minimum-number and maximum-number reductions start from lane 0 and
 perform scalar `fminnm` or `fmaxnm` operations in ascending lane order. The
-x86-64 backend and scalar build use the portable Wide implementation.
+x86-64 composed and AVX2 selections use dedicated SSE2 leaves. The addition
+leaves perform scalar `addss` or `addsd` operations in ascending lane order.
+The extrema leaves reuse the integer-only classification and bit-selection
+rules from the 128-bit number-minimum or number-maximum sequence. They apply
+those rules to one lane at a time in the same order. A scalar build uses the
+portable Wide implementation.
 
 Independent floating lane oracles cover fixed cases, deterministic finite
 inputs, and deterministic raw floating encodings. Caller-level probes cover
-binary32 addition, binary32 minimum-number, and binary64 maximum-number. The
-AArch64 code-generation gate requires the scalar `fadd`, `fminnm`, or `fmaxnm`
-sequence in ascending lane order and rejects calls to the portable Wide
-reductions.
+all six binary32 and binary64 floating reductions. The AArch64 code-generation
+gate requires the scalar `fadd`, `fminnm`, or `fmaxnm` sequence in ascending
+lane order, verifies the positive-zero or lane-0 start, and rejects calls to
+the portable Wide reductions. The x86-64 gate requires the matching scalar
+addition sequence or the matching integer-only minimum-number or maximum-number
+classification and bit-selection sequence. It rejects calls to the portable
+Wide reductions and selected 128-bit reduction operations.
 
 The workflow contains no `continue-on-error`. Public hosted CI has executed
 earlier commits successfully. The support page links to the current workflow

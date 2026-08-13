@@ -112,6 +112,27 @@ def invalid_support(path: Path) -> list[str]:
                 f"two-source Permute_Lanes classifications, found "
                 f"{one_source} and {two_source}"
             )
+        floating_reductions = {
+            "Reduce_Add": "dedicated SSE2 sequence with the same start value and lane order",
+            "Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
+            "Reduce_Max_Number": "integer-only SSE2 classification and bit-selection sequence that applies maximum-number in the same order",
+        }
+        for operation, phrase in floating_reductions.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+                if re.match(r"\s*\(Value : F(?:32x8|64x4)\)", block)
+            ]
+            found = sum(
+                phrase in block
+                and "For the matching Wide.Native overload" in block
+                for block in blocks
+            )
+            if len(blocks) != 2 or found != 2:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"ordered floating-reduction classifications ({found}/2)"
+                )
     if path.name == "flyology_simd.ads":
         shared = (
             "Cross-platform support: this fixed-width Ada operation is available "
@@ -722,9 +743,9 @@ def invalid_support(path: Path) -> list[str]:
             "function Reduce_Add_Wrap": "reduce each private part with the selected 128-bit Reduce_Add_Wrap operation",
             "function Reduce_Min": "reduce each private part with the selected 128-bit Reduce_Min operation",
             "function Reduce_Max": "reduce each private part with the selected 128-bit Reduce_Max operation",
-            "function Reduce_Add (": "dedicated ordered Advanced SIMD sequence that starts from positive zero",
-            "function Reduce_Min_Number": "scalar fminnm operations that visits lanes in ascending order",
-            "function Reduce_Max_Number": "scalar fmaxnm operations that visits lanes in ascending order",
+            "function Reduce_Add (": "dedicated SSE2 sequence with the same start value and lane order",
+            "function Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
+            "function Reduce_Max_Number": "integer-only SSE2 classification and bit-selection sequence that applies maximum-number in the same order",
             "function Table_Lookup": "x86-64 composed selection calls the Wide scalar implementation",
             "function Permute_Lanes": "optional AVX2 backend derives a 32-byte index map",
             "function Reverse_Lanes": "composed x86-64 backend uses two selected 128-bit two-source Permute_Lanes operations",

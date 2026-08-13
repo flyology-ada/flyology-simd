@@ -43,6 +43,7 @@ wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
+wide_float_reduction_leaf_object="$object_root/flyology_simd-wide-float_reduce_selected_leaf.o"
 
 disassemble() {
     if command -v otool >/dev/null 2>&1; then
@@ -89,6 +90,8 @@ else
 fi
 disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
+disassemble "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf.txt"
+nm -u "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf-undefined.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
@@ -540,14 +543,46 @@ case "$architecture" in
         extract_symbol 'wide_float_reduction_codegen_probe__f64_reduce_max_number' \
           "$temporary/wide-float-reduction-probe.txt" \
           "$temporary/wide-f64-reduce-max.txt"
+        extract_symbol 'wide_float_reduction_codegen_probe__f32_reduce_max_number' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f32-reduce-max.txt"
+        extract_symbol 'wide_float_reduction_codegen_probe__f64_reduce_add' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f64-reduce-add.txt"
+        extract_symbol 'wide_float_reduction_codegen_probe__f64_reduce_min_number' \
+          "$temporary/wide-float-reduction-probe.txt" \
+          "$temporary/wide-f64-reduce-min.txt"
         require_count 'fadd[[:space:]]+s' 8 "$temporary/wide-f32-reduce-add.txt" \
           'eight ordered scalar F32 additions in the Wide reduction caller'
         require_count 'fminnm[[:space:]]+s' 7 "$temporary/wide-f32-reduce-min.txt" \
           'seven ordered scalar F32 minimum-number steps in the Wide reduction caller'
+        require_count 'fmaxnm[[:space:]]+s' 7 "$temporary/wide-f32-reduce-max.txt" \
+          'seven ordered scalar F32 maximum-number steps in the Wide reduction caller'
+        require_count 'fadd[[:space:]]+d' 4 "$temporary/wide-f64-reduce-add.txt" \
+          'four ordered scalar F64 additions in the Wide reduction caller'
+        require_count 'fminnm[[:space:]]+d' 3 "$temporary/wide-f64-reduce-min.txt" \
+          'three ordered scalar F64 minimum-number steps in the Wide reduction caller'
         require_count 'fmaxnm[[:space:]]+d' 3 "$temporary/wide-f64-reduce-max.txt" \
           'three ordered scalar F64 maximum-number steps in the Wide reduction caller'
+        require_count 'fmov[[:space:]]+s2,[[:space:]]*wzr' 1 \
+          "$temporary/wide-f32-reduce-add.txt" \
+          'positive-zero start in the Wide F32 Reduce_Add caller'
+        require_count 'fmov[[:space:]]+d2,[[:space:]]*xzr' 1 \
+          "$temporary/wide-f64-reduce-add.txt" \
+          'positive-zero start in the Wide F64 Reduce_Add caller'
+        for extrema in wide-f32-reduce-min wide-f32-reduce-max; do
+            require_count 'fmov[[:space:]]+s2,[[:space:]]*s0' 1 \
+              "$temporary/${extrema}.txt" \
+              "lane-zero start in ${extrema}"
+        done
+        for extrema in wide-f64-reduce-min wide-f64-reduce-max; do
+            require_count 'fmov[[:space:]]+d2,[[:space:]]*d0' 1 \
+              "$temporary/${extrema}.txt" \
+              "lane-zero start in ${extrema}"
+        done
         for floating_reduction_probe in \
-          wide-f32-reduce-add wide-f32-reduce-min wide-f64-reduce-max; do
+          wide-f32-reduce-add wide-f32-reduce-min wide-f32-reduce-max \
+          wide-f64-reduce-add wide-f64-reduce-min wide-f64-reduce-max; do
             require_count 'ldr[[:space:]]+q' 2 \
               "$temporary/${floating_reduction_probe}.txt" \
               "two Wide input-half loads in ${floating_reduction_probe}"
@@ -1025,15 +1060,72 @@ native_reduce_max_number_f32x4   reduce-max-number-f32x4   f32 3
 native_reduce_min_number_f64x2   reduce-min-number-f64x2   f64 1
 native_reduce_max_number_f64x2   reduce-max-number-f64x2   f64 1
 EOF
-        require_pattern 'flyology_simd__wide__reduce_add' \
+        while read -r symbol output; do
+            extract_symbol "$symbol" \
+              "$temporary/wide-float-reduction-leaf.txt" \
+              "$temporary/$output.txt"
+            forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__wide__reduce_' \
+              "$temporary/$output.txt" \
+              "portable or out-of-line helper in $output"
+        done <<'EOF'
+flyology_simd__wide__float_reduce_selected_leaf__reduce_add              wide-f32-reduce-add-leaf
+flyology_simd__wide__float_reduce_selected_leaf__reduce_min_number       wide-f32-reduce-min_number-leaf
+flyology_simd__wide__float_reduce_selected_leaf__reduce_max_number       wide-f32-reduce-max_number-leaf
+flyology_simd__wide__float_reduce_selected_leaf__reduce_add__2           wide-f64-reduce-add-leaf
+flyology_simd__wide__float_reduce_selected_leaf__reduce_min_number__2    wide-f64-reduce-min_number-leaf
+flyology_simd__wide__float_reduce_selected_leaf__reduce_max_number__2    wide-f64-reduce-max_number-leaf
+EOF
+        require_count '(^|[[:space:]])addss[[:space:]]' 8 \
+          "$temporary/wide-f32-reduce-add-leaf.txt" \
+          'eight ordered SSE2 binary32 additions in Wide Reduce_Add'
+        require_count '(^|[[:space:]])addsd[[:space:]]' 4 \
+          "$temporary/wide-f64-reduce-add-leaf.txt" \
+          'four ordered SSE2 binary64 additions in Wide Reduce_Add'
+        require_count '(^|[[:space:]])pxor[[:space:]].*xmm0.*xmm0' 1 \
+          "$temporary/wide-f32-reduce-add-leaf.txt" \
+          'positive-zero binary32 accumulator in Wide Reduce_Add'
+        require_count '(^|[[:space:]])pxor[[:space:]].*xmm0.*xmm0' 1 \
+          "$temporary/wide-f64-reduce-add-leaf.txt" \
+          'positive-zero binary64 accumulator in Wide Reduce_Add'
+        while read -r kind operation steps ordering classes masked_selects merges; do
+            leaf="$temporary/wide-${kind}-reduce-${operation}-leaf.txt"
+            require_count '(^|[[:space:]])pcmpgtd[[:space:]]' "$ordering" "$leaf" \
+              "integer SSE2 ordering for every step in Wide ${kind} ${operation}"
+            require_count '(^|[[:space:]])pcmpeqd[[:space:]]' "$classes" "$leaf" \
+              "integer SSE2 NaN classification for every step in Wide ${kind} ${operation}"
+            require_count '(^|[[:space:]])pandn[[:space:]]' "$masked_selects" "$leaf" \
+              "SSE2 masked selection for every step in Wide ${kind} ${operation}"
+            require_count '(^|[[:space:]])por[[:space:]]' "$merges" "$leaf" \
+              "SSE2 selected-value merge for every step in Wide ${kind} ${operation}"
+            forbid_pattern '(^|[[:space:]])(min|max)(ps|pd|ss|sd)[[:space:]]|(^|[[:space:]])cmp(unord|lt|le|eq)(ps|pd|ss|sd)[[:space:]]' \
+              "$leaf" "floating compare or bare min/max in Wide ${kind} ${operation}"
+        done <<'EOF'
+f32 min_number 7 35 70 49 49
+f32 max_number 7 35 70 49 49
+f64 min_number 3 30 60 21 36
+f64 max_number 3 30 60 21 36
+EOF
+        while read -r symbol description; do
+            require_count "$symbol" 1 \
+              "$temporary/wide-float-reduction-undefined.txt" \
+              "one selected x86 floating-reduction leaf call for $description"
+        done <<'EOF'
+flyology_simd__wide__float_reduce_selected_leaf__reduce_add$             F32-Reduce_Add
+flyology_simd__wide__float_reduce_selected_leaf__reduce_min_number$      F32-Reduce_Min_Number
+flyology_simd__wide__float_reduce_selected_leaf__reduce_max_number$      F32-Reduce_Max_Number
+flyology_simd__wide__float_reduce_selected_leaf__reduce_add__2$          F64-Reduce_Add
+flyology_simd__wide__float_reduce_selected_leaf__reduce_min_number__2$   F64-Reduce_Min_Number
+flyology_simd__wide__float_reduce_selected_leaf__reduce_max_number__2$   F64-Reduce_Max_Number
+EOF
+        forbid_pattern 'flyology_simd__wide__reduce_|flyology_simd__wide__native__reduce_' \
           "$temporary/wide-float-reduction-undefined.txt" \
-          'portable ordered F32 addition reduction on x86-64'
-        require_pattern 'flyology_simd__wide__reduce_min_number' \
+          'portable or public Native Wide floating reduction retained on x86-64'
+        forbid_pattern 'flyology_simd__wide__reduce_|flyology_simd__wide__native__reduce_' \
+          "$temporary/wide-float-reduction-leaf-undefined.txt" \
+          'portable or public Native call retained in the x86 floating-reduction leaf'
+        forbid_pattern 'flyology_simd__wide__reduce_' \
           "$temporary/wide-float-reduction-undefined.txt" \
-          'portable ordered F32 minimum-number reduction on x86-64'
-        require_pattern 'flyology_simd__wide__reduce_max_number' \
-          "$temporary/wide-float-reduction-undefined.txt" \
-          'portable ordered F64 maximum-number reduction on x86-64'
+          'portable Wide floating reduction retained on x86-64'
         forbid_pattern 'flyology_simd__wide__native__reduce_' \
           "$temporary/wide-float-reduction-probe.txt" \
           'Wide.Native floating-reduction dispatcher retained on x86-64'
