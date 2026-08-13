@@ -508,7 +508,7 @@ procedure SIMD_Tests is
 
    procedure Test_All_Masks is
       Value : constant U8x16 := From_Lanes
-        ([16#80#, 1, 16#FE#, 3, 4, 16#AA#, 6, 7,
+        ([16#80#, 1, 16#FD#, 3, 4, 16#AA#, 6, 7,
           8, 16#55#, 10, 11, 12, 13, 14, 16#FF#]);
       Other : constant U8x16 := From_Lanes
         ([0, 16#FE#, 2, 16#FC#, 5, 16#FA#, 7, 16#F8#,
@@ -601,7 +601,7 @@ procedure SIMD_Tests is
             begin
                for Lane in Lane_Index_8x16 loop
                   Expected (Lane) :=
-                    (if (Interfaces.Shift_Right (Bits, Lane) and 1) = 1
+                    (if (Raw / 2 ** Lane) mod 2 = 1
                      then Value_Lanes (Lane)
                      else Other_Lanes (Lane));
                end loop;
@@ -656,6 +656,196 @@ procedure SIMD_Tests is
       Store_Unaligned (Data, Aligned_Start + 1, Value);
       Check (Same (Load_Unaligned (Data, Aligned_Start + 1), Value),
              "deliberately unaligned memory");
+
+      for Backend in Natural range 0 .. 2 loop
+         Data := [others => 16#CC#];
+         case Backend is
+            when 0 => Store (Data, Aligned_Start, Value);
+            when 1 => Flyology_SIMD.Backends.Scalar.Store
+              (Data, Aligned_Start, Value);
+            when 2 => Flyology_SIMD.Backends.Native.Store
+              (Data, Aligned_Start, Value);
+         end case;
+         for Offset in Data'Range loop
+            Check
+              (Data (Offset) =
+                 (if Offset in Aligned_Start .. Aligned_Start + 15
+                  then U8 (Offset - Aligned_Start) else 16#CC#),
+               "independent U8 ordinary store" & Backend'Image & Offset'Image);
+         end loop;
+         declare
+            Loaded : constant U8x16 :=
+              (case Backend is
+                 when 0 => Load (Data, Aligned_Start),
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load
+                   (Data, Aligned_Start),
+                 when 2 => Flyology_SIMD.Backends.Native.Load
+                   (Data, Aligned_Start));
+         begin
+            Check (To_Lanes (Loaded) = To_Lanes (Value),
+                   "independent U8 ordinary load" & Backend'Image);
+         end;
+
+         Data := [others => 16#CC#];
+         case Backend is
+            when 0 => Store_Unaligned (Data, Aligned_Start + 1, Value);
+            when 1 => Flyology_SIMD.Backends.Scalar.Store_Unaligned
+              (Data, Aligned_Start + 1, Value);
+            when 2 => Flyology_SIMD.Backends.Native.Store_Unaligned
+              (Data, Aligned_Start + 1, Value);
+         end case;
+         for Offset in Data'Range loop
+            Check
+              (Data (Offset) =
+                 (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
+                  then U8 (Offset - Aligned_Start - 1) else 16#CC#),
+               "independent U8 unaligned store" & Backend'Image & Offset'Image);
+         end loop;
+         declare
+            Loaded : constant U8x16 :=
+              (case Backend is
+                 when 0 => Load_Unaligned (Data, Aligned_Start + 1),
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned
+                   (Data, Aligned_Start + 1),
+                 when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned
+                   (Data, Aligned_Start + 1));
+         begin
+            Check (To_Lanes (Loaded) = To_Lanes (Value),
+                   "independent U8 unaligned load" & Backend'Image);
+         end;
+
+         Data := [others => 16#CC#];
+         case Backend is
+            when 0 => Store_Aligned (Data, Aligned_Start, Value);
+            when 1 => Flyology_SIMD.Backends.Scalar.Store_Aligned
+              (Data, Aligned_Start, Value);
+            when 2 => Flyology_SIMD.Backends.Native.Store_Aligned
+              (Data, Aligned_Start, Value);
+         end case;
+         for Offset in Data'Range loop
+            Check
+              (Data (Offset) =
+                 (if Offset in Aligned_Start .. Aligned_Start + 15
+                  then U8 (Offset - Aligned_Start) else 16#CC#),
+               "independent U8 aligned store" & Backend'Image & Offset'Image);
+         end loop;
+         declare
+            Loaded : constant U8x16 :=
+              (case Backend is
+                 when 0 => Load_Aligned (Data, Aligned_Start),
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned
+                   (Data, Aligned_Start),
+                 when 2 => Flyology_SIMD.Backends.Native.Load_Aligned
+                   (Data, Aligned_Start));
+         begin
+            Check (To_Lanes (Loaded) = To_Lanes (Value),
+                   "independent U8 aligned load" & Backend'Image);
+         end;
+      end loop;
+
+      for Iteration in 1 .. 250 loop
+         declare
+            Lanes : constant Lane_Values_8x16 := Random_Lanes;
+            Random_Value : constant U8x16 := From_Lanes (Lanes);
+         begin
+            for Backend in Natural range 0 .. 2 loop
+               Data := [others => 16#CC#];
+               case Backend is
+                  when 0 => Store (Data, Aligned_Start, Random_Value);
+                  when 1 => Flyology_SIMD.Backends.Scalar.Store
+                    (Data, Aligned_Start, Random_Value);
+                  when 2 => Flyology_SIMD.Backends.Native.Store
+                    (Data, Aligned_Start, Random_Value);
+               end case;
+               for Offset in Data'Range loop
+                  Check
+                    (Data (Offset) =
+                       (if Offset in Aligned_Start .. Aligned_Start + 15
+                        then Lanes (Lane_Index_8x16
+                          (Offset - Aligned_Start)) else 16#CC#),
+                     "random independent U8 ordinary store" &
+                       Iteration'Image & Backend'Image & Offset'Image);
+               end loop;
+               declare
+                  Loaded : constant U8x16 :=
+                    (case Backend is
+                       when 0 => Load (Data, Aligned_Start),
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load
+                         (Data, Aligned_Start),
+                       when 2 => Flyology_SIMD.Backends.Native.Load
+                         (Data, Aligned_Start));
+               begin
+                  Check (To_Lanes (Loaded) = Lanes,
+                         "random independent U8 ordinary load" &
+                           Iteration'Image & Backend'Image);
+               end;
+
+               Data := [others => 16#CC#];
+               case Backend is
+                  when 0 => Store_Unaligned
+                    (Data, Aligned_Start + 1, Random_Value);
+                  when 1 => Flyology_SIMD.Backends.Scalar.Store_Unaligned
+                    (Data, Aligned_Start + 1, Random_Value);
+                  when 2 => Flyology_SIMD.Backends.Native.Store_Unaligned
+                    (Data, Aligned_Start + 1, Random_Value);
+               end case;
+               for Offset in Data'Range loop
+                  Check
+                    (Data (Offset) =
+                       (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
+                        then Lanes (Lane_Index_8x16
+                          (Offset - Aligned_Start - 1)) else 16#CC#),
+                     "random independent U8 unaligned store" &
+                       Iteration'Image & Backend'Image & Offset'Image);
+               end loop;
+               declare
+                  Loaded : constant U8x16 :=
+                    (case Backend is
+                       when 0 => Load_Unaligned (Data, Aligned_Start + 1),
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned
+                         (Data, Aligned_Start + 1),
+                       when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned
+                         (Data, Aligned_Start + 1));
+               begin
+                  Check (To_Lanes (Loaded) = Lanes,
+                         "random independent U8 unaligned load" &
+                           Iteration'Image & Backend'Image);
+               end;
+
+               Data := [others => 16#CC#];
+               case Backend is
+                  when 0 => Store_Aligned
+                    (Data, Aligned_Start, Random_Value);
+                  when 1 => Flyology_SIMD.Backends.Scalar.Store_Aligned
+                    (Data, Aligned_Start, Random_Value);
+                  when 2 => Flyology_SIMD.Backends.Native.Store_Aligned
+                    (Data, Aligned_Start, Random_Value);
+               end case;
+               for Offset in Data'Range loop
+                  Check
+                    (Data (Offset) =
+                       (if Offset in Aligned_Start .. Aligned_Start + 15
+                        then Lanes (Lane_Index_8x16
+                          (Offset - Aligned_Start)) else 16#CC#),
+                     "random independent U8 aligned store" &
+                       Iteration'Image & Backend'Image & Offset'Image);
+               end loop;
+               declare
+                  Loaded : constant U8x16 :=
+                    (case Backend is
+                       when 0 => Load_Aligned (Data, Aligned_Start),
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned
+                         (Data, Aligned_Start),
+                       when 2 => Flyology_SIMD.Backends.Native.Load_Aligned
+                         (Data, Aligned_Start));
+               begin
+                  Check (To_Lanes (Loaded) = Lanes,
+                         "random independent U8 aligned load" &
+                           Iteration'Image & Backend'Image);
+               end;
+            end loop;
+         end;
+      end loop;
 
       for Count in Lane_Count_8x16 loop
          Data := [others => 16#CC#];

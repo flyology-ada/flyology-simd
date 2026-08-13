@@ -161,6 +161,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Arithmetic_I8x16;
+   procedure Check_Complete_Memory_I8x16 (Values : Lane_Values_I8x16; Label_Text : String) is
+      Value : constant I8x16 := From_Lanes (Values);
+      Source : I8_Array (0 .. 17) := [others => I8 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : I8_Array (0 .. 17) := [others => I8 (17)];
+      Aligned_Source : I8_Array (0 .. 15) := I8_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : I8_Array (0 .. 16) := [others => I8 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_8x16 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "I8x16 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "I8x16 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "I8x16 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => I8 (17)]; Scalar_Data := [others => I8 (17)]; Native_Data := [others => I8 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I8 := (if Index in 1 .. 16 then Values (Lane_Index_8x16 (Index - 1)) else I8 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I8x16 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => I8 (17)]; Scalar_Data := [others => I8 (17)]; Native_Data := [others => I8 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I8 := (if Index in 1 .. 16 then Values (Lane_Index_8x16 (Index - 1)) else I8 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I8x16 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => I8 (17)]; Scalar_Aligned := [others => I8 (17)]; Native_Aligned := [others => I8 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else I8 (17)) and then Scalar_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else I8 (17)) and then Native_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else I8 (17)), "I8x16 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_I8x16;
+
    procedure Test_I8x16 is
       A : constant I8x16 := From_Lanes ([I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First]);
       B : constant I8x16 := From_Lanes ([1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1, I8'Last, -1, I8'First, 0, 1]);
@@ -174,6 +212,7 @@ procedure Family_Tests is
       Aligned_Data : I8_Array (0 .. 15) := [others => 0] with Alignment => 16;
       Maximum_Index_Data : I8_Array (Natural'Last .. Natural'Last) := [others => I8 (1)];
    begin
+      Check_Complete_Memory_I8x16 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First], "I8x16 scalar lane construction");
       for Lane in Lane_Index_8x16 loop Check (Extract (I8x16'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I8x16 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (I8'Last), Lane) = I8'Last, "I8x16 maximum-value native splat" & Lane'Image); end loop;
@@ -319,6 +358,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I8x16 (R_A), "I8x16 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I8x16 randomized native full memory");
+            Check_Complete_Memory_I8x16 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "I8x16 randomized native partial store");
             for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I8x16 randomized independent partial load" & Lane'Image); end loop;
@@ -424,6 +464,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Logical_U16x8;
+   procedure Check_Complete_Memory_U16x8 (Values : Lane_Values_U16x8; Label_Text : String) is
+      Value : constant U16x8 := From_Lanes (Values);
+      Source : U16_Array (0 .. 9) := [others => U16 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : U16_Array (0 .. 9) := [others => U16 (17)];
+      Aligned_Source : U16_Array (0 .. 7) := U16_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : U16_Array (0 .. 8) := [others => U16 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_16x8 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "U16x8 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "U16x8 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "U16x8 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => U16 (17)]; Scalar_Data := [others => U16 (17)]; Native_Data := [others => U16 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U16 := (if Index in 1 .. 8 then Values (Lane_Index_16x8 (Index - 1)) else U16 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U16x8 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => U16 (17)]; Scalar_Data := [others => U16 (17)]; Native_Data := [others => U16 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U16 := (if Index in 1 .. 8 then Values (Lane_Index_16x8 (Index - 1)) else U16 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U16x8 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => U16 (17)]; Scalar_Aligned := [others => U16 (17)]; Native_Aligned := [others => U16 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else U16 (17)) and then Scalar_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else U16 (17)) and then Native_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else U16 (17)), "U16x8 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_U16x8;
+
    procedure Test_U16x8 is
       A : constant U16x8 := From_Lanes ([0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last]);
       B : constant U16x8 := From_Lanes ([1, U16'Last, 2, 2 ** (15) - 1, 9, 1, U16'Last, 2]);
@@ -437,6 +515,7 @@ procedure Family_Tests is
       Aligned_Data : U16_Array (0 .. 7) := [others => 0] with Alignment => 16;
       Maximum_Index_Data : U16_Array (Natural'Last .. Natural'Last) := [others => U16 (1)];
    begin
+      Check_Complete_Memory_U16x8 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last], "U16x8 scalar lane construction");
       for Lane in Lane_Index_16x8 loop Check (Extract (U16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U16x8 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (U16'Last), Lane) = U16'Last, "U16x8 maximum-value native splat" & Lane'Image); end loop;
@@ -576,6 +655,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U16x8 (R_A), "U16x8 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U16x8 randomized native full memory");
+            Check_Complete_Memory_U16x8 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "U16x8 randomized native partial store");
             for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U16x8 randomized independent partial load" & Lane'Image); end loop;
@@ -699,6 +779,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Arithmetic_I16x8;
+   procedure Check_Complete_Memory_I16x8 (Values : Lane_Values_I16x8; Label_Text : String) is
+      Value : constant I16x8 := From_Lanes (Values);
+      Source : I16_Array (0 .. 9) := [others => I16 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : I16_Array (0 .. 9) := [others => I16 (17)];
+      Aligned_Source : I16_Array (0 .. 7) := I16_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : I16_Array (0 .. 8) := [others => I16 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_16x8 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "I16x8 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "I16x8 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_16x8 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "I16x8 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => I16 (17)]; Scalar_Data := [others => I16 (17)]; Native_Data := [others => I16 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I16 := (if Index in 1 .. 8 then Values (Lane_Index_16x8 (Index - 1)) else I16 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I16x8 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => I16 (17)]; Scalar_Data := [others => I16 (17)]; Native_Data := [others => I16 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I16 := (if Index in 1 .. 8 then Values (Lane_Index_16x8 (Index - 1)) else I16 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I16x8 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => I16 (17)]; Scalar_Aligned := [others => I16 (17)]; Native_Aligned := [others => I16 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else I16 (17)) and then Scalar_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else I16 (17)) and then Native_Aligned (Index) = (if Index < 8 then Values (Lane_Index_16x8 (Index)) else I16 (17)), "I16x8 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_I16x8;
+
    procedure Test_I16x8 is
       A : constant I16x8 := From_Lanes ([I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0]);
       B : constant I16x8 := From_Lanes ([1, I16'Last, -1, I16'First, 0, 1, I16'Last, -1]);
@@ -712,6 +830,7 @@ procedure Family_Tests is
       Aligned_Data : I16_Array (0 .. 7) := [others => 0] with Alignment => 16;
       Maximum_Index_Data : I16_Array (Natural'Last .. Natural'Last) := [others => I16 (1)];
    begin
+      Check_Complete_Memory_I16x8 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0], "I16x8 scalar lane construction");
       for Lane in Lane_Index_16x8 loop Check (Extract (I16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I16x8 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Splat (I16'Last), Lane) = I16'Last, "I16x8 maximum-value native splat" & Lane'Image); end loop;
@@ -857,6 +976,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I16x8 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I16x8 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I16x8 (R_A), "I16x8 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I16x8 randomized native full memory");
+            Check_Complete_Memory_I16x8 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "I16x8 randomized native partial store");
             for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I16x8 randomized independent partial load" & Lane'Image); end loop;
@@ -962,6 +1082,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Logical_U32x4;
+   procedure Check_Complete_Memory_U32x4 (Values : Lane_Values_U32x4; Label_Text : String) is
+      Value : constant U32x4 := From_Lanes (Values);
+      Source : U32_Array (0 .. 5) := [others => U32 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : U32_Array (0 .. 5) := [others => U32 (17)];
+      Aligned_Source : U32_Array (0 .. 3) := U32_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : U32_Array (0 .. 4) := [others => U32 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_32x4 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "U32x4 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "U32x4 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "U32x4 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => U32 (17)]; Scalar_Data := [others => U32 (17)]; Native_Data := [others => U32 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else U32 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U32x4 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => U32 (17)]; Scalar_Data := [others => U32 (17)]; Native_Data := [others => U32 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else U32 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U32x4 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => U32 (17)]; Scalar_Aligned := [others => U32 (17)]; Native_Aligned := [others => U32 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else U32 (17)) and then Scalar_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else U32 (17)) and then Native_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else U32 (17)), "U32x4 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_U32x4;
+
    procedure Test_U32x4 is
       A : constant U32x4 := From_Lanes ([0, 1, U32'Last, 2 ** (31)]);
       B : constant U32x4 := From_Lanes ([1, U32'Last, 2, 2 ** (31) - 1]);
@@ -979,6 +1137,7 @@ procedure Family_Tests is
       Saturating_Add_Expected : constant Lane_Values_U32x4 := [U32'Last, 1, U32'Last, U32'Last];
       Saturating_Subtract_Expected : constant Lane_Values_U32x4 := [U32'Last - 1, 0, 0, 0];
    begin
+      Check_Complete_Memory_U32x4 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [0, 1, U32'Last, 2 ** (31)], "U32x4 scalar lane construction");
       for Lane in Lane_Index_32x4 loop Check (Extract (U32x4'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U32x4 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (U32'Last), Lane) = U32'Last, "U32x4 maximum-value native splat" & Lane'Image); end loop;
@@ -1119,6 +1278,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U32x4 (R_A), "U32x4 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U32x4 randomized native full memory");
+            Check_Complete_Memory_U32x4 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "U32x4 randomized native partial store");
             for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U32x4 randomized independent partial load" & Lane'Image); end loop;
@@ -1242,6 +1402,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Arithmetic_I32x4;
+   procedure Check_Complete_Memory_I32x4 (Values : Lane_Values_I32x4; Label_Text : String) is
+      Value : constant I32x4 := From_Lanes (Values);
+      Source : I32_Array (0 .. 5) := [others => I32 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : I32_Array (0 .. 5) := [others => I32 (17)];
+      Aligned_Source : I32_Array (0 .. 3) := I32_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : I32_Array (0 .. 4) := [others => I32 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_32x4 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "I32x4 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "I32x4 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "I32x4 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => I32 (17)]; Scalar_Data := [others => I32 (17)]; Native_Data := [others => I32 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else I32 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I32x4 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => I32 (17)]; Scalar_Data := [others => I32 (17)]; Native_Data := [others => I32 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else I32 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I32x4 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => I32 (17)]; Scalar_Aligned := [others => I32 (17)]; Native_Aligned := [others => I32 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else I32 (17)) and then Scalar_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else I32 (17)) and then Native_Aligned (Index) = (if Index < 4 then Values (Lane_Index_32x4 (Index)) else I32 (17)), "I32x4 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_I32x4;
+
    procedure Test_I32x4 is
       A : constant I32x4 := From_Lanes ([I32'First, -1, 0, 1]);
       B : constant I32x4 := From_Lanes ([1, I32'Last, -1, I32'First]);
@@ -1259,6 +1457,7 @@ procedure Family_Tests is
       Saturating_Add_Expected : constant Lane_Values_I32x4 := [I32'Last, I32'First, I32'Last - 1, I32'First + 1];
       Saturating_Subtract_Expected : constant Lane_Values_I32x4 := [I32'Last - 1, I32'First + 1, I32'Last, I32'First];
    begin
+      Check_Complete_Memory_I32x4 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [I32'First, -1, 0, 1], "I32x4 scalar lane construction");
       for Lane in Lane_Index_32x4 loop Check (Extract (I32x4'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I32x4 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Splat (I32'Last), Lane) = I32'Last, "I32x4 maximum-value native splat" & Lane'Image); end loop;
@@ -1405,6 +1604,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I32x4 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I32x4 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I32x4 (R_A), "I32x4 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I32x4 randomized native full memory");
+            Check_Complete_Memory_I32x4 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "I32x4 randomized native partial store");
             for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I32x4 randomized independent partial load" & Lane'Image); end loop;
@@ -1510,6 +1710,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Logical_U64x2;
+   procedure Check_Complete_Memory_U64x2 (Values : Lane_Values_U64x2; Label_Text : String) is
+      Value : constant U64x2 := From_Lanes (Values);
+      Source : U64_Array (0 .. 3) := [others => U64 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : U64_Array (0 .. 3) := [others => U64 (17)];
+      Aligned_Source : U64_Array (0 .. 1) := U64_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : U64_Array (0 .. 2) := [others => U64 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_64x2 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "U64x2 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "U64x2 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "U64x2 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => U64 (17)]; Scalar_Data := [others => U64 (17)]; Native_Data := [others => U64 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else U64 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U64x2 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => U64 (17)]; Scalar_Data := [others => U64 (17)]; Native_Data := [others => U64 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else U64 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U64x2 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => U64 (17)]; Scalar_Aligned := [others => U64 (17)]; Native_Aligned := [others => U64 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else U64 (17)) and then Scalar_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else U64 (17)) and then Native_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else U64 (17)), "U64x2 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_U64x2;
+
    procedure Test_U64x2 is
       A : constant U64x2 := From_Lanes ([0, 1]);
       B : constant U64x2 := From_Lanes ([1, U64'Last]);
@@ -1532,6 +1770,7 @@ procedure Family_Tests is
       Multiply_Edge_Right : constant U64x2 := From_Lanes ([16#0000_0002_FFFF_FFFF#, 16#FFFF_FFFF_0000_0003#]);
       Multiply_Edge_Expected : constant Lane_Values_U64x2 := [16#0000_0003_FFFF_FFFF#, 16#8000_0002_0000_0003#];
    begin
+      Check_Complete_Memory_U64x2 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [0, 1], "U64x2 scalar lane construction");
       for Lane in Lane_Index_64x2 loop Check (Extract (U64x2'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U64x2 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (U64'Last), Lane) = U64'Last, "U64x2 maximum-value native splat" & Lane'Image); end loop;
@@ -1675,6 +1914,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U64x2 (R_A), "U64x2 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U64x2 randomized native full memory");
+            Check_Complete_Memory_U64x2 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "U64x2 randomized native partial store");
             for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U64x2 randomized independent partial load" & Lane'Image); end loop;
@@ -1798,6 +2038,44 @@ procedure Family_Tests is
       end loop;
       return Result;
    end Reference_Shift_Right_Arithmetic_I64x2;
+   procedure Check_Complete_Memory_I64x2 (Values : Lane_Values_I64x2; Label_Text : String) is
+      Value : constant I64x2 := From_Lanes (Values);
+      Source : I64_Array (0 .. 3) := [others => I64 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : I64_Array (0 .. 3) := [others => I64 (17)];
+      Aligned_Source : I64_Array (0 .. 1) := I64_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : I64_Array (0 .. 2) := [others => I64 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_64x2 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "I64x2 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "I64x2 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "I64x2 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => I64 (17)]; Scalar_Data := [others => I64 (17)]; Native_Data := [others => I64 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else I64 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I64x2 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => I64 (17)]; Scalar_Data := [others => I64 (17)]; Native_Data := [others => I64 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant I64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else I64 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "I64x2 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => I64 (17)]; Scalar_Aligned := [others => I64 (17)]; Native_Aligned := [others => I64 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else I64 (17)) and then Scalar_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else I64 (17)) and then Native_Aligned (Index) = (if Index < 2 then Values (Lane_Index_64x2 (Index)) else I64 (17)), "I64x2 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_I64x2;
+
    procedure Test_I64x2 is
       A : constant I64x2 := From_Lanes ([I64'First, -1]);
       B : constant I64x2 := From_Lanes ([1, I64'Last]);
@@ -1823,6 +2101,7 @@ procedure Family_Tests is
       Multiply_Edge_Right : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#FFFF_FFFF_FFFF_FFFF#), Bits_To_I64x2 (16#FFFF_FFFE_0000_0003#)]);
       Multiply_Edge_Expected : constant Lane_Values_I64x2 := [Bits_To_I64x2 (16#8000_0000_0000_0000#), Bits_To_I64x2 (16#7FFF_FFFB_0000_0003#)];
    begin
+      Check_Complete_Memory_I64x2 (To_Lanes (A), " fixed");
       Check (To_Lanes (A) = [I64'First, -1], "I64x2 scalar lane construction");
       for Lane in Lane_Index_64x2 loop Check (Extract (I64x2'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I64x2 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Splat (I64'Last), Lane) = I64'Last, "I64x2 maximum-value native splat" & Lane'Image); end loop;
@@ -1972,6 +2251,7 @@ procedure Family_Tests is
             Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_I64x2 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_I64x2 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_I64x2 (R_A), "I64x2 randomized root, scalar, and native reductions");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I64x2 randomized native full memory");
+            Check_Complete_Memory_I64x2 (R_Lanes, " random" & Iteration'Image);
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "I64x2 randomized native partial store");
             for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I64x2 randomized independent partial load" & Lane'Image); end loop;
@@ -2019,6 +2299,44 @@ procedure Family_Tests is
       end loop;
       return True;
    end Same;
+   procedure Check_Complete_Memory_F32x4 (Values : Lane_Values_F32x4; Label_Text : String) is
+      Value : constant F32x4 := From_Lanes (Values);
+      Source : F32_Array (0 .. 5) := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : F32_Array (0 .. 5) := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+      Aligned_Source : F32_Array (0 .. 3) := F32_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : F32_Array (0 .. 4) := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_32x4 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Bits_F32x4 (Extract (Load (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Scalar.Load (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Native.Load (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)), "F32x4 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Bits_F32x4 (Extract (Load_Unaligned (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Native.Load_Unaligned (Source, 1), Lane)) = Bits_F32x4 (Values (Lane)), "F32x4 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_32x4 loop
+         Check (Bits_F32x4 (Extract (Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F32x4 (Values (Lane)) and then Bits_F32x4 (Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F32x4 (Values (Lane)), "F32x4 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Scalar_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Native_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant F32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else Value_From_Bits_F32x4 (16#7FC0_0055#)); begin
+            Check (Bits_F32x4 (Root_Data (Index)) = Bits_F32x4 (Expected) and then Bits_F32x4 (Scalar_Data (Index)) = Bits_F32x4 (Expected) and then Bits_F32x4 (Native_Data (Index)) = Bits_F32x4 (Expected), "F32x4 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Scalar_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Native_Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant F32 := (if Index in 1 .. 4 then Values (Lane_Index_32x4 (Index - 1)) else Value_From_Bits_F32x4 (16#7FC0_0055#)); begin
+            Check (Bits_F32x4 (Root_Data (Index)) = Bits_F32x4 (Expected) and then Bits_F32x4 (Scalar_Data (Index)) = Bits_F32x4 (Expected) and then Bits_F32x4 (Native_Data (Index)) = Bits_F32x4 (Expected), "F32x4 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Scalar_Aligned := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)]; Native_Aligned := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Bits_F32x4 (Root_Aligned (Index)) = Bits_F32x4 ((if Index < 4 then Values (Lane_Index_32x4 (Index)) else Value_From_Bits_F32x4 (16#7FC0_0055#))) and then Bits_F32x4 (Scalar_Aligned (Index)) = Bits_F32x4 ((if Index < 4 then Values (Lane_Index_32x4 (Index)) else Value_From_Bits_F32x4 (16#7FC0_0055#))) and then Bits_F32x4 (Native_Aligned (Index)) = Bits_F32x4 ((if Index < 4 then Values (Lane_Index_32x4 (Index)) else Value_From_Bits_F32x4 (16#7FC0_0055#))), "F32x4 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_F32x4;
+
    function Reference_Compress_F32x4 (Value : F32x4; Mask : Mask_32x4) return F32x4 is
       Result : F32x4 := Zero;
       Result_Lane : Natural := 0;
@@ -2076,6 +2394,9 @@ procedure Family_Tests is
       Special_Lanes_1 : constant Lane_Values_F32x4 := [Value_From_Bits_F32x4 (16#8000_0000#), Value_From_Bits_F32x4 (16#0000_0001#), Value_From_Bits_F32x4 (16#7F80_0000#), Value_From_Bits_F32x4 (16#7FC0_0001#)];
       Special_Lanes_2 : constant Lane_Values_F32x4 := [Value_From_Bits_F32x4 (16#7F80_0001#), Value_From_Bits_F32x4 (16#FF80_0000#), Value_From_Bits_F32x4 (16#FFC0_0021#), Value_From_Bits_F32x4 (16#8000_0001#)];
    begin
+      Check_Complete_Memory_F32x4 (To_Lanes (A), " fixed");
+      Check_Complete_Memory_F32x4 (Special_Lanes_1, " special 1");
+      Check_Complete_Memory_F32x4 (Special_Lanes_2, " special 2");
       Check (Same (A, From_Lanes (To_Lanes (A))), "F32x4 scalar lane roundtrip");
       for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (F32x4'(Backends.Native.Zero), Lane)) = 0 and then Bits_F32x4 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F32x4 (To_Lanes (A) (0)), "F32x4 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.From_Lanes (To_Lanes (A)), Lane)) = Bits_F32x4 (To_Lanes (A) (Lane)) and then Bits_F32x4 (Backends.Native.To_Lanes (A) (Lane)) = Bits_F32x4 (To_Lanes (A) (Lane)), "F32x4 independent native lane construction" & Lane'Image); end loop;
@@ -2190,6 +2511,7 @@ procedure Family_Tests is
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_F32x4 := Random_F32x4_Lanes;
+            Memory_Lanes : constant Lane_Values_F32x4 := [for Lane in Lane_Index_32x4 => Value_From_Bits_F32x4 (Interfaces.Unsigned_32 (Next_U64 and 16#FFFF_FFFF#))];
             R_A : constant F32x4 := From_Lanes (R_Lanes);
             R_B : constant F32x4 := From_Lanes (Random_F32x4_Lanes);
             Tail : constant Lane_Count_32x4 := Lane_Count_32x4 (Next_U64 mod 5);
@@ -2213,6 +2535,7 @@ procedure Family_Tests is
             Check (Bits_F32x4 (Backends.Native.Reduce_Add (R_A)) = Bits_F32x4 (Reference_Reduce_Add_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Min_F32x4 (R_A)) and then Bits_F32x4 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F32x4 (Reference_Reduce_Max_F32x4 (R_A)), "F32x4 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F32x4 randomized native full memory");
+            Check_Complete_Memory_F32x4 (Memory_Lanes, " raw random" & Iteration'Image);
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "F32x4 randomized native partial store");
             for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_F32x4 ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), "F32x4 randomized independent partial load" & Lane'Image); end loop;
@@ -2257,6 +2580,44 @@ procedure Family_Tests is
       end loop;
       return True;
    end Same;
+   procedure Check_Complete_Memory_F64x2 (Values : Lane_Values_F64x2; Label_Text : String) is
+      Value : constant F64x2 := From_Lanes (Values);
+      Source : F64_Array (0 .. 3) := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : F64_Array (0 .. 3) := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+      Aligned_Source : F64_Array (0 .. 1) := F64_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : F64_Array (0 .. 2) := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_64x2 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Bits_F64x2 (Extract (Load (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Scalar.Load (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Native.Load (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)), "F64x2 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Bits_F64x2 (Extract (Load_Unaligned (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Native.Load_Unaligned (Source, 1), Lane)) = Bits_F64x2 (Values (Lane)), "F64x2 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_64x2 loop
+         Check (Bits_F64x2 (Extract (Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F64x2 (Values (Lane)) and then Bits_F64x2 (Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane)) = Bits_F64x2 (Values (Lane)), "F64x2 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Scalar_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Native_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant F64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)); begin
+            Check (Bits_F64x2 (Root_Data (Index)) = Bits_F64x2 (Expected) and then Bits_F64x2 (Scalar_Data (Index)) = Bits_F64x2 (Expected) and then Bits_F64x2 (Native_Data (Index)) = Bits_F64x2 (Expected), "F64x2 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Scalar_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Native_Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant F64 := (if Index in 1 .. 2 then Values (Lane_Index_64x2 (Index - 1)) else Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)); begin
+            Check (Bits_F64x2 (Root_Data (Index)) = Bits_F64x2 (Expected) and then Bits_F64x2 (Scalar_Data (Index)) = Bits_F64x2 (Expected) and then Bits_F64x2 (Native_Data (Index)) = Bits_F64x2 (Expected), "F64x2 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Scalar_Aligned := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)]; Native_Aligned := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Bits_F64x2 (Root_Aligned (Index)) = Bits_F64x2 ((if Index < 2 then Values (Lane_Index_64x2 (Index)) else Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#))) and then Bits_F64x2 (Scalar_Aligned (Index)) = Bits_F64x2 ((if Index < 2 then Values (Lane_Index_64x2 (Index)) else Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#))) and then Bits_F64x2 (Native_Aligned (Index)) = Bits_F64x2 ((if Index < 2 then Values (Lane_Index_64x2 (Index)) else Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#))), "F64x2 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_F64x2;
+
    function Reference_Compress_F64x2 (Value : F64x2; Mask : Mask_64x2) return F64x2 is
       Result : F64x2 := Zero;
       Result_Lane : Natural := 0;
@@ -2315,6 +2676,10 @@ procedure Family_Tests is
       Special_Lanes_2 : constant Lane_Values_F64x2 := [Value_From_Bits_F64x2 (16#7FF0_0000_0000_0000#), Value_From_Bits_F64x2 (16#7FF8_0000_0000_0001#)];
       Special_Lanes_3 : constant Lane_Values_F64x2 := [Value_From_Bits_F64x2 (16#7FF0_0000_0000_0001#), Value_From_Bits_F64x2 (16#FFF0_0000_0000_0000#)];
    begin
+      Check_Complete_Memory_F64x2 (To_Lanes (A), " fixed");
+      Check_Complete_Memory_F64x2 (Special_Lanes_1, " special 1");
+      Check_Complete_Memory_F64x2 (Special_Lanes_2, " special 2");
+      Check_Complete_Memory_F64x2 (Special_Lanes_3, " special 3");
       Check (Same (A, From_Lanes (To_Lanes (A))), "F64x2 scalar lane roundtrip");
       for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (F64x2'(Backends.Native.Zero), Lane)) = 0 and then Bits_F64x2 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F64x2 (To_Lanes (A) (0)), "F64x2 independent native construction" & Lane'Image); end loop;
       for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.From_Lanes (To_Lanes (A)), Lane)) = Bits_F64x2 (To_Lanes (A) (Lane)) and then Bits_F64x2 (Backends.Native.To_Lanes (A) (Lane)) = Bits_F64x2 (To_Lanes (A) (Lane)), "F64x2 independent native lane construction" & Lane'Image); end loop;
@@ -2437,6 +2802,7 @@ procedure Family_Tests is
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_F64x2 := Random_F64x2_Lanes;
+            Memory_Lanes : constant Lane_Values_F64x2 := [for Lane in Lane_Index_64x2 => Value_From_Bits_F64x2 (Next_U64)];
             R_A : constant F64x2 := From_Lanes (R_Lanes);
             R_B : constant F64x2 := From_Lanes (Random_F64x2_Lanes);
             Tail : constant Lane_Count_64x2 := Lane_Count_64x2 (Next_U64 mod 3);
@@ -2460,6 +2826,7 @@ procedure Family_Tests is
             Check (Bits_F64x2 (Backends.Native.Reduce_Add (R_A)) = Bits_F64x2 (Reference_Reduce_Add_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Min_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Min_F64x2 (R_A)) and then Bits_F64x2 (Backends.Native.Reduce_Max_Number (R_A)) = Bits_F64x2 (Reference_Reduce_Max_F64x2 (R_A)), "F64x2 randomized native reductions");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F64x2 randomized native full memory");
+            Check_Complete_Memory_F64x2 (Memory_Lanes, " raw random" & Iteration'Image);
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
             Check (Data = Reference, "F64x2 randomized native partial store");
             for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_F64x2 ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), "F64x2 randomized independent partial load" & Lane'Image); end loop;

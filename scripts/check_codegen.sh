@@ -46,6 +46,7 @@ table_lookup_probe_object="$probe_root/table_lookup_codegen_probe.o"
 u8_value_probe_object="$probe_root/u8_value_codegen_probe.o"
 integer_reduction_probe_object="$probe_root/integer_reduction_codegen_probe.o"
 float_binary_probe_object="$probe_root/float_binary_codegen_probe.o"
+complete_memory_probe_object="$probe_root/complete_memory_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -79,6 +80,13 @@ if command -v otool >/dev/null 2>&1; then
       grep -Ev '<ltmp[0-9]+>:$' >"$temporary/float-binary-probe.txt"
 else
     objdump -dr "$float_binary_probe_object" >"$temporary/float-binary-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$complete_memory_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/complete-memory-probe.txt"
+else
+    objdump -dr "$complete_memory_probe_object" \
+      >"$temporary/complete-memory-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$wide_construction_probe_object" |
@@ -178,6 +186,7 @@ nm -u "$u8_value_probe_object" >"$temporary/u8-value-undefined.txt"
 nm -u "$integer_reduction_probe_object" \
   >"$temporary/integer-reduction-undefined.txt"
 nm -u "$float_binary_probe_object" >"$temporary/float-binary-undefined.txt"
+nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1080,6 +1089,57 @@ require_count 'flyology_simd__backends__native__(add|subtract|multiply|divide|mi
 require_count 'flyology_simd__' 12 "$temporary/float-binary-undefined.txt" \
   'only the 12 intended floating operations remain unresolved from the caller probe'
 
+complete_memory_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/complete_memory_codegen_cases.txt | wc -l | tr -d ' ')
+complete_memory_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/complete_memory_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$complete_memory_case_count" -ne 60 ] || \
+   [ "$complete_memory_unique_count" -ne 60 ]; then
+    echo 'complete-memory manifest must contain 60 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix; do
+    caller="$temporary/complete-memory-${lane_kind}-${operation}.txt"
+    extract_symbol "complete_memory_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/complete-memory-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$architecture" = aarch64 ] && \
+       [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          'inlined selected U8 Load_Unaligned caller'
+        require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$caller" \
+          'inlined U8 Load_Unaligned target load'
+        require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$caller" \
+          'inlined U8 Load_Unaligned result transfer'
+    elif [ "$architecture" = x86_64 ] && \
+         [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          'inlined selected U8 Load_Unaligned caller'
+        require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$caller" \
+          'inlined U8 Load_Unaligned array-to-xmm0 transfer'
+        require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$caller" \
+          'inlined U8 Load_Unaligned target transfers'
+    else
+        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+          "$caller" "matching selected ${lane_kind} ${operation} caller"
+        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+          "only one selected memory operation in ${lane_kind} ${operation} caller"
+        require_count 'flyology_simd__' 1 "$caller" \
+          "only the matching selected memory operation remains in ${lane_kind} ${operation} caller"
+        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+          "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    fi
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(load|store)(_unaligned|_aligned)?|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide memory call in ${lane_kind} ${operation} caller"
+done <scripts/probes/complete_memory_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(load|store)(_unaligned|_aligned)?(__([2-9]|10))?$' 59 \
+  "$temporary/complete-memory-undefined.txt" \
+  'the 59 out-of-line selected complete-memory operations'
+require_count 'flyology_simd__' 59 "$temporary/complete-memory-undefined.txt" \
+  'only the intended complete-memory operations remain unresolved'
+
 case "$architecture" in
     aarch64)
         while read -r lane_kind operation suffix shape x86_shape; do
@@ -1101,6 +1161,22 @@ case "$architecture" in
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' \
               "$leaf" "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/float_binary_codegen_cases.txt
+        while read -r lane_kind operation suffix; do
+            if [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
+                continue
+            fi
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/complete-memory-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "AArch64 ${lane_kind} ${operation} vector load transfer"
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "AArch64 ${lane_kind} ${operation} vector store transfer"
+            forbid_pattern 'flyology_simd__(backends__scalar__|wide__)?(load|store)(_unaligned|_aligned)?' \
+              "$leaf" "portable, Scalar, or Wide helper in AArch64 ${lane_kind} ${operation} leaf"
+        done <scripts/probes/complete_memory_codegen_cases.txt
         for direction in low high; do
             for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
                 symbol="slide_codegen_probe__${lane_kind}_${direction}"
@@ -1777,6 +1853,41 @@ EOF
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        while read -r lane_kind operation suffix; do
+            if [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
+                continue
+            fi
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/complete-memory-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            case "$operation" in
+                load_aligned|store_aligned)
+                    if [ "$operation" = load_aligned ]; then
+                        require_count '(^|[[:space:]])movdqa[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+                          "x86 ${lane_kind} aligned array load into xmm0"
+                        require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+                          "x86 ${lane_kind} unaligned-safe private result store"
+                    else
+                        require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+                          "x86 ${lane_kind} unaligned-safe private value load"
+                        require_count '(^|[[:space:]])movdqa[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+                          "x86 ${lane_kind} aligned array store from xmm0"
+                    fi
+                    ;;
+                *)
+                    require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+                      "x86 ${lane_kind} ${operation} unaligned-safe load into xmm0"
+                    require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+                      "x86 ${lane_kind} ${operation} unaligned-safe store from xmm0"
+                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]' "$leaf" \
+                      "unexpected aligned transfer in x86 ${lane_kind} ${operation} leaf"
+                    ;;
+            esac
+            forbid_pattern 'flyology_simd__(backends__scalar__|wide__)?(load|store)(_unaligned|_aligned)?' \
+              "$leaf" "portable, Scalar, or Wide helper in x86 ${lane_kind} ${operation} leaf"
+        done <scripts/probes/complete_memory_codegen_cases.txt
         while read -r lane_kind operation suffix shape x86_shape; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"

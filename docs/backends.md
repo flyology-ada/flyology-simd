@@ -119,6 +119,26 @@ public caller probe covers all 19 typed overloads and rejects portable or
 out-of-line alignment-predicate calls. The Native-object gate permits only the
 shared root `Byte_Array` `Is_Aligned_16` contract predicate.
 
+All 60 complete 128-bit memory overloads use dedicated target leaves. The
+ordinary `Load` and `Store` operations delegate to the unaligned-safe target
+leaves. AArch64 transfers one complete vector with `ldr q` and `str q`. The
+x86-64 ordinary and unaligned leaves use two `movdqu` transfers. The aligned
+x86-64 leaves use `movdqa` for the array transfer and `movdqu` for the private
+vector transfer. A scalar build uses the portable scalar implementation.
+
+Independent lane and array oracles check the root, `Backends.Scalar`, and
+`Backends.Native` results. They cover fixed inputs and 250 deterministic
+inputs for each value type and preserve sentinel elements outside every store
+extent. Floating cases use deterministic raw encodings and directed signed
+zero, subnormal, infinity, quiet-NaN, and signaling-NaN encodings.
+
+A generated public caller gate covers all 60 overloads on AArch64 and x86-64.
+Each caller must use the matching selected `Backends.Native` operation and
+overload suffix. The gates reject root, `Backends.Scalar`, mismatched
+`Backends.Native`, and Wide operation calls. Exact-leaf gates require the
+matching `ldr q` and `str q` or `movdqu` and `movdqa` transfers. They reject
+portable, Scalar, and Wide memory helpers.
+
 All ten Native `Load_Partial` and `Store_Partial` pairs use direct exact-count
 Ada loops on AArch64 and x86-64. A partial load reads only the active elements
 and initializes inactive lanes to positive zero. A partial store writes the

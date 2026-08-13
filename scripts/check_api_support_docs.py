@@ -143,6 +143,39 @@ def integer_reduction_x86_phrase(operation: str, vector: str) -> str:
 def invalid_support(path: Path) -> list[str]:
     text = path.read_text()
     invalid: list[str] = []
+    complete_memory_names = (
+        "Load", "Store", "Load_Unaligned", "Store_Unaligned",
+        "Load_Aligned", "Store_Aligned",
+    )
+    if path.name == "flyology_simd-backends-scalar.ads":
+        for operation in complete_memory_names:
+            blocks = declaration_blocks(text, operation)
+            found = sum(
+                "this scalar implementation is available on every supported GNAT target"
+                in block
+                for block in blocks
+            )
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact scalar "
+                    f"{operation} classifications, found {found}"
+                )
+    if path.name == "flyology_simd.ads":
+        for operation in complete_memory_names:
+            blocks = declaration_blocks(text, operation)
+            found = sum(
+                "This overload uses the portable scalar implementation" in block
+                and "For the matching Native overload" in block
+                and ("ldr q" in block and "str q" in block)
+                and ("movdqu" in block)
+                and (operation not in {"Load_Aligned", "Store_Aligned"} or "movdqa" in block)
+                for block in blocks
+            )
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact root "
+                    f"{operation} complete-memory classifications, found {found}"
+                )
     if "A target backend can use scalar composition" in text:
         invalid.append(f"{path.relative_to(ROOT)}: generic Native fallback wording")
     if path.name in {"flyology_simd.ads", "flyology_simd-backends-native.ads"}:
@@ -312,6 +345,42 @@ def invalid_support(path: Path) -> list[str]:
                 invalid.append(
                     f"{path.relative_to(ROOT)}: expected ten exact {operation} "
                     f"direct-partial-memory classifications, found {found}"
+                )
+        complete_memory_support = {
+            "Load": (
+                "delegates to Load_Unaligned",
+                "loads the array with ldr q and stores the private result with str q",
+                "delegates to Load_Unaligned, which uses two movdqu transfers",
+            ),
+            "Store": (
+                "delegates to Store_Unaligned",
+                "loads the private value with ldr q and stores the array with str q",
+                "delegates to Store_Unaligned, which uses two movdqu transfers",
+            ),
+            "Load_Unaligned": (
+                "loads the array with ldr q and stores the private result with str q",
+                "uses two movdqu transfers",
+            ),
+            "Store_Unaligned": (
+                "loads the private value with ldr q and stores the array with str q",
+                "uses two movdqu transfers",
+            ),
+            "Load_Aligned": (
+                "same safe ldr q and str q transfers after checking the alignment precondition",
+                "loads the aligned array with movdqa and stores the private result with movdqu",
+            ),
+            "Store_Aligned": (
+                "same safe ldr q and str q transfers after checking the alignment precondition",
+                "loads the private value with movdqu and stores the aligned array with movdqa",
+            ),
+        }
+        for operation, phrases in complete_memory_support.items():
+            blocks = declaration_blocks(text, operation)
+            found = sum(all(phrase in block for phrase in phrases) for block in blocks)
+            if len(blocks) != 10 or found != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: expected ten exact {operation} "
+                    f"complete-memory classifications, found {found}"
                 )
         bit_cast_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]

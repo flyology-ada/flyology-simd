@@ -2630,6 +2630,114 @@ def x86_body() -> str:
     return "\n".join(out)
 
 
+def complete_memory_test_lines(
+    vector: str,
+    scalar: str,
+    bits: int,
+    lanes: int,
+    arr: str,
+    vals: str,
+    floating: bool,
+) -> list[str]:
+    """Generate an independent complete-memory oracle for one vector shape."""
+    idx = lane_index(bits, lanes)
+    sentinel = (
+        f"Value_From_Bits_{vector} ({'16#7FC0_0055#' if bits == 32 else '16#7FF8_0000_0000_0055#'})"
+        if floating
+        else f"{scalar} (17)"
+    )
+    equal = (
+        lambda left, right: f"Bits_{vector} ({left}) = Bits_{vector} ({right})"
+        if floating
+        else f"{left} = {right}"
+    )
+    loaded = lambda backend, operation: (
+        f"{operation} (Source, 1)"
+        if backend == "Root"
+        else f"Backends.{backend}.{operation} (Source, 1)"
+    )
+    aligned_loaded = lambda backend: (
+        "Load_Aligned (Aligned_Source, 0)"
+        if backend == "Root"
+        else f"Backends.{backend}.Load_Aligned (Aligned_Source, 0)"
+    )
+    store_call = lambda backend, operation, data: (
+        f"{operation} ({data}, 1, Value);"
+        if backend == "Root"
+        else f"Backends.{backend}.{operation} ({data}, 1, Value);"
+    )
+    lines = [
+        f"   procedure Check_Complete_Memory_{vector} (Values : {vals}; Label_Text : String) is",
+        f"      Value : constant {vector} := From_Lanes (Values);",
+        f"      Source : {arr} (0 .. {lanes + 1}) := [others => {sentinel}] with Alignment => 16;",
+        f"      Root_Data, Scalar_Data, Native_Data : {arr} (0 .. {lanes + 1}) := [others => {sentinel}];",
+        f"      Aligned_Source : {arr} (0 .. {lanes - 1}) := {arr} (Values) with Alignment => 16;",
+        f"      Root_Aligned, Scalar_Aligned, Native_Aligned : {arr} (0 .. {lanes}) := [others => {sentinel}] with Alignment => 16;",
+        "   begin",
+        f"      for Lane in {idx} loop Source (1 + Lane) := Values (Lane); end loop;",
+    ]
+    for operation in ("Load", "Load_Unaligned"):
+        lines += [
+            f"      for Lane in {idx} loop",
+            "         Check ("
+            + " and then ".join(
+                equal(
+                    f"Extract ({loaded(backend, operation)}, Lane)",
+                    "Values (Lane)",
+                )
+                for backend in ("Root", "Scalar", "Native")
+            )
+            + f", \"{vector} independent root scalar native {operation}\" & Label_Text & Lane'Image);",
+            "      end loop;",
+        ]
+    lines += [
+        f"      for Lane in {idx} loop",
+        "         Check ("
+        + " and then ".join(
+            equal(
+                f"Extract ({aligned_loaded(backend)}, Lane)",
+                "Values (Lane)",
+            )
+            for backend in ("Root", "Scalar", "Native")
+        )
+        + f", \"{vector} independent root scalar native Load_Aligned\" & Label_Text & Lane'Image);",
+        "      end loop;",
+    ]
+    for operation in ("Store", "Store_Unaligned"):
+        lines += [
+            f"      Root_Data := [others => {sentinel}]; Scalar_Data := [others => {sentinel}]; Native_Data := [others => {sentinel}];",
+            f"      {store_call('Root', operation, 'Root_Data')} {store_call('Scalar', operation, 'Scalar_Data')} {store_call('Native', operation, 'Native_Data')}",
+            "      for Index in Root_Data'Range loop",
+            f"         declare Expected : constant {scalar} := (if Index in 1 .. {lanes} then Values ({idx} (Index - 1)) else {sentinel}); begin",
+            "            Check ("
+            + " and then ".join(
+                equal(f"{data} (Index)", "Expected")
+                for data in ("Root_Data", "Scalar_Data", "Native_Data")
+            )
+            + f", \"{vector} independent root scalar native {operation}\" & Label_Text & Index'Image);",
+            "         end;",
+            "      end loop;",
+        ]
+    lines += [
+        f"      Root_Aligned := [others => {sentinel}]; Scalar_Aligned := [others => {sentinel}]; Native_Aligned := [others => {sentinel}];",
+        "      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);",
+        "      for Index in Root_Aligned'Range loop",
+        "         Check ("
+        + " and then ".join(
+            equal(
+                f"{data} (Index)",
+                f"(if Index < {lanes} then Values ({idx} (Index)) else {sentinel})",
+            )
+            for data in ("Root_Aligned", "Scalar_Aligned", "Native_Aligned")
+        )
+        + f", \"{vector} independent root scalar native Store_Aligned\" & Label_Text & Index'Image);",
+        "      end loop;",
+        f"   end Check_Complete_Memory_{vector};",
+        "",
+    ]
+    return lines
+
+
 def test_program() -> str:
     lines = [
         "with Ada.Command_Line;", "with Ada.Exceptions;", "with Ada.Text_IO;",
@@ -2887,6 +2995,7 @@ def test_program() -> str:
                 ]
                 if signed else []
             ),
+            *complete_memory_test_lines(vector, scalar, bits, lanes, arr, vals, False),
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
             f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
@@ -2919,6 +3028,7 @@ def test_program() -> str:
                 )
             ),
             "   begin",
+            f"      Check_Complete_Memory_{vector} (To_Lanes (A), \" fixed\");",
             f"      Check (To_Lanes (A) = [{agg_a}], \"{vector} scalar lane construction\");",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract ({vector}'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), \"{vector} independent native construction\" & Lane'Image); end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Splat ({scalar}'Last), Lane) = {scalar}'Last, \"{vector} maximum-value native splat\" & Lane'Image); end loop;",
@@ -3086,6 +3196,7 @@ def test_program() -> str:
             f"            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_{vector} (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_{vector} (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_{vector} (R_A), \"{vector} randomized root, scalar, and native reductions\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
+            f"            Check_Complete_Memory_{vector} (R_Lanes, \" random\" & Iteration'Image);",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
             f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
             f"            for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",
@@ -3153,6 +3264,7 @@ def test_program() -> str:
             "      end loop;",
             "      return True;",
             "   end Same;",
+            *complete_memory_test_lines(vector, scalar, bits, lanes, arr, vals, True),
             f"   function Reference_Compress_{vector} (Value : {vector}; Mask : {mask}) return {vector} is",
             f"      Result : {vector} := Zero;",
             "      Result_Lane : Natural := 0;",
@@ -3211,6 +3323,11 @@ def test_program() -> str:
                 for group_index, group in enumerate(special_bits, 1)
             ],
             "   begin",
+            f"      Check_Complete_Memory_{vector} (To_Lanes (A), \" fixed\");",
+            *[
+                f"      Check_Complete_Memory_{vector} (Special_Lanes_{group_index}, \" special {group_index}\");"
+                for group_index, _ in enumerate(special_bits, 1)
+            ],
             f"      Check (Same (A, From_Lanes (To_Lanes (A))), \"{vector} scalar lane roundtrip\");",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract ({vector}'(Backends.Native.Zero), Lane)) = 0 and then Bits_{vector} (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_{vector} (To_Lanes (A) (0)), \"{vector} independent native construction\" & Lane'Image); end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.From_Lanes (To_Lanes (A)), Lane)) = Bits_{vector} (To_Lanes (A) (Lane)) and then Bits_{vector} (Backends.Native.To_Lanes (A) (Lane)) = Bits_{vector} (To_Lanes (A) (Lane)), \"{vector} independent native lane construction\" & Lane'Image); end loop;",
@@ -3317,6 +3434,7 @@ def test_program() -> str:
             "      for Iteration in 1 .. 250 loop",
             "         declare",
             f"            R_Lanes : constant {vals} := Random_{vector}_Lanes;",
+            f"            Memory_Lanes : constant {vals} := [for Lane in {lane_index(bits, lanes)} => Value_From_Bits_{vector} ({'Interfaces.Unsigned_32 (Next_U64 and 16#FFFF_FFFF#)' if bits == 32 else 'Next_U64'})];",
             f"            R_A : constant {vector} := From_Lanes (R_Lanes);",
             f"            R_B : constant {vector} := From_Lanes (Random_{vector}_Lanes);",
             f"            Tail : constant {count} := {count} (Next_U64 mod {lanes + 1});",
@@ -3340,6 +3458,7 @@ def test_program() -> str:
             f"            Check (Bits_{vector} (Backends.Native.Reduce_Add (R_A)) = Bits_{vector} (Reference_Reduce_Add_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Min_Number (R_A)) = Bits_{vector} (Reference_Reduce_Min_{vector} (R_A)) and then Bits_{vector} (Backends.Native.Reduce_Max_Number (R_A)) = Bits_{vector} (Reference_Reduce_Max_{vector} (R_A)), \"{vector} randomized native reductions\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
+            f"            Check_Complete_Memory_{vector} (Memory_Lanes, \" raw random\" & Iteration'Image);",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
             f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
             f"            for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_{vector} ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",

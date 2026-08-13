@@ -51,6 +51,7 @@ Right_Block : constant F32x4 :=
         <section id="tests">
           <h2>Verify extent separately from values</h2>
           <p><code>guard_page_tests</code> places byte tails next to an inaccessible page. It exercises 128-bit partial byte operations for counts 0 through 16 and Wide partial byte operations for counts 0 through 32.</p>
+          <p>The complete-memory tests check ordinary, unaligned, and aligned loads and stores for all ten 128-bit value types. Independent lane and array expectations cover fixed inputs and 250 deterministic inputs per type. Floating cases include raw IEEE encodings, and store checks preserve sentinel elements outside the complete-vector extent.</p>
           <p>The Wide tests cover every memory form for all ten value types. Independent expectations check fixed inputs and 128 deterministic inputs per type. Floating cases use raw bit encodings. Partial tests cover every valid count, preserve sentinel elements outside the store extent, and use <code>Start = Natural'Last</code> when <code>Count</code> is zero. AddressSanitizer builds provide another out-of-bounds check where the toolchain supports them.</p>
           <p>A store consumes its vector value before it writes the destination. The API has no raw-address overload in v0.1.</p>
           <div class="next-links"><a href="../masks/"><span>Chapter 3</span>Review masks</a><a href="../conversions/"><span>Chapter 5</span>Convert lane values</a></div>

@@ -288,21 +288,21 @@ is
    function Load (Data : Byte_Array; Start : Natural) return U8x16
      with Pre => Has_Extent (Data, Start, 16);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16)
      with Pre => Has_Extent (Data, Start, 16);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16
      with Pre => Has_Extent (Data, Start, 16);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -310,7 +310,7 @@ is
      (Data : in out Byte_Array; Start : Natural; Value : U8x16)
      with Pre => Has_Extent (Data, Start, 16);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -318,7 +318,7 @@ is
      with Pre =>
        Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
@@ -327,7 +327,7 @@ is
      with Pre =>
        Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -994,37 +994,37 @@ is
    function Load (Data : I8_Array; Start : Natural) return I8x16
      with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I8_Array; Start : Natural; Value : I8x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) with Pre => Start in Data'Range and then 15 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -1287,37 +1287,37 @@ is
    function Load (Data : U16_Array; Start : Natural) return U16x8
      with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U16_Array; Start : Natural; Value : U16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -1586,37 +1586,37 @@ is
    function Load (Data : I16_Array; Start : Natural) return I16x8
      with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I16_Array; Start : Natural; Value : I16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) with Pre => Start in Data'Range and then 7 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -1879,37 +1879,37 @@ is
    function Load (Data : U32_Array; Start : Natural) return U32x4
      with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U32_Array; Start : Natural; Value : U32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -2178,37 +2178,37 @@ is
    function Load (Data : I32_Array; Start : Natural) return I32x4
      with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I32_Array; Start : Natural; Value : I32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -2471,37 +2471,37 @@ is
    function Load (Data : U64_Array; Start : Natural) return U64x2
      with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out U64_Array; Start : Natural; Value : U64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -2770,37 +2770,37 @@ is
    function Load (Data : I64_Array; Start : Natural) return I64x2
      with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out I64_Array; Start : Natural; Value : I64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -3029,37 +3029,37 @@ is
    --  @return The operation result.
    function Load (Data : F32_Array; Start : Natural) return F32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out F32_Array; Start : Natural; Value : F32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) with Pre => Start in Data'Range and then 3 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
@@ -3288,37 +3288,37 @@ is
    --  @return The operation result.
    function Load (Data : F64_Array; Start : Natural) return F64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array with ldr q and stores the private result with str q. The x86-64 backend delegates to Load_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf loads the private value with ldr q and stores the array with str q. The x86-64 backend delegates to Store_Unaligned, which uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array with ldr q and stores the private result with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Unaligned (Data : in out F64_Array; Start : Natural; Value : F64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start);
    --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the private value with ldr q and stores the array with str q. The x86-64 backend uses two movdqu transfers. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.
    function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the aligned array with movdqa and stores the private result with movdqu. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @return The operation result.
    procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) with Pre => Start in Data'Range and then 1 <= Natural (Data'Last - Start) and then Is_Aligned_16 (Data, Start);
    --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the same safe ldr q and str q transfers after checking the alignment precondition. The x86-64 backend loads the private value with movdqu and stores the aligned array with movdqa. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Value The input value.

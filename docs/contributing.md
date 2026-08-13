@@ -34,6 +34,8 @@ The generated 128-bit integer-reduction caller probe and its 24-operation
 manifest are reproduced by `scripts/generate_integer_reduction_probe.py`.
 The generated fixed-width floating binary-operation caller probe and its
 12-operation manifest are reproduced by `scripts/generate_float_binary_probe.py`.
+The generated complete 128-bit memory caller probe and its 60-operation
+manifest are reproduced by `scripts/generate_complete_memory_probe.py`.
 The generated Wide integer-reduction caller probe and its 24-operation
 manifest are reproduced by `scripts/generate_wide_reduction_probe.py`.
 The generated Wide construction and lane-access caller probe and its

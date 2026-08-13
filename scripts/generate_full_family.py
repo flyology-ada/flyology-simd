@@ -313,6 +313,49 @@ def native_support_doc(name: str, declaration: str) -> str:
             "evaluate an element address. They do not call the portable root "
             "operation. A scalar build uses the portable scalar implementation."
         )
+    if name in {
+        "Load", "Store", "Load_Unaligned", "Store_Unaligned",
+        "Load_Aligned", "Store_Aligned",
+    }:
+        actions = {
+            "Load": (
+                "delegates to Load_Unaligned, whose isolated NEON leaf loads "
+                "the array with ldr q and stores the private result with str q",
+                "delegates to Load_Unaligned, which uses two movdqu transfers",
+            ),
+            "Store": (
+                "delegates to Store_Unaligned, whose isolated NEON leaf loads "
+                "the private value with ldr q and stores the array with str q",
+                "delegates to Store_Unaligned, which uses two movdqu transfers",
+            ),
+            "Load_Unaligned": (
+                "uses an isolated NEON leaf that loads the array with ldr q "
+                "and stores the private result with str q",
+                "uses two movdqu transfers",
+            ),
+            "Store_Unaligned": (
+                "uses an isolated NEON leaf that loads the private value with "
+                "ldr q and stores the array with str q",
+                "uses two movdqu transfers",
+            ),
+            "Load_Aligned": (
+                "uses the same safe ldr q and str q transfers after checking "
+                "the alignment precondition",
+                "loads the aligned array with movdqa and stores the private "
+                "result with movdqu",
+            ),
+            "Store_Aligned": (
+                "uses the same safe ldr q and str q transfers after checking "
+                "the alignment precondition",
+                "loads the private value with movdqu and stores the aligned "
+                "array with movdqa",
+            ),
+        }
+        aarch, x86 = actions[name]
+        return (
+            f"Cross-platform support: The AArch64 backend {aarch}. The x86-64 "
+            f"backend {x86}. A scalar build uses the portable scalar implementation."
+        )
     if name == "Bit_Cast":
         return (
             "Cross-platform support: The AArch64 and x86-64 backends "
