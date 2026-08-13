@@ -74,6 +74,8 @@ instruction-specific result.
   truth without exposing the mask representation.
 - `First_True` and `Last_True` return the lane-count value when no lane is
   true. If the mask contains a true lane, the result is a valid lane index.
+  Native backends locate the compact mask bit directly. Wide operations query
+  both private masks and add the private lane count to a high-part result.
 - `Compress` packs true-mask lanes toward lane 0 in source order and zero-fills
   the remaining result lanes. `Expand` consumes packed low lanes into true
   mask positions and zero-fills false positions. Moved lane bits do not

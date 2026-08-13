@@ -240,12 +240,29 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
         "Zero", "Splat", "From_Lanes", "To_Lanes",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Any_True", "All_True",
-        "None_True", "Population_Count", "First_True", "Last_True",
+        "None_True", "Population_Count",
     }:
         mechanism = (
             "AArch64 and x86-64 call the selected 128-bit operation on each "
             "private part and combine the results in Ada"
         )
+    elif operation in {"First_True", "Last_True"}:
+        if operation == "First_True":
+            mechanism = (
+                "AArch64 and x86-64 query both private parts with the selected "
+                "128-bit mask-position operation. They return a valid low-part "
+                "result first. Otherwise, they return a valid high-part result "
+                "plus the private lane count. If neither part contains a true "
+                "lane, they return the Wide lane-count value"
+            )
+        else:
+            mechanism = (
+                "AArch64 and x86-64 query both private parts with the selected "
+                "128-bit mask-position operation. They return a valid high-part "
+                "result plus the private lane count first. Otherwise, they "
+                "return a valid low-part result. If neither part contains a "
+                "true lane, they return the Wide lane-count value"
+            )
     elif operation in {"Extract", "Replace", "Test"}:
         mechanism = (
             "AArch64 and x86-64 call the selected 128-bit operation only on "
@@ -547,9 +564,20 @@ def declaration(f: Family, first_shape: bool) -> str:
         for name in ("Any_True", "All_True", "None_True"):
             out += [f"   function {name} (Mask : {f.mask}) return Boolean;",
                     doc(f"Return the {name} mask reduction.", ("Mask",))]
-        for name in ("Population_Count", "First_True", "Last_True"):
+        mask_reductions = {
+            "Population_Count": "Return the number of true lanes.",
+            "First_True": (
+                "Return the lowest true lane, or the lane-count value when no "
+                "lane is true."
+            ),
+            "Last_True": (
+                "Return the highest true lane, or the lane-count value when no "
+                "lane is true."
+            ),
+        }
+        for name, summary in mask_reductions.items():
             out += [f"   function {name} (Mask : {f.mask}) return {f.count};",
-                    doc(f"Return the {name} mask position or count result.", ("Mask",))]
+                    doc(summary, ("Mask",))]
     extent = f"Start in Data'Range and then {f.lanes - 1} <= Natural (Data'Last - Start)"
     partial = f"Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start))"
     out += [

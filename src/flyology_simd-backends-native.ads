@@ -276,12 +276,12 @@ is
    --  @return The operation result.
    function First_True (Mask : Mask_8x16) return Lane_Count_8x16;
    --  Return the first true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Last_True (Mask : Mask_8x16) return Lane_Count_8x16;
    --  Return the last true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
 
@@ -3398,12 +3398,12 @@ is
    --  @return The operation result.
    function First_True (Mask : Mask_16x8) return Lane_Count_16x8;
    --  Return the first true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Last_True (Mask : Mask_16x8) return Lane_Count_16x8;
    --  Return the last true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
 
@@ -3468,12 +3468,12 @@ is
    --  @return The operation result.
    function First_True (Mask : Mask_32x4) return Lane_Count_32x4;
    --  Return the first true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Last_True (Mask : Mask_32x4) return Lane_Count_32x4;
    --  Return the last true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
 
@@ -3538,12 +3538,12 @@ is
    --  @return The operation result.
    function First_True (Mask : Mask_64x2) return Lane_Count_64x2;
    --  Return the first true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    function Last_True (Mask : Mask_64x2) return Lane_Count_64x2;
    --  Return the last true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
    --  @return The operation result.
    --  END GENERATED FULL-FAMILY BACKEND CONTRACT

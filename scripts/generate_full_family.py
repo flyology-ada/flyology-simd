@@ -283,7 +283,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Zero", "Splat", "From_Lanes", "To_Lanes", "Extract", "Replace",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
-        "None_True", "Population_Count", "First_True", "Last_True",
+        "None_True", "Population_Count",
         "Is_Aligned_16", "Load_Partial", "Store_Partial", "Has_Extent",
         "Bit_Cast",
     }
@@ -301,6 +301,25 @@ def native_support_doc(name: str, declaration: str) -> str:
             "shift to each 64-bit lane and its sign mask, and merges the sign "
             "fill. A scalar build uses "
             "the portable scalar implementation."
+        )
+    if name in {"First_True", "Last_True"}:
+        direction = "first" if name == "First_True" else "last"
+        aarch = (
+            "a dedicated bit-reversal and leading-zero-count sequence"
+            if name == "First_True" else
+            "a dedicated leading-zero-count sequence"
+        )
+        x86 = (
+            "a dedicated bit-scan-forward sequence"
+            if name == "First_True" else
+            "a dedicated bit-scan-reverse sequence"
+        )
+        return (
+            f"Cross-platform support: The AArch64 backend uses {aarch} to find "
+            f"the {direction} set compact-mask bit. The x86-64 backend uses "
+            f"{x86} to find the {direction} set compact-mask bit. Both return "
+            "the lane-count value for a zero mask. A scalar build uses the "
+            "portable scalar implementation."
         )
     if name == "Unordered" and (
         "F32x4" in declaration or "F64x2" in declaration

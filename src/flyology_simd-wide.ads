@@ -363,18 +363,18 @@ is
    --  @param Mask The mask input.
    --  @return The operation result.
    function Population_Count (Mask : Mask_8x32) return Lane_Count_8x32;
-   --  Return the Population_Count mask position or count result.
+   --  Return the number of true lanes.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function First_True (Mask : Mask_8x32) return Lane_Count_8x32;
-   --  Return the First_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the lowest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid low-part result first. Otherwise, they return a valid high-part result plus the private lane count. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Last_True (Mask : Mask_8x32) return Lane_Count_8x32;
-   --  Return the Last_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the highest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid high-part result plus the private lane count first. Otherwise, they return a valid low-part result. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Is_Aligned_32 (Data : Byte_Array; Start : Natural) return Boolean;
@@ -1058,18 +1058,18 @@ is
    --  @param Mask The mask input.
    --  @return The operation result.
    function Population_Count (Mask : Mask_16x16) return Lane_Count_16x16;
-   --  Return the Population_Count mask position or count result.
+   --  Return the number of true lanes.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function First_True (Mask : Mask_16x16) return Lane_Count_16x16;
-   --  Return the First_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the lowest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid low-part result first. Otherwise, they return a valid high-part result plus the private lane count. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Last_True (Mask : Mask_16x16) return Lane_Count_16x16;
-   --  Return the Last_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the highest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid high-part result plus the private lane count first. Otherwise, they return a valid low-part result. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Is_Aligned_32 (Data : U16_Array; Start : Natural) return Boolean;
@@ -1758,18 +1758,18 @@ is
    --  @param Mask The mask input.
    --  @return The operation result.
    function Population_Count (Mask : Mask_32x8) return Lane_Count_32x8;
-   --  Return the Population_Count mask position or count result.
+   --  Return the number of true lanes.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function First_True (Mask : Mask_32x8) return Lane_Count_32x8;
-   --  Return the First_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the lowest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid low-part result first. Otherwise, they return a valid high-part result plus the private lane count. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Last_True (Mask : Mask_32x8) return Lane_Count_32x8;
-   --  Return the Last_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the highest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid high-part result plus the private lane count first. Otherwise, they return a valid low-part result. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Is_Aligned_32 (Data : U32_Array; Start : Natural) return Boolean;
@@ -2463,18 +2463,18 @@ is
    --  @param Mask The mask input.
    --  @return The operation result.
    function Population_Count (Mask : Mask_64x4) return Lane_Count_64x4;
-   --  Return the Population_Count mask position or count result.
+   --  Return the number of true lanes.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function First_True (Mask : Mask_64x4) return Lane_Count_64x4;
-   --  Return the First_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the lowest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid low-part result first. Otherwise, they return a valid high-part result plus the private lane count. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Last_True (Mask : Mask_64x4) return Lane_Count_64x4;
-   --  Return the Last_True mask position or count result.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Return the highest true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends query both private parts with the selected 128-bit mask-position operation. They return a valid high-part result plus the private lane count first. Otherwise, they return a valid low-part result. If neither part contains a true lane, they return the Wide lane-count value. A scalar build uses the portable Wide implementation.
    --  @param Mask The mask input.
    --  @return The operation result.
    function Is_Aligned_32 (Data : U64_Array; Start : Natural) return Boolean;

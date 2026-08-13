@@ -183,6 +183,53 @@ def compaction_declarations(f: Family) -> str:
 '''
 
 
+def mask_position_declarations(f: Family) -> str:
+    return f'''
+      function Reference_First_True
+        (Bits : Wide.{f.mask_bits}) return Wide.{f.count}
+      is
+      begin
+         for Lane in Wide.{f.index} loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return {f.lanes};
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.{f.mask_bits}) return Wide.{f.count}
+      is
+      begin
+         for Lane in reverse Wide.{f.index} loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return {f.lanes};
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.{f.mask_bits}; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.{f.mask} :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.{f.mask} :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.{f.count} :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.{f.count} :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "{f.vector} independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
+'''
+
+
 def compaction_fixed_tests(f: Family, values: str, label: str = "fixed") -> str:
     return f'''
       Check_Compaction ({values}, 0, "{label} zero mask");
@@ -1205,6 +1252,7 @@ def integer_test(f: Family) -> str:
       end Random_Lanes;
 {reduction_declarations}
 {compaction_declarations(f)}
+{mask_position_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
 {lookup_declarations}
@@ -1374,6 +1422,13 @@ def integer_test(f: Family) -> str:
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = {f.lanes - 2},
         "{f.vector} mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions ({all_bits}, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** ({f.lanes} - 1), "last lane");
+      Check_Mask_Positions (2 ** ({f.half_lanes} - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** {f.half_lanes}, "high-half boundary");
+      Check_Mask_Positions ({alt}, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "{f.vector} native add");
@@ -1467,6 +1522,7 @@ def integer_test(f: Family) -> str:
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "{f.vector} mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = {all_bits}
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {all_bits}
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -1614,6 +1670,7 @@ def integer_test(f: Family) -> str:
 
 def float_test(f: Family) -> str:
     a_values = ", ".join(f"{i + 1}.0" for i in range(f.lanes))
+    all_bits = f"{f.mask_bits}'Last"
     alt = sum(1 << i for i in range(0, f.lanes, 2))
     bit_type = "Interfaces.Unsigned_32" if f.bits == 32 else "Interfaces.Unsigned_64"
     sign_bit = "16#8000_0000#" if f.bits == 32 else "16#8000_0000_0000_0000#"
@@ -1871,6 +1928,7 @@ def float_test(f: Family) -> str:
          end loop;
       end Check_Arithmetic;
 {compaction_declarations(f)}
+{mask_position_declarations(f)}
 {permutation_declarations(f)}
 {movement_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
@@ -2117,6 +2175,13 @@ def float_test(f: Family) -> str:
         and then Native.First_True (Alternating) = Wide.First_True (Alternating)
         and then Native.Last_True (Alternating) = Wide.Last_True (Alternating),
         "{f.vector} native mask algebra and reductions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions ({all_bits}, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** ({f.lanes} - 1), "last lane");
+      Check_Mask_Positions (2 ** ({f.half_lanes} - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** {f.half_lanes}, "high-half boundary");
+      Check_Mask_Positions ({alt}, "alternating");
       for Pattern in Natural range 0 .. {'2 ** ' + str(f.lanes) + ' - 1' if f.lanes <= 16 else '1_023'} loop
          declare
             Bits : constant Wide.{f.mask_bits} :=
@@ -2138,6 +2203,7 @@ def float_test(f: Family) -> str:
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = {f.mask_bits}'Last,
               "{f.vector} mask algebra" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.{f.index} loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
                  and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),

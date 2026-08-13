@@ -194,6 +194,50 @@ procedure Wide_Tests is
       end Check_Compaction;
 
 
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 32;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 32;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_8x32; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_8x32 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_8x32 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_8x32 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "U8x32 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
+
+
       procedure Check_Permutations
         (Left_Values, Right_Values : Wide.Lane_Values_U8x32;
          One_Selectors : Wide.Lane_Selectors_8x32;
@@ -682,6 +726,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 30,
         "U8x32 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_8x32'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (32 - 1), "last lane");
+      Check_Mask_Positions (2 ** (16 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 16, "high-half boundary");
+      Check_Mask_Positions (1431655765, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "U8x32 native add");
@@ -775,6 +826,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "U8x32 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -1193,6 +1245,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "I8x32 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 32;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_8x32) return Wide.Lane_Count_8x32
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_8x32 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 32;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_8x32; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_8x32 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_8x32 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_8x32 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_8x32 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "I8x32 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -1625,6 +1721,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 30,
         "I8x32 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_8x32'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (32 - 1), "last lane");
+      Check_Mask_Positions (2 ** (16 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 16, "high-half boundary");
+      Check_Mask_Positions (1431655765, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "I8x32 native add");
@@ -1718,6 +1821,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "I8x32 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_8x32'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -2094,6 +2198,50 @@ procedure Wide_Tests is
       end Check_Compaction;
 
 
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 16;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 16;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_16x16; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_16x16 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_16x16 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_16x16 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "U16x16 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
+
+
       procedure Check_Permutations
         (Left_Values, Right_Values : Wide.Lane_Values_U16x16;
          One_Selectors : Wide.Lane_Selectors_16x16;
@@ -2413,6 +2561,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 14,
         "U16x16 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_16x16'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (16 - 1), "last lane");
+      Check_Mask_Positions (2 ** (8 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 8, "high-half boundary");
+      Check_Mask_Positions (21845, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "U16x16 native add");
@@ -2506,6 +2661,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "U16x16 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -2789,6 +2945,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "I16x16 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 16;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_16x16) return Wide.Lane_Count_16x16
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_16x16 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 16;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_16x16; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_16x16 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_16x16 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_16x16 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_16x16 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "I16x16 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -3109,6 +3309,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 14,
         "I16x16 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_16x16'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (16 - 1), "last lane");
+      Check_Mask_Positions (2 ** (8 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 8, "high-half boundary");
+      Check_Mask_Positions (21845, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "I16x16 native add");
@@ -3202,6 +3409,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "I16x16 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_16x16'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -3484,6 +3692,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "U32x8 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_32x8 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_32x8 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "U32x8 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -3821,6 +4073,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 6,
         "U32x8 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_32x8'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (8 - 1), "last lane");
+      Check_Mask_Positions (2 ** (4 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 4, "high-half boundary");
+      Check_Mask_Positions (85, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "U32x8 native add");
@@ -3914,6 +4173,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "U32x8 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -4213,6 +4473,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "I32x8 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_32x8 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_32x8 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "I32x8 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -4549,6 +4853,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 6,
         "I32x8 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_32x8'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (8 - 1), "last lane");
+      Check_Mask_Positions (2 ** (4 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 4, "high-half boundary");
+      Check_Mask_Positions (85, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "I32x8 native add");
@@ -4642,6 +4953,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "I32x8 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -4940,6 +5252,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "U64x4 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_64x4 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_64x4 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "U64x4 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -5277,6 +5633,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 2,
         "U64x4 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_64x4'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (4 - 1), "last lane");
+      Check_Mask_Positions (2 ** (2 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 2, "high-half boundary");
+      Check_Mask_Positions (5, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "U64x4 native add");
@@ -5370,6 +5733,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "U64x4 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -5669,6 +6033,50 @@ procedure Wide_Tests is
            and then Native.To_Lanes (Native_Round_Trip) = Expected_Round_Trip,
            "I64x4 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_64x4 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_64x4 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "I64x4 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -6005,6 +6413,13 @@ procedure Wide_Tests is
         and then Wide.First_True (Alternating) = 0
         and then Wide.Last_True (Alternating) = 2,
         "I64x4 mask positions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_64x4'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (4 - 1), "last lane");
+      Check_Mask_Positions (2 ** (2 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 2, "high-half boundary");
+      Check_Mask_Positions (5, "alternating");
       Check (Native.To_Lanes (Native.Add_Wrap
         (Native.From_Lanes (A_Lanes), Native.From_Lanes (B_Lanes))) =
         Wide.To_Lanes (Wide.Add_Wrap (A, B)), "I64x4 native add");
@@ -6098,6 +6513,7 @@ procedure Wide_Tests is
               and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
               and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
               "I64x4 mask predicates" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = 0
@@ -6586,6 +7002,50 @@ procedure Wide_Tests is
                 Value_To_Bits (Expected_Round_Trip (Lane))),
            "F32x8 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_32x8) return Wide.Lane_Count_32x8
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_32x8 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 8;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_32x8; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_32x8 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_32x8 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_32x8 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_32x8 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "F32x8 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -7098,6 +7558,13 @@ procedure Wide_Tests is
         and then Native.First_True (Alternating) = Wide.First_True (Alternating)
         and then Native.Last_True (Alternating) = Wide.Last_True (Alternating),
         "F32x8 native mask algebra and reductions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_32x8'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (8 - 1), "last lane");
+      Check_Mask_Positions (2 ** (4 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 4, "high-half boundary");
+      Check_Mask_Positions (85, "alternating");
       for Pattern in Natural range 0 .. 2 ** 8 - 1 loop
          declare
             Bits : constant Wide.Mask_Bits_32x8 :=
@@ -7119,6 +7586,7 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "F32x8 mask algebra" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
                  and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
@@ -7597,6 +8065,50 @@ procedure Wide_Tests is
                 Value_To_Bits (Expected_Round_Trip (Lane))),
            "F64x4 compression expansion property " & Label_Text);
       end Check_Compaction;
+
+
+      function Reference_First_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_First_True;
+
+      function Reference_Last_True
+        (Bits : Wide.Mask_Bits_64x4) return Wide.Lane_Count_64x4
+      is
+      begin
+         for Lane in reverse Wide.Lane_Index_64x4 loop
+            if ((Bits / 2 ** Lane) mod 2) = 1 then
+               return Lane;
+            end if;
+         end loop;
+         return 4;
+      end Reference_Last_True;
+
+      procedure Check_Mask_Positions
+        (Bits : Wide.Mask_Bits_64x4; Label_Text : String)
+      is
+         Scalar_Mask : constant Wide.Mask_64x4 :=
+           Wide.Mask_From_Bit_Mask (Bits);
+         Native_Mask : constant Wide.Mask_64x4 :=
+           Native.Mask_From_Bit_Mask (Bits);
+         Expected_First : constant Wide.Lane_Count_64x4 :=
+           Reference_First_True (Bits);
+         Expected_Last : constant Wide.Lane_Count_64x4 :=
+           Reference_Last_True (Bits);
+      begin
+         Check (Wide.First_True (Scalar_Mask) = Expected_First
+           and then Native.First_True (Native_Mask) = Expected_First
+           and then Wide.Last_True (Scalar_Mask) = Expected_Last
+           and then Native.Last_True (Native_Mask) = Expected_Last,
+           "F64x4 independent mask positions " & Label_Text);
+      end Check_Mask_Positions;
 
 
       procedure Check_Permutations
@@ -8109,6 +8621,13 @@ procedure Wide_Tests is
         and then Native.First_True (Alternating) = Wide.First_True (Alternating)
         and then Native.Last_True (Alternating) = Wide.Last_True (Alternating),
         "F64x4 native mask algebra and reductions");
+      Check_Mask_Positions (0, "zero");
+      Check_Mask_Positions (Mask_Bits_64x4'Last, "all");
+      Check_Mask_Positions (1, "first lane");
+      Check_Mask_Positions (2 ** (4 - 1), "last lane");
+      Check_Mask_Positions (2 ** (2 - 1), "low-half boundary");
+      Check_Mask_Positions (2 ** 2, "high-half boundary");
+      Check_Mask_Positions (5, "alternating");
       for Pattern in Natural range 0 .. 2 ** 4 - 1 loop
          declare
             Bits : constant Wide.Mask_Bits_64x4 :=
@@ -8130,6 +8649,7 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "F64x4 mask algebra" & Pattern'Image);
+            Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
                  and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),

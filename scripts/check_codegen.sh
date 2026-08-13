@@ -31,6 +31,7 @@ float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 shift64_probe_object="$probe_root/shift64_codegen_probe.o"
 unordered_probe_object="$probe_root/unordered_codegen_probe.o"
+mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -56,6 +57,7 @@ disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.t
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
 disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
+disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -80,6 +82,7 @@ nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt
 nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
+nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -192,6 +195,15 @@ require_count 'flyology_simd__backends__native__unordered' 2 \
 forbid_pattern 'flyology_simd__unordered' \
   "$temporary/unordered-undefined.txt" \
   'portable Unordered call in the Native caller probe'
+require_count 'flyology_simd__backends__native__first_true' 4 \
+  "$temporary/mask-position-undefined.txt" \
+  'four Native First_True calls in the public caller probe'
+require_count 'flyology_simd__backends__native__last_true' 4 \
+  "$temporary/mask-position-undefined.txt" \
+  'four Native Last_True calls in the public caller probe'
+forbid_pattern 'flyology_simd__(first_true|last_true)' \
+  "$temporary/mask-position-undefined.txt" \
+  'portable mask-position call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -218,6 +230,24 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        for suffix in '' '__2' '__3' '__4'; do
+            extract_symbol "flyology_simd__backends__native__first_true${suffix}" \
+              "$temporary/native.txt" "$temporary/first_true${suffix}.txt"
+            extract_symbol "flyology_simd__backends__native__last_true${suffix}" \
+              "$temporary/native.txt" "$temporary/last_true${suffix}.txt"
+            require_pattern 'rbit' "$temporary/first_true${suffix}.txt" \
+              'AArch64 First_True bit reversal'
+            require_pattern 'clz' "$temporary/first_true${suffix}.txt" \
+              'AArch64 First_True leading-zero count'
+            require_pattern 'clz' "$temporary/last_true${suffix}.txt" \
+              'AArch64 Last_True leading-zero count'
+            forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
+              "$temporary/first_true${suffix}.txt" \
+              'portable AArch64 mask-position call'
+            forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
+              "$temporary/last_true${suffix}.txt" \
+              'portable AArch64 mask-position call'
+        done
         extract_symbol 'compare_unordered_f32x4' "$temporary/native.txt" \
           "$temporary/unordered-f32x4.txt"
         extract_symbol 'compare_unordered_f64x2' "$temporary/native.txt" \
@@ -561,6 +591,24 @@ case "$architecture" in
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        for suffix in '' '__2' '__3' '__4'; do
+            extract_symbol "flyology_simd__backends__native__first_true${suffix}" \
+              "$temporary/native.txt" "$temporary/first_true${suffix}.txt"
+            extract_symbol "flyology_simd__backends__native__last_true${suffix}" \
+              "$temporary/native.txt" "$temporary/last_true${suffix}.txt"
+            require_pattern '(^|[[:space:]])bsf(l)?([[:space:]]|$)' \
+              "$temporary/first_true${suffix}.txt" \
+              'x86-64 First_True bit scan'
+            require_pattern '(^|[[:space:]])bsr(l)?([[:space:]]|$)' \
+              "$temporary/last_true${suffix}.txt" \
+              'x86-64 Last_True bit scan'
+            forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
+              "$temporary/first_true${suffix}.txt" \
+              'portable x86-64 mask-position call'
+            forbid_pattern 'flyology_simd__first_true|flyology_simd__last_true' \
+              "$temporary/last_true${suffix}.txt" \
+              'portable x86-64 mask-position call'
+        done
         extract_symbol 'native_reduce_add_f32x4' "$temporary/native.txt" \
           "$temporary/reduce-add-f32x4.txt"
         extract_symbol 'native_reduce_add_f64x2' "$temporary/native.txt" \

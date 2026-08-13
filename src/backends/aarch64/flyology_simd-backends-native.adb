@@ -7,6 +7,42 @@ package body Flyology_SIMD.Backends.Native is
    use type Interfaces.Integer_64;
    use System.Machine_Code;
 
+   function Find_First_Set_Bit
+     (Bits : Interfaces.Unsigned_32; Lane_Count : Natural) return Natural
+   is
+      Result : Interfaces.Unsigned_32;
+   begin
+      if Bits = 0 then
+         return Lane_Count;
+      end if;
+      Asm
+        (Template => "rbit %w0, %w1" & ASCII.LF & ASCII.HT &
+                     "clz %w0, %w0",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs => Interfaces.Unsigned_32'Asm_Input ("r", Bits),
+         Volatile => True);
+      return Natural (Result);
+   end Find_First_Set_Bit;
+
+   function Find_Last_Set_Bit
+     (Bits : Interfaces.Unsigned_32; Lane_Count : Natural) return Natural
+   is
+      Result : Interfaces.Unsigned_32;
+   begin
+      if Bits = 0 then
+         return Lane_Count;
+      end if;
+      Asm
+        (Template => "clz %w0, %w1" & ASCII.LF & ASCII.HT &
+                     "mov w9, #31" & ASCII.LF & ASCII.HT &
+                     "sub %w0, w9, %w0",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs => Interfaces.Unsigned_32'Asm_Input ("r", Bits),
+         Clobber => "x9",
+         Volatile => True);
+      return Natural (Result);
+   end Find_Last_Set_Bit;
+
    Weights_8x16 : aliased constant Lane_Values_8x16 :=
      [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
 
@@ -337,9 +373,9 @@ package body Flyology_SIMD.Backends.Native is
       return Result;
    end Population_Count;
    function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Flyology_SIMD.First_True (Mask));
+     (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
    function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Flyology_SIMD.Last_True (Mask));
+     (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
 
    function Load (Data : Byte_Array; Start : Natural) return U8x16 is
      (Load_Unaligned (Data, Start));
@@ -2469,10 +2505,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_16x8) return Lane_Count_16x8 is
      (Flyology_SIMD.Population_Count (Mask));
-   function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is
-     (Flyology_SIMD.First_True (Mask));
-   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is
-     (Flyology_SIMD.Last_True (Mask));
+   function First_True (Mask : Mask_16x8) return Lane_Count_16x8 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 8));
+   function Last_True (Mask : Mask_16x8) return Lane_Count_16x8 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 8));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_32x4 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 is
@@ -2495,10 +2529,8 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_32x4) return Lane_Count_32x4 is
      (Flyology_SIMD.Population_Count (Mask));
-   function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is
-     (Flyology_SIMD.First_True (Mask));
-   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is
-     (Flyology_SIMD.Last_True (Mask));
+   function First_True (Mask : Mask_32x4) return Lane_Count_32x4 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 4));
+   function Last_True (Mask : Mask_32x4) return Lane_Count_32x4 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 4));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_64x2 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 is
@@ -2521,9 +2553,7 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.None_True (Mask));
    function Population_Count (Mask : Mask_64x2) return Lane_Count_64x2 is
      (Flyology_SIMD.Population_Count (Mask));
-   function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is
-     (Flyology_SIMD.First_True (Mask));
-   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is
-     (Flyology_SIMD.Last_True (Mask));
+   function First_True (Mask : Mask_64x2) return Lane_Count_64x2 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 2));
+   function Last_True (Mask : Mask_64x2) return Lane_Count_64x2 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 2));
    --  END GENERATED FULL-FAMILY NEON BODIES
 end Flyology_SIMD.Backends.Native;
