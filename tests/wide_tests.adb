@@ -9239,6 +9239,173 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Random_Lane_Values_F64x4;
+      function I32_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+      function Oracle_Bits_To_I32 is new Ada.Unchecked_Conversion (U32, I32);
+      function I64_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+      function Oracle_Bits_To_I64 is new Ada.Unchecked_Conversion (U64, I64);
+      function F32_To_Bits_Oracle is new Ada.Unchecked_Conversion (F32, U32);
+      function Bits_To_F32_Oracle is new Ada.Unchecked_Conversion (U32, F32);
+      function F64_To_Bits_Oracle is new Ada.Unchecked_Conversion (F64, U64);
+      function Bits_To_F64_Oracle is new Ada.Unchecked_Conversion (U64, F64);
+
+      function Oracle_Integer_To_Float_Bits
+        (Magnitude : U64; Sign : U64; Fraction_Bits, Bias : Natural)
+         return U64
+      is
+         function Round_Right (Value : U64; Count : Positive) return U64 is
+            Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+            Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+            Remainder : constant U64 :=
+              Value and (Interfaces.Shift_Left (1, Count) - 1);
+         begin
+            if Remainder > Half
+              or else (Remainder = Half and then (Quotient and 1) /= 0)
+            then
+               return Quotient + 1;
+            else
+               return Quotient;
+            end if;
+         end Round_Right;
+
+         Highest : Natural := 0;
+         Scan : U64 := Magnitude;
+         Significant : U64;
+         Exponent : Natural;
+      begin
+         if Magnitude = 0 then
+            return Sign;
+         end if;
+         while Interfaces.Shift_Right (Scan, 1) /= 0 loop
+            Scan := Interfaces.Shift_Right (Scan, 1);
+            Highest := Highest + 1;
+         end loop;
+         Exponent := Highest;
+         if Highest <= Fraction_Bits then
+            Significant := Interfaces.Shift_Left
+              (Magnitude, Fraction_Bits - Highest);
+         else
+            Significant := Round_Right (Magnitude, Highest - Fraction_Bits);
+            if Significant = Interfaces.Shift_Left (1, Fraction_Bits + 1) then
+               Significant := Interfaces.Shift_Right (Significant, 1);
+               Exponent := Exponent + 1;
+            end if;
+         end if;
+         return Sign
+           or Interfaces.Shift_Left (U64 (Exponent + Bias), Fraction_Bits)
+           or (Significant - Interfaces.Shift_Left (1, Fraction_Bits));
+      end Oracle_Integer_To_Float_Bits;
+
+      function Oracle_Convert_Round_I32 (Item : I32) return F32 is
+         Bits : constant U32 := I32_To_Bits (Item);
+         Negative : constant Boolean := (Bits and 16#8000_0000#) /= 0;
+         Magnitude : constant U64 :=
+           (if Negative then U64 ((not Bits) + 1) else U64 (Bits));
+         Sign : constant U64 := (if Negative then 16#8000_0000# else 0);
+      begin
+         return Bits_To_F32_Oracle
+           (U32 (Oracle_Integer_To_Float_Bits
+             (Magnitude, Sign, 23, 127)));
+      end Oracle_Convert_Round_I32;
+
+      function Oracle_Convert_Round_U32 (Item : U32) return F32 is
+        (Bits_To_F32_Oracle
+           (U32 (Oracle_Integer_To_Float_Bits (U64 (Item), 0, 23, 127))));
+
+      function Oracle_Convert_Round_I64 (Item : I64) return F64 is
+         Bits : constant U64 := I64_To_Bits (Item);
+         Negative : constant Boolean :=
+           (Bits and 16#8000_0000_0000_0000#) /= 0;
+         Magnitude : constant U64 :=
+           (if Negative then (not Bits) + 1 else Bits);
+         Sign : constant U64 :=
+           (if Negative then 16#8000_0000_0000_0000# else 0);
+      begin
+         return Bits_To_F64_Oracle
+           (Oracle_Integer_To_Float_Bits (Magnitude, Sign, 52, 1_023));
+      end Oracle_Convert_Round_I64;
+
+      function Oracle_Convert_Round_U64 (Item : U64) return F64 is
+        (Bits_To_F64_Oracle
+           (Oracle_Integer_To_Float_Bits (Item, 0, 52, 1_023)));
+
+      function Oracle_Float_To_Integer_Bits
+        (Bits, Sign_Mask, Fraction_Mask : U64;
+         Encoded_Exponent_Max, Fraction_Bits, Bias,
+         Destination_Bits : Natural;
+         Signed : Boolean) return U64
+      is
+         Destination_Mask : constant U64 :=
+           (if Destination_Bits = 64 then U64'Last
+            else Interfaces.Shift_Left (1, Destination_Bits) - 1);
+         Minimum_Bits : constant U64 :=
+           Interfaces.Shift_Left (1, Destination_Bits - 1);
+         Maximum_Bits : constant U64 := Minimum_Bits - 1;
+         Negative : constant Boolean := (Bits and Sign_Mask) /= 0;
+         Fraction : constant U64 := Bits and Fraction_Mask;
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, Fraction_Bits)
+            and U64 (Encoded_Exponent_Max));
+         Exponent : Integer;
+         Significant, Magnitude : U64;
+      begin
+         if Encoded_Exponent = Encoded_Exponent_Max and then Fraction /= 0 then
+            return 0;
+         elsif not Signed and then Negative then
+            return 0;
+         elsif Encoded_Exponent = 0 then
+            return 0;
+         end if;
+         Exponent := Encoded_Exponent - Bias;
+         if Exponent < 0 then
+            return 0;
+         elsif Exponent >=
+           (if Signed then Destination_Bits - 1 else Destination_Bits)
+         then
+            if Signed then
+               return (if Negative then Minimum_Bits else Maximum_Bits);
+            else
+               return Destination_Mask;
+            end if;
+         end if;
+         Significant := Interfaces.Shift_Left (1, Fraction_Bits) or Fraction;
+         if Exponent >= Fraction_Bits then
+            Magnitude := Interfaces.Shift_Left
+              (Significant, Exponent - Fraction_Bits);
+         else
+            Magnitude := Interfaces.Shift_Right
+              (Significant, Fraction_Bits - Exponent);
+         end if;
+         if Signed and then Negative then
+            return (0 - Magnitude) and Destination_Mask;
+         else
+            return Magnitude and Destination_Mask;
+         end if;
+      end Oracle_Float_To_Integer_Bits;
+
+      function Oracle_Convert_F32_To_I32 (Item : F32) return I32 is
+        (Oracle_Bits_To_I32 (U32 (Oracle_Float_To_Integer_Bits
+           (U64 (F32_To_Bits_Oracle (Item)), 16#8000_0000#,
+            16#007F_FFFF#, 255, 23, 127, 32, True))));
+      function Oracle_Convert_F32_To_U32 (Item : F32) return U32 is
+        (U32 (Oracle_Float_To_Integer_Bits
+           (U64 (F32_To_Bits_Oracle (Item)), 16#8000_0000#,
+            16#007F_FFFF#, 255, 23, 127, 32, False)));
+      function Oracle_Convert_F64_To_I64 (Item : F64) return I64 is
+        (Oracle_Bits_To_I64 (Oracle_Float_To_Integer_Bits
+           (F64_To_Bits_Oracle (Item), 16#8000_0000_0000_0000#,
+            16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, True)));
+      function Oracle_Convert_F64_To_U64 (Item : F64) return U64 is
+        (Oracle_Float_To_Integer_Bits
+           (F64_To_Bits_Oracle (Item), 16#8000_0000_0000_0000#,
+            16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, False));
+
+      function Random_Raw_F32_Lanes return Wide.Lane_Values_F32x8 is
+        ([for Lane in Wide.Lane_Index_32x8 =>
+           Bits_To_F32_Oracle (U32 (Next_U64 mod 2 ** 32))]);
+      function Random_Raw_F64_Lanes return Wide.Lane_Values_F64x4 is
+        ([for Lane in Wide.Lane_Index_64x4 =>
+           Bits_To_F64_Oracle (Next_U64)]);
+
    begin
       declare
          Source_Lanes : constant Wide.Lane_Values_U8x32 := [0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1, 127, 128, 254, 255, 0, 1];
@@ -10359,289 +10526,177 @@ procedure Wide_Tests is
       declare
          Source_Lanes : constant Wide.Lane_Values_I32x8 := [I32'First, -2_147_483_647, -65_537, -1, 0, 65_535, 65_536, I32'Last];
          Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant F32x4 := Flyology_SIMD.Convert_Round
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant F32x4 := Flyology_SIMD.Convert_Round
-           (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_F32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_Round_I32 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.F32x8 := Wide.Convert_Round (Value);
+         Native_Result : constant Wide.F32x8 := Native.Convert_Round (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-           "wide Convert_Round I32x8 to F32x8");
+         Check ((for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))),
+           "wide independent Convert_Round I32x8 to F32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I32x8 := Random_Lane_Values_I32x8;
             Value : constant Wide.I32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant F32x4 := Flyology_SIMD.Convert_Round
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant F32x4 := Flyology_SIMD.Convert_Round
-              (I32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_F32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_Round_I32 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.F32x8 := Wide.Convert_Round (Value);
+            Native_Result : constant Wide.F32x8 := Native.Convert_Round (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-              "wide randomized Convert_Round I32x8 to F32x8" & Iteration'Image);
+            Check ((for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))),
+              "wide independent randomized Convert_Round I32x8 to F32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 65_535, 65_536, 2_147_483_647, 2_147_483_648, U32'Last, 0];
          Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant F32x4 := Flyology_SIMD.Convert_Round
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant F32x4 := Flyology_SIMD.Convert_Round
-           (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_F32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_Round_U32 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.F32x8 := Wide.Convert_Round (Value);
+         Native_Result : constant Wide.F32x8 := Native.Convert_Round (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-           "wide Convert_Round U32x8 to F32x8");
+         Check ((for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))),
+           "wide independent Convert_Round U32x8 to F32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U32x8 := Random_Lane_Values_U32x8;
             Value : constant Wide.U32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant F32x4 := Flyology_SIMD.Convert_Round
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant F32x4 := Flyology_SIMD.Convert_Round
-              (U32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_F32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_F32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_Round_U32 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.F32x8 := Wide.Convert_Round (Value);
+            Native_Result : constant Wide.F32x8 := Native.Convert_Round (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-              "wide randomized Convert_Round U32x8 to F32x8" & Iteration'Image);
+            Check ((for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_32x8 => F32_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F32_To_Bits_Oracle (Expected (Lane))),
+              "wide independent randomized Convert_Round U32x8 to F32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_I64x4 := [I64'First, -9_223_372_036_854_775_807, -4_294_967_297, -1];
          Value : constant Wide.I64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant F64x2 := Flyology_SIMD.Convert_Round
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant F64x2 := Flyology_SIMD.Convert_Round
-           (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_F64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_Round_I64 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.F64x4 := Wide.Convert_Round (Value);
+         Native_Result : constant Wide.F64x4 := Native.Convert_Round (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-           "wide Convert_Round I64x4 to F64x4");
+         Check ((for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))),
+           "wide independent Convert_Round I64x4 to F64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_I64x4 := Random_Lane_Values_I64x4;
             Value : constant Wide.I64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant F64x2 := Flyology_SIMD.Convert_Round
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant F64x2 := Flyology_SIMD.Convert_Round
-              (I64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_F64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_Round_I64 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.F64x4 := Wide.Convert_Round (Value);
+            Native_Result : constant Wide.F64x4 := Native.Convert_Round (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-              "wide randomized Convert_Round I64x4 to F64x4" & Iteration'Image);
+            Check ((for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))),
+              "wide independent randomized Convert_Round I64x4 to F64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 4_294_967_295, 4_294_967_296];
          Value : constant Wide.U64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant F64x2 := Flyology_SIMD.Convert_Round
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant F64x2 := Flyology_SIMD.Convert_Round
-           (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_F64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_Round_U64 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.F64x4 := Wide.Convert_Round (Value);
+         Native_Result : constant Wide.F64x4 := Native.Convert_Round (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-           "wide Convert_Round U64x4 to F64x4");
+         Check ((for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))),
+           "wide independent Convert_Round U64x4 to F64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
             Source_Lanes : constant Wide.Lane_Values_U64x4 := Random_Lane_Values_U64x4;
             Value : constant Wide.U64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant F64x2 := Flyology_SIMD.Convert_Round
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant F64x2 := Flyology_SIMD.Convert_Round
-              (U64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_F64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_F64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_Round_U64 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.F64x4 := Wide.Convert_Round (Value);
+            Native_Result : constant Wide.F64x4 := Native.Convert_Round (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Round (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Round (Value)) = Expected,
-              "wide randomized Convert_Round U64x4 to F64x4" & Iteration'Image);
+            Check ((for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))) and then (for all Lane in Wide.Lane_Index_64x4 => F64_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = F64_To_Bits_Oracle (Expected (Lane))),
+              "wide independent randomized Convert_Round U64x4 to F64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F32x8 := [-F32'Last, -16_777_217.0, -2.75, -0.5, 0.0, 1.5, 16_777_217.0, F32'Last];
          Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_I32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_F32_To_I32 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.I32x8 := Wide.Convert_Truncate_Saturate (Value);
+         Native_Result : constant Wide.I32x8 := Native.Convert_Truncate_Saturate (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-           "wide Convert_Truncate_Saturate F32x8 to I32x8");
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+           "wide independent Convert_Truncate_Saturate F32x8 to I32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Lane_Values_F32x8;
+            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Raw_F32_Lanes;
             Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_I32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_I32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_F32_To_I32 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.I32x8 := Wide.Convert_Truncate_Saturate (Value);
+            Native_Result : constant Wide.I32x8 := Native.Convert_Truncate_Saturate (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-              "wide randomized Convert_Truncate_Saturate F32x8 to I32x8" & Iteration'Image);
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "wide independent randomized Convert_Truncate_Saturate F32x8 to I32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F32x8 := [-F32'Last, -16_777_217.0, -2.75, -0.5, 0.0, 1.5, 16_777_217.0, F32'Last];
          Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-         Expected : constant Wide.Lane_Values_U32x8 :=
-           [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+         Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_F32_To_U32 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.U32x8 := Wide.Convert_Truncate_Saturate (Value);
+         Native_Result : constant Wide.U32x8 := Native.Convert_Truncate_Saturate (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-           "wide Convert_Truncate_Saturate F32x8 to U32x8");
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+           "wide independent Convert_Truncate_Saturate F32x8 to U32x8");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Lane_Values_F32x8;
+            Source_Lanes : constant Wide.Lane_Values_F32x8 := Random_Raw_F32_Lanes;
             Value : constant Wide.F32x8 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U32x4 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F32x4'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Source_Lanes (Lane + 4)])));
-            Expected : constant Wide.Lane_Values_U32x8 :=
-              [for Lane in Wide.Lane_Index_32x8 =>
-              (if Lane < 4
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 4))];
+            Expected : constant Wide.Lane_Values_U32x8 := [for Lane in Wide.Lane_Index_32x8 => Oracle_Convert_F32_To_U32 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.U32x8 := Wide.Convert_Truncate_Saturate (Value);
+            Native_Result : constant Wide.U32x8 := Native.Convert_Truncate_Saturate (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-              "wide randomized Convert_Truncate_Saturate F32x8 to U32x8" & Iteration'Image);
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "wide independent randomized Convert_Truncate_Saturate F32x8 to U32x8" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F64x4 := [-F64'Last, -9_007_199_254_740_993.0, -2.75, -0.5];
          Value : constant Wide.F64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant I64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant I64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_I64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_F64_To_I64 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.I64x4 := Wide.Convert_Truncate_Saturate (Value);
+         Native_Result : constant Wide.I64x4 := Native.Convert_Truncate_Saturate (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-           "wide Convert_Truncate_Saturate F64x4 to I64x4");
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+           "wide independent Convert_Truncate_Saturate F64x4 to I64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F64x4 := Random_Lane_Values_F64x4;
+            Source_Lanes : constant Wide.Lane_Values_F64x4 := Random_Raw_F64_Lanes;
             Value : constant Wide.F64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant I64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant I64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_I64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_I64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_F64_To_I64 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.I64x4 := Wide.Convert_Truncate_Saturate (Value);
+            Native_Result : constant Wide.I64x4 := Native.Convert_Truncate_Saturate (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-              "wide randomized Convert_Truncate_Saturate F64x4 to I64x4" & Iteration'Image);
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "wide independent randomized Convert_Truncate_Saturate F64x4 to I64x4" & Iteration'Image);
          end;
       end loop;
       declare
          Source_Lanes : constant Wide.Lane_Values_F64x4 := [-F64'Last, -9_007_199_254_740_993.0, -2.75, -0.5];
          Value : constant Wide.F64x4 := Wide.From_Lanes (Source_Lanes);
-         Expected_Low : constant U64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-         Expected_High : constant U64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-           (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-         Expected : constant Wide.Lane_Values_U64x4 :=
-           [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+         Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_F64_To_U64 (Source_Lanes (Lane))];
+         Scalar_Result : constant Wide.U64x4 := Wide.Convert_Truncate_Saturate (Value);
+         Native_Result : constant Wide.U64x4 := Native.Convert_Truncate_Saturate (Value);
       begin
-         Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-           and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-           "wide Convert_Truncate_Saturate F64x4 to U64x4");
+         Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+           "wide independent Convert_Truncate_Saturate F64x4 to U64x4");
       end;
-      for Iteration in 1 .. 32 loop
+      for Iteration in 1 .. 128 loop
          declare
-            Source_Lanes : constant Wide.Lane_Values_F64x4 := Random_Lane_Values_F64x4;
+            Source_Lanes : constant Wide.Lane_Values_F64x4 := Random_Raw_F64_Lanes;
             Value : constant Wide.F64x4 := Wide.From_Lanes (Source_Lanes);
-            Expected_Low : constant U64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 0)])));
-            Expected_High : constant U64x2 := Flyology_SIMD.Convert_Truncate_Saturate
-              (F64x2'(Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Source_Lanes (Lane + 2)])));
-            Expected : constant Wide.Lane_Values_U64x4 :=
-              [for Lane in Wide.Lane_Index_64x4 =>
-              (if Lane < 2
-               then Flyology_SIMD.Extract (Expected_Low, Lane)
-               else Flyology_SIMD.Extract (Expected_High, Lane - 2))];
+            Expected : constant Wide.Lane_Values_U64x4 := [for Lane in Wide.Lane_Index_64x4 => Oracle_Convert_F64_To_U64 (Source_Lanes (Lane))];
+            Scalar_Result : constant Wide.U64x4 := Wide.Convert_Truncate_Saturate (Value);
+            Native_Result : constant Wide.U64x4 := Native.Convert_Truncate_Saturate (Value);
          begin
-            Check (Wide.To_Lanes (Wide.Convert_Truncate_Saturate (Value)) = Expected
-              and then Native.To_Lanes (Native.Convert_Truncate_Saturate (Value)) = Expected,
-              "wide randomized Convert_Truncate_Saturate F64x4 to U64x4" & Iteration'Image);
+            Check (Wide.To_Lanes (Scalar_Result) = Expected and then Native.To_Lanes (Native_Result) = Expected,
+              "wide independent randomized Convert_Truncate_Saturate F64x4 to U64x4" & Iteration'Image);
          end;
       end loop;
       declare
@@ -11006,16 +11061,28 @@ procedure Wide_Tests is
            Native.Convert_Truncate_Saturate (F32_Edges);
          F32_Bounds_To_I32 : constant Wide.I32x8 :=
            Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         Native_F32_Bounds_To_I32 : constant Wide.I32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Integer_Bounds);
          F32_Bounds_To_U32 : constant Wide.U32x8 :=
            Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         Native_F32_Bounds_To_U32 : constant Wide.U32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Integer_Bounds);
          F64_Bounds_To_I64 : constant Wide.I64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Integer_Bounds);
+         Native_F64_Bounds_To_I64 : constant Wide.I64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Integer_Bounds);
          F64_Bounds_To_U64 : constant Wide.U64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Unsigned_Bounds);
+         Native_F64_Bounds_To_U64 : constant Wide.U64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Unsigned_Bounds);
          F64_Edges_To_I64 : constant Wide.I64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Edges);
+         Native_F64_Edges_To_I64 : constant Wide.I64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Edges);
          F64_Edges_To_U64 : constant Wide.U64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Edges);
+         Native_F64_Edges_To_U64 : constant Wide.U64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Edges);
          I32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (I32_Round_Edges);
          Native_I32_Rounded : constant Wide.F32x8 := Native.Convert_Round (I32_Round_Edges);
          U32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (U32_Round_Edges);
@@ -11101,20 +11168,40 @@ procedure Wide_Tests is
            [2_147_483_520, I32'Last, -2_147_483_520, I32'First,
             I32'Last, I32'Last, 1, -1],
            "wide F32 to I32 boundary results");
+         Check (Native.To_Lanes (Native_F32_Bounds_To_I32) =
+           [2_147_483_520, I32'Last, -2_147_483_520, I32'First,
+            I32'Last, I32'Last, 1, -1],
+           "wide Native F32 to I32 boundary results");
          Check (Wide.To_Lanes (F32_Bounds_To_U32) =
            [2_147_483_520, 2_147_483_648, 0, 0,
             4_294_967_040, U32'Last, 1, 0],
            "wide F32 to U32 boundary results");
+         Check (Native.To_Lanes (Native_F32_Bounds_To_U32) =
+           [2_147_483_520, 2_147_483_648, 0, 0,
+            4_294_967_040, U32'Last, 1, 0],
+           "wide Native F32 to U32 boundary results");
          Check (Wide.To_Lanes (F64_Bounds_To_I64) =
            [9_223_372_036_854_774_784, I64'Last,
             -9_223_372_036_854_774_784, I64'First],
            "wide F64 to I64 boundary results");
+         Check (Native.To_Lanes (Native_F64_Bounds_To_I64) =
+           [9_223_372_036_854_774_784, I64'Last,
+            -9_223_372_036_854_774_784, I64'First],
+           "wide Native F64 to I64 boundary results");
          Check (Wide.To_Lanes (F64_Bounds_To_U64) =
            [18_446_744_073_709_549_568, U64'Last, 0, 1],
            "wide F64 to U64 boundary results");
+         Check (Native.To_Lanes (Native_F64_Bounds_To_U64) =
+           [18_446_744_073_709_549_568, U64'Last, 0, 1],
+           "wide Native F64 to U64 boundary results");
          Check (Wide.To_Lanes (F64_Edges_To_I64) = [0, 0, I64'Last, I64'First]
            and then Wide.To_Lanes (F64_Edges_To_U64) = [0, 0, U64'Last, 0],
            "wide F64 infinity and signed-zero integer results");
+         Check (Native.To_Lanes (Native_F64_Edges_To_I64) =
+             [0, 0, I64'Last, I64'First]
+           and then Native.To_Lanes (Native_F64_Edges_To_U64) =
+             [0, 0, U64'Last, 0],
+           "wide Native F64 infinity and signed-zero integer results");
          Check (Wide.To_Lanes (Narrowed_Rounding) =
            [F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#),
             F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),

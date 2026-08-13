@@ -484,6 +484,177 @@ def random_conversion_helpers() -> str:
     return "\n".join(out)
 
 
+def numeric_conversion_oracle_declarations() -> str:
+    return r'''
+      function I32_To_Bits is new Ada.Unchecked_Conversion (I32, U32);
+      function Oracle_Bits_To_I32 is new Ada.Unchecked_Conversion (U32, I32);
+      function I64_To_Bits is new Ada.Unchecked_Conversion (I64, U64);
+      function Oracle_Bits_To_I64 is new Ada.Unchecked_Conversion (U64, I64);
+      function F32_To_Bits_Oracle is new Ada.Unchecked_Conversion (F32, U32);
+      function Bits_To_F32_Oracle is new Ada.Unchecked_Conversion (U32, F32);
+      function F64_To_Bits_Oracle is new Ada.Unchecked_Conversion (F64, U64);
+      function Bits_To_F64_Oracle is new Ada.Unchecked_Conversion (U64, F64);
+
+      function Oracle_Integer_To_Float_Bits
+        (Magnitude : U64; Sign : U64; Fraction_Bits, Bias : Natural)
+         return U64
+      is
+         function Round_Right (Value : U64; Count : Positive) return U64 is
+            Quotient : constant U64 := Interfaces.Shift_Right (Value, Count);
+            Half : constant U64 := Interfaces.Shift_Left (1, Count - 1);
+            Remainder : constant U64 :=
+              Value and (Interfaces.Shift_Left (1, Count) - 1);
+         begin
+            if Remainder > Half
+              or else (Remainder = Half and then (Quotient and 1) /= 0)
+            then
+               return Quotient + 1;
+            else
+               return Quotient;
+            end if;
+         end Round_Right;
+
+         Highest : Natural := 0;
+         Scan : U64 := Magnitude;
+         Significant : U64;
+         Exponent : Natural;
+      begin
+         if Magnitude = 0 then
+            return Sign;
+         end if;
+         while Interfaces.Shift_Right (Scan, 1) /= 0 loop
+            Scan := Interfaces.Shift_Right (Scan, 1);
+            Highest := Highest + 1;
+         end loop;
+         Exponent := Highest;
+         if Highest <= Fraction_Bits then
+            Significant := Interfaces.Shift_Left
+              (Magnitude, Fraction_Bits - Highest);
+         else
+            Significant := Round_Right (Magnitude, Highest - Fraction_Bits);
+            if Significant = Interfaces.Shift_Left (1, Fraction_Bits + 1) then
+               Significant := Interfaces.Shift_Right (Significant, 1);
+               Exponent := Exponent + 1;
+            end if;
+         end if;
+         return Sign
+           or Interfaces.Shift_Left (U64 (Exponent + Bias), Fraction_Bits)
+           or (Significant - Interfaces.Shift_Left (1, Fraction_Bits));
+      end Oracle_Integer_To_Float_Bits;
+
+      function Oracle_Convert_Round_I32 (Item : I32) return F32 is
+         Bits : constant U32 := I32_To_Bits (Item);
+         Negative : constant Boolean := (Bits and 16#8000_0000#) /= 0;
+         Magnitude : constant U64 :=
+           (if Negative then U64 ((not Bits) + 1) else U64 (Bits));
+         Sign : constant U64 := (if Negative then 16#8000_0000# else 0);
+      begin
+         return Bits_To_F32_Oracle
+           (U32 (Oracle_Integer_To_Float_Bits
+             (Magnitude, Sign, 23, 127)));
+      end Oracle_Convert_Round_I32;
+
+      function Oracle_Convert_Round_U32 (Item : U32) return F32 is
+        (Bits_To_F32_Oracle
+           (U32 (Oracle_Integer_To_Float_Bits (U64 (Item), 0, 23, 127))));
+
+      function Oracle_Convert_Round_I64 (Item : I64) return F64 is
+         Bits : constant U64 := I64_To_Bits (Item);
+         Negative : constant Boolean :=
+           (Bits and 16#8000_0000_0000_0000#) /= 0;
+         Magnitude : constant U64 :=
+           (if Negative then (not Bits) + 1 else Bits);
+         Sign : constant U64 :=
+           (if Negative then 16#8000_0000_0000_0000# else 0);
+      begin
+         return Bits_To_F64_Oracle
+           (Oracle_Integer_To_Float_Bits (Magnitude, Sign, 52, 1_023));
+      end Oracle_Convert_Round_I64;
+
+      function Oracle_Convert_Round_U64 (Item : U64) return F64 is
+        (Bits_To_F64_Oracle
+           (Oracle_Integer_To_Float_Bits (Item, 0, 52, 1_023)));
+
+      function Oracle_Float_To_Integer_Bits
+        (Bits, Sign_Mask, Fraction_Mask : U64;
+         Encoded_Exponent_Max, Fraction_Bits, Bias,
+         Destination_Bits : Natural;
+         Signed : Boolean) return U64
+      is
+         Destination_Mask : constant U64 :=
+           (if Destination_Bits = 64 then U64'Last
+            else Interfaces.Shift_Left (1, Destination_Bits) - 1);
+         Minimum_Bits : constant U64 :=
+           Interfaces.Shift_Left (1, Destination_Bits - 1);
+         Maximum_Bits : constant U64 := Minimum_Bits - 1;
+         Negative : constant Boolean := (Bits and Sign_Mask) /= 0;
+         Fraction : constant U64 := Bits and Fraction_Mask;
+         Encoded_Exponent : constant Natural := Natural
+           (Interfaces.Shift_Right (Bits, Fraction_Bits)
+            and U64 (Encoded_Exponent_Max));
+         Exponent : Integer;
+         Significant, Magnitude : U64;
+      begin
+         if Encoded_Exponent = Encoded_Exponent_Max and then Fraction /= 0 then
+            return 0;
+         elsif not Signed and then Negative then
+            return 0;
+         elsif Encoded_Exponent = 0 then
+            return 0;
+         end if;
+         Exponent := Encoded_Exponent - Bias;
+         if Exponent < 0 then
+            return 0;
+         elsif Exponent >=
+           (if Signed then Destination_Bits - 1 else Destination_Bits)
+         then
+            if Signed then
+               return (if Negative then Minimum_Bits else Maximum_Bits);
+            else
+               return Destination_Mask;
+            end if;
+         end if;
+         Significant := Interfaces.Shift_Left (1, Fraction_Bits) or Fraction;
+         if Exponent >= Fraction_Bits then
+            Magnitude := Interfaces.Shift_Left
+              (Significant, Exponent - Fraction_Bits);
+         else
+            Magnitude := Interfaces.Shift_Right
+              (Significant, Fraction_Bits - Exponent);
+         end if;
+         if Signed and then Negative then
+            return (0 - Magnitude) and Destination_Mask;
+         else
+            return Magnitude and Destination_Mask;
+         end if;
+      end Oracle_Float_To_Integer_Bits;
+
+      function Oracle_Convert_F32_To_I32 (Item : F32) return I32 is
+        (Oracle_Bits_To_I32 (U32 (Oracle_Float_To_Integer_Bits
+           (U64 (F32_To_Bits_Oracle (Item)), 16#8000_0000#,
+            16#007F_FFFF#, 255, 23, 127, 32, True))));
+      function Oracle_Convert_F32_To_U32 (Item : F32) return U32 is
+        (U32 (Oracle_Float_To_Integer_Bits
+           (U64 (F32_To_Bits_Oracle (Item)), 16#8000_0000#,
+            16#007F_FFFF#, 255, 23, 127, 32, False)));
+      function Oracle_Convert_F64_To_I64 (Item : F64) return I64 is
+        (Oracle_Bits_To_I64 (Oracle_Float_To_Integer_Bits
+           (F64_To_Bits_Oracle (Item), 16#8000_0000_0000_0000#,
+            16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, True)));
+      function Oracle_Convert_F64_To_U64 (Item : F64) return U64 is
+        (Oracle_Float_To_Integer_Bits
+           (F64_To_Bits_Oracle (Item), 16#8000_0000_0000_0000#,
+            16#000F_FFFF_FFFF_FFFF#, 2_047, 52, 1_023, 64, False));
+
+      function Random_Raw_F32_Lanes return Wide.Lane_Values_F32x8 is
+        ([for Lane in Wide.Lane_Index_32x8 =>
+           Bits_To_F32_Oracle (U32 (Next_U64 mod 2 ** 32))]);
+      function Random_Raw_F64_Lanes return Wide.Lane_Values_F64x4 is
+        ([for Lane in Wide.Lane_Index_64x4 =>
+           Bits_To_F64_Oracle (Next_U64)]);
+'''
+
+
 def conversion_tests() -> str:
     blocks: list[str] = []
 
@@ -573,12 +744,77 @@ def conversion_tests() -> str:
       end loop;
 ''')
 
-    conversion_groups = (
+    numeric_conversion_groups = (
         [("Convert_Round", item) for item in INTEGER_TO_FLOAT_CONVERSIONS]
         + [("Convert_Truncate_Saturate", item) for item in FLOAT_TO_INTEGER_CONVERSIONS]
-        + [("Convert_Saturate", item) for item in SIGNED_UNSIGNED_CONVERSIONS]
     )
-    for operation, (source_half, _, target_half, *_) in conversion_groups:
+    oracle_names = {
+        ("Convert_Round", "I32"): "Oracle_Convert_Round_I32",
+        ("Convert_Round", "U32"): "Oracle_Convert_Round_U32",
+        ("Convert_Round", "I64"): "Oracle_Convert_Round_I64",
+        ("Convert_Round", "U64"): "Oracle_Convert_Round_U64",
+        ("Convert_Truncate_Saturate", "F32", "I32"): "Oracle_Convert_F32_To_I32",
+        ("Convert_Truncate_Saturate", "F32", "U32"): "Oracle_Convert_F32_To_U32",
+        ("Convert_Truncate_Saturate", "F64", "I64"): "Oracle_Convert_F64_To_I64",
+        ("Convert_Truncate_Saturate", "F64", "U64"): "Oracle_Convert_F64_To_U64",
+    }
+    for operation, (source_half, _, target_half, *_) in numeric_conversion_groups:
+        source = BY_HALF[source_half]
+        target = BY_HALF[target_half]
+        values = lane_values(source.scalar, source.lanes)
+        oracle = oracle_names.get(
+            (operation, source.scalar, target.scalar),
+            oracle_names.get((operation, source.scalar)),
+        )
+        random_lanes = (
+            f"Random_Raw_{source.scalar}_Lanes"
+            if source.floating
+            else f"Random_{source.values}"
+        )
+        expected = (
+            f"[for Lane in Wide.{source.index} => {oracle} (Source_Lanes (Lane))]"
+        )
+        if target.floating:
+            scalar_matches = (
+                f"(for all Lane in Wide.{target.index} => "
+                f"{target.scalar}_To_Bits_Oracle (Wide.Extract (Scalar_Result, Lane)) = "
+                f"{target.scalar}_To_Bits_Oracle (Expected (Lane)))"
+            )
+            native_matches = (
+                f"(for all Lane in Wide.{target.index} => "
+                f"{target.scalar}_To_Bits_Oracle (Native.Extract (Native_Result, Lane)) = "
+                f"{target.scalar}_To_Bits_Oracle (Expected (Lane)))"
+            )
+        else:
+            scalar_matches = "Wide.To_Lanes (Scalar_Result) = Expected"
+            native_matches = "Native.To_Lanes (Native_Result) = Expected"
+        blocks.append(f'''      declare
+         Source_Lanes : constant Wide.{source.values} := [{values}];
+         Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+         Expected : constant Wide.{target.values} := {expected};
+         Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Value);
+         Native_Result : constant Wide.{target.vector} := Native.{operation} (Value);
+      begin
+         Check ({scalar_matches} and then {native_matches},
+           "wide independent {operation} {source.vector} to {target.vector}");
+      end;
+      for Iteration in 1 .. 128 loop
+         declare
+            Source_Lanes : constant Wide.{source.values} := {random_lanes};
+            Value : constant Wide.{source.vector} := Wide.From_Lanes (Source_Lanes);
+            Expected : constant Wide.{target.values} := {expected};
+            Scalar_Result : constant Wide.{target.vector} := Wide.{operation} (Value);
+            Native_Result : constant Wide.{target.vector} := Native.{operation} (Value);
+         begin
+            Check ({scalar_matches} and then {native_matches},
+              "wide independent randomized {operation} {source.vector} to {target.vector}" & Iteration'Image);
+         end;
+      end loop;
+''')
+
+    for operation, (source_half, _, target_half, *_) in [
+        ("Convert_Saturate", item) for item in SIGNED_UNSIGNED_CONVERSIONS
+    ]:
         source = BY_HALF[source_half]
         target = BY_HALF[target_half]
         values = lane_values(source.scalar, source.lanes)
@@ -688,16 +924,28 @@ def conversion_tests() -> str:
            Native.Convert_Truncate_Saturate (F32_Edges);
          F32_Bounds_To_I32 : constant Wide.I32x8 :=
            Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         Native_F32_Bounds_To_I32 : constant Wide.I32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Integer_Bounds);
          F32_Bounds_To_U32 : constant Wide.U32x8 :=
            Wide.Convert_Truncate_Saturate (F32_Integer_Bounds);
+         Native_F32_Bounds_To_U32 : constant Wide.U32x8 :=
+           Native.Convert_Truncate_Saturate (F32_Integer_Bounds);
          F64_Bounds_To_I64 : constant Wide.I64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Integer_Bounds);
+         Native_F64_Bounds_To_I64 : constant Wide.I64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Integer_Bounds);
          F64_Bounds_To_U64 : constant Wide.U64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Unsigned_Bounds);
+         Native_F64_Bounds_To_U64 : constant Wide.U64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Unsigned_Bounds);
          F64_Edges_To_I64 : constant Wide.I64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Edges);
+         Native_F64_Edges_To_I64 : constant Wide.I64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Edges);
          F64_Edges_To_U64 : constant Wide.U64x4 :=
            Wide.Convert_Truncate_Saturate (F64_Edges);
+         Native_F64_Edges_To_U64 : constant Wide.U64x4 :=
+           Native.Convert_Truncate_Saturate (F64_Edges);
          I32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (I32_Round_Edges);
          Native_I32_Rounded : constant Wide.F32x8 := Native.Convert_Round (I32_Round_Edges);
          U32_Rounded : constant Wide.F32x8 := Wide.Convert_Round (U32_Round_Edges);
@@ -783,20 +1031,40 @@ def conversion_tests() -> str:
            [2_147_483_520, I32'Last, -2_147_483_520, I32'First,
             I32'Last, I32'Last, 1, -1],
            "wide F32 to I32 boundary results");
+         Check (Native.To_Lanes (Native_F32_Bounds_To_I32) =
+           [2_147_483_520, I32'Last, -2_147_483_520, I32'First,
+            I32'Last, I32'Last, 1, -1],
+           "wide Native F32 to I32 boundary results");
          Check (Wide.To_Lanes (F32_Bounds_To_U32) =
            [2_147_483_520, 2_147_483_648, 0, 0,
             4_294_967_040, U32'Last, 1, 0],
            "wide F32 to U32 boundary results");
+         Check (Native.To_Lanes (Native_F32_Bounds_To_U32) =
+           [2_147_483_520, 2_147_483_648, 0, 0,
+            4_294_967_040, U32'Last, 1, 0],
+           "wide Native F32 to U32 boundary results");
          Check (Wide.To_Lanes (F64_Bounds_To_I64) =
            [9_223_372_036_854_774_784, I64'Last,
             -9_223_372_036_854_774_784, I64'First],
            "wide F64 to I64 boundary results");
+         Check (Native.To_Lanes (Native_F64_Bounds_To_I64) =
+           [9_223_372_036_854_774_784, I64'Last,
+            -9_223_372_036_854_774_784, I64'First],
+           "wide Native F64 to I64 boundary results");
          Check (Wide.To_Lanes (F64_Bounds_To_U64) =
            [18_446_744_073_709_549_568, U64'Last, 0, 1],
            "wide F64 to U64 boundary results");
+         Check (Native.To_Lanes (Native_F64_Bounds_To_U64) =
+           [18_446_744_073_709_549_568, U64'Last, 0, 1],
+           "wide Native F64 to U64 boundary results");
          Check (Wide.To_Lanes (F64_Edges_To_I64) = [0, 0, I64'Last, I64'First]
            and then Wide.To_Lanes (F64_Edges_To_U64) = [0, 0, U64'Last, 0],
            "wide F64 infinity and signed-zero integer results");
+         Check (Native.To_Lanes (Native_F64_Edges_To_I64) =
+             [0, 0, I64'Last, I64'First]
+           and then Native.To_Lanes (Native_F64_Edges_To_U64) =
+             [0, 0, U64'Last, 0],
+           "wide Native F64 infinity and signed-zero integer results");
          Check (Wide.To_Lanes (Narrowed_Rounding) =
            [F32_Of_Bits (16#3F80_0000#), F32_Of_Bits (16#3F80_0001#),
             F32_Of_Bits (16#7F80_0000#), F32_Of_Bits (16#FF80_0000#),
@@ -809,6 +1077,7 @@ def conversion_tests() -> str:
     return (
         "   procedure Test_Wide_Conversions is\n"
         + random_conversion_helpers()
+        + numeric_conversion_oracle_declarations()
         + "\n   begin\n"
         + "".join(blocks)
         + "   end Test_Wide_Conversions;\n"

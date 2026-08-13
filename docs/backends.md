@@ -346,15 +346,22 @@ run on AArch64 and both x86-64 Wide selections. They require the applicable
 selected 128-bit calls or target instruction sequences and reject Wide scalar
 operation calls.
 Wide conversion operations compose the corresponding selected 128-bit
-operations. For each of the 46 Wide conversion overloads, tests use fixed
-vectors and 32 deterministic pseudorandom inputs. They compare scalar and
-Native results with results from the 128-bit authority. Direct floating-point
-edge cases cover signed zeros,
-infinities, quiet and signaling NaNs, subnormals, halfway rounding, overflow,
-and explicit floating-to-integer outcomes in both private parts. Caller-level
-code-generation probes require two selected 128-bit calls for representative
-widening, narrowing, and numeric
-conversion operations. The project does not claim a 256-bit instruction
+operations. For the 38 Wide widening, narrowing, and same-width
+signedness-conversion overloads, tests use fixed vectors and 32 deterministic
+pseudorandom inputs. They compare scalar and Native results with results from
+the 128-bit authority. Direct floating-point edge cases cover signed zeros,
+infinities, quiet and signaling NaNs, subnormals, halfway rounding, and
+overflow in both private parts.
+
+The eight Wide conversions between integer and floating lanes have additional
+independent coverage. Integer-to-floating cases use a bit-level rounding oracle
+with 128 deterministic full-width integer vectors for each shape.
+Floating-to-integer cases use a separate bit-level oracle with 128 deterministic
+raw-encoding vectors for each shape. The fixed boundary cases remain part of
+the suite. Caller-level code-generation probes cover all eight overloads. Each
+gate requires two calls to the exact matching selected 128-bit operation. The
+gates reject mismatched selected operations, portable root operations, and Wide
+Native dispatcher calls. The project does not claim a 256-bit instruction
 sequence.
 The default Wide 32-entry lookup uses composed target code. On AArch64, it
 applies one two-register `tbl` leaf to each private index part. The composed

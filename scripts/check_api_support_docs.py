@@ -811,6 +811,33 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: {declaration} classification "
                     f"appears {count} times, expected {expected}"
                 )
+    if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        wide_numeric_conversion_support = (
+            ("Convert_Round", "Value : I32x8", "return F32x8"),
+            ("Convert_Round", "Value : U32x8", "return F32x8"),
+            ("Convert_Round", "Value : I64x4", "return F64x4"),
+            ("Convert_Round", "Value : U64x4", "return F64x4"),
+            ("Convert_Truncate_Saturate", "Value : F32x8", "return I32x8"),
+            ("Convert_Truncate_Saturate", "Value : F32x8", "return U32x8"),
+            ("Convert_Truncate_Saturate", "Value : F64x4", "return I64x4"),
+            ("Convert_Truncate_Saturate", "Value : F64x4", "return U64x4"),
+        )
+        for operation, parameter, result in wide_numeric_conversion_support:
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+                if parameter in block.split(";", 1)[0]
+                and result in block.split(";", 1)[0]
+            ]
+            phrase = (
+                "AArch64 and x86-64 backends run the selected 128-bit "
+                "operation on both private parts"
+            )
+            if len(blocks) != 1 or phrase not in blocks[0]:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"{parameter} {result} selected-two-part classification"
+                )
     return invalid
 
 

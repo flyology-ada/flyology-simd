@@ -29,6 +29,7 @@ wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
+wide_numeric_conversion_probe_object="$probe_root/wide_numeric_conversion_codegen_probe.o"
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
@@ -63,6 +64,14 @@ disassemble "$wide_reduction_probe_object" >"$temporary/wide-reduction-probe.txt
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_numeric_conversion_probe_object" \
+      | grep -Ev '<ltmp[0-9]+>:$' \
+      >"$temporary/wide-numeric-conversion-probe.txt"
+else
+    objdump -dr "$wide_numeric_conversion_probe_object" \
+      >"$temporary/wide-numeric-conversion-probe.txt"
+fi
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
@@ -99,6 +108,7 @@ nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
 nm -u "$wide_compact_probe_object" >"$temporary/wide-compact-undefined.txt"
 nm -u "$wide_movement_probe_object" >"$temporary/wide-movement-undefined.txt"
+nm -u "$wide_numeric_conversion_probe_object" >"$temporary/wide-numeric-conversion-undefined.txt"
 nm -u "$slide_probe_object" >"$temporary/slide-undefined.txt"
 nm "$slide_probe_object" >"$temporary/slide-symbols.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
@@ -214,6 +224,37 @@ require_count 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
 forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
   "$temporary/conversion64-undefined.txt" \
   'portable 64-bit numeric conversion call in the Native caller probe'
+wide_numeric_conversions='i32_to_f32 u32_to_f32 i64_to_f64 u64_to_f64 f32_to_i32 f32_to_u32 f64_to_i64 f64_to_u64'
+for conversion in $wide_numeric_conversions; do
+    extract_symbol "wide_numeric_conversion_codegen_probe__${conversion}" \
+      "$temporary/wide-numeric-conversion-probe.txt" \
+      "$temporary/wide_numeric_${conversion}.txt"
+    case "$conversion" in
+        i32_to_f32) selected='convert_round($|[^_])' ;;
+        u32_to_f32) selected='convert_round__2' ;;
+        i64_to_f64) selected='convert_round__3' ;;
+        u64_to_f64) selected='convert_round__4' ;;
+        f32_to_i32) selected='convert_truncate_saturate($|[^_])' ;;
+        f32_to_u32) selected='convert_truncate_saturate__2' ;;
+        f64_to_i64) selected='convert_truncate_saturate__3' ;;
+        f64_to_u64) selected='convert_truncate_saturate__4' ;;
+    esac
+    require_count "flyology_simd__backends__native__${selected}" 2 \
+      "$temporary/wide_numeric_${conversion}.txt" \
+      "two matching selected 128-bit calls in Wide ${conversion} conversion"
+    require_count 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 2 \
+      "$temporary/wide_numeric_${conversion}.txt" \
+      "no mismatched selected call in Wide ${conversion} conversion"
+    forbid_pattern 'flyology_simd__(wide__)?(convert_round|convert_truncate_saturate)|flyology_simd__wide__native__' \
+      "$temporary/wide_numeric_${conversion}.txt" \
+      "portable or public dispatcher call in Wide ${conversion} conversion"
+done
+require_count 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 8 \
+  "$temporary/wide-numeric-conversion-undefined.txt" \
+  'all eight matching selected conversion symbols in the Wide conversion probe'
+require_count 'flyology_simd__' 8 \
+  "$temporary/wide-numeric-conversion-undefined.txt" \
+  'only the eight intended selected conversion symbols remain unresolved from the Wide conversion probe'
 require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
   "$temporary/integer-shift-undefined.txt" \
   'all four Native arithmetic-right-shift calls in the public caller probe'

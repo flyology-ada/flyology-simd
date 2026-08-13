@@ -54,6 +54,8 @@ FLOAT_ARITH_AVX2_LEAF_BODY = ROOT / "src" / "wide" / "avx2" / "flyology_simd-wid
 LOOKUP_COMPOSED = ROOT / "src" / "wide" / "composed" / "flyology_simd-wide-lookup_mechanism.adb"
 MOVEMENT_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.ads"
 MOVEMENT_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_movement_codegen_probe.adb"
+NUMERIC_CONVERSION_PROBE_SPEC = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.ads"
+NUMERIC_CONVERSION_PROBE_BODY = ROOT / "scripts" / "probes" / "wide_numeric_conversion_codegen_probe.adb"
 
 
 @dataclass(frozen=True)
@@ -1803,6 +1805,64 @@ end Flyology_SIMD.Wide.Lookup_Mechanism;
 """
 
 
+def numeric_conversion_probe_spec_text() -> str:
+    return """with Flyology_SIMD.Wide;
+
+package Wide_Numeric_Conversion_Codegen_Probe is
+   function I32_To_F32
+     (Value : Flyology_SIMD.Wide.I32x8) return Flyology_SIMD.Wide.F32x8;
+   function U32_To_F32
+     (Value : Flyology_SIMD.Wide.U32x8) return Flyology_SIMD.Wide.F32x8;
+   function I64_To_F64
+     (Value : Flyology_SIMD.Wide.I64x4) return Flyology_SIMD.Wide.F64x4;
+   function U64_To_F64
+     (Value : Flyology_SIMD.Wide.U64x4) return Flyology_SIMD.Wide.F64x4;
+   function F32_To_I32
+     (Value : Flyology_SIMD.Wide.F32x8) return Flyology_SIMD.Wide.I32x8;
+   function F32_To_U32
+     (Value : Flyology_SIMD.Wide.F32x8) return Flyology_SIMD.Wide.U32x8;
+   function F64_To_I64
+     (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.I64x4;
+   function F64_To_U64
+     (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.U64x4;
+end Wide_Numeric_Conversion_Codegen_Probe;
+"""
+
+
+def numeric_conversion_probe_body_text() -> str:
+    return """with Flyology_SIMD.Wide.Native;
+
+package body Wide_Numeric_Conversion_Codegen_Probe is
+   package Native renames Flyology_SIMD.Wide.Native;
+
+   function I32_To_F32
+     (Value : Flyology_SIMD.Wide.I32x8) return Flyology_SIMD.Wide.F32x8 is
+     (Native.Convert_Round (Value));
+   function U32_To_F32
+     (Value : Flyology_SIMD.Wide.U32x8) return Flyology_SIMD.Wide.F32x8 is
+     (Native.Convert_Round (Value));
+   function I64_To_F64
+     (Value : Flyology_SIMD.Wide.I64x4) return Flyology_SIMD.Wide.F64x4 is
+     (Native.Convert_Round (Value));
+   function U64_To_F64
+     (Value : Flyology_SIMD.Wide.U64x4) return Flyology_SIMD.Wide.F64x4 is
+     (Native.Convert_Round (Value));
+   function F32_To_I32
+     (Value : Flyology_SIMD.Wide.F32x8) return Flyology_SIMD.Wide.I32x8 is
+     (Native.Convert_Truncate_Saturate (Value));
+   function F32_To_U32
+     (Value : Flyology_SIMD.Wide.F32x8) return Flyology_SIMD.Wide.U32x8 is
+     (Native.Convert_Truncate_Saturate (Value));
+   function F64_To_I64
+     (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.I64x4 is
+     (Native.Convert_Truncate_Saturate (Value));
+   function F64_To_U64
+     (Value : Flyology_SIMD.Wide.F64x4) return Flyology_SIMD.Wide.U64x4 is
+     (Native.Convert_Truncate_Saturate (Value));
+end Wide_Numeric_Conversion_Codegen_Probe;
+"""
+
+
 def permute_spec_text() -> str:
     declarations = []
     for f in FAMILIES:
@@ -2820,6 +2880,8 @@ def main() -> None:
         FLOAT_ARITH_AVX2_LEAF_SPEC: float_arithmetic_avx2_leaf_spec_text(),
         FLOAT_ARITH_AVX2_LEAF_BODY: float_arithmetic_avx2_leaf_body_text(),
         LOOKUP_COMPOSED: lookup_composed_body_text(),
+        NUMERIC_CONVERSION_PROBE_SPEC: numeric_conversion_probe_spec_text(),
+        NUMERIC_CONVERSION_PROBE_BODY: numeric_conversion_probe_body_text(),
         PERMUTE_SPEC: permute_spec_text(),
         PERMUTE_AARCH64: permute_aarch64_body_text(),
         PERMUTE_COMPOSED: permute_composed_body_text(),
