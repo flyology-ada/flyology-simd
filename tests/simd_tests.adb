@@ -756,13 +756,37 @@ procedure SIMD_Tests is
             Store_Partial (Reference_Buffer, 3, Count, A);
             Check (Buffer = Reference_Buffer,
                    "native partial store" & Iteration'Image);
-            Check (Same
-                     (Flyology_SIMD.Backends.Native.Load_Partial
-                        (Buffer, 3, Count),
-                      Load_Partial (Buffer, 3, Count)),
-                   "native partial load" & Iteration'Image);
+            declare
+               Loaded : constant U8x16 :=
+                 Flyology_SIMD.Backends.Native.Load_Partial
+                   (Buffer, 3, Count);
+            begin
+               for Lane in Lane_Index_8x16 loop
+                  Check
+                    (Extract (Loaded, Lane) =
+                       (if Lane < Count then Extract (A, Lane) else 0),
+                     "independent native partial load" & Iteration'Image &
+                       Lane'Image);
+               end loop;
+            end;
          end;
       end loop;
+      declare
+         Maximum_Index_Data : Byte_Array
+           (Natural'Last .. Natural'Last) := [others => 1];
+      begin
+         Check
+           (Same
+              (Flyology_SIMD.Backends.Native.Load_Partial
+                 (Maximum_Index_Data, Natural'Last, 0),
+               Zero),
+            "native maximum-index zero-count partial load");
+         Flyology_SIMD.Backends.Native.Store_Partial
+           (Maximum_Index_Data, Natural'Last, 0, Zero);
+         Check
+           (Maximum_Index_Data (Natural'Last) = 1,
+            "native maximum-index zero-count partial store");
+      end;
    end Test_Native_Differential;
 
    procedure Test_Algorithms_For_Length (Length : Natural) is

@@ -33,6 +33,7 @@ shift64_probe_object="$probe_root/shift64_codegen_probe.o"
 unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
 construction_probe_object="$probe_root/construction_codegen_probe.o"
+partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -60,6 +61,7 @@ disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
 disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
 disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
+disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -86,6 +88,7 @@ nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
 nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
+nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
 require_pattern() {
@@ -251,6 +254,18 @@ forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
 forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
   "$temporary/native-undefined.txt" \
   'portable lane-access call retained in the Native backend object'
+require_count 'flyology_simd__backends__native__load_partial' 10 \
+  "$temporary/partial-memory-undefined.txt" \
+  'ten Native partial-load calls in the public caller probe'
+require_count 'flyology_simd__backends__native__store_partial' 10 \
+  "$temporary/partial-memory-undefined.txt" \
+  'ten Native partial-store calls in the public caller probe'
+forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
+  "$temporary/partial-memory-undefined.txt" \
+  'portable partial-memory call in the Native caller probe'
+forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
+  "$temporary/native-undefined.txt" \
+  'portable partial-memory call retained in the Native backend object'
 forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'

@@ -109,6 +109,17 @@ Floating checks compare the complete bit encoding. Deterministic full-width
 inputs cover each lane position. A public caller probe covers all 40
 overloads, and a Native-object gate rejects portable lane-access calls.
 
+All ten Native `Load_Partial` and `Store_Partial` pairs use direct exact-count
+Ada loops on AArch64 and x86-64. A partial load reads only the active elements
+and initializes inactive lanes to positive zero. A partial store writes the
+first `Count` value lanes to exactly `Count` destination elements and leaves
+every other array element unchanged. A zero count does not evaluate an element address. Tests
+check every valid count against independent lane and array expectations. They
+also call both operations with `Start = Natural'Last` and `Count = 0`.
+Protected-page tests place every byte tail at an inaccessible boundary. A
+public caller probe covers all 20 overloads, and a Native-object gate rejects
+calls to the portable partial-memory operations.
+
 The 128-bit `Horizontal_Sum` operation returns the exact unsigned byte sum.
 AArch64 uses `uaddlv` across all 16 lanes. x86-64 uses `psadbw` to form two
 64-bit partial sums and adds them. Fixed and 2,000 deterministic pseudorandom

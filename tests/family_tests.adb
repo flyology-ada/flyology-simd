@@ -137,6 +137,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_8x16;
       Data, Reference : I8_Array (0 .. 21) := [others => 0];
       Aligned_Data : I8_Array (0 .. 15) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : I8_Array (Natural'Last .. Natural'Last) := [others => I8 (1)];
    begin
       Check (To_Lanes (A) = [I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First, -1, 0, 1, I8'Last, I8'First], "I8x16 scalar lane construction");
       for Lane in Lane_Index_8x16 loop Check (Extract (I8x16'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I8x16 independent native construction" & Lane'Image); end loop;
@@ -236,14 +237,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_8x16 (Index - 2)) else 0), "I8x16 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I8x16 partial" & N'Image);
+         for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "I8x16 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : I8_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I8x16 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "I8x16 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "I8x16 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = I8 (1), "I8x16 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_I8x16 := Random_I8x16_Lanes;
@@ -276,7 +280,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I8x16 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I8x16 randomized native partial memory");
+            Check (Data = Reference, "I8x16 randomized native partial store");
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I8x16 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_8x16 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I8x16 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)), "I8x16 varied independent two-source lane permutation" & Lane'Image);
@@ -369,6 +374,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_16x8;
       Data, Reference : U16_Array (0 .. 13) := [others => 0];
       Aligned_Data : U16_Array (0 .. 7) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : U16_Array (Natural'Last .. Natural'Last) := [others => U16 (1)];
    begin
       Check (To_Lanes (A) = [0, 1, U16'Last, 2 ** (15), 17, 0, 1, U16'Last], "U16x8 scalar lane construction");
       for Lane in Lane_Index_16x8 loop Check (Extract (U16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U16x8 independent native construction" & Lane'Image); end loop;
@@ -464,14 +470,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_16x8 (Index - 2)) else 0), "U16x8 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U16x8 partial" & N'Image);
+         for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "U16x8 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : U16_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U16x8 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "U16x8 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "U16x8 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = U16 (1), "U16x8 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_U16x8 := Random_U16x8_Lanes;
@@ -503,7 +512,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U16x8 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U16x8 randomized native partial memory");
+            Check (Data = Reference, "U16x8 randomized native partial store");
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U16x8 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_16x8 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U16x8 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)), "U16x8 varied independent two-source lane permutation" & Lane'Image);
@@ -600,6 +610,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_16x8;
       Data, Reference : I16_Array (0 .. 13) := [others => 0];
       Aligned_Data : I16_Array (0 .. 7) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : I16_Array (Natural'Last .. Natural'Last) := [others => I16 (1)];
    begin
       Check (To_Lanes (A) = [I16'First, -1, 0, 1, I16'Last, I16'First, -1, 0], "I16x8 scalar lane construction");
       for Lane in Lane_Index_16x8 loop Check (Extract (I16x8'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "I16x8 independent native construction" & Lane'Image); end loop;
@@ -699,14 +710,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_16x8 (Index - 2)) else 0), "I16x8 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I16x8 partial" & N'Image);
+         for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "I16x8 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : I16_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I16x8 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "I16x8 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "I16x8 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = I16 (1), "I16x8 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_I16x8 := Random_I16x8_Lanes;
@@ -739,7 +753,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I16x8 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I16x8 randomized native partial memory");
+            Check (Data = Reference, "I16x8 randomized native partial store");
+            for Lane in Lane_Index_16x8 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I16x8 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_16x8 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I16x8 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_16x8 ((Iteration * 3 + Lane * 5) mod 8)), "I16x8 varied independent two-source lane permutation" & Lane'Image);
@@ -832,6 +847,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : U32_Array (0 .. 9) := [others => 0];
       Aligned_Data : U32_Array (0 .. 3) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : U32_Array (Natural'Last .. Natural'Last) := [others => U32 (1)];
       Saturation_Left : constant U32x4 := From_Lanes ([U32'Last, 0, U32'Last, 0]);
       Saturation_Right : constant U32x4 := From_Lanes ([1, 1, U32'Last, U32'Last]);
       Saturating_Add_Expected : constant Lane_Values_U32x4 := [U32'Last, 1, U32'Last, U32'Last];
@@ -932,14 +948,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_32x4 (Index - 2)) else 0), "U32x4 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U32x4 partial" & N'Image);
+         for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "U32x4 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : U32_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U32x4 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "U32x4 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "U32x4 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = U32 (1), "U32x4 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_U32x4 := Random_U32x4_Lanes;
@@ -971,7 +990,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U32x4 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U32x4 randomized native partial memory");
+            Check (Data = Reference, "U32x4 randomized native partial store");
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U32x4 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_32x4 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U32x4 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)), "U32x4 varied independent two-source lane permutation" & Lane'Image);
@@ -1068,6 +1088,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : I32_Array (0 .. 9) := [others => 0];
       Aligned_Data : I32_Array (0 .. 3) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : I32_Array (Natural'Last .. Natural'Last) := [others => I32 (1)];
       Saturation_Left : constant I32x4 := From_Lanes ([I32'Last, I32'First, I32'Last, I32'First]);
       Saturation_Right : constant I32x4 := From_Lanes ([1, -1, -1, 1]);
       Saturating_Add_Expected : constant Lane_Values_I32x4 := [I32'Last, I32'First, I32'Last - 1, I32'First + 1];
@@ -1172,14 +1193,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_32x4 (Index - 2)) else 0), "I32x4 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I32x4 partial" & N'Image);
+         for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "I32x4 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : I32_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I32x4 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "I32x4 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "I32x4 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = I32 (1), "I32x4 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_I32x4 := Random_I32x4_Lanes;
@@ -1212,7 +1236,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I32x4 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I32x4 randomized native partial memory");
+            Check (Data = Reference, "I32x4 randomized native partial store");
+            for Lane in Lane_Index_32x4 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I32x4 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_32x4 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I32x4 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4)), "I32x4 varied independent two-source lane permutation" & Lane'Image);
@@ -1305,6 +1330,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : U64_Array (0 .. 7) := [others => 0];
       Aligned_Data : U64_Array (0 .. 1) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : U64_Array (Natural'Last .. Natural'Last) := [others => U64 (1)];
       Saturation_Left : constant U64x2 := From_Lanes ([U64'Last, 0]);
       Saturation_Right : constant U64x2 := From_Lanes ([1, 1]);
       Saturating_Add_Expected : constant Lane_Values_U64x2 := [U64'Last, 1];
@@ -1409,14 +1435,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_64x2 (Index - 2)) else 0), "U64x2 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "U64x2 partial" & N'Image);
+         for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "U64x2 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : U64_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "U64x2 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "U64x2 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "U64x2 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = U64 (1), "U64x2 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_U64x2 := Random_U64x2_Lanes;
@@ -1448,7 +1477,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U64x2 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "U64x2 randomized native partial memory");
+            Check (Data = Reference, "U64x2 randomized native partial store");
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U64x2 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_64x2 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U64x2 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)), "U64x2 varied independent two-source lane permutation" & Lane'Image);
@@ -1559,6 +1589,7 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : I64_Array (0 .. 7) := [others => 0];
       Aligned_Data : I64_Array (0 .. 1) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : I64_Array (Natural'Last .. Natural'Last) := [others => I64 (1)];
       Saturation_Left : constant I64x2 := From_Lanes ([I64'Last, I64'First]);
       Saturation_Right : constant I64x2 := From_Lanes ([1, -1]);
       Saturating_Add_Expected : constant Lane_Values_I64x2 := [I64'Last, I64'First];
@@ -1672,14 +1703,17 @@ procedure Family_Tests is
          Data := [others => 0]; Reference := [others => 0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_64x2 (Index - 2)) else 0), "I64x2 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "I64x2 partial" & N'Image);
+         for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "I64x2 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : I64_Array (1 .. N) := [others => 0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "I64x2 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "I64x2 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "I64x2 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = I64 (1), "I64x2 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_I64x2 := Random_I64x2_Lanes;
@@ -1712,7 +1746,8 @@ procedure Family_Tests is
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "I64x2 randomized native full memory");
             Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "I64x2 randomized native partial memory");
+            Check (Data = Reference, "I64x2 randomized native partial store");
+            for Lane in Lane_Index_64x2 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "I64x2 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_64x2 loop
                Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "I64x2 randomized independent lane permutation" & Lane'Image);
                Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2)), "I64x2 varied independent two-source lane permutation" & Lane'Image);
@@ -1746,6 +1781,7 @@ procedure Family_Tests is
       return Result;
    end Random_F32x4_Selectors;
    function Bits_F32x4 is new Ada.Unchecked_Conversion (F32, Interfaces.Unsigned_32);
+   function Value_From_Bits_F32x4 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_32, F32);
    function Same (Left, Right : F32x4) return Boolean is
       L : constant Lane_Values_F32x4 := To_Lanes (Left);
       R : constant Lane_Values_F32x4 := To_Lanes (Right);
@@ -1808,6 +1844,9 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_32x4;
       Data, Reference : F32_Array (0 .. 9) := [others => 0.0];
       Aligned_Data : F32_Array (0 .. 3) := [others => 0.0] with Alignment => 16;
+      Maximum_Index_Data : F32_Array (Natural'Last .. Natural'Last) := [others => 1.0];
+      Special_Lanes_1 : constant Lane_Values_F32x4 := [Value_From_Bits_F32x4 (16#8000_0000#), Value_From_Bits_F32x4 (16#0000_0001#), Value_From_Bits_F32x4 (16#7F80_0000#), Value_From_Bits_F32x4 (16#7FC0_0001#)];
+      Special_Lanes_2 : constant Lane_Values_F32x4 := [Value_From_Bits_F32x4 (16#7F80_0001#), Value_From_Bits_F32x4 (16#FF80_0000#), Value_From_Bits_F32x4 (16#FFC0_0021#), Value_From_Bits_F32x4 (16#8000_0001#)];
    begin
       Check (Same (A, From_Lanes (To_Lanes (A))), "F32x4 scalar lane roundtrip");
       for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (F32x4'(Backends.Native.Zero), Lane)) = 0 and then Bits_F32x4 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F32x4 (To_Lanes (A) (0)), "F32x4 independent native construction" & Lane'Image); end loop;
@@ -1890,14 +1929,33 @@ procedure Family_Tests is
          Data := [others => 0.0]; Reference := [others => 0.0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Bits_F32x4 (Data (Index)) = Bits_F32x4 ((if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_32x4 (Index - 2)) else 0.0)), "F32x4 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F32x4 partial" & N'Image);
+         for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = Bits_F32x4 ((if Lane < N then Extract (B, Lane) else 0.0)), "F32x4 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : F32_Array (1 .. N) := [others => 0.0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "F32x4 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane)) = 0, "F32x4 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for N in Lane_Count_32x4 loop
+         Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+         for Lane in Lane_Index_32x4 loop Data (2 + Lane) := Special_Lanes_1 (Lane); end loop;
+         for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_F32x4 (Special_Lanes_1 (Lane)) else 0), "F32x4 special-bit partial load group 1" & N'Image & Lane'Image); end loop;
+         Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_1));
+         for Index in Data'Range loop Check (Bits_F32x4 (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_F32x4 (Special_Lanes_1 (Lane_Index_32x4 (Index - 2))) else 16#7FC0_0055#), "F32x4 special-bit partial store group 1" & N'Image & Index'Image); end loop;
+      end loop;
+      for N in Lane_Count_32x4 loop
+         Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+         for Lane in Lane_Index_32x4 loop Data (2 + Lane) := Special_Lanes_2 (Lane); end loop;
+         for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_F32x4 (Special_Lanes_2 (Lane)) else 0), "F32x4 special-bit partial load group 2" & N'Image & Lane'Image); end loop;
+         Data := [others => Value_From_Bits_F32x4 (16#7FC0_0055#)];
+         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_2));
+         for Index in Data'Range loop Check (Bits_F32x4 (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_F32x4 (Special_Lanes_2 (Lane_Index_32x4 (Index - 2))) else 16#7FC0_0055#), "F32x4 special-bit partial store group 2" & N'Image & Index'Image); end loop;
+      end loop;
+      for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane)) = 0, "F32x4 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Bits_F32x4 (Maximum_Index_Data (Natural'Last)) = Bits_F32x4 (1.0), "F32x4 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_F32x4 := Random_F32x4_Lanes;
@@ -1925,7 +1983,8 @@ procedure Family_Tests is
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F32x4 randomized native full memory");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F32x4 randomized native partial memory");
+            Check (Data = Reference, "F32x4 randomized native partial store");
+            for Lane in Lane_Index_32x4 loop Check (Bits_F32x4 (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_F32x4 ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), "F32x4 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_32x4 loop
                Check (Bits_F32x4 (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_F32x4 (R_Lanes (R_Selectors (Lane))), "F32x4 randomized independent lane permutation" & Lane'Image);
                Check (Bits_F32x4 (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_F32x4 (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_32x4 ((Iteration * 3 + Lane * 5) mod 4))), "F32x4 varied independent two-source lane permutation" & Lane'Image);
@@ -1956,6 +2015,7 @@ procedure Family_Tests is
       return Result;
    end Random_F64x2_Selectors;
    function Bits_F64x2 is new Ada.Unchecked_Conversion (F64, Interfaces.Unsigned_64);
+   function Value_From_Bits_F64x2 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_64, F64);
    function Same (Left, Right : F64x2) return Boolean is
       L : constant Lane_Values_F64x2 := To_Lanes (Left);
       R : constant Lane_Values_F64x2 := To_Lanes (Right);
@@ -2018,6 +2078,10 @@ procedure Family_Tests is
       Default_Two_Source_Map : Two_Source_Lane_Map_64x2;
       Data, Reference : F64_Array (0 .. 7) := [others => 0.0];
       Aligned_Data : F64_Array (0 .. 1) := [others => 0.0] with Alignment => 16;
+      Maximum_Index_Data : F64_Array (Natural'Last .. Natural'Last) := [others => 1.0];
+      Special_Lanes_1 : constant Lane_Values_F64x2 := [Value_From_Bits_F64x2 (16#8000_0000_0000_0000#), Value_From_Bits_F64x2 (16#0000_0000_0000_0001#)];
+      Special_Lanes_2 : constant Lane_Values_F64x2 := [Value_From_Bits_F64x2 (16#7FF0_0000_0000_0000#), Value_From_Bits_F64x2 (16#7FF8_0000_0000_0001#)];
+      Special_Lanes_3 : constant Lane_Values_F64x2 := [Value_From_Bits_F64x2 (16#7FF0_0000_0000_0001#), Value_From_Bits_F64x2 (16#FFF0_0000_0000_0000#)];
    begin
       Check (Same (A, From_Lanes (To_Lanes (A))), "F64x2 scalar lane roundtrip");
       for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (F64x2'(Backends.Native.Zero), Lane)) = 0 and then Bits_F64x2 (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_F64x2 (To_Lanes (A) (0)), "F64x2 independent native construction" & Lane'Image); end loop;
@@ -2100,14 +2164,41 @@ procedure Family_Tests is
          Data := [others => 0.0]; Reference := [others => 0.0];
          Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
          for Index in Data'Range loop Check (Bits_F64x2 (Data (Index)) = Bits_F64x2 ((if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_64x2 (Index - 2)) else 0.0)), "F64x2 independent partial store" & N'Image & Index'Image); end loop;
-         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), "F64x2 partial" & N'Image);
+         for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = Bits_F64x2 ((if Lane < N then Extract (B, Lane) else 0.0)), "F64x2 independent partial load" & N'Image & Lane'Image); end loop;
          declare
             Exact : F64_Array (1 .. N) := [others => 0.0];
          begin
-            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), "F64x2 exact-extent partial load" & N'Image);
+            for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane)) = 0, "F64x2 exact-extent partial load" & N'Image & Lane'Image); end loop;
             Backends.Native.Store_Partial (Exact, 1, N, B);
          end;
       end loop;
+      for N in Lane_Count_64x2 loop
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         for Lane in Lane_Index_64x2 loop Data (2 + Lane) := Special_Lanes_1 (Lane); end loop;
+         for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_F64x2 (Special_Lanes_1 (Lane)) else 0), "F64x2 special-bit partial load group 1" & N'Image & Lane'Image); end loop;
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_1));
+         for Index in Data'Range loop Check (Bits_F64x2 (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_F64x2 (Special_Lanes_1 (Lane_Index_64x2 (Index - 2))) else 16#7FF8_0000_0000_0055#), "F64x2 special-bit partial store group 1" & N'Image & Index'Image); end loop;
+      end loop;
+      for N in Lane_Count_64x2 loop
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         for Lane in Lane_Index_64x2 loop Data (2 + Lane) := Special_Lanes_2 (Lane); end loop;
+         for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_F64x2 (Special_Lanes_2 (Lane)) else 0), "F64x2 special-bit partial load group 2" & N'Image & Lane'Image); end loop;
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_2));
+         for Index in Data'Range loop Check (Bits_F64x2 (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_F64x2 (Special_Lanes_2 (Lane_Index_64x2 (Index - 2))) else 16#7FF8_0000_0000_0055#), "F64x2 special-bit partial store group 2" & N'Image & Index'Image); end loop;
+      end loop;
+      for N in Lane_Count_64x2 loop
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         for Lane in Lane_Index_64x2 loop Data (2 + Lane) := Special_Lanes_3 (Lane); end loop;
+         for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_F64x2 (Special_Lanes_3 (Lane)) else 0), "F64x2 special-bit partial load group 3" & N'Image & Lane'Image); end loop;
+         Data := [others => Value_From_Bits_F64x2 (16#7FF8_0000_0000_0055#)];
+         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_3));
+         for Index in Data'Range loop Check (Bits_F64x2 (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_F64x2 (Special_Lanes_3 (Lane_Index_64x2 (Index - 2))) else 16#7FF8_0000_0000_0055#), "F64x2 special-bit partial store group 3" & N'Image & Index'Image); end loop;
+      end loop;
+      for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane)) = 0, "F64x2 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Bits_F64x2 (Maximum_Index_Data (Natural'Last)) = Bits_F64x2 (1.0), "F64x2 maximum-index zero-count partial store");
       for Iteration in 1 .. 250 loop
          declare
             R_Lanes : constant Lane_Values_F64x2 := Random_F64x2_Lanes;
@@ -2135,7 +2226,8 @@ procedure Family_Tests is
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
             Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "F64x2 randomized native full memory");
             Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
-            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), "F64x2 randomized native partial memory");
+            Check (Data = Reference, "F64x2 randomized native partial store");
+            for Lane in Lane_Index_64x2 loop Check (Bits_F64x2 (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_F64x2 ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), "F64x2 randomized independent partial load" & Lane'Image); end loop;
             for Lane in Lane_Index_64x2 loop
                Check (Bits_F64x2 (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_F64x2 (R_Lanes (R_Selectors (Lane))), "F64x2 randomized independent lane permutation" & Lane'Image);
                Check (Bits_F64x2 (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_F64x2 (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_64x2 ((Iteration * 3 + Lane * 5) mod 2))), "F64x2 varied independent two-source lane permutation" & Lane'Image);

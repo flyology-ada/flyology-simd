@@ -283,7 +283,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
         "None_True",
-        "Is_Aligned_16", "Load_Partial", "Store_Partial", "Has_Extent",
+        "Is_Aligned_16", "Has_Extent",
         "Bit_Cast",
     }
     x86_scalar = (
@@ -304,6 +304,21 @@ def native_support_doc(name: str, declaration: str) -> str:
             "directly with fixed-width Ada code. They do not call the portable "
             "root operation. A scalar build uses the portable scalar "
             "implementation."
+        )
+    if name in {"Load_Partial", "Store_Partial"}:
+        action = (
+            "read exactly Count elements and initialize every inactive "
+            "result lane to positive zero"
+            if name == "Load_Partial"
+            else
+            "write the first Count value lanes to exactly Count destination "
+            "elements and leave every other array element unchanged"
+        )
+        return (
+            f"Cross-platform support: The AArch64 and x86-64 backends {action} "
+            "with a direct fixed-width Ada loop. A zero count does not "
+            "evaluate an element address. They do not call the portable root "
+            "operation. A scalar build uses the portable scalar implementation."
         )
     if name == "Zero":
         if "U8x16" in declaration:

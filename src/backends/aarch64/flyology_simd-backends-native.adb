@@ -428,15 +428,28 @@ package body Flyology_SIMD.Backends.Native is
 
    function Load_Partial
      (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
-      return U8x16 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+      return U8x16
+   is
+      Result : U8x16 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
    procedure Store_Partial
      (Data  : in out Byte_Array;
       Start : Natural;
       Count : Lane_Count_8x16;
       Value : U8x16) is
    begin
-      Flyology_SIMD.Store_Partial (Data, Start, Count, Value);
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane);
+         end loop;
+      end if;
    end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY NEON BODIES
@@ -1462,8 +1475,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x16) return I8x16 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : I8x16 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_8x16 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_8x16 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_U16x8 is new NEON_Compare_128 (U16x8, "cmeq v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
    function Compare_Greater_U16x8 is new NEON_Compare_128 (U16x8, "cmhi v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
    function Compare_Greater_Equal_U16x8 is new NEON_Compare_128 (U16x8, "cmhs v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
@@ -1602,8 +1630,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x8) return U16x8 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : U16x8 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_16x8 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_16x8 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_I16x8 is new NEON_Compare_128 (I16x8, "cmeq v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
    function Compare_Greater_I16x8 is new NEON_Compare_128 (I16x8, "cmgt v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
    function Compare_Greater_Equal_I16x8 is new NEON_Compare_128 (I16x8, "cmge v0.8h, v0.8h, v1.8h", "ushr v0.8h, v0.8h, #15" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.8h, v0.8h, v2.8h" & ASCII.LF & ASCII.HT & "addv h0, v0.8h" & ASCII.LF & ASCII.HT & "umov %w0, v0.h[0]");
@@ -1745,8 +1788,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x8) return I16x8 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : I16x8 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_16x8 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_16x8 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_U32x4 is new NEON_Compare_128 (U32x4, "cmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
    function Compare_Greater_U32x4 is new NEON_Compare_128 (U32x4, "cmhi v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
    function Compare_Greater_Equal_U32x4 is new NEON_Compare_128 (U32x4, "cmhs v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
@@ -1885,8 +1943,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x4) return U32x4 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : U32x4 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_32x4 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_32x4 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_I32x4 is new NEON_Compare_128 (I32x4, "cmeq v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
    function Compare_Greater_I32x4 is new NEON_Compare_128 (I32x4, "cmgt v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
    function Compare_Greater_Equal_I32x4 is new NEON_Compare_128 (I32x4, "cmge v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
@@ -2028,8 +2101,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x4) return I32x4 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : I32x4 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_32x4 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_32x4 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_U64x2 is new NEON_Compare_128 (U64x2, "cmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
    function Compare_Greater_U64x2 is new NEON_Compare_128 (U64x2, "cmhi v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
    function Compare_Greater_Equal_U64x2 is new NEON_Compare_128 (U64x2, "cmhs v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
@@ -2168,8 +2256,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x2) return U64x2 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : U64x2 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_64x2 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_64x2 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Compare_I64x2 is new NEON_Compare_128 (I64x2, "cmeq v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
    function Compare_Greater_I64x2 is new NEON_Compare_128 (I64x2, "cmgt v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
    function Compare_Greater_Equal_I64x2 is new NEON_Compare_128 (I64x2, "cmge v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
@@ -2311,8 +2414,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x2) return I64x2 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : I64x2 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_64x2 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_64x2 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Native_Add_F32x4 is new NEON_Binary_128 (F32x4, "fadd v0.4s, v0.4s, v1.4s");
    function Add (Left, Right : F32x4) return F32x4 is (Native_Add_F32x4 (Left, Right));
    function Native_Subtract_F32x4 is new NEON_Binary_128 (F32x4, "fsub v0.4s, v0.4s, v1.4s");
@@ -2437,8 +2555,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x4) return F32x4 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : F32x4 := (Lanes => [others => 0.0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_32x4 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_32x4 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Native_Add_F64x2 is new NEON_Binary_128 (F64x2, "fadd v0.2d, v0.2d, v1.2d");
    function Add (Left, Right : F64x2) return F64x2 is (Native_Add_F64x2 (Left, Right));
    function Native_Subtract_F64x2 is new NEON_Binary_128 (F64x2, "fsub v0.2d, v0.2d, v1.2d");
@@ -2563,8 +2696,23 @@ package body Flyology_SIMD.Backends.Native is
    function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
    function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x2) return F64x2 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+      Result : F64x2 := (Lanes => [others => 0.0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_64x2 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_64x2 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
      (Bits => Bits and 255);
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is

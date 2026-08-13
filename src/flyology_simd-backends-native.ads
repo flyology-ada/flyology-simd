@@ -336,7 +336,7 @@ is
       return U8x16
      with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -348,7 +348,7 @@ is
       Value : U8x16)
      with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -1030,14 +1030,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : I8_Array; Start : Natural; Count : Lane_Count_8x16) return I8x16 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I8_Array; Start : Natural; Count : Lane_Count_8x16; Value : I8x16) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -1323,14 +1323,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : U16_Array; Start : Natural; Count : Lane_Count_16x8) return U16x8 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U16_Array; Start : Natural; Count : Lane_Count_16x8; Value : U16x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -1622,14 +1622,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : I16_Array; Start : Natural; Count : Lane_Count_16x8) return I16x8 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I16_Array; Start : Natural; Count : Lane_Count_16x8; Value : I16x8) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -1915,14 +1915,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : U32_Array; Start : Natural; Count : Lane_Count_32x4) return U32x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U32_Array; Start : Natural; Count : Lane_Count_32x4; Value : U32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -2214,14 +2214,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : I32_Array; Start : Natural; Count : Lane_Count_32x4) return I32x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I32_Array; Start : Natural; Count : Lane_Count_32x4; Value : I32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -2507,14 +2507,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : U64_Array; Start : Natural; Count : Lane_Count_64x2) return U64x2 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out U64_Array; Start : Natural; Count : Lane_Count_64x2; Value : U64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -2806,14 +2806,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : I64_Array; Start : Natural; Count : Lane_Count_64x2) return I64x2 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out I64_Array; Start : Natural; Count : Lane_Count_64x2; Value : I64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -3065,14 +3065,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : F32_Array; Start : Natural; Count : Lane_Count_32x4) return F32x4 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F32_Array; Start : Natural; Count : Lane_Count_32x4; Value : F32x4) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
@@ -3324,14 +3324,14 @@ is
    --  @param Value The input value.
    function Load_Partial (Data : F64_Array; Start : Natural; Count : Lane_Count_64x2) return F64x2 with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @return The operation result.
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) with Pre => Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start));
    --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Data The typed lane array.
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.

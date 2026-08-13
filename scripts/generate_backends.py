@@ -204,6 +204,32 @@ def direct_lane_access_body(
     ]
 
 
+def direct_partial_memory_body(
+    vector: str, array: str, count: str, index: str, zero: str
+) -> list[str]:
+    """Read and write only active lanes without crossing the root API."""
+    return [
+        f"   function Load_Partial (Data : {array}; Start : Natural; Count : {count}) return {vector} is",
+        f"      Result : {vector} := (Lanes => [others => {zero}]);",
+        "   begin",
+        "      if Count > 0 then",
+        "         for Lane in Natural range 0 .. Count - 1 loop",
+        f"            Result.Lanes ({index} (Lane)) := Data (Start + Lane);",
+        "         end loop;",
+        "      end if;",
+        "      return Result;",
+        "   end Load_Partial;",
+        f"   procedure Store_Partial (Data : in out {array}; Start : Natural; Count : {count}; Value : {vector}) is",
+        "   begin",
+        "      if Count > 0 then",
+        "         for Lane in Natural range 0 .. Count - 1 loop",
+        f"            Data (Start + Lane) := Value.Lanes ({index} (Lane));",
+        "         end loop;",
+        "      end if;",
+        "   end Store_Partial;",
+    ]
+
+
 def target_construction_body(
     architecture: str, vector: str, scalar: str, bits: int, lanes: int
 ) -> list[str]:
@@ -1142,6 +1168,11 @@ def neon_body() -> str:
 
 
 def memory_body(vector: str, arr: str, count: str) -> list[str]:
+    scalar = next(item[1] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+    bits = next(item[2] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+    lanes = 128 // bits
+    idx = lane_index(bits, lanes)
+    zero = "0.0" if scalar in {"F32", "F64"} else "0"
     return [
         call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
@@ -1158,8 +1189,7 @@ def memory_body(vector: str, arr: str, count: str) -> list[str]:
         "   end Store_Unaligned;",
         f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;",
-        call("Load_Partial", vector, "Data, Start, Count", f"Data : {arr}; Start : Natural; Count : {count}"),
-        f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;",
+        *direct_partial_memory_body(vector, arr, count, idx, zero),
     ]
 
 
@@ -1321,6 +1351,11 @@ def x86_helpers() -> list[str]:
 
 
 def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
+    scalar = next(item[1] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+    bits = next(item[2] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
+    lanes = 128 // bits
+    idx = lane_index(bits, lanes)
+    zero = "0.0" if scalar in {"F32", "F64"} else "0"
     return [
         call("Is_Aligned_16", "Boolean", "Data, Start", f"Data : {arr}; Start : Natural"),
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
@@ -1335,8 +1370,7 @@ def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
         "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Aligned;",
         f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
         "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Aligned;",
-        call("Load_Partial", vector, "Data, Start, Count", f"Data : {arr}; Start : Natural; Count : {count}"),
-        f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) is begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;",
+        *direct_partial_memory_body(vector, arr, count, idx, zero),
     ]
 
 
@@ -2751,6 +2785,7 @@ def test_program() -> str:
             f"      Default_Two_Source_Map : {two_source_lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
+            f"      Maximum_Index_Data : {arr} (Natural'Last .. Natural'Last) := [others => {scalar} (1)];",
             *saturation_edges,
             *(
                 [
@@ -2882,14 +2917,17 @@ def test_program() -> str:
             "         Data := [others => 0]; Reference := [others => 0];",
             f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
             f"         for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, {lane_index(bits, lanes)} (Index - 2)) else 0), \"{vector} independent partial store\" & N'Image & Index'Image); end loop;",
-            f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), \"{vector} independent partial load\" & N'Image & Lane'Image); end loop;",
             "         declare",
             f"            Exact : {arr} (1 .. N) := [others => 0];",
             "         begin",
-            f"            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), \"{vector} exact-extent partial load\" & N'Image);",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, \"{vector} exact-extent partial load\" & N'Image & Lane'Image); end loop;",
             f"            Backends.Native.Store_Partial (Exact, 1, N, B);",
             "         end;",
             "      end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, \"{vector} maximum-index zero-count partial load\" & Lane'Image); end loop;",
+            f"      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);",
+            f"      Check (Maximum_Index_Data (Natural'Last) = {scalar} (1), \"{vector} maximum-index zero-count partial store\");",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
             f"            R_Lanes : constant {vals} := Random_{vector}_Lanes;",
@@ -2926,7 +2964,8 @@ def test_program() -> str:
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
             f"            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
-            f"            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), \"{vector} randomized native partial memory\");",
+            f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",
             f"            for Lane in {lane_index(bits, lanes)} loop",
             f"               Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), \"{vector} randomized independent lane permutation\" & Lane'Image);",
             f"               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})), \"{vector} varied independent two-source lane permutation\" & Lane'Image);",
@@ -2951,6 +2990,17 @@ def test_program() -> str:
         agg_a = ", ".join(av[n % len(av)] for n in range(lanes))
         agg_b = ", ".join(bv[n % len(bv)] for n in range(lanes))
         uint = f"Interfaces.Unsigned_{bits}"
+        special_bits = {
+            "F32x4": [
+                ["16#8000_0000#", "16#0000_0001#", "16#7F80_0000#", "16#7FC0_0001#"],
+                ["16#7F80_0001#", "16#FF80_0000#", "16#FFC0_0021#", "16#8000_0001#"],
+            ],
+            "F64x2": [
+                ["16#8000_0000_0000_0000#", "16#0000_0000_0000_0001#"],
+                ["16#7FF0_0000_0000_0000#", "16#7FF8_0000_0000_0001#"],
+                ["16#7FF0_0000_0000_0001#", "16#FFF0_0000_0000_0000#"],
+            ],
+        }[vector]
         lines += [
             f"   function Random_{vector}_Lanes return {vals} is",
             f"      Result : {vals};",
@@ -2969,6 +3019,7 @@ def test_program() -> str:
             "      return Result;",
             f"   end Random_{vector}_Selectors;",
             f"   function Bits_{vector} is new Ada.Unchecked_Conversion ({scalar}, {uint});",
+            f"   function Value_From_Bits_{vector} is new Ada.Unchecked_Conversion ({uint}, {scalar});",
             f"   function Same (Left, Right : {vector}) return Boolean is",
             f"      L : constant {vals} := To_Lanes (Left);",
             f"      R : constant {vals} := To_Lanes (Right);",
@@ -3029,7 +3080,13 @@ def test_program() -> str:
             f"      Fixed_Two_Source_Map : constant {two_source_lane_map(bits, lanes)} := Make_Two_Source_Lane_Map ([for Lane in {lane_index(bits, lanes)} => (if Lane mod 2 = 0 then Select_Left_Lane ({lane_index(bits, lanes)} ((Lane * 3 + 1) mod {lanes})) else Select_Right_Lane ({lane_index(bits, lanes)} ((Lane * 3 + 1) mod {lanes})))]);",
             f"      Default_Two_Source_Map : {two_source_lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0.0];",
-            f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;", "   begin",
+            f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0.0] with Alignment => 16;",
+            f"      Maximum_Index_Data : {arr} (Natural'Last .. Natural'Last) := [others => 1.0];",
+            *[
+                f"      Special_Lanes_{group_index} : constant {vals} := [{', '.join(f'Value_From_Bits_{vector} ({raw})' for raw in group)}];"
+                for group_index, group in enumerate(special_bits, 1)
+            ],
+            "   begin",
             f"      Check (Same (A, From_Lanes (To_Lanes (A))), \"{vector} scalar lane roundtrip\");",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract ({vector}'(Backends.Native.Zero), Lane)) = 0 and then Bits_{vector} (Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane)) = Bits_{vector} (To_Lanes (A) (0)), \"{vector} independent native construction\" & Lane'Image); end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.From_Lanes (To_Lanes (A)), Lane)) = Bits_{vector} (To_Lanes (A) (Lane)) and then Bits_{vector} (Backends.Native.To_Lanes (A) (Lane)) = Bits_{vector} (To_Lanes (A) (Lane)), \"{vector} independent native lane construction\" & Lane'Image); end loop;",
@@ -3105,14 +3162,31 @@ def test_program() -> str:
             "         Data := [others => 0.0]; Reference := [others => 0.0];",
             f"         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);",
             f"         for Index in Data'Range loop Check (Bits_{vector} (Data (Index)) = Bits_{vector} ((if Index in 2 .. 2 + N - 1 then Extract (B, {lane_index(bits, lanes)} (Index - 2)) else 0.0)), \"{vector} independent partial store\" & N'Image & Index'Image); end loop;",
-            f"         Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, N), Load_Partial (Data, 2, N)), \"{vector} partial\" & N'Image);",
+            f"         for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = Bits_{vector} ((if Lane < N then Extract (B, Lane) else 0.0)), \"{vector} independent partial load\" & N'Image & Lane'Image); end loop;",
             "         declare",
             f"            Exact : {arr} (1 .. N) := [others => 0.0];",
             "         begin",
-            f"            Check (Same (Backends.Native.Load_Partial (Exact, 1, N), Load_Partial (Exact, 1, N)), \"{vector} exact-extent partial load\" & N'Image);",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane)) = 0, \"{vector} exact-extent partial load\" & N'Image & Lane'Image); end loop;",
             f"            Backends.Native.Store_Partial (Exact, 1, N, B);",
             "         end;",
             "      end loop;",
+            *[
+                line
+                for group_index, _ in enumerate(special_bits, 1)
+                for line in [
+                    f"      for N in {count} loop",
+                    f"         Data := [others => Value_From_Bits_{vector} ({'16#7FC0_0055#' if vector == 'F32x4' else '16#7FF8_0000_0000_0055#'})];",
+                    f"         for Lane in {lane_index(bits, lanes)} loop Data (2 + Lane) := Special_Lanes_{group_index} (Lane); end loop;",
+                    f"         for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane)) = (if Lane < N then Bits_{vector} (Special_Lanes_{group_index} (Lane)) else 0), \"{vector} special-bit partial load group {group_index}\" & N'Image & Lane'Image); end loop;",
+                    f"         Data := [others => Value_From_Bits_{vector} ({'16#7FC0_0055#' if vector == 'F32x4' else '16#7FF8_0000_0000_0055#'})];",
+                    f"         Backends.Native.Store_Partial (Data, 2, N, From_Lanes (Special_Lanes_{group_index}));",
+                    f"         for Index in Data'Range loop Check (Bits_{vector} (Data (Index)) = (if Index in 2 .. 2 + N - 1 then Bits_{vector} (Special_Lanes_{group_index} ({lane_index(bits, lanes)} (Index - 2))) else {'16#7FC0_0055#' if vector == 'F32x4' else '16#7FF8_0000_0000_0055#'}), \"{vector} special-bit partial store group {group_index}\" & N'Image & Index'Image); end loop;",
+                    "      end loop;",
+                ]
+            ],
+            f"      for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane)) = 0, \"{vector} maximum-index zero-count partial load\" & Lane'Image); end loop;",
+            f"      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);",
+            f"      Check (Bits_{vector} (Maximum_Index_Data (Natural'Last)) = Bits_{vector} (1.0), \"{vector} maximum-index zero-count partial store\");",
             "      for Iteration in 1 .. 250 loop",
             "         declare",
             f"            R_Lanes : constant {vals} := Random_{vector}_Lanes;",
@@ -3140,7 +3214,8 @@ def test_program() -> str:
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);",
             f"            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), \"{vector} randomized native full memory\");",
             f"            Data := [others => 0.0]; Reference := [others => 0.0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);",
-            f"            Check (Data = Reference and then Same (Backends.Native.Load_Partial (Data, 2, Tail), Load_Partial (Reference, 2, Tail)), \"{vector} randomized native partial memory\");",
+            f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
+            f"            for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_{vector} ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",
             f"            for Lane in {lane_index(bits, lanes)} loop",
             f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_{vector} (R_Lanes (R_Selectors (Lane))), \"{vector} randomized independent lane permutation\" & Lane'Image);",
             f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_{vector} (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes}))), \"{vector} varied independent two-source lane permutation\" & Lane'Image);",
