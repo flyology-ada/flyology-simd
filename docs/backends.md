@@ -160,9 +160,9 @@ in ascending lane order. These sequences
 preserve the documented quiet-NaN, signaling-NaN, and signed-zero results
 without executing a floating comparison during classification. The
 integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
-overloads use SSE2 unpack, shuffle, clamp, and pack sequences. The current bit
-casts use scalar composition on x86-64. Conversions between 32-bit integer and
-binary32 lanes use packed SSE2 sequences. Conversions between 64-bit integer
+overloads use SSE2 unpack, shuffle, clamp, and pack sequences. Conversions
+between 32-bit integer and binary32 lanes use packed SSE2 sequences.
+Conversions between 64-bit integer
 and binary64 lanes process each lane separately with SSE2. Floating-to-integer
 conversions classify inputs for saturation. Unsigned conversions apply an
 additional correction across 2 to the power of 63. Same-width conversion
@@ -170,8 +170,11 @@ between signed and unsigned integer types uses SSE2 sign-mask and bit-selection
 sequences.
 Floating widening uses `cvtps2pd`; high-half widening first selects the upper
 binary32 lanes. Floating narrowing uses two `cvtpd2ps` conversions and merges
-their result lanes. The scalar-composed bit casts are implemented and
-differentially tested, but they do not yet have an SSE2 code-generation claim.
+their result lanes. All 16 lane-preserving bit-cast overloads reinterpret the
+complete private vector value directly in both target backends. They do not
+call the portable root operation or need an arithmetic SIMD instruction. This
+direct reinterpretation of the same 128 storage bits does not make the private
+vector representation part of the public contract.
 The x86-64 byte-table lookup and one-source or two-source variable lane
 permutations use scalar composition because SSE2 has no equivalent indexed
 byte-table instruction. Mask compression and expansion also use scalar

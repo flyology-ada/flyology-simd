@@ -367,82 +367,82 @@ is
    --  BEGIN GENERATED FULL-FAMILY BACKEND CONTRACT
    function Bit_Cast (Value : U8x16) return I8x16;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I8x16) return U8x16;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : U16x8) return I16x8;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I16x8) return U16x8;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : U32x4) return I32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : U32x4) return F32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I32x4) return U32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I32x4) return F32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : F32x4) return U32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : F32x4) return I32x4;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : U64x2) return I64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : U64x2) return F64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I64x2) return U64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : I64x2) return F64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : F64x2) return U64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Bit_Cast (Value : F64x2) return I64x2;
    --  Reinterpret every lane's bits without changing its lane position.
-   --  Cross-platform support: The AArch64, x86-64, and scalar backends use the same fixed-width Ada implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends reinterpret the complete 128-bit private vector value directly with Ada.Unchecked_Conversion. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 

@@ -1,3 +1,4 @@
+with Ada.Unchecked_Conversion;
 with System.Machine_Code;
 
 package body Flyology_SIMD.Backends.Native is
@@ -700,38 +701,70 @@ package body Flyology_SIMD.Backends.Native is
    Weights_32x4 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
    Weights_64x2 : aliased constant Lane_Values_U64x2 := [1, 2];
 
+   function Native_Bit_Cast_U8x16_To_I8x16 is new Ada.Unchecked_Conversion (U8x16, I8x16);
+   pragma Inline_Always (Native_Bit_Cast_U8x16_To_I8x16);
    function Bit_Cast (Value : U8x16) return I8x16 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U8x16_To_I8x16 (Value));
+   function Native_Bit_Cast_I8x16_To_U8x16 is new Ada.Unchecked_Conversion (I8x16, U8x16);
+   pragma Inline_Always (Native_Bit_Cast_I8x16_To_U8x16);
    function Bit_Cast (Value : I8x16) return U8x16 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I8x16_To_U8x16 (Value));
+   function Native_Bit_Cast_U16x8_To_I16x8 is new Ada.Unchecked_Conversion (U16x8, I16x8);
+   pragma Inline_Always (Native_Bit_Cast_U16x8_To_I16x8);
    function Bit_Cast (Value : U16x8) return I16x8 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U16x8_To_I16x8 (Value));
+   function Native_Bit_Cast_I16x8_To_U16x8 is new Ada.Unchecked_Conversion (I16x8, U16x8);
+   pragma Inline_Always (Native_Bit_Cast_I16x8_To_U16x8);
    function Bit_Cast (Value : I16x8) return U16x8 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I16x8_To_U16x8 (Value));
+   function Native_Bit_Cast_U32x4_To_I32x4 is new Ada.Unchecked_Conversion (U32x4, I32x4);
+   pragma Inline_Always (Native_Bit_Cast_U32x4_To_I32x4);
    function Bit_Cast (Value : U32x4) return I32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U32x4_To_I32x4 (Value));
+   function Native_Bit_Cast_U32x4_To_F32x4 is new Ada.Unchecked_Conversion (U32x4, F32x4);
+   pragma Inline_Always (Native_Bit_Cast_U32x4_To_F32x4);
    function Bit_Cast (Value : U32x4) return F32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U32x4_To_F32x4 (Value));
+   function Native_Bit_Cast_I32x4_To_U32x4 is new Ada.Unchecked_Conversion (I32x4, U32x4);
+   pragma Inline_Always (Native_Bit_Cast_I32x4_To_U32x4);
    function Bit_Cast (Value : I32x4) return U32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I32x4_To_U32x4 (Value));
+   function Native_Bit_Cast_I32x4_To_F32x4 is new Ada.Unchecked_Conversion (I32x4, F32x4);
+   pragma Inline_Always (Native_Bit_Cast_I32x4_To_F32x4);
    function Bit_Cast (Value : I32x4) return F32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I32x4_To_F32x4 (Value));
+   function Native_Bit_Cast_F32x4_To_U32x4 is new Ada.Unchecked_Conversion (F32x4, U32x4);
+   pragma Inline_Always (Native_Bit_Cast_F32x4_To_U32x4);
    function Bit_Cast (Value : F32x4) return U32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_F32x4_To_U32x4 (Value));
+   function Native_Bit_Cast_F32x4_To_I32x4 is new Ada.Unchecked_Conversion (F32x4, I32x4);
+   pragma Inline_Always (Native_Bit_Cast_F32x4_To_I32x4);
    function Bit_Cast (Value : F32x4) return I32x4 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_F32x4_To_I32x4 (Value));
+   function Native_Bit_Cast_U64x2_To_I64x2 is new Ada.Unchecked_Conversion (U64x2, I64x2);
+   pragma Inline_Always (Native_Bit_Cast_U64x2_To_I64x2);
    function Bit_Cast (Value : U64x2) return I64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U64x2_To_I64x2 (Value));
+   function Native_Bit_Cast_U64x2_To_F64x2 is new Ada.Unchecked_Conversion (U64x2, F64x2);
+   pragma Inline_Always (Native_Bit_Cast_U64x2_To_F64x2);
    function Bit_Cast (Value : U64x2) return F64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_U64x2_To_F64x2 (Value));
+   function Native_Bit_Cast_I64x2_To_U64x2 is new Ada.Unchecked_Conversion (I64x2, U64x2);
+   pragma Inline_Always (Native_Bit_Cast_I64x2_To_U64x2);
    function Bit_Cast (Value : I64x2) return U64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I64x2_To_U64x2 (Value));
+   function Native_Bit_Cast_I64x2_To_F64x2 is new Ada.Unchecked_Conversion (I64x2, F64x2);
+   pragma Inline_Always (Native_Bit_Cast_I64x2_To_F64x2);
    function Bit_Cast (Value : I64x2) return F64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_I64x2_To_F64x2 (Value));
+   function Native_Bit_Cast_F64x2_To_U64x2 is new Ada.Unchecked_Conversion (F64x2, U64x2);
+   pragma Inline_Always (Native_Bit_Cast_F64x2_To_U64x2);
    function Bit_Cast (Value : F64x2) return U64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_F64x2_To_U64x2 (Value));
+   function Native_Bit_Cast_F64x2_To_I64x2 is new Ada.Unchecked_Conversion (F64x2, I64x2);
+   pragma Inline_Always (Native_Bit_Cast_F64x2_To_I64x2);
    function Bit_Cast (Value : F64x2) return I64x2 is
-     (Flyology_SIMD.Bit_Cast (Value));
+     (Native_Bit_Cast_F64x2_To_I64x2 (Value));
    function Native_Widen_Low_U8x16_To_U16x8 is new NEON_Convert_128 (U8x16, U16x8, "uxtl v0.8h, v0.8b");
    function Widen_Low (Value : U8x16) return U16x8 is (Native_Widen_Low_U8x16_To_U16x8 (Value));
    function Native_Widen_High_U8x16_To_U16x8 is new NEON_Convert_128 (U8x16, U16x8, "uxtl2 v0.8h, v0.16b");

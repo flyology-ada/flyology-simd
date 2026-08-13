@@ -34,6 +34,7 @@ unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
 construction_probe_object="$probe_root/construction_codegen_probe.o"
 partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
+bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -62,6 +63,7 @@ disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
 disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
 disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt"
+disassemble "$bit_cast_probe_object" >"$temporary/bit-cast-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -89,6 +91,7 @@ nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
 nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
 nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
+nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
 require_pattern() {
@@ -266,6 +269,18 @@ forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
 forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
   "$temporary/native-undefined.txt" \
   'portable partial-memory call retained in the Native backend object'
+require_count 'flyology_simd__backends__native__bit_cast' 16 \
+  "$temporary/bit-cast-undefined.txt" \
+  'all sixteen Native Bit_Cast calls in the public caller probe'
+forbid_pattern 'flyology_simd__bit_cast' \
+  "$temporary/bit-cast-undefined.txt" \
+  'portable Bit_Cast call in the Native caller probe'
+forbid_pattern 'flyology_simd__bit_cast' \
+  "$temporary/native-undefined.txt" \
+  'portable Bit_Cast call retained in the Native backend object'
+forbid_pattern 'native_bit_cast' \
+  "$temporary/native.txt" \
+  'out-of-line unchecked-conversion helper retained in the Native backend object'
 forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'

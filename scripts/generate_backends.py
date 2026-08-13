@@ -144,6 +144,17 @@ def call(name: str, result: str, args: str, params: str) -> str:
     )
 
 
+def native_bit_cast_body(source: str, target: str) -> list[str]:
+    """Reinterpret one complete private vector without crossing the root API."""
+    helper = f"Native_Bit_Cast_{source}_To_{target}"
+    return [
+        f"   function {helper} is new Ada.Unchecked_Conversion ({source}, {target});",
+        f"   pragma Inline_Always ({helper});",
+        f"   function Bit_Cast (Value : {source}) return {target} is",
+        f"     ({helper} (Value));",
+    ]
+
+
 def native_mask_body(bits: int, lanes: int, storage: str) -> list[str]:
     """Implement compact masks directly without crossing the root API."""
     mask = mask_for(bits, lanes)
@@ -810,7 +821,7 @@ def neon_body() -> str:
     out.append("")
 
     for source_vector, _, target_vector, _ in bit_cast_pairs():
-        out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
+        out += native_bit_cast_body(source_vector, target_vector)
 
     widen_instruction = {
         "U8x16": ("uxtl v0.8h, v0.8b", "uxtl2 v0.8h, v0.16b"),
@@ -2170,7 +2181,7 @@ def x86_body() -> str:
     out.append(call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
-        out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
+        out += native_bit_cast_body(source_vector, target_vector)
     for source_vector, _, target_vector, _, source_bits, _ in WIDENINGS:
         signed = source_vector.startswith("I")
         for name, high in (("Widen_Low", False), ("Widen_High", True)):

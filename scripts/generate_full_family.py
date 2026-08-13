@@ -284,12 +284,10 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Mask_Xor", "Mask_Not", "Test", "Any_True", "All_True",
         "None_True",
         "Is_Aligned_16", "Has_Extent",
-        "Bit_Cast",
     }
     x86_scalar = (
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
-            "Bit_Cast",
         }
     )
     if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
@@ -318,6 +316,13 @@ def native_support_doc(name: str, declaration: str) -> str:
             f"Cross-platform support: The AArch64 and x86-64 backends {action} "
             "with a direct fixed-width Ada loop. A zero count does not "
             "evaluate an element address. They do not call the portable root "
+            "operation. A scalar build uses the portable scalar implementation."
+        )
+    if name == "Bit_Cast":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends "
+            "reinterpret the complete 128-bit private vector value directly "
+            "with Ada.Unchecked_Conversion. They do not call the portable root "
             "operation. A scalar build uses the portable scalar implementation."
         )
     if name == "Zero":

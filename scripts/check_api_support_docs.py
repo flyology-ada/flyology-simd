@@ -118,6 +118,26 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: expected ten exact {operation} "
                     f"direct-partial-memory classifications, found {found}"
                 )
+        bit_cast_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Bit_Cast")[1:]
+        ]
+        bit_cast_phrase = (
+            "reinterpret the complete 128-bit private vector value directly "
+            "with Ada.Unchecked_Conversion"
+        )
+        if (
+            len(bit_cast_blocks) != 16
+            or sum(bit_cast_phrase in block for block in bit_cast_blocks) != 16
+            or sum(
+                "do not call the portable root operation" in block
+                for block in bit_cast_blocks
+            ) != 16
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact Bit_Cast "
+                "direct-reinterpretation classifications"
+            )
         zero_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Zero")[1:]
