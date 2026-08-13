@@ -534,6 +534,30 @@ package body Flyology_SIMD.Backends.Native is
    end SSE2_Unary_128;
 
    generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+   function SSE2_Convert_128 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128 (Value : Source_Type) return Result_Type is
+      Result : Result_Type;
+   begin
+      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
+      return Result;
+   end SSE2_Convert_128;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is
+      Result : Result_Type;
+   begin
+      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Low'Address), System.Address'Asm_Input ("r", High'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
+      return Result;
+   end SSE2_Convert_Pair_128;
+
+   generic
       type Vector_Type is private;
       Lane_Bits : Positive;
       Instruction : String;
@@ -1088,64 +1112,64 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Bit_Cast (Value));
    function Bit_Cast (Value : F64x2) return I64x2 is
      (Flyology_SIMD.Bit_Cast (Value));
-   function Widen_Low (Value : U8x16) return U16x8 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : U8x16) return U16x8 is
-     (Flyology_SIMD.Widen_High (Value));
-   function Widen_Low (Value : I8x16) return I16x8 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : I8x16) return I16x8 is
-     (Flyology_SIMD.Widen_High (Value));
-   function Widen_Low (Value : U16x8) return U32x4 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : U16x8) return U32x4 is
-     (Flyology_SIMD.Widen_High (Value));
-   function Widen_Low (Value : I16x8) return I32x4 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : I16x8) return I32x4 is
-     (Flyology_SIMD.Widen_High (Value));
-   function Widen_Low (Value : U32x4) return U64x2 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : U32x4) return U64x2 is
-     (Flyology_SIMD.Widen_High (Value));
-   function Widen_Low (Value : I32x4) return I64x2 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : I32x4) return I64x2 is
-     (Flyology_SIMD.Widen_High (Value));
+   function Native_Widen_Low_U8x16_To_U16x8 is new SSE2_Convert_128 (U8x16, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm1, %%xmm0");
+   function Widen_Low (Value : U8x16) return U16x8 is (Native_Widen_Low_U8x16_To_U16x8 (Value));
+   function Native_Widen_High_U8x16_To_U16x8 is new SSE2_Convert_128 (U8x16, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm1, %%xmm0");
+   function Widen_High (Value : U8x16) return U16x8 is (Native_Widen_High_U8x16_To_U16x8 (Value));
+   function Native_Widen_Low_I8x16_To_I16x8 is new SSE2_Convert_128 (I8x16, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm1, %%xmm0");
+   function Widen_Low (Value : I8x16) return I16x8 is (Native_Widen_Low_I8x16_To_I16x8 (Value));
+   function Native_Widen_High_I8x16_To_I16x8 is new SSE2_Convert_128 (I8x16, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm1, %%xmm0");
+   function Widen_High (Value : I8x16) return I16x8 is (Native_Widen_High_I8x16_To_I16x8 (Value));
+   function Native_Widen_Low_U16x8_To_U32x4 is new SSE2_Convert_128 (U16x8, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm1, %%xmm0");
+   function Widen_Low (Value : U16x8) return U32x4 is (Native_Widen_Low_U16x8_To_U32x4 (Value));
+   function Native_Widen_High_U16x8_To_U32x4 is new SSE2_Convert_128 (U16x8, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhwd %%xmm1, %%xmm0");
+   function Widen_High (Value : U16x8) return U32x4 is (Native_Widen_High_U16x8_To_U32x4 (Value));
+   function Native_Widen_Low_I16x8_To_I32x4 is new SSE2_Convert_128 (I16x8, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm1, %%xmm0");
+   function Widen_Low (Value : I16x8) return I32x4 is (Native_Widen_Low_I16x8_To_I32x4 (Value));
+   function Native_Widen_High_I16x8_To_I32x4 is new SSE2_Convert_128 (I16x8, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhwd %%xmm1, %%xmm0");
+   function Widen_High (Value : I16x8) return I32x4 is (Native_Widen_High_I16x8_To_I32x4 (Value));
+   function Native_Widen_Low_U32x4_To_U64x2 is new SSE2_Convert_128 (U32x4, U64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckldq %%xmm1, %%xmm0");
+   function Widen_Low (Value : U32x4) return U64x2 is (Native_Widen_Low_U32x4_To_U64x2 (Value));
+   function Native_Widen_High_U32x4_To_U64x2 is new SSE2_Convert_128 (U32x4, U64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhdq %%xmm1, %%xmm0");
+   function Widen_High (Value : U32x4) return U64x2 is (Native_Widen_High_U32x4_To_U64x2 (Value));
+   function Native_Widen_Low_I32x4_To_I64x2 is new SSE2_Convert_128 (I32x4, I64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckldq %%xmm1, %%xmm0");
+   function Widen_Low (Value : I32x4) return I64x2 is (Native_Widen_Low_I32x4_To_I64x2 (Value));
+   function Native_Widen_High_I32x4_To_I64x2 is new SSE2_Convert_128 (I32x4, I64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhdq %%xmm1, %%xmm0");
+   function Widen_High (Value : I32x4) return I64x2 is (Native_Widen_High_I32x4_To_I64x2 (Value));
    function Widen_Low (Value : F32x4) return F64x2 is
      (Flyology_SIMD.Widen_Low (Value));
    function Widen_High (Value : F32x4) return F64x2 is
      (Flyology_SIMD.Widen_High (Value));
-   function Narrow_Truncate (Low, High : U16x8) return U8x16 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : U16x8) return U8x16 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Truncate (Low, High : I16x8) return I8x16 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : I16x8) return I8x16 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Truncate (Low, High : U32x4) return U16x8 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : U32x4) return U16x8 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Truncate (Low, High : I32x4) return I16x8 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : I32x4) return I16x8 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Truncate (Low, High : U64x2) return U32x4 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : U64x2) return U32x4 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Truncate (Low, High : I64x2) return I32x4 is
-     (Flyology_SIMD.Narrow_Truncate (Low, High));
-   function Narrow_Saturate (Low, High : I64x2) return I32x4 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Saturate (Low, High : I16x8) return U8x16 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Saturate (Low, High : I32x4) return U16x8 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
-   function Narrow_Saturate (Low, High : I64x2) return U32x4 is
-     (Flyology_SIMD.Narrow_Saturate (Low, High));
+   function Native_Narrow_Truncate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : U16x8) return U8x16 is (Native_Narrow_Truncate_U16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Saturate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : U16x8) return U8x16 is (Native_Narrow_Saturate_U16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Truncate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128 (I16x8, I8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : I16x8) return I8x16 is (Native_Narrow_Truncate_I16x8_To_I8x16 (Low, High));
+   function Native_Narrow_Saturate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128 (I16x8, I8x16, "packsswb %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I16x8) return I8x16 is (Native_Narrow_Saturate_I16x8_To_I8x16 (Low, High));
+   function Native_Narrow_Truncate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128 (U32x4, U16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : U32x4) return U16x8 is (Native_Narrow_Truncate_U32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Saturate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128 (U32x4, U16x8, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : U32x4) return U16x8 is (Native_Narrow_Saturate_U32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Truncate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128 (I32x4, I16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : I32x4) return I16x8 is (Native_Narrow_Truncate_I32x4_To_I16x8 (Low, High));
+   function Native_Narrow_Saturate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128 (I32x4, I16x8, "packssdw %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I32x4) return I16x8 is (Native_Narrow_Saturate_I32x4_To_I16x8 (Low, High));
+   function Native_Narrow_Truncate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128 (U64x2, U32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : U64x2) return U32x4 is (Native_Narrow_Truncate_U64x2_To_U32x4 (Low, High));
+   function Native_Narrow_Saturate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128 (U64x2, U32x4, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $32, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $32, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : U64x2) return U32x4 is (Native_Narrow_Saturate_U64x2_To_U32x4 (Low, High));
+   function Native_Narrow_Truncate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128 (I64x2, I32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Truncate (Low, High : I64x2) return I32x4 is (Native_Narrow_Truncate_I64x2_To_I32x4 (Low, High));
+   function Native_Narrow_Saturate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128 (I64x2, I32x4, "pcmpeqd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I64x2) return I32x4 is (Native_Narrow_Saturate_I64x2_To_I32x4 (Low, High));
+   function Native_Narrow_Saturate_I16x8_To_U8x16 is new SSE2_Convert_Pair_128 (I16x8, U8x16, "packuswb %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I16x8) return U8x16 is (Native_Narrow_Saturate_I16x8_To_U8x16 (Low, High));
+   function Native_Narrow_Saturate_I32x4_To_U16x8 is new SSE2_Convert_Pair_128 (I32x4, U16x8, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I32x4) return U16x8 is (Native_Narrow_Saturate_I32x4_To_U16x8 (Low, High));
+   function Native_Narrow_Saturate_I64x2_To_U32x4 is new SSE2_Convert_Pair_128 (I64x2, U32x4, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Narrow_Saturate (Low, High : I64x2) return U32x4 is (Native_Narrow_Saturate_I64x2_To_U32x4 (Low, High));
    function Narrow_Round (Low, High : F64x2) return F32x4 is
      (Flyology_SIMD.Narrow_Round (Low, High));
    function Convert_Round (Value : I32x4) return F32x4 is

@@ -448,162 +448,162 @@ is
 
    function Widen_Low (Value : U8x16) return U16x8;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U8x16) return U16x8;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I8x16) return I16x8;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I8x16) return I16x8;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : U16x8) return U32x4;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U16x8) return U32x4;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I16x8) return I32x4;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I16x8) return I32x4;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : U32x4) return U64x2;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U32x4) return U64x2;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I32x4) return I64x2;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I32x4) return I64x2;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : F32x4) return F64x2;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON fcvtl floating conversion instruction. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : F32x4) return F64x2;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON fcvtl2 floating conversion instruction. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 
    function Narrow_Truncate (Low, High : U16x8) return U8x16;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U16x8) return U8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I16x8) return I8x16;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I16x8) return I8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : U32x4) return U16x8;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U32x4) return U16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I32x4) return I16x8;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I32x4) return I16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : U64x2) return U32x4;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U64x2) return U32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I64x2) return I32x4;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I64x2) return I32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I16x8) return U8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I32x4) return U16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I64x2) return U32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.

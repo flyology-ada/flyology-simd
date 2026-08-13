@@ -214,8 +214,10 @@ Wide scalar implementation for these operations.
 The AArch64 backend lowers 128-bit and Wide lane movement, widening, narrowing,
 mask compression, mask expansion, and numeric conversion through verified NEON
 assembly subprograms. The x86-64 SSE2 backend uses immediate byte-shift leaves
-for 128-bit lane slides and currently composes these conversion operations with
-the scalar implementation.
+for 128-bit lane slides. It uses unpack-and-extension sequences for integer
+widening and shuffle, clamp, and pack sequences for integer narrowing. It
+currently composes floating widening, floating narrowing, and numeric
+conversion operations with the scalar implementation.
 It also composes 128-bit and Wide variable lane permutation, mask compression,
 and mask expansion because SSE2 has no indexed-byte table instruction.
 This preserves the contract but does not claim an SSE2 instruction sequence

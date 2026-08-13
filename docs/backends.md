@@ -73,9 +73,12 @@ Minimum and maximum reductions use packed minimum or maximum where SSE2 has
 the lane operation, and comparison plus bit selection otherwise. Floating
 `Min_Number`, `Max_Number`, and `Reduce_Add` use scalar composition. Floating
 minimum-number and maximum-number reductions also use scalar composition. The
-current bit casts, widening, narrowing, and numeric conversion operations use
-scalar composition on x86-64. These operations are implemented and
-differentially tested, but they do not yet have an SSE2 code-generation claim.
+integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
+overloads use SSE2 unpack, shuffle, clamp, and pack sequences. The current bit
+casts, floating widening and narrowing, and numeric conversion operations use
+scalar composition on x86-64. These scalar-composed operations are implemented
+and differentially tested, but they do not yet have an SSE2 code-generation
+claim.
 The x86-64 byte-table lookup and one-source or two-source variable lane
 permutations use scalar composition because SSE2 has no equivalent indexed
 byte-table instruction. Mask compression and expansion also use scalar

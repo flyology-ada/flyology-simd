@@ -290,14 +290,14 @@ def native_support_doc(name: str, declaration: str) -> str:
     x86_scalar = (
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
-            "Bit_Cast", "Widen_Low", "Widen_High", "Narrow_Truncate",
-            "Narrow_Saturate", "Narrow_Round", "Convert_Round",
+            "Bit_Cast", "Narrow_Round", "Convert_Round",
             "Convert_Truncate_Saturate", "Convert_Saturate",
             "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
         or (name in {"Add_Saturate", "Subtract_Saturate"}
             and ("32x4" in declaration or "64x2" in declaration))
+        or (name in {"Widen_Low", "Widen_High"} and "F32x4" in declaration)
     )
     if name in fixed_ada:
         return (
@@ -320,6 +320,23 @@ def native_support_doc(name: str, declaration: str) -> str:
             x86 = f"a dedicated SSE2 packed {result} reduction over fixed shuffles"
         else:
             x86 = f"a dedicated SSE2 comparison-and-selection {result} reduction over fixed shuffles"
+    elif name in {"Widen_Low", "Widen_High"}:
+        aarch = (
+            f"a dedicated NEON {'fcvtl' if name == 'Widen_Low' else 'fcvtl2'} floating conversion instruction"
+            if "F32x4" in declaration
+            else "a dedicated NEON instruction that extends the selected lanes"
+        )
+        x86 = (
+            "scalar composition"
+            if "F32x4" in declaration
+            else "a dedicated SSE2 sequence that unpacks and extends the selected lanes"
+        )
+    elif name == "Narrow_Truncate":
+        aarch = "a dedicated NEON instruction sequence that narrows the lanes"
+        x86 = "a dedicated SSE2 sequence that selects the low bits and packs the result lanes"
+    elif name == "Narrow_Saturate":
+        aarch = "a dedicated NEON instruction sequence that narrows with saturation"
+        x86 = "a dedicated SSE2 sequence that clamps and packs the result lanes"
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"

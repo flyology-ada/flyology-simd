@@ -1050,6 +1050,30 @@ def x86_helpers() -> list[str]:
         "   end SSE2_Unary_128;",
         "",
         "   generic",
+        "      type Source_Type is private;",
+        "      type Result_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Convert_128 (Value : Source_Type) return Result_Type;",
+        "   function SSE2_Convert_128 (Value : Source_Type) return Result_Type is",
+        "      Result : Result_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Convert_128;",
+        "",
+        "   generic",
+        "      type Source_Type is private;",
+        "      type Result_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;",
+        "   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is",
+        "      Result : Result_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Low'Address), System.Address'Asm_Input (\"r\", High'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Convert_Pair_128;",
+        "",
+        "   generic",
         "      type Vector_Type is private;",
         "      Lane_Bits : Positive;",
         "      Instruction : String;",
@@ -1210,11 +1234,152 @@ def x86_reduce_store(bits: int) -> str:
     }[bits]
 
 
+def x86_widen_instruction(bits: int, signed: bool, high: bool) -> str:
+    """Return one SSE2 sign- or zero-extension sequence."""
+    compare = {8: "pcmpgtb", 16: "pcmpgtw", 32: "pcmpgtd"}[bits]
+    unpack = {
+        8: "punpckhbw" if high else "punpcklbw",
+        16: "punpckhwd" if high else "punpcklwd",
+        32: "punpckhdq" if high else "punpckldq",
+    }[bits]
+    lines = ["pxor %%xmm1, %%xmm1"]
+    if signed:
+        lines.append(f"{compare} %%xmm0, %%xmm1")
+    lines.append(f"{unpack} %%xmm1, %%xmm0")
+    return "\n".join(lines)
+
+
+def x86_truncate_instruction(target_bits: int) -> str:
+    """Keep the low half of every source lane and concatenate both inputs."""
+    if target_bits == 8:
+        return (
+            "pcmpeqd %%xmm2, %%xmm2\npsrlw $8, %%xmm2\n"
+            "pand %%xmm2, %%xmm0\npand %%xmm2, %%xmm1\n"
+            "packuswb %%xmm1, %%xmm0"
+        )
+    if target_bits == 16:
+        return (
+            "pshuflw $0x88, %%xmm0, %%xmm0\n"
+            "pshufhw $0x88, %%xmm0, %%xmm0\n"
+            "pshufd $0x88, %%xmm0, %%xmm0\n"
+            "pshuflw $0x88, %%xmm1, %%xmm1\n"
+            "pshufhw $0x88, %%xmm1, %%xmm1\n"
+            "pshufd $0x88, %%xmm1, %%xmm1\n"
+            "punpcklqdq %%xmm1, %%xmm0"
+        )
+    return (
+        "pshufd $0x88, %%xmm0, %%xmm0\n"
+        "pshufd $0x88, %%xmm1, %%xmm1\n"
+        "punpcklqdq %%xmm1, %%xmm0"
+    )
+
+
+def x86_clamp_unsigned_instruction(target_bits: int) -> str:
+    """Clamp unsigned source lanes to the unsigned result range."""
+    if target_bits == 8:
+        lines = [
+            "pxor %%xmm7, %%xmm7",
+            "pcmpeqd %%xmm6, %%xmm6",
+            "psrlw $8, %%xmm6",
+        ]
+        for register, scratch in (("%%xmm0", "%%xmm2"), ("%%xmm1", "%%xmm3")):
+            lines += [
+                f"movdqa {register}, {scratch}",
+                f"psrlw $8, {scratch}",
+                f"pcmpeqw %%xmm7, {scratch}",
+                f"pand {scratch}, {register}",
+                f"pandn %%xmm6, {scratch}",
+                f"por {scratch}, {register}",
+            ]
+        return "\n".join(lines) + "\npackuswb %%xmm1, %%xmm0"
+    shift = target_bits
+    lines = [
+        "pxor %%xmm7, %%xmm7",
+        "pcmpeqd %%xmm6, %%xmm6",
+        f"psrld ${shift}, %%xmm6" if target_bits == 16 else "",
+    ]
+    for register, scratch in (("%%xmm0", "%%xmm2"), ("%%xmm1", "%%xmm3")):
+        lines += [
+            f"movdqa {register}, {scratch}",
+            f"psrl{'d' if target_bits == 16 else 'q'} ${shift}, {scratch}",
+            f"pcmpeq{'d' if target_bits == 16 else 'q'} %%xmm7, {scratch}"
+            if target_bits == 16
+            else f"pshufd $0xA0, {scratch}, {scratch}\npcmpeqd %%xmm7, {scratch}",
+            f"pand {scratch}, {register}",
+            f"pandn %%xmm6, {scratch}",
+            f"por {scratch}, {register}",
+        ]
+    return "\n".join(line for line in lines if line) + "\n" + x86_truncate_instruction(target_bits)
+
+
+def x86_clamp_signed_to_unsigned_instruction(target_bits: int) -> str:
+    """Clamp signed source lanes to zero through the unsigned result maximum."""
+    if target_bits == 8:
+        return "packuswb %%xmm1, %%xmm0"
+    if target_bits == 16:
+        lines = [
+            "pxor %%xmm7, %%xmm7",
+            "pcmpeqd %%xmm6, %%xmm6",
+            "psrld $16, %%xmm6",
+        ]
+        for register in ("%%xmm0", "%%xmm1"):
+            lines += [
+                "movdqa %%xmm7, %%xmm2",
+                f"pcmpgtd {register}, %%xmm2",
+                f"pandn {register}, %%xmm2",
+                "movdqa %%xmm2, %%xmm3",
+                "pcmpgtd %%xmm6, %%xmm3",
+                "movdqa %%xmm3, %%xmm4",
+                "pand %%xmm6, %%xmm4",
+                "pandn %%xmm2, %%xmm3",
+                "por %%xmm4, %%xmm3",
+                f"movdqa %%xmm3, {register}",
+            ]
+        return "\n".join(lines) + "\n" + x86_truncate_instruction(target_bits)
+    lines = ["pxor %%xmm7, %%xmm7", "pcmpeqd %%xmm6, %%xmm6"]
+    for register in ("%%xmm0", "%%xmm1"):
+        lines += [
+            f"movdqa {register}, %%xmm2",
+            "pshufd $0xF5, %%xmm2, %%xmm2",
+            "movdqa %%xmm2, %%xmm3",
+            "psrad $31, %%xmm3",
+            "pcmpeqd %%xmm7, %%xmm2",
+            f"pand %%xmm2, {register}",
+            "por %%xmm3, %%xmm2",
+            "pandn %%xmm6, %%xmm2",
+            f"por %%xmm2, {register}",
+        ]
+    return "\n".join(lines) + "\n" + x86_truncate_instruction(target_bits)
+
+
+def x86_clamp_signed_instruction(target_bits: int) -> str:
+    """Clamp signed source lanes to the signed result range."""
+    if target_bits == 8:
+        return "packsswb %%xmm1, %%xmm0"
+    if target_bits == 16:
+        return "packssdw %%xmm1, %%xmm0"
+    lines = ["pcmpeqd %%xmm5, %%xmm5", "psrld $1, %%xmm5"]
+    for register in ("%%xmm0", "%%xmm1"):
+        lines += [
+            f"movdqa {register}, %%xmm2",
+            "pshufd $0xF5, %%xmm2, %%xmm2",
+            f"movdqa {register}, %%xmm3",
+            "pshufd $0xA0, %%xmm3, %%xmm3",
+            "psrad $31, %%xmm3",
+            "pcmpeqd %%xmm3, %%xmm2",
+            f"movdqa {register}, %%xmm3",
+            "pshufd $0xF5, %%xmm3, %%xmm3",
+            "psrad $31, %%xmm3",
+            "pxor %%xmm5, %%xmm3",
+            f"pand %%xmm2, {register}",
+            "pandn %%xmm3, %%xmm2",
+            f"por %%xmm2, {register}",
+        ]
+    return "\n".join(lines) + "\n" + x86_truncate_instruction(target_bits)
+
+
 def x86_body() -> str:
     out = x86_helpers()
-    # The first conversion release keeps the x86-64 SSE2 backend complete by
-    # composing the scalar authority.  AArch64 has direct widening/narrowing
-    # leaves below; focused SSE2 lowering is the next backend optimization.
     out.append(call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"))
     out.append(call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"))
     out.append(call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"))
@@ -1223,23 +1388,47 @@ def x86_body() -> str:
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
-    for source_vector, _, target_vector, _, _, _ in WIDENINGS:
-        out += [
-            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
-            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
-        ]
+    for source_vector, _, target_vector, _, source_bits, _ in WIDENINGS:
+        signed = source_vector.startswith("I")
+        for name, high in (("Widen_Low", False), ("Widen_High", True)):
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            instruction = x86_ada_instruction(
+                x86_widen_instruction(source_bits, signed, high)
+            )
+            out += [
+                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
     for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
         out += [
             call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
             call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
         ]
-    for source_vector, _, target_vector, _, _, _, _ in NARROWINGS:
+    for source_vector, _, target_vector, _, target_bits, _, signed in NARROWINGS:
+        instructions = {
+            "Narrow_Truncate": x86_truncate_instruction(target_bits),
+            "Narrow_Saturate": (
+                x86_clamp_signed_instruction(target_bits)
+                if signed
+                else x86_clamp_unsigned_instruction(target_bits)
+            ),
+        }
+        for name, raw_instruction in instructions.items():
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            instruction = x86_ada_instruction(raw_instruction)
+            out += [
+                f"   function {native} is new SSE2_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+            ]
+    for source_vector, _, target_vector, _, target_bits, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
+        native = f"Native_Narrow_Saturate_{source_vector}_To_{target_vector}"
+        instruction = x86_ada_instruction(
+            x86_clamp_signed_to_unsigned_instruction(target_bits)
+        )
         out += [
-            call("Narrow_Truncate", target_vector, "Low, High", f"Low, High : {source_vector}"),
-            call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"),
+            f"   function {native} is new SSE2_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
         ]
-    for source_vector, _, target_vector, _, _, _, _ in SIGNED_TO_UNSIGNED_NARROWINGS:
-        out.append(call("Narrow_Saturate", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
         out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
     for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:

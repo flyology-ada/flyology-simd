@@ -563,6 +563,51 @@ i32  __6 paddd 2 compare_select
 u64  __7 paddq 1 compare_select
 i64  __8 paddq 1 compare_select
 EOF
+        while read -r operation source target instructions; do
+            symbol="flyology_simd__backends__native__${operation}"
+            extract_symbol "$symbol" "$temporary/native.txt" \
+              "$temporary/conversion_${operation}_${source}_${target}.txt"
+            old_ifs=$IFS
+            IFS=,
+            set -- $instructions
+            IFS=$old_ifs
+            for instruction in "$@"; do
+                require_pattern "$instruction" \
+                  "$temporary/conversion_${operation}_${source}_${target}.txt" \
+                  "SSE2 ${operation} ${source} to ${target} lowering"
+            done
+            forbid_pattern '(^|[[:space:]])call|flyology_simd__(widen|narrow)' \
+              "$temporary/conversion_${operation}_${source}_${target}.txt" \
+              "scalar or out-of-line helper in ${operation} ${source} to ${target}"
+        done <<'EOF'
+widen_low             u8x16  u16x8  punpcklbw
+widen_high            u8x16  u16x8  punpckhbw
+widen_low__2          i8x16  i16x8  pcmpgtb,punpcklbw
+widen_high__2         i8x16  i16x8  pcmpgtb,punpckhbw
+widen_low__3          u16x8  u32x4  punpcklwd
+widen_high__3         u16x8  u32x4  punpckhwd
+widen_low__4          i16x8  i32x4  pcmpgtw,punpcklwd
+widen_high__4         i16x8  i32x4  pcmpgtw,punpckhwd
+widen_low__5          u32x4  u64x2  punpckldq
+widen_high__5         u32x4  u64x2  punpckhdq
+widen_low__6          i32x4  i64x2  pcmpgtd,punpckldq
+widen_high__6         i32x4  i64x2  pcmpgtd,punpckhdq
+narrow_truncate       u16x8  u8x16  packuswb
+narrow_saturate       u16x8  u8x16  psrlw,pcmpeqw,pandn,packuswb
+narrow_truncate__2    i16x8  i8x16  packuswb
+narrow_saturate__2    i16x8  i8x16  packsswb
+narrow_truncate__3    u32x4  u16x8  pshuflw,pshufhw,pshufd,punpcklqdq
+narrow_saturate__3    u32x4  u16x8  psrld,pcmpeqd,pandn,punpcklqdq
+narrow_truncate__4    i32x4  i16x8  pshuflw,pshufhw,pshufd,punpcklqdq
+narrow_saturate__4    i32x4  i16x8  packssdw
+narrow_truncate__5    u64x2  u32x4  pshufd,punpcklqdq
+narrow_saturate__5    u64x2  u32x4  psrlq,pcmpeqd,pandn,pshufd,punpcklqdq
+narrow_truncate__6    i64x2  i32x4  pshufd,punpcklqdq
+narrow_saturate__6    i64x2  i32x4  psrad,pcmpeqd,pandn,pshufd,punpcklqdq
+narrow_saturate__7    i16x8  u8x16  packuswb
+narrow_saturate__8    i32x4  u16x8  pcmpgtd,pandn,pshufd,punpcklqdq
+narrow_saturate__9    i64x2  u32x4  psrad,pcmpeqd,pandn,pshufd,punpcklqdq
+EOF
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'
