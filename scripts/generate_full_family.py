@@ -285,11 +285,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         "None_True",
         "Is_Aligned_16", "Has_Extent",
     }
-    x86_scalar = (
-        name in {
-            "Permute_Lanes", "Compress", "Expand",
-        }
-    )
+    x86_scalar = name in {"Compress", "Expand"}
     if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
         action = {
             "From_Lanes": "copy the supplied lane array into private vector storage",
@@ -686,6 +682,16 @@ def native_support_doc(name: str, declaration: str) -> str:
         aarch = "a dedicated NEON instruction that converts the integer lanes to floating-point lanes"
         x86 = (
             "scalar composition"
+        )
+    elif name == "Permute_Lanes":
+        aarch = (
+            "a dedicated NEON tbl sequence that selects complete lane byte "
+            "groups through the reusable map"
+        )
+        x86 = (
+            "a dedicated SSE2 sequence that compares every byte selector "
+            "with each valid source position, broadcasts matching source "
+            "bytes, and merges them into the result"
         )
     else:
         aarch = "a dedicated NEON implementation"

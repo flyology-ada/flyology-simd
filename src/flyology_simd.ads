@@ -263,14 +263,14 @@ is
    function Permute_Lanes
      (Value : U8x16; Map : Lane_Map_8x16) return U8x16;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes
      (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -1193,13 +1193,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I8x16; Map : Two_Source_Lane_Map_8x16) return I8x16;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -1486,13 +1486,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U16x8; Map : Two_Source_Lane_Map_16x8) return U16x8;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -1785,13 +1785,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I16x8; Map : Two_Source_Lane_Map_16x8) return I16x8;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -2078,13 +2078,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U32x4; Map : Two_Source_Lane_Map_32x4) return U32x4;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -2377,13 +2377,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I32x4; Map : Two_Source_Lane_Map_32x4) return I32x4;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -2670,13 +2670,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : U64x2; Map : Two_Source_Lane_Map_64x2) return U64x2;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -2969,13 +2969,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : I64x2; Map : Two_Source_Lane_Map_64x2) return I64x2;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -3227,13 +3227,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : F32x4; Map : Two_Source_Lane_Map_32x4) return F32x4;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.
@@ -3486,13 +3486,13 @@ is
    --  @return The operation result.
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Map The reusable lane map.
    --  @return The operation result.
    function Permute_Lanes (Left, Right : F64x2; Map : Two_Source_Lane_Map_64x2) return F64x2;
    --  Select each result lane from the left or right vector through a reusable two-source lane map. Moved lanes keep their complete bit encoding.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON tbl sequence that selects complete lane byte groups through the reusable map. The x86-64 backend uses a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @param Map The reusable lane map.

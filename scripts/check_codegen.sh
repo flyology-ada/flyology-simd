@@ -100,6 +100,7 @@ nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
 nm -u "$alignment_probe_object" >"$temporary/alignment-undefined.txt"
 nm -u "$table_lookup_probe_object" >"$temporary/table-lookup-undefined.txt"
+nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
@@ -617,7 +618,7 @@ case "$architecture" in
             done
         done
         forbid_pattern 'flyology_simd__backends__native__(compress|expand)' "$temporary/permute-probe.txt" 'compression backend call in caller probe'
-        for lane_kind in u8 u16 f32 f64; do
+        for lane_kind in u8 i8 u16 i16 u32 i32 f32 u64 i64 f64; do
             extract_symbol "permute_codegen_probe__${lane_kind}_permute" "$temporary/permute-probe.txt" "$temporary/permute_${lane_kind}.txt"
             require_pattern 'tbl.*16b' "$temporary/permute_${lane_kind}.txt" "NEON ${lane_kind} public lane permutation"
             extract_symbol "permute_codegen_probe__${lane_kind}_permute_2" "$temporary/permute-probe.txt" "$temporary/permute_2_${lane_kind}.txt"
@@ -1283,6 +1284,66 @@ EOF
           "$temporary/table_lookup.txt" 'SSE2 byte increment construction'
         forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__table_lookup' \
           "$temporary/table_lookup.txt" 'portable or out-of-line x86-64 Table_Lookup helper'
+        for lane_shape in u8x16 i8x16 u16x8 i16x8 u32x4 i32x4 f32x4 u64x2 i64x2 f64x2; do
+            lane_kind=${lane_shape%x*}
+            extract_symbol "native_permute_${lane_shape}" \
+              "$temporary/native.txt" "$temporary/permute_${lane_kind}.txt"
+            require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 16 \
+              "$temporary/permute_${lane_kind}.txt" \
+              "sixteen SSE2 selector comparisons in ${lane_kind} one-source permutation"
+            require_count '(^|[[:space:]])paddb[[:space:]]' 16 \
+              "$temporary/permute_${lane_kind}.txt" \
+              "sixteen SSE2 selector increments in ${lane_kind} one-source permutation"
+            for instruction in punpcklbw punpcklwd pshufd pand por; do
+                require_count "(^|[[:space:]])${instruction}[[:space:]]" 16 \
+                  "$temporary/permute_${lane_kind}.txt" \
+                  "sixteen SSE2 ${instruction} stages in ${lane_kind} one-source permutation"
+            done
+            require_count '(^|[[:space:]])pxor[[:space:]]' 2 \
+              "$temporary/permute_${lane_kind}.txt" \
+              "SSE2 result and selector zero initialization in ${lane_kind} one-source permutation"
+            for instruction in pcmpeqd psrlw packuswb; do
+                require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 \
+                  "$temporary/permute_${lane_kind}.txt" \
+                  "SSE2 selector increment construction in ${lane_kind} one-source permutation"
+            done
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__permute_lanes' \
+              "$temporary/permute_${lane_kind}.txt" \
+              "portable or out-of-line ${lane_kind} one-source permutation"
+            extract_symbol "native_permute_2_${lane_shape}" \
+              "$temporary/native.txt" "$temporary/permute_2_${lane_kind}.txt"
+            require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 32 \
+              "$temporary/permute_2_${lane_kind}.txt" \
+              "thirty-two SSE2 selector comparisons in ${lane_kind} two-source permutation"
+            require_count '(^|[[:space:]])paddb[[:space:]]' 32 \
+              "$temporary/permute_2_${lane_kind}.txt" \
+              "thirty-two SSE2 selector increments in ${lane_kind} two-source permutation"
+            for instruction in punpcklbw punpcklwd pshufd pand por; do
+                require_count "(^|[[:space:]])${instruction}[[:space:]]" 32 \
+                  "$temporary/permute_2_${lane_kind}.txt" \
+                  "thirty-two SSE2 ${instruction} stages in ${lane_kind} two-source permutation"
+            done
+            require_count '(^|[[:space:]])pxor[[:space:]]' 2 \
+              "$temporary/permute_2_${lane_kind}.txt" \
+              "SSE2 result and selector zero initialization in ${lane_kind} two-source permutation"
+            for instruction in pcmpeqd psrlw packuswb; do
+                require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 \
+                  "$temporary/permute_2_${lane_kind}.txt" \
+                  "SSE2 selector increment construction in ${lane_kind} two-source permutation"
+            done
+            forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__permute_lanes' \
+              "$temporary/permute_2_${lane_kind}.txt" \
+              "portable or out-of-line ${lane_kind} two-source permutation"
+        done
+        require_count 'flyology_simd__backends__native__native_permute_[a-z0-9]+$' 10 \
+          "$temporary/permute-undefined.txt" \
+          'all ten one-source Native permutation leaves in caller probes'
+        require_count 'flyology_simd__backends__native__native_permute_2_[a-z0-9]+$' 10 \
+          "$temporary/permute-undefined.txt" \
+          'all ten two-source Native permutation leaves in caller probes'
+        forbid_pattern 'flyology_simd__backends__native__permute_lanes|flyology_simd__permute_lanes' \
+          "$temporary/permute-undefined.txt" \
+          'Native dispatcher or portable permutation retained in x86 caller probes'
         for direction in low high; do
             instruction=psrldq
             if [ "$direction" = high ]; then instruction=pslldq; fi

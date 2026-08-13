@@ -762,16 +762,29 @@ procedure SIMD_Tests is
                   "native independent table lookup lane" & Lane'Image);
                Check
                  (Extract (Permute_Lanes (A, Map), Lane) =
-                    Extract (A, Selectors (Lane)),
-                  "randomized independent lane permutation" & Lane'Image);
+                    Extract (A, Selectors (Lane))
+                  and then Flyology_SIMD.Backends.Native.Extract
+                    (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
+                     Lane) = Extract (A, Selectors (Lane)),
+                  "randomized independent scalar and native lane permutation" &
+                    Lane'Image);
                Check
                  (Extract (Permute_Lanes (A, B, Two_Source_Map), Lane) =
                     Extract
                       ((if (Iteration + Lane) mod 2 = 0
                         then A else B),
                        Lane_Index_8x16
+                         ((Iteration * 3 + Lane * 5) mod 16))
+                  and then Flyology_SIMD.Backends.Native.Extract
+                    (Flyology_SIMD.Backends.Native.Permute_Lanes
+                       (A, B, Two_Source_Map),
+                     Lane) =
+                    Extract
+                      ((if (Iteration + Lane) mod 2 = 0
+                        then A else B),
+                       Lane_Index_8x16
                          ((Iteration * 3 + Lane * 5) mod 16)),
-                  "varied independent two-source lane permutation" &
+                  "varied independent scalar and native two-source lane permutation" &
                     Lane'Image);
                Check (Extract (Subtract_Wrap (A, B), Lane) =
                         Extract (A, Lane) - Extract (B, Lane),

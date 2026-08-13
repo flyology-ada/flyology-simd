@@ -426,6 +426,25 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact Table_Lookup "
                 "target classification"
             )
+        permute_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Permute_Lanes")[1:]
+        ]
+        if (
+            len(permute_blocks) != 20
+            or any(
+                "NEON tbl sequence" not in block
+                or "selects complete lane byte groups" not in block
+                or "compares every byte selector with each valid source position" not in block
+                or "broadcasts matching source bytes" not in block
+                or "merges them into the result" not in block
+                for block in permute_blocks
+            )
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact all-family "
+                "Permute_Lanes target classifications"
+            )
         shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]

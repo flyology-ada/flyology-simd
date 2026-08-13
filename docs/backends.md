@@ -239,9 +239,14 @@ sequence. The sequence compares each index with all 16 valid table positions.
 For each position, it broadcasts the corresponding table byte, masks the byte
 with the comparison result, and merges the match into an initially zero result.
 An index above 15 matches no position, so its result lane remains zero.
-One-source and two-source variable lane permutations use scalar composition
-because SSE2 has no equivalent indexed byte-table instruction. Mask compression
-and expansion also use scalar composition on x86-64.
+The x86-64 backend implements both `Permute_Lanes` overloads with dedicated
+SSE2 sequences for all ten value types. Each private lane map is a 16-byte
+selector vector. The one-source sequence compares the selectors with 16 source
+byte positions. The two-source sequence compares them with 32 byte positions
+from `Left` followed by `Right`. Each step broadcasts a matching source byte,
+masks it, and merges it into an initially zero result. The sequence moves every
+byte of a selected lane and preserves its complete bit encoding. Mask
+compression and expansion still use scalar composition on x86-64.
 
 The table-lookup tests exhaustively cover index values from zero through 255.
 Deterministic pseudorandom cases compare every scalar and Native result lane
@@ -251,6 +256,14 @@ the AArch64 `tbl` instruction or all 16 x86-64 comparison, broadcast, mask, and
 merge steps. The x86-64 gate also requires zero initialization. Both
 exact-symbol gates reject portable and out-of-line lookup calls. The
 Native-object gate rejects a retained portable lookup call.
+The permutation tests apply independent lane oracles directly to scalar and
+Native results. They cover fixed, default, broadcast, and special floating
+encodings. Each value type also uses 250 pseudorandom one-source maps and
+varied deterministic two-source maps. The x86-64 caller-relocation gate
+requires all 20 Native leaves and rejects dispatcher and portable-root calls. Exact-symbol gates
+require 16 or 32 comparison and selector-increment stages, as applicable, and
+reject calls. AArch64 gates cover all ten value types and require one-register
+or two-register `tbl`.
 AVX2 is a separate object configuration:
 its availability gate checks AVX and OSXSAVE, verifies XCR0 enables XMM/YMM
 state, and then checks CPUID leaf 7 AVX2.  The immutable result is computed once

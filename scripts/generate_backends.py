@@ -1237,6 +1237,30 @@ def x86_helpers() -> list[str]:
         "",
         "   generic",
         "      type Vector_Type is private;",
+        "      type Map_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type;",
+        "   function SSE2_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Map'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Permute_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Map_Type is private;",
+        "      Instruction : String;",
+        "   function SSE2_Permute_2_128 (Left, Right : Vector_Type; Map : Map_Type) return Vector_Type;",
+        "   function SSE2_Permute_2_128 (Left, Right : Vector_Type; Map : Map_Type) return Vector_Type is",
+        "      Result : Vector_Type;",
+        "   begin",
+        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & \"movdqu (%3), %%xmm2\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address), System.Address'Asm_Input (\"r\", Map'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      return Result;",
+        "   end SSE2_Permute_2_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
         "      Instruction : String;",
         "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type;",
         "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type is",
@@ -2186,33 +2210,50 @@ def x86_convert_truncate_saturate_f32_instruction(signed_target: bool) -> str:
 
 def x86_body() -> str:
     out = x86_helpers()
-    lookup_steps = [
-        "pxor %%xmm2, %%xmm2",
-        "pxor %%xmm3, %%xmm3",
-        "pcmpeqd %%xmm6, %%xmm6",
-        "psrlw $15, %%xmm6",
-        "packuswb %%xmm6, %%xmm6",
-    ]
-    for lane in range(16):
-        lookup_steps += [
-            "movdqa %%xmm0, %%xmm4",
-            *([f"psrldq ${lane}, %%xmm4"] if lane else []),
-            "punpcklbw %%xmm4, %%xmm4",
-            "punpcklwd %%xmm4, %%xmm4",
-            "pshufd $0, %%xmm4, %%xmm4",
-            "movdqa %%xmm1, %%xmm5",
-            "pcmpeqb %%xmm3, %%xmm5",
-            "pand %%xmm5, %%xmm4",
-            "por %%xmm4, %%xmm2",
-            "paddb %%xmm6, %%xmm3",
+    def select_steps(sources: list[str], selector: str) -> list[str]:
+        steps = [
+            "pxor %%xmm3, %%xmm3",
+            "pxor %%xmm4, %%xmm4",
+            "pcmpeqd %%xmm7, %%xmm7",
+            "psrlw $15, %%xmm7",
+            "packuswb %%xmm7, %%xmm7",
         ]
-    lookup_steps.append("movdqa %%xmm2, %%xmm0")
+        for lane, source in enumerate(sources):
+            steps += [
+                f"movdqa {source}, %%xmm5",
+                *([f"psrldq ${lane % 16}, %%xmm5"] if lane % 16 else []),
+                "punpcklbw %%xmm5, %%xmm5",
+                "punpcklwd %%xmm5, %%xmm5",
+                "pshufd $0, %%xmm5, %%xmm5",
+                f"movdqa {selector}, %%xmm6",
+                "pcmpeqb %%xmm4, %%xmm6",
+                "pand %%xmm6, %%xmm5",
+                "por %%xmm5, %%xmm3",
+                "paddb %%xmm7, %%xmm4",
+            ]
+        steps.append("movdqa %%xmm3, %%xmm0")
+        return steps
+
+    lookup_steps = select_steps(["%%xmm0"] * 16, "%%xmm1")
+    permute_steps = select_steps(["%%xmm0"] * 16, "%%xmm1")
+    permute_2_steps = select_steps(
+        ["%%xmm0"] * 16 + ["%%xmm1"] * 16, "%%xmm2"
+    )
     out += [
         f"   function Native_Table_Lookup_U8x16 is new SSE2_Binary_128 (U8x16, \"{x86_ada_instruction(chr(10).join(lookup_steps))}\");",
         "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
     ]
-    out.append(call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"))
-    out.append(call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"))
+    def native_permute(vector: str, bits: int, lanes: int) -> list[str]:
+        mapping = lane_map(bits, lanes)
+        two_mapping = two_source_lane_map(bits, lanes)
+        return [
+            f"   function Native_Permute_{vector} is new SSE2_Permute_128 ({vector}, {mapping}, \"{x86_ada_instruction(chr(10).join(permute_steps))}\");",
+            f"   function Permute_Lanes (Value : {vector}; Map : {mapping}) return {vector} is (Native_Permute_{vector} (Value, Map));",
+            f"   function Native_Permute_2_{vector} is new SSE2_Permute_2_128 ({vector}, {two_mapping}, \"{x86_ada_instruction(chr(10).join(permute_2_steps))}\");",
+            f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_mapping}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
+        ]
+
+    out += native_permute("U8x16", 8, 16)
     out.append(call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
     out.append(call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"))
     out += native_lane_slides("x86_64")
@@ -2459,11 +2500,10 @@ def x86_body() -> str:
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
-            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
-            call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
             call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
+        out += native_permute(vector, bits, lanes)
         out += [
             f"   function Native_SHL_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_left[bits])}\");",
             f"   function Native_SHR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_right[bits])}\");",
@@ -2570,8 +2610,6 @@ def x86_body() -> str:
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), {weights}, If_True, If_False));",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
-            call("Permute_Lanes", vector, "Value, Map", f"Value : {vector}; Map : {lane_map(bits, lanes)}"),
-            call("Permute_Lanes", vector, "Left, Right, Map", f"Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}"),
             call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             f"   function Native_Min_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{min_instruction}\");",
@@ -2585,6 +2623,7 @@ def x86_body() -> str:
             f"   function Native_Reduce_Max_Number_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_max_instruction}\", \"{reduce_store}\");",
             f"   function Reduce_Max_Number (Value : {vector}) return {scalar} is (Native_Reduce_Max_Number_{vector} (Value));",
         ]
+        out += native_permute(vector, bits, lanes)
         out += x86_memory_body(vector, arr, count)
 
     for bits, lanes, storage in MASKS:
@@ -3034,8 +3073,8 @@ def test_program() -> str:
             f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
             f"            for Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",
             f"            for Lane in {lane_index(bits, lanes)} loop",
-            f"               Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), \"{vector} randomized independent lane permutation\" & Lane'Image);",
-            f"               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})), \"{vector} varied independent two-source lane permutation\" & Lane'Image);",
+            f"               Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)) and then Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), \"{vector} randomized independent scalar and native lane permutation\" & Lane'Image);",
+            f"               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})) and then Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})), \"{vector} varied independent scalar and native two-source lane permutation\" & Lane'Image);",
             f"               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Lane) = (if Slide < {lanes} and then Lane < {lanes} - Slide then R_Lanes ({lane_index(bits, lanes)} (Lane + Slide)) else 0) and then Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Lane) = (if Slide < {lanes} and then Lane >= Slide then R_Lanes ({lane_index(bits, lanes)} (Lane - Slide)) else 0), \"{vector} randomized independent native lane slides\" & Lane'Image);",
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
@@ -3288,8 +3327,8 @@ def test_program() -> str:
             f"            Check (Data = Reference, \"{vector} randomized native partial store\");",
             f"            for Lane in {lane_index(bits, lanes)} loop Check (Bits_{vector} (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane)) = Bits_{vector} ((if Lane < Tail then Extract (R_B, Lane) else 0.0)), \"{vector} randomized independent partial load\" & Lane'Image); end loop;",
             f"            for Lane in {lane_index(bits, lanes)} loop",
-            f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_{vector} (R_Lanes (R_Selectors (Lane))), \"{vector} randomized independent lane permutation\" & Lane'Image);",
-            f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_{vector} (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes}))), \"{vector} varied independent two-source lane permutation\" & Lane'Image);",
+            f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_Map), Lane)) = Bits_{vector} (R_Lanes (R_Selectors (Lane))) and then Bits_{vector} (Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_Map), Lane)) = Bits_{vector} (R_Lanes (R_Selectors (Lane))), \"{vector} randomized independent scalar and native lane permutation\" & Lane'Image);",
+            f"               Check (Bits_{vector} (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_{vector} (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes}))) and then Bits_{vector} (Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane)) = Bits_{vector} (Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes}))), \"{vector} varied independent scalar and native two-source lane permutation\" & Lane'Image);",
             f"               Check (Bits_{vector} (Backends.Native.Extract (R_A, Lane)) = Bits_{vector} (R_Lanes (Lane)) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Bits_{vector} (Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Lane)) = (if Slide < {lanes} and then Lane < {lanes} - Slide then Bits_{vector} (R_Lanes ({lane_index(bits, lanes)} (Lane + Slide))) else 0) and then Bits_{vector} (Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Lane)) = (if Slide < {lanes} and then Lane >= Slide then Bits_{vector} (R_Lanes ({lane_index(bits, lanes)} (Lane - Slide))) else 0), \"{vector} randomized independent native lane slides\" & Lane'Image);",
             f"               Check (Bits_{vector} (Extract (Add (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) + Extract (R_B, Lane)) and then Bits_{vector} (Extract (Subtract (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) - Extract (R_B, Lane)) and then Bits_{vector} (Extract (Multiply (R_A, R_B), Lane)) = Bits_{vector} (Extract (R_A, Lane) * Extract (R_B, Lane)), \"{vector} randomized independent arithmetic\" & Lane'Image);",
