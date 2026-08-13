@@ -16,6 +16,12 @@ package Wide_Codegen_Probe is
    function F32_Divide
      (Left, Right : Flyology_SIMD.Wide.F32x8)
       return Flyology_SIMD.Wide.F32x8;
+   function F32_Min_Number
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
+   function F32_Max_Number
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8;
    function F64_Add
      (Left, Right : Flyology_SIMD.Wide.F64x4)
       return Flyology_SIMD.Wide.F64x4;
@@ -26,6 +32,12 @@ package Wide_Codegen_Probe is
      (Left, Right : Flyology_SIMD.Wide.F64x4)
       return Flyology_SIMD.Wide.F64x4;
    function F64_Divide
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
+   function F64_Min_Number
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4;
+   function F64_Max_Number
      (Left, Right : Flyology_SIMD.Wide.F64x4)
       return Flyology_SIMD.Wide.F64x4;
    function F32_To_U32_Bits

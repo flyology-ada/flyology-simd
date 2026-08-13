@@ -148,7 +148,7 @@ operations, and both deinterleave operations. The AVX2 backend also supplies
 these operations and both `Permute_Lanes` overloads for all ten Wide value
 types.
 The optional AVX2 backend also supplies isolated 256-bit floating arithmetic
-for `F32x8` and `F64x4`.
+and number minimum and maximum operations for `F32x8` and `F64x4`.
 Wide bit casts compose two same-shape 128-bit bit casts. The Wide lane-movement
 operations and both `Permute_Lanes` overloads use a target-selected permutation
 mechanism. On AArch64, reverse, slides, and the one-source `Permute_Lanes`
@@ -180,6 +180,9 @@ The optional AVX2 floating arithmetic mechanism applies one 256-bit `vaddps`,
 `vaddpd`, `vsubps`, `vsubpd`, `vmulps`, `vmulpd`, `vdivps`, or `vdivpd`
 operation. Each isolated subprogram ends with `vzeroupper`. The composed
 x86-64 and AArch64 backends retain two selected 128-bit operations.
+`Min_Number` and `Max_Number` use integer AVX2 classification and bit
+selection instead of packed floating minimum or maximum instructions. This
+preserves the public signaling-NaN precedence and signed-zero results.
 AVX2 has no packed byte multiplication instruction. `Multiply_Wrap` separates
 the even and odd byte lanes into 16-bit words, uses `vpmullw`, truncates each
 product to eight bits, and restores the original byte positions.

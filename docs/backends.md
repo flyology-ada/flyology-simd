@@ -136,8 +136,8 @@ value selection. The lane-movement operations are `Reverse_Lanes`, both slide
 operations, both interleave operations, and both deinterleave operations. The
 AVX2 selection also implements these operations, the 256-bit `U8x32` table
 lookup, and both `Permute_Lanes` overloads for all ten Wide value types. The
-`F32x8` and `F64x4` `Add`, `Subtract`, `Multiply`, and `Divide` overloads also
-have isolated 256-bit implementations. No other Wide operation has a 256-bit
+`F32x8` and `F64x4` `Add`, `Subtract`, `Multiply`, `Divide`, `Min_Number`,
+and `Max_Number` overloads also have isolated 256-bit implementations. No other Wide operation has a 256-bit
 instruction claim. The
 current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
@@ -198,14 +198,17 @@ require `vzeroupper` in each subprogram. Wrapping byte multiplication uses
 `vpmullw` plus word masks and shifts because AVX2 has no packed byte multiply
 instruction.
 
-The optional AVX2 floating arithmetic mechanism uses one isolated 256-bit
-packed instruction for each `F32x8` or `F64x4` `Add`, `Subtract`, `Multiply`,
-and `Divide` call. Independent lane oracles cover fixed finite values, IEEE
-special categories, 128 deterministic finite vectors, and 128 raw-bit vectors
-for each type. Caller probes require one isolated leaf. Exact leaf gates
-require the matching packed AVX instruction and `vzeroupper`, and reject
-portable or selected-128 calls. The composed x86-64 and AArch64 paths retain
-two selected 128-bit operations.
+The optional AVX2 floating mechanism uses one isolated 256-bit packed
+instruction for each `F32x8` or `F64x4` `Add`, `Subtract`, `Multiply`, and
+`Divide` call. `Min_Number` and `Max_Number` use isolated 256-bit integer
+classification and bit selection so that NaN precedence and signed-zero
+results match the scalar authority. Independent lane oracles cover fixed
+finite values, IEEE special categories, 128 deterministic finite vectors, and
+128 raw-bit vectors for each type. Caller probes require one isolated leaf.
+Exact leaf gates require the matching arithmetic instruction or integer
+classification and selection classes plus `vzeroupper`. They reject portable
+or selected-128 calls. The composed x86-64 and AArch64 paths retain two
+selected 128-bit operations.
 
 For both signed and unsigned bytes, separate exhaustive tests cover all 65,536
 ordered byte pairs for equality and the four ordered comparisons. Individual

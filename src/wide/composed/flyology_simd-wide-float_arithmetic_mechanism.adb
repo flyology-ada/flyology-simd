@@ -21,6 +21,16 @@ package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
                 (Left.Low, Right.Low),
        High => Flyology_SIMD.Backends.Native.Divide
                 (Left.High, Right.High)));
+   function Min_Number (Left, Right : F32x8) return F32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Min_Number
+                (Left.Low, Right.Low),
+       High => Flyology_SIMD.Backends.Native.Min_Number
+                (Left.High, Right.High)));
+   function Max_Number (Left, Right : F32x8) return F32x8 is
+     ((Low => Flyology_SIMD.Backends.Native.Max_Number
+                (Left.Low, Right.Low),
+       High => Flyology_SIMD.Backends.Native.Max_Number
+                (Left.High, Right.High)));
    function Add (Left, Right : F64x4) return F64x4 is
      ((Low => Flyology_SIMD.Backends.Native.Add
                 (Left.Low, Right.Low),
@@ -40,5 +50,15 @@ package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
      ((Low => Flyology_SIMD.Backends.Native.Divide
                 (Left.Low, Right.Low),
        High => Flyology_SIMD.Backends.Native.Divide
+                (Left.High, Right.High)));
+   function Min_Number (Left, Right : F64x4) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Min_Number
+                (Left.Low, Right.Low),
+       High => Flyology_SIMD.Backends.Native.Min_Number
+                (Left.High, Right.High)));
+   function Max_Number (Left, Right : F64x4) return F64x4 is
+     ((Low => Flyology_SIMD.Backends.Native.Max_Number
+                (Left.Low, Right.Low),
+       High => Flyology_SIMD.Backends.Native.Max_Number
                 (Left.High, Right.High)));
 end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;

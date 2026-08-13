@@ -17,6 +17,7 @@ from generate_full_family import (
     SIGNED_UNSIGNED_CONVERSIONS,
     WIDENINGS,
 )
+from generate_backends import x86_float_minmax_instruction
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -266,9 +267,15 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "overload calls the portable Wide implementation."
         )
     elif operation in {"Min_Number", "Max_Number"}:
-        mechanism = (
-            "AArch64 and x86-64 run the selected 128-bit operation on both "
-            "private parts"
+        return (
+            "Cross-platform support: The AArch64 backend and the composed "
+            "x86-64 backend run the selected 128-bit operation on both private "
+            "parts. The optional AVX2 backend uses one isolated 256-bit "
+            "integer-classification and bit-selection sequence. The sequence "
+            "preserves the documented NaN and signed-zero rules. Each leaf "
+            "ends with vzeroupper. "
+            "In a scalar build, this overload calls the portable Wide "
+            "implementation."
         )
     elif operation == "Is_Aligned_32":
         mechanism = "AArch64 and x86-64 use the same portable Ada implementation"
@@ -784,7 +791,7 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
                 f"     (Byte_Mechanism.{name} (Left, Right));"
             )
         elif p != "Flyology_SIMD" and f.floating and name in {
-            "Add", "Subtract", "Multiply", "Divide",
+            "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
         }:
             out.append(
                 f"   function {name} (Left, Right : {f.vector}) return {f.vector} is\n"
@@ -1182,7 +1189,9 @@ end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 def float_arithmetic_spec_text() -> str:
     declarations = []
     for vector in ("F32x8", "F64x4"):
-        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+        for operation in (
+            "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
+        ):
             declarations.append(
                 f"   function {operation} (Left, Right : {vector}) return {vector}\n"
                 "     with Inline_Always;\n"
@@ -1205,7 +1214,9 @@ def float_arithmetic_composed_body_text() -> str:
     bodies = []
     for vector, half in (("F32x8", "F32x4"), ("F64x4", "F64x2")):
         del half
-        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+        for operation in (
+            "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
+        ):
             bodies.append(
                 f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
                 f"     ((Low => Flyology_SIMD.Backends.Native.{operation}\n"
@@ -1224,7 +1235,9 @@ end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 def float_arithmetic_avx2_leaf_spec_text() -> str:
     declarations = []
     for vector in ("F32x8", "F64x4"):
-        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+        for operation in (
+            "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
+        ):
             declarations.append(
                 f"   function {operation} (Left, Right : {vector}) return {vector};"
             )
@@ -1238,6 +1251,41 @@ end Flyology_SIMD.Wide.Float_AVX2_Leaf;
 """
 
 
+def avx2_integer_sequence(instruction: str) -> str:
+    """Widen the verified two-operand SSE2 integer sequence to AVX2 YMM form."""
+    result = []
+    three_operand = {
+        "pand": "vpand", "pandn": "vpandn", "por": "vpor", "pxor": "vpxor",
+        "pcmpeqd": "vpcmpeqd", "pcmpgtd": "vpcmpgtd",
+    }
+    shifts = {
+        "psrad": "vpsrad", "psrld": "vpsrld", "pslld": "vpslld",
+        "psrlq": "vpsrlq", "psllq": "vpsllq",
+    }
+    for line in instruction.splitlines():
+        parts = line.split()
+        operation = parts[0]
+        operands = " ".join(parts[1:]).replace("xmm", "ymm")
+        split_operands = [item.strip() for item in operands.split(",")]
+        if operation == "movdqa":
+            result.append(f"vmovdqa {operands}")
+        elif operation == "pshufd":
+            result.append(f"vpshufd {operands}")
+        elif operation in three_operand:
+            source, destination = split_operands
+            result.append(
+                f"{three_operand[operation]} {source}, {destination}, {destination}"
+            )
+        elif operation in shifts:
+            count, destination = split_operands
+            result.append(
+                f"{shifts[operation]} {count}, {destination}, {destination}"
+            )
+        else:
+            raise ValueError(f"unsupported SSE2 instruction in AVX2 lift: {line}")
+    return "\n".join(result)
+
+
 def float_arithmetic_avx2_leaf_body_text() -> str:
     bodies = []
     instructions = {
@@ -1247,8 +1295,26 @@ def float_arithmetic_avx2_leaf_body_text() -> str:
         "Divide": ("vdivps", "vdivpd"),
     }
     for vector, instruction_index in (("F32x8", 0), ("F64x4", 1)):
-        for operation, operation_instructions in instructions.items():
-            instruction = operation_instructions[instruction_index]
+        operations = {
+            **{name: variants[instruction_index]
+               for name, variants in instructions.items()},
+            "Min_Number": avx2_integer_sequence(
+                x86_float_minmax_instruction(32 if vector == "F32x8" else 64,
+                                             maximum=False)),
+            "Max_Number": avx2_integer_sequence(
+                x86_float_minmax_instruction(32 if vector == "F32x8" else 64,
+                                             maximum=True)),
+        }
+        for operation, instruction in operations.items():
+            ada_instruction = instruction.replace(
+                "\n", '" & ASCII.LF & ASCII.HT &\n           "'
+            )
+            instruction_line = (
+                f'           "{ada_instruction} %%ymm1, %%ymm0, %%ymm0" & '
+                'ASCII.LF & ASCII.HT &\n'
+                if operation in instructions else
+                f'           "{ada_instruction}" & ASCII.LF & ASCII.HT &\n'
+            )
             bodies.append(
                 f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
                 f"      Result : {vector};\n"
@@ -1257,14 +1323,14 @@ def float_arithmetic_avx2_leaf_body_text() -> str:
                 "        (Template =>\n"
                 '           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &\n'
                 '           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &\n'
-                f'           "{instruction} %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &\n'
+                + instruction_line +
                 '           "vmovdqu %%ymm0, (%0)" & ASCII.LF & ASCII.HT &\n'
                 '           "vzeroupper",\n'
                 "         Inputs =>\n"
                 "           [System.Address'Asm_Input (\"r\", Result'Address),\n"
                 "            System.Address'Asm_Input (\"r\", Left'Address),\n"
                 "            System.Address'Asm_Input (\"r\", Right'Address)],\n"
-                '         Clobber => "ymm0,ymm1,memory",\n'
+                '         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,ymm5,ymm6,ymm7,memory",\n'
                 "         Volatile => True);\n"
                 "      return Result;\n"
                 f"   end {operation};"
@@ -1282,7 +1348,9 @@ end Flyology_SIMD.Wide.Float_AVX2_Leaf;
 def float_arithmetic_avx2_body_text() -> str:
     bodies = []
     for vector in ("F32x8", "F64x4"):
-        for operation in ("Add", "Subtract", "Multiply", "Divide"):
+        for operation in (
+            "Add", "Subtract", "Multiply", "Divide", "Min_Number", "Max_Number",
+        ):
             bodies.append(
                 f"   function {operation} (Left, Right : {vector}) return {vector} is\n"
                 f"     (Flyology_SIMD.Wide.Float_AVX2_Leaf.{operation} (Left, Right));"

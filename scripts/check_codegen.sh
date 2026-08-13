@@ -362,7 +362,7 @@ case "$architecture" in
         extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
         extract_symbol 'wide_codegen_probe__f32_multiply' "$temporary/wide-probe.txt" "$temporary/wide_f32_multiply.txt"
         for precision in f32 f64; do
-            for operation in add subtract multiply divide; do
+            for operation in add subtract multiply divide min_number max_number; do
                 extract_symbol "wide_codegen_probe__${precision}_${operation}" \
                   "$temporary/wide-probe.txt" \
                   "$temporary/wide_${precision}_${operation}.txt"
@@ -950,7 +950,7 @@ EOF
         extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
         extract_symbol 'wide_codegen_probe__f32_multiply' "$temporary/wide-probe.txt" "$temporary/wide_f32_multiply.txt"
         for precision in f32 f64; do
-            for operation in add subtract multiply divide; do
+            for operation in add subtract multiply divide min_number max_number; do
                 extract_symbol "wide_codegen_probe__${precision}_${operation}" \
                   "$temporary/wide-probe.txt" \
                   "$temporary/wide_${precision}_${operation}.txt"
@@ -980,7 +980,7 @@ EOF
         if [ "$wide_backend" = avx2 ]; then
             require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
             for precision in f32 f64; do
-                for operation in add subtract multiply divide; do
+                for operation in add subtract multiply divide min_number max_number; do
                     require_count '(^|[[:space:]])(call|jmp)[[:space:]]' 1 \
                       "$temporary/wide_${precision}_${operation}.txt" \
                       "one isolated AVX2 ${precision} ${operation} leaf in wide caller"
@@ -1049,7 +1049,7 @@ EOF
         fi
         if [ "$wide_backend" = composed ]; then
             for precision in f32 f64; do
-                for operation in add subtract multiply divide; do
+                for operation in add subtract multiply divide min_number max_number; do
                     require_count '(^|[[:space:]])call' 2 \
                       "$temporary/wide_${precision}_${operation}.txt" \
                       "two selected SSE ${precision} ${operation} leaves in wide caller"
@@ -1105,14 +1105,14 @@ EOF
         fi
         if [ "$wide_backend" = avx2 ]; then
             require_pattern 'flyology_simd__wide__byte_avx2_leaf__add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls the isolated AVX2 byte implementation'
-            require_pattern 'flyology_simd__wide__float_avx2_leaf__(add|subtract|multiply|divide)' "$temporary/wide-undefined.txt" 'wide floating arithmetic calls isolated AVX2 implementations'
+            require_pattern 'flyology_simd__wide__float_avx2_leaf__(add|subtract|multiply|divide|min_number|max_number)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call isolated AVX2 implementations'
             require_pattern 'flyology_simd__wide__byte_avx2_leaf__(equal|greater_than|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call isolated AVX2 implementations'
             forbid_pattern 'flyology_simd__wide__byte_mechanism__' "$temporary/wide-undefined.txt" 'non-AVX2 byte mechanism call retained in the public Wide caller'
         else
             require_pattern 'flyology_simd__backends__native__(u8_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
         fi
         if [ "$wide_backend" = composed ]; then
-            require_pattern 'flyology_simd__backends__native__native_(add|subtract|multiply|divide)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic calls selected 128-bit native leaves'
+            require_pattern 'flyology_simd__backends__native__native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call selected 128-bit native leaves'
         fi
         require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
         require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
@@ -1121,11 +1121,11 @@ EOF
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
         require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
         if [ "$wide_backend" = avx2 ]; then
-            require_count 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|greater_than|greater_than__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2)|lookup_mechanism__table_lookup_32)' 22 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
+            require_count 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|greater_than|greater_than__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2|min_number|min_number__2|max_number|max_number__2)|lookup_mechanism__table_lookup_32)' 26 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
         else
-            require_count 'flyology_simd__backends__native__((u8_)?add_wrap|native_(add|subtract|multiply|divide)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|compare_(equal|greater)(_i8x16)?|native_select_(u8|i8)x16)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 19 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
+            require_count 'flyology_simd__backends__native__((u8_)?add_wrap|native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|compare_(equal|greater)(_i8x16)?|native_select_(u8|i8)x16)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 23 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
         fi
-        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|add|subtract|multiply|divide|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
+        forbid_pattern 'flyology_simd__(wide__)?(add_wrap|add|subtract|multiply|divide|min_number|max_number|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
         forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
         require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
@@ -1150,7 +1150,7 @@ EOF
         fi
         if [ "$wide_backend" = avx2 ]; then
             forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)' "$temporary/wide-permute.txt" 'scalar or per-lane helper in AVX2 permutation object'
-            for operation in add subtract multiply divide; do
+            for operation in add subtract multiply divide min_number max_number; do
                 extract_symbol "float_avx2_leaf__${operation}" \
                   "$temporary/wide-float.txt" \
                   "$temporary/wide_float_f32_${operation}.txt"
@@ -1166,13 +1166,29 @@ EOF
             require_pattern 'vsubpd' "$temporary/wide_float_f64_subtract.txt" 'AVX2-width binary64 subtraction'
             require_pattern 'vmulpd' "$temporary/wide_float_f64_multiply.txt" 'AVX2-width binary64 multiplication'
             require_pattern 'vdivpd' "$temporary/wide_float_f64_divide.txt" 'AVX2-width binary64 division'
+            for precision in f32 f64; do
+                for operation in min_number max_number; do
+                    require_pattern 'vpcmpgtd|vpcmpeqd' \
+                      "$temporary/wide_float_${precision}_${operation}.txt" \
+                      "AVX2 integer classification in ${precision} ${operation}"
+                    require_pattern 'vpandn' \
+                      "$temporary/wide_float_${precision}_${operation}.txt" \
+                      "AVX2 bit selection in ${precision} ${operation}"
+                    require_pattern 'vpor' \
+                      "$temporary/wide_float_${precision}_${operation}.txt" \
+                      "AVX2 result merge in ${precision} ${operation}"
+                    forbid_pattern 'v(min|max)(ps|pd)|vcmp(ps|pd)' \
+                      "$temporary/wide_float_${precision}_${operation}.txt" \
+                      "floating compare or min/max in exact ${precision} ${operation}"
+                done
+            done
             for leaf in "$temporary"/wide_float_*.txt; do
                 require_count 'vzeroupper' 1 "$leaf" \
                   'one AVX-SSE transition cleanup in each Wide floating leaf'
-                forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__backends__native|flyology_simd__wide__(native|add|subtract|multiply|divide)' \
+                forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__backends__native|flyology_simd__wide__(native|add|subtract|multiply|divide|min_number|max_number)' \
                   "$leaf" 'scalar, composed, or out-of-line call in AVX2 floating leaf'
             done
-            forbid_pattern 'flyology_simd__backends__native|flyology_simd__wide__(native|add|subtract|multiply|divide)' \
+            forbid_pattern 'flyology_simd__backends__native|flyology_simd__wide__(native|add|subtract|multiply|divide|min_number|max_number)' \
               "$temporary/wide-float-undefined.txt" \
               'scalar, composed, or public dispatcher call from AVX2 floating implementation'
             extract_symbol 'byte_avx2_leaf__add_wrap' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_add.txt"

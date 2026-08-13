@@ -2785,13 +2785,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F32x8) return F32x8 with Inline_Always;
    --  Apply Min_Number independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit integer-classification and bit-selection sequence. The sequence preserves the documented NaN and signed-zero rules. Each leaf ends with vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F32x8) return F32x8 with Inline_Always;
    --  Apply Max_Number independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit integer-classification and bit-selection sequence. The sequence preserves the documented NaN and signed-zero rules. Each leaf ends with vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3043,13 +3043,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F64x4) return F64x4 with Inline_Always;
    --  Apply Min_Number independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit integer-classification and bit-selection sequence. The sequence preserves the documented NaN and signed-zero rules. Each leaf ends with vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F64x4) return F64x4 with Inline_Always;
    --  Apply Max_Number independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 backend and the composed x86-64 backend run the selected 128-bit operation on both private parts. The optional AVX2 backend uses one isolated 256-bit integer-classification and bit-selection sequence. The sequence preserves the documented NaN and signed-zero rules. Each leaf ends with vzeroupper. In a scalar build, this overload calls the portable Wide implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

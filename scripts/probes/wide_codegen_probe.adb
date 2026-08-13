@@ -23,6 +23,14 @@ package body Wide_Codegen_Probe is
      (Left, Right : Flyology_SIMD.Wide.F32x8)
       return Flyology_SIMD.Wide.F32x8 is
      (Flyology_SIMD.Wide.Native.Divide (Left, Right));
+   function F32_Min_Number
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8 is
+     (Flyology_SIMD.Wide.Native.Min_Number (Left, Right));
+   function F32_Max_Number
+     (Left, Right : Flyology_SIMD.Wide.F32x8)
+      return Flyology_SIMD.Wide.F32x8 is
+     (Flyology_SIMD.Wide.Native.Max_Number (Left, Right));
    function F64_Add
      (Left, Right : Flyology_SIMD.Wide.F64x4)
       return Flyology_SIMD.Wide.F64x4 is
@@ -39,6 +47,14 @@ package body Wide_Codegen_Probe is
      (Left, Right : Flyology_SIMD.Wide.F64x4)
       return Flyology_SIMD.Wide.F64x4 is
      (Flyology_SIMD.Wide.Native.Divide (Left, Right));
+   function F64_Min_Number
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4 is
+     (Flyology_SIMD.Wide.Native.Min_Number (Left, Right));
+   function F64_Max_Number
+     (Left, Right : Flyology_SIMD.Wide.F64x4)
+      return Flyology_SIMD.Wide.F64x4 is
+     (Flyology_SIMD.Wide.Native.Max_Number (Left, Right));
 
    function F32_To_U32_Bits
      (Value : Flyology_SIMD.Wide.F32x8)

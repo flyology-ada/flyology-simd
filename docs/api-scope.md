@@ -34,8 +34,8 @@ implementations for selected `U8x32` and `I8x32` operations and for `U8x32`
 operations, both interleave operations, and both deinterleave operations. The
 optional AVX2 backend also supplies these operations and both
 `Permute_Lanes` overloads for all ten Wide value types.
-It supplies isolated 256-bit `Add`, `Subtract`, `Multiply`, and `Divide`
-implementations for `F32x8` and `F64x4`.
+It supplies isolated 256-bit `Add`, `Subtract`, `Multiply`, `Divide`,
+`Min_Number`, and `Max_Number` implementations for `F32x8` and `F64x4`.
 
 All vector and mask representations remain private.  Mask types are shared by
 integer and floating vectors with the same lane width, but masks and values are
