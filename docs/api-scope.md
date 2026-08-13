@@ -123,9 +123,11 @@ independent of machine byte order.
 
 `Widen_Low` converts the low source half to wider lanes. `Widen_High` converts
 the high source half. Integer widening preserves each numeric value and
-signedness. `F32x4` to `F64x2` widening is exact for every finite value and
-preserves signed zero and infinity. A NaN input produces a NaN result, but
-payload and signaling state are unspecified.
+signedness. With the platform's default gradual-underflow environment,
+`F32x4` to `F64x2` widening is exact for every finite value and preserves
+signed zero and infinity. A NaN input produces a NaN result, but payload and
+signaling state are unspecified. The operation can update floating-point
+exception-status flags.
 
 Integer narrowing takes `Low` and `High` vectors. The low source supplies the
 low result half. The high source supplies the high result half.
@@ -134,23 +136,26 @@ low result half. The high source supplies the high result half.
 same-signedness narrowing and signed-to-unsigned narrowing. A negative input
 to a signed-to-unsigned overload becomes zero.
 
-Floating narrowing rounds each binary64 lane value to binary32 when the floating-point
-environment uses the default round-to-nearest, ties-to-even mode. `Low`
+Floating narrowing rounds each binary64 lane value to binary32 when the
+floating-point environment uses the default round-to-nearest, ties-to-even
+mode and gradual underflow. `Low`
 supplies result lanes 0 and 1. `High` supplies result lanes 2 and 3.
 `Narrow_Round` preserves signed zero and infinity. A finite value that
 overflows binary32 after rounding becomes an infinity with the same sign. A
 finite value can round to a binary32 subnormal. A sufficiently small magnitude
 rounds to signed zero. A NaN input produces a NaN result; payload and signaling
-state are unspecified. The library does not modify the floating-point control
-register.
+state are unspecified. The operation does not change the rounding mode or
+exception-control settings. It can update floating-point exception-status
+flags.
 
 `Convert_Round` converts `I32x4` and `U32x4` to `F32x4`. It converts `I64x2`
 and `U64x2` to `F64x2`. When the floating-point environment uses the default
 round-to-nearest, ties-to-even mode, the operation rounds values that the
 floating-point lane cannot represent exactly. Integer magnitudes through
 2**24 are exact in `F32`. Integer magnitudes through 2**53 are exact in `F64`.
-Every result is finite. The library does not modify the floating-point control
-register.
+Every result is finite. The operation does not change the rounding mode or
+exception-control settings. It can update floating-point exception-status
+flags.
 
 `Convert_Truncate_Saturate` converts `F32x4` to `I32x4` or `U32x4`. It converts
 `F64x2` to `I64x2` or `U64x2`. Each finite input truncates toward zero before

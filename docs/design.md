@@ -216,7 +216,8 @@ mask compression, mask expansion, and numeric conversion through verified NEON
 assembly subprograms. The x86-64 SSE2 backend uses immediate byte-shift leaves
 for 128-bit lane slides. It uses unpack-and-extension sequences for integer
 widening and shuffle, clamp, and pack sequences for integer narrowing. It
-currently composes floating widening, floating narrowing, and numeric
+uses `cvtps2pd` for floating widening and two `cvtpd2ps` conversions followed
+by a lane merge for floating narrowing. It currently composes numeric
 conversion operations with the scalar implementation.
 It also composes 128-bit and Wide variable lane permutation, mask compression,
 and mask expansion because SSE2 has no indexed-byte table instruction.

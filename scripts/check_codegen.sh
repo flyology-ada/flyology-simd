@@ -592,6 +592,8 @@ widen_low__5          u32x4  u64x2  punpckldq
 widen_high__5         u32x4  u64x2  punpckhdq
 widen_low__6          i32x4  i64x2  pcmpgtd,punpckldq
 widen_high__6         i32x4  i64x2  pcmpgtd,punpckhdq
+widen_low__7          f32x4  f64x2  cvtps2pd
+widen_high__7         f32x4  f64x2  pshufd,cvtps2pd
 narrow_truncate       u16x8  u8x16  packuswb
 narrow_saturate       u16x8  u8x16  psrlw,pcmpeqw,pandn,packuswb
 narrow_truncate__2    i16x8  i8x16  packuswb
@@ -607,7 +609,11 @@ narrow_saturate__6    i64x2  i32x4  psrad,pcmpeqd,pandn,pshufd,punpcklqdq
 narrow_saturate__7    i16x8  u8x16  packuswb
 narrow_saturate__8    i32x4  u16x8  pcmpgtd,pandn,pshufd,punpcklqdq
 narrow_saturate__9    i64x2  u32x4  psrad,pcmpeqd,pandn,pshufd,punpcklqdq
+narrow_round          f64x2  f32x4  cvtpd2ps,movlhps
 EOF
+        require_count '(^|[[:space:]])cvtpd2ps[[:space:]]' 2 \
+          "$temporary/conversion_narrow_round_f64x2_f32x4.txt" \
+          'two SSE2 binary64-to-binary32 conversions in Narrow_Round'
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'

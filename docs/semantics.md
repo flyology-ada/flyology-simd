@@ -98,9 +98,10 @@ types with the same lane shape. It does not change lane width.
 
 `Widen_Low` and `Widen_High` select one source half and preserve each numeric
 value in a lane with twice the width. Integer widening preserves signedness.
-`F32x4` to `F64x2` widening is exact for finite inputs and preserves signed
-zero and infinity. A NaN input produces a NaN result. NaN payload and signaling
-state are unspecified.
+With the platform's default gradual-underflow environment, `F32x4` to `F64x2`
+widening is exact for finite inputs and preserves signed zero and infinity. A
+NaN input produces a NaN result. NaN payload and signaling state are
+unspecified. The operation can update floating-point exception-status flags.
 
 Integer narrowing combines two source vectors. `Low` supplies the low result
 half, and `High` supplies the high result half. `Narrow_Truncate` keeps the low
@@ -108,14 +109,16 @@ destination-width bits. `Narrow_Saturate` clamps each numeric value to the
 destination range. Signed-to-unsigned saturation maps negative inputs to zero.
 
 `Narrow_Round` combines two `F64x2` inputs. When the floating-point environment
-uses the platform's default round-to-nearest, ties-to-even mode,
+uses the platform's default round-to-nearest, ties-to-even mode and gradual
+underflow,
 `Narrow_Round` rounds each lane to binary32. `Low` supplies lanes 0 and 1, and
 `High` supplies lanes 2 and 3. Signed zero and infinity keep their sign. A
 finite value that overflows after rounding produces infinity with the same
 sign. Gradual underflow can produce a binary32 subnormal. A sufficiently small
 magnitude rounds to signed zero. A NaN remains a NaN, but its payload and
-signaling state are unspecified. The library does not modify the
-floating-point control register.
+signaling state are unspecified. The operation does not change the rounding
+mode or exception-control settings. It can update floating-point
+exception-status flags.
 
 `Convert_Round` converts 32-bit integer lanes to binary32 and 64-bit integer
 lanes to binary64. Signed and unsigned source types have separate overloads.
@@ -123,7 +126,9 @@ When the floating-point environment uses the platform's default round-to-nearest
 ties-to-even mode, the operation rounds values that are not exactly
 representable. Integer magnitudes through 2**24 are exact in binary32. Integer
 magnitudes through 2**53 are exact in binary64. The operation always produces
-a finite result and does not modify the floating-point control register.
+a finite result. The operation does not change the rounding mode or
+exception-control settings. It can update floating-point exception-status
+flags.
 
 `Convert_Truncate_Saturate` converts binary32 lanes to 32-bit integer lanes and
 binary64 lanes to 64-bit integer lanes. It truncates each finite value toward

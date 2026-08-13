@@ -1400,10 +1400,20 @@ def x86_body() -> str:
                 f"   function {name} (Value : {source_vector}) return {target_vector} is ({native} (Value));",
             ]
     for source_vector, _, target_vector, _, _ in FLOAT_WIDENINGS:
-        out += [
-            call("Widen_Low", target_vector, "Value", f"Value : {source_vector}"),
-            call("Widen_High", target_vector, "Value", f"Value : {source_vector}"),
-        ]
+        for name, raw_instruction in (
+            ("Widen_Low", "cvtps2pd %%xmm0, %%xmm0"),
+            (
+                "Widen_High",
+                "pshufd $0xEE, %%xmm0, %%xmm0\n"
+                "cvtps2pd %%xmm0, %%xmm0",
+            ),
+        ):
+            native = f"Native_{name}_{source_vector}_To_{target_vector}"
+            instruction = x86_ada_instruction(raw_instruction)
+            out += [
+                f"   function {native} is new SSE2_Convert_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+                f"   function {name} (Value : {source_vector}) return {target_vector} is ({native} (Value));",
+            ]
     for source_vector, _, target_vector, _, target_bits, _, signed in NARROWINGS:
         instructions = {
             "Narrow_Truncate": x86_truncate_instruction(target_bits),
@@ -1430,7 +1440,16 @@ def x86_body() -> str:
             f"   function Narrow_Saturate (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
         ]
     for source_vector, _, target_vector, _, _ in FLOAT_NARROWINGS:
-        out.append(call("Narrow_Round", target_vector, "Low, High", f"Low, High : {source_vector}"))
+        native = f"Native_Narrow_Round_{source_vector}_To_{target_vector}"
+        instruction = x86_ada_instruction(
+            "cvtpd2ps %%xmm0, %%xmm0\n"
+            "cvtpd2ps %%xmm1, %%xmm1\n"
+            "movlhps %%xmm1, %%xmm0"
+        )
+        out += [
+            f"   function {native} is new SSE2_Convert_Pair_128 ({source_vector}, {target_vector}, \"{instruction}\");",
+            f"   function Narrow_Round (Low, High : {source_vector}) return {target_vector} is ({native} (Low, High));",
+        ]
     for source_vector, _, target_vector, _, _, _, _ in INTEGER_TO_FLOAT_CONVERSIONS:
         out.append(call("Convert_Round", target_vector, "Value", f"Value : {source_vector}"))
     for source_vector, _, target_vector, _, _, _, _ in FLOAT_TO_INTEGER_CONVERSIONS:

@@ -141,32 +141,48 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: expected {expected} exact "
                     f"{operation} SSE2 classifications, found {found}"
                 )
-        for operation in ("Widen_Low", "Widen_High"):
+        floating_widening_support = {
+            "Widen_Low": (
+                "dedicated NEON instruction that converts the selected lanes with fcvtl",
+                "dedicated SSE2 instruction that converts the selected lanes with cvtps2pd",
+            ),
+            "Widen_High": (
+                "dedicated NEON instruction that converts the selected lanes with fcvtl2",
+                "dedicated SSE2 sequence that shuffles the upper lanes and converts them with cvtps2pd",
+            ),
+        }
+        for operation, (aarch_phrase, x86_phrase) in floating_widening_support.items():
             floating_blocks = [
                 block.split("function ", 1)[0].split("procedure ", 1)[0]
                 for block in text.split(f"function {operation}")[1:]
                 if "Value : F32x4" in block.split(";", 1)[0]
             ]
-            if len(floating_blocks) != 1 or "x86-64 backend uses scalar composition" not in floating_blocks[0]:
+            if len(floating_blocks) != 1:
                 invalid.append(
-                    f"{path.relative_to(ROOT)}: expected exact floating "
-                    f"{operation} x86-64 scalar classification"
+                    f"{path.relative_to(ROOT)}: expected one exact floating "
+                    f"{operation} classification"
                 )
-        floating_widening_support = {
-            "Widen_Low": "dedicated NEON fcvtl floating conversion instruction",
-            "Widen_High": "dedicated NEON fcvtl2 floating conversion instruction",
-        }
-        for operation, phrase in floating_widening_support.items():
-            blocks = [
-                block.split("function ", 1)[0].split("procedure ", 1)[0]
-                for block in text.split(f"function {operation}")[1:]
-                if "Value : F32x4" in block.split(";", 1)[0]
-            ]
-            if len(blocks) != 1 or phrase not in blocks[0]:
+            elif aarch_phrase not in floating_blocks[0] or x86_phrase not in floating_blocks[0]:
                 invalid.append(
-                    f"{path.relative_to(ROOT)}: expected exact floating "
-                    f"{operation} AArch64 classification"
+                    f"{path.relative_to(ROOT)}: incorrect exact floating "
+                    f"{operation} backend classification"
                 )
+        narrow_round_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Narrow_Round")[1:]
+            if "Low, High : F64x2" in block.split(";", 1)[0]
+        ]
+        if (
+            len(narrow_round_blocks) != 1
+            or "dedicated NEON sequence that converts the lanes with fcvtn and fcvtn2"
+            not in narrow_round_blocks[0]
+            or "dedicated SSE2 sequence that converts with cvtpd2ps and merges the result lanes"
+            not in narrow_round_blocks[0]
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact floating "
+                "Narrow_Round backend classification"
+            )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

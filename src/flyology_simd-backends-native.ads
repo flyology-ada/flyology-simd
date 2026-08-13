@@ -507,13 +507,13 @@ is
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : F32x4) return F64x2;
-   --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON fcvtl floating conversion instruction. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  With the platform's default gradual-underflow environment, convert the low binary32 source half exactly to binary64. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the selected lanes with fcvtl. The x86-64 backend uses a dedicated SSE2 instruction that converts the selected lanes with cvtps2pd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : F32x4) return F64x2;
-   --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON fcvtl2 floating conversion instruction. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  With the platform's default gradual-underflow environment, convert the high binary32 source half exactly to binary64. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON instruction that converts the selected lanes with fcvtl2. The x86-64 backend uses a dedicated SSE2 sequence that shuffles the upper lanes and converts them with cvtps2pd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 
@@ -608,28 +608,28 @@ is
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Round (Low, High : F64x2) return F32x4;
-   --  With the default round-to-nearest, ties-to-even environment, round Low into result lanes zero and one and High into lanes two and three. Signed zero and infinity are preserved. Overflow after rounding produces infinity. Gradual underflow can produce a subnormal, and a sufficiently small magnitude rounds to signed zero. A NaN remains a NaN, but its payload and signaling state are unspecified. The operation does not modify the floating-point control register.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  With the default round-to-nearest, ties-to-even and gradual-underflow environment, round Low into result lanes zero and one and High into lanes two and three. Signed zero and infinity are preserved. Overflow after rounding produces infinity. Gradual underflow can produce a subnormal, and a sufficiently small magnitude rounds to signed zero. A NaN remains a NaN, but its payload and signaling state are unspecified. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that converts the lanes with fcvtn and fcvtn2. The x86-64 backend uses a dedicated SSE2 sequence that converts with cvtpd2ps and merges the result lanes. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Convert_Round (Value : I32x4) return F32x4;
-   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
    --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : U32x4) return F32x4;
-   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
    --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : I64x2) return F64x2;
-   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
    --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Round (Value : U64x2) return F64x2;
-   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert each integer lane to the corresponding floating-point lane. The operation does not change the rounding mode or exception-control settings. It can update floating-point exception-status flags.
    --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.

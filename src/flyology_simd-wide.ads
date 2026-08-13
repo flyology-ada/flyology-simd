@@ -3419,12 +3419,12 @@ is
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_Low (Value : F32x8) return F64x4;
-   --  Widen the low binary32 source half to binary64 and preserve lane order. Finite values convert exactly. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state.
+   --  With the platform's default gradual-underflow environment, widen the low binary32 source half exactly to binary64 and preserve lane order. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Widen_High (Value : F32x8) return F64x4;
-   --  Widen the high binary32 source half to binary64 and preserve lane order. Finite values convert exactly. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state.
+   --  With the platform's default gradual-underflow environment, widen the high binary32 source half exactly to binary64 and preserve lane order. Signed zero and infinity are preserved. A NaN produces a NaN with unspecified payload and signaling state. The operation can update floating-point exception-status flags.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
@@ -3519,28 +3519,28 @@ is
    --  @param High The high input.
    --  @return The operation result.
    function Narrow_Round (Low, High : F64x4) return F32x8;
-   --  With the default round-to-nearest, ties-to-even environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even and gradual-underflow environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Low The low input.
    --  @param High The high input.
    --  @return The operation result.
    function Convert_Round (Value : I32x8) return F32x8;
-   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Convert_Round (Value : U32x8) return F32x8;
-   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Convert_Round (Value : I64x4) return F64x4;
-   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Convert_Round (Value : U64x4) return F64x4;
-   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.
+   --  With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.
    --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
    --  @param Value The value input.
    --  @return The operation result.

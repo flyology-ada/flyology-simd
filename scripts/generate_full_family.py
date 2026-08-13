@@ -206,18 +206,21 @@ OPERATION_DOCS = {
     "Narrow_Truncate": "Keep the low bits of each source lane and combine both source vectors.",
     "Narrow_Saturate": "Clamp each source lane to the result range and combine both source vectors.",
     "Narrow_Round": (
-        "With the default round-to-nearest, ties-to-even environment, round "
+        "With the default round-to-nearest, ties-to-even and gradual-underflow "
+        "environment, round "
         "Low into result lanes zero and one and High into lanes two and three. "
         "Signed zero and infinity are preserved. Overflow after rounding "
         "produces infinity. Gradual underflow can produce a subnormal, and a "
         "sufficiently small magnitude rounds to signed zero. A NaN remains a "
         "NaN, but its payload and signaling state are unspecified. The operation "
-        "does not modify the floating-point control register."
+        "does not change the rounding mode or exception-control settings. It can "
+        "update floating-point exception-status flags."
     ),
     "Convert_Round": (
         "With the default round-to-nearest, ties-to-even environment, convert "
         "each integer lane to the corresponding floating-point lane. The "
-        "operation does not modify the floating-point control register."
+        "operation does not change the rounding mode or exception-control "
+        "settings. It can update floating-point exception-status flags."
     ),
     "Convert_Truncate_Saturate": (
         "Truncate each floating-point lane toward zero, then clamp it to the "
@@ -290,14 +293,13 @@ def native_support_doc(name: str, declaration: str) -> str:
     x86_scalar = (
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
-            "Bit_Cast", "Narrow_Round", "Convert_Round",
+            "Bit_Cast", "Convert_Round",
             "Convert_Truncate_Saturate", "Convert_Saturate",
             "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
         or (name in {"Add_Saturate", "Subtract_Saturate"}
             and ("32x4" in declaration or "64x2" in declaration))
-        or (name in {"Widen_Low", "Widen_High"} and "F32x4" in declaration)
     )
     if name in fixed_ada:
         return (
@@ -322,12 +324,16 @@ def native_support_doc(name: str, declaration: str) -> str:
             x86 = f"a dedicated SSE2 comparison-and-selection {result} reduction over fixed shuffles"
     elif name in {"Widen_Low", "Widen_High"}:
         aarch = (
-            f"a dedicated NEON {'fcvtl' if name == 'Widen_Low' else 'fcvtl2'} floating conversion instruction"
+            f"a dedicated NEON instruction that converts the selected lanes with {'fcvtl' if name == 'Widen_Low' else 'fcvtl2'}"
             if "F32x4" in declaration
             else "a dedicated NEON instruction that extends the selected lanes"
         )
         x86 = (
-            "scalar composition"
+            (
+                "a dedicated SSE2 instruction that converts the selected lanes with cvtps2pd"
+                if name == "Widen_Low"
+                else "a dedicated SSE2 sequence that shuffles the upper lanes and converts them with cvtps2pd"
+            )
             if "F32x4" in declaration
             else "a dedicated SSE2 sequence that unpacks and extends the selected lanes"
         )
@@ -337,6 +343,9 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Narrow_Saturate":
         aarch = "a dedicated NEON instruction sequence that narrows with saturation"
         x86 = "a dedicated SSE2 sequence that clamps and packs the result lanes"
+    elif name == "Narrow_Round":
+        aarch = "a dedicated NEON sequence that converts the lanes with fcvtn and fcvtn2"
+        x86 = "a dedicated SSE2 sequence that converts with cvtpd2ps and merges the result lanes"
     else:
         aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
@@ -479,6 +488,15 @@ def document_spec(text: str, support: str = "portable") -> str:
                     )
                 elif name == "Permute_Lanes" and "Left, Right" in declaration_text:
                     summary = TWO_SOURCE_PERMUTE_DOC
+                elif name in {"Widen_Low", "Widen_High"} and "F32x4" in declaration_text:
+                    half = "low" if name == "Widen_Low" else "high"
+                    summary = (
+                        "With the platform's default gradual-underflow environment, "
+                        f"convert the {half} binary32 source half exactly to binary64. "
+                        "Signed zero and infinity are preserved. A NaN produces a NaN "
+                        "with unspecified payload and signaling state. The operation "
+                        "can update floating-point exception-status flags."
+                    )
                 else:
                     summary = OPERATION_DOCS.get(
                         name, "Perform the documented portable operation."
@@ -563,6 +581,10 @@ def strip_generated_docs(text: str) -> str:
         ) or stripped.startswith(
             "Cross-platform support: This overload uses the portable scalar implementation "
         ) or any(stripped.startswith(prefix) for prefix in LEGACY_NATIVE_SUPPORT_PREFIXES):
+            continue
+        if stripped.startswith(
+            "With the platform's default gradual-underflow environment, convert the "
+        ):
             continue
         if stripped.startswith("Public lane, array, vector, or mask type "):
             continue

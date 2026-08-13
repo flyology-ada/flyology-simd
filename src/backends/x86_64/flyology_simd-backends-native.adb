@@ -1136,10 +1136,10 @@ package body Flyology_SIMD.Backends.Native is
    function Widen_Low (Value : I32x4) return I64x2 is (Native_Widen_Low_I32x4_To_I64x2 (Value));
    function Native_Widen_High_I32x4_To_I64x2 is new SSE2_Convert_128 (I32x4, I64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhdq %%xmm1, %%xmm0");
    function Widen_High (Value : I32x4) return I64x2 is (Native_Widen_High_I32x4_To_I64x2 (Value));
-   function Widen_Low (Value : F32x4) return F64x2 is
-     (Flyology_SIMD.Widen_Low (Value));
-   function Widen_High (Value : F32x4) return F64x2 is
-     (Flyology_SIMD.Widen_High (Value));
+   function Native_Widen_Low_F32x4_To_F64x2 is new SSE2_Convert_128 (F32x4, F64x2, "cvtps2pd %%xmm0, %%xmm0");
+   function Widen_Low (Value : F32x4) return F64x2 is (Native_Widen_Low_F32x4_To_F64x2 (Value));
+   function Native_Widen_High_F32x4_To_F64x2 is new SSE2_Convert_128 (F32x4, F64x2, "pshufd $0xEE, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "cvtps2pd %%xmm0, %%xmm0");
+   function Widen_High (Value : F32x4) return F64x2 is (Native_Widen_High_F32x4_To_F64x2 (Value));
    function Native_Narrow_Truncate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is (Native_Narrow_Truncate_U16x8_To_U8x16 (Low, High));
    function Native_Narrow_Saturate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
@@ -1170,8 +1170,8 @@ package body Flyology_SIMD.Backends.Native is
    function Narrow_Saturate (Low, High : I32x4) return U16x8 is (Native_Narrow_Saturate_I32x4_To_U16x8 (Low, High));
    function Native_Narrow_Saturate_I64x2_To_U32x4 is new SSE2_Convert_Pair_128 (I64x2, U32x4, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
    function Narrow_Saturate (Low, High : I64x2) return U32x4 is (Native_Narrow_Saturate_I64x2_To_U32x4 (Low, High));
-   function Narrow_Round (Low, High : F64x2) return F32x4 is
-     (Flyology_SIMD.Narrow_Round (Low, High));
+   function Native_Narrow_Round_F64x2_To_F32x4 is new SSE2_Convert_Pair_128 (F64x2, F32x4, "cvtpd2ps %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "cvtpd2ps %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "movlhps %%xmm1, %%xmm0");
+   function Narrow_Round (Low, High : F64x2) return F32x4 is (Native_Narrow_Round_F64x2_To_F32x4 (Low, High));
    function Convert_Round (Value : I32x4) return F32x4 is
      (Flyology_SIMD.Convert_Round (Value));
    function Convert_Round (Value : U32x4) return F32x4 is

@@ -561,9 +561,11 @@ def conversion_declarations(native: bool = False) -> str:
         target_wide = BY_HALF[target].vector
         for name, half in (("Widen_Low", "low"), ("Widen_High", "high")):
             summary = (
-                f"Widen the {half} binary32 source half to binary64 and preserve lane order. "
-                "Finite values convert exactly. Signed zero and infinity are preserved. "
-                "A NaN produces a NaN with unspecified payload and signaling state."
+                "With the platform's default gradual-underflow environment, "
+                f"widen the {half} binary32 source half exactly to binary64 and preserve lane order. "
+                "Signed zero and infinity are preserved. A NaN produces a NaN with "
+                "unspecified payload and signaling state. The operation can update "
+                "floating-point exception-status flags."
                 if source.startswith("F") else
                 f"Widen the {half} integer source half exactly, preserve signedness, and preserve lane order."
             )
@@ -597,14 +599,14 @@ def conversion_declarations(native: bool = False) -> str:
     for source, _, target, *_ in FLOAT_NARROWINGS:
         add(
             f"   function Narrow_Round (Low, High : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
-            "With the default round-to-nearest, ties-to-even environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not modify the floating-point control register.",
+            "With the default round-to-nearest, ties-to-even and gradual-underflow environment, round binary64 lanes to binary32 and concatenate Low before High. Preserve signed zero and infinity. Use gradual underflow and signed overflow to infinity. A NaN remains a NaN with unspecified payload and signaling state. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.",
             ("Low", "High"),
         )
 
     for source, _, target, *_ in INTEGER_TO_FLOAT_CONVERSIONS:
         add(
             f"   function Convert_Round (Value : {BY_HALF[source].vector}) return {BY_HALF[target].vector};",
-            "With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not modify the floating-point control register.",
+            "With the default round-to-nearest, ties-to-even environment, convert corresponding integer lanes to finite floating lanes. Do not change the rounding mode or exception-control settings. Floating-point exception-status flags can change.",
             ("Value",),
         )
 
