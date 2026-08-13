@@ -47,7 +47,9 @@ The sequence keeps the low 64 bits. The high-by-high product cannot affect
 those bits. All ten 128-bit `Select_Value` overloads expand the compact mask
 with `cmtst` and select lane bits with `bsl`. Floating `Reduce_Add` uses a
 dedicated Advanced SIMD sequence. It starts from positive zero and adds one
-lane at a time in ascending order. `Unordered` uses scalar composition for `F32x4` and `F64x2`.
+lane at a time in ascending order. `Unordered` compares each input with itself
+to mark lanes that are not NaN. It combines the masks with bitwise AND and
+inverts the result.
 Floating minimum-number and maximum-number reductions use scalar Advanced SIMD
 leaves in ascending lane order.
 
@@ -63,6 +65,14 @@ against an independent per-lane `Select_Value` oracle. The floating checks
 compare selected lane bits.
 The AArch64 code-generation gate requires `cmtst` and `bsl` in each generated
 selection subprogram. It rejects calls to the portable selection operation.
+
+Floating unordered-comparison tests use an independent IEEE encoding oracle.
+Fixed cases cover quiet and signaling NaNs in either or both inputs, NaN
+encodings with both sign-bit values, infinities, and signed zero. Another 250 deterministic cases use raw
+binary32 and binary64 encodings. The AArch64 code-generation gate requires two
+comparisons in which each input is compared with itself, bitwise mask AND, and
+inversion in both exact overloads. It
+rejects portable and out-of-line comparison calls.
 
 x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full

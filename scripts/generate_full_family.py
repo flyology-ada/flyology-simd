@@ -287,10 +287,6 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Is_Aligned_16", "Load_Partial", "Store_Partial", "Has_Extent",
         "Bit_Cast",
     }
-    aarch_scalar = (
-        (name == "Unordered"
-            and ("F32x4" in declaration or "F64x2" in declaration))
-    )
     x86_scalar = (
         name in {
             "Table_Lookup", "Permute_Lanes", "Compress", "Expand",
@@ -304,6 +300,17 @@ def native_support_doc(name: str, declaration: str) -> str:
             "that derives each lane's sign mask, applies a logical right "
             "shift to each 64-bit lane and its sign mask, and merges the sign "
             "fill. A scalar build uses "
+            "the portable scalar implementation."
+        )
+    if name == "Unordered" and (
+        "F32x4" in declaration or "F64x2" in declaration
+    ):
+        return (
+            "Cross-platform support: The AArch64 backend uses a dedicated "
+            "NEON sequence that compares each input with itself to mark lanes "
+            "that are not NaN. It combines the masks with bitwise AND and "
+            "inverts the result. The x86-64 backend "
+            "uses a dedicated SSE2 unordered comparison. A scalar build uses "
             "the portable scalar implementation."
         )
     if name == "Convert_Round" and "I32x4" in declaration:
@@ -475,7 +482,7 @@ def native_support_doc(name: str, declaration: str) -> str:
             "scalar composition"
         )
     else:
-        aarch = "scalar composition" if aarch_scalar else "a dedicated NEON implementation"
+        aarch = "a dedicated NEON implementation"
         x86 = "scalar composition" if x86_scalar else "a dedicated SSE2 implementation"
     return (
         f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "

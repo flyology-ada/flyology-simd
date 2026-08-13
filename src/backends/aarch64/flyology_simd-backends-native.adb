@@ -546,7 +546,7 @@ package body Flyology_SIMD.Backends.Native is
       Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "ldr q1, [%2]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Compact,
            Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
            Inputs => [System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address), System.Address'Asm_Input ("r", Weights)],
-           Clobber => "v0,v1,v2,memory", Volatile => True);
+           Clobber => "v0,v1,v2,x9,memory", Volatile => True);
       return Interfaces.Unsigned_8 (Result and 16#FF#);
    end NEON_Compare_128;
 
@@ -2233,8 +2233,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Than (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Than_F32x4 (Left, Right, Weights_32x4'Address)));
    function Compare_Greater_Equal_F32x4 is new NEON_Compare_128 (F32x4, "fcmge v0.4s, v0.4s, v1.4s", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
    function Greater_Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Greater_Equal_F32x4 (Left, Right, Weights_32x4'Address)));
-   function Unordered (Left, Right : F32x4) return Mask_32x4 is
-     (Flyology_SIMD.Unordered (Left, Right));
+   function Compare_Unordered_F32x4 is new NEON_Compare_128 (F32x4, "fcmeq v0.4s, v0.4s, v0.4s" & ASCII.LF & ASCII.HT & "fcmeq v1.4s, v1.4s, v1.4s" & ASCII.LF & ASCII.HT & "and v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT & "mvn v0.16b, v0.16b", "ushr v0.4s, v0.4s, #31" & ASCII.LF & ASCII.HT & "ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.4s, v0.4s, v2.4s" & ASCII.LF & ASCII.HT & "addv s0, v0.4s" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]");
+   function Unordered (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Compare_Unordered_F32x4 (Left, Right, Weights_32x4'Address)));
    function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
    function Zero return F32x4 is (Flyology_SIMD.Zero);
@@ -2354,8 +2354,8 @@ package body Flyology_SIMD.Backends.Native is
    function Greater_Than (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Than_F64x2 (Left, Right, Weights_64x2'Address)));
    function Compare_Greater_Equal_F64x2 is new NEON_Compare_128 (F64x2, "fcmge v0.2d, v0.2d, v1.2d", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
    function Greater_Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Greater_Equal_F64x2 (Left, Right, Weights_64x2'Address)));
-   function Unordered (Left, Right : F64x2) return Mask_64x2 is
-     (Flyology_SIMD.Unordered (Left, Right));
+   function Compare_Unordered_F64x2 is new NEON_Compare_128 (F64x2, "fcmeq v0.2d, v0.2d, v0.2d" & ASCII.LF & ASCII.HT & "fcmeq v1.2d, v1.2d, v1.2d" & ASCII.LF & ASCII.HT & "and v0.16b, v0.16b, v1.16b" & ASCII.LF & ASCII.HT & "mvn v0.16b, v0.16b", "ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & "umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & "umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & "orr %w0, %w0, w9, lsl #1");
+   function Unordered (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Compare_Unordered_F64x2 (Left, Right, Weights_64x2'Address)));
    function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
    function Zero return F64x2 is (Flyology_SIMD.Zero);

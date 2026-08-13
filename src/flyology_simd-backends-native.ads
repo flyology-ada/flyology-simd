@@ -2907,7 +2907,7 @@ is
    --  @return The operation result.
    function Unordered (Left, Right : F32x4) return Mask_32x4;
    --  Return true in lanes where either floating input is NaN.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that compares each input with itself to mark lanes that are not NaN. It combines the masks with bitwise AND and inverts the result. The x86-64 backend uses a dedicated SSE2 unordered comparison. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3166,7 +3166,7 @@ is
    --  @return The operation result.
    function Unordered (Left, Right : F64x2) return Mask_64x2;
    --  Return true in lanes where either floating input is NaN.
-   --  Cross-platform support: The AArch64 backend uses scalar composition. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON sequence that compares each input with itself to mark lanes that are not NaN. It combines the masks with bitwise AND and inverts the result. The x86-64 backend uses a dedicated SSE2 unordered comparison. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

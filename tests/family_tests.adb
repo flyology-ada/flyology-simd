@@ -2181,6 +2181,12 @@ procedure Family_Tests is
       Signal_Left64 : constant F64x2 := From_Lanes ([SNaN64, 5.0]);
       Signal_Right64 : constant F64x2 := From_Lanes ([5.0, SNaN64]);
       Add_Negative_Zero64 : constant F64x2 := From_Lanes ([Neg_Zero64, Neg_Zero64]);
+      Unordered32_Left : constant F32x4 := From_Lanes ([NaN32, 1.0, SNaN32_B, Inf32]);
+      Unordered32_Right : constant F32x4 := From_Lanes ([2.0, SNaN32, NaN32, Neg_Zero32]);
+      Unordered64_Left : constant F64x2 := From_Lanes ([NaN64, 1.0]);
+      Unordered64_Right : constant F64x2 := From_Lanes ([1.0, SNaN64_B]);
+      Unordered64_Both : constant F64x2 := From_Lanes ([SNaN64, Inf64]);
+      Unordered64_Both_Right : constant F64x2 := From_Lanes ([NaN64, Neg_Zero64]);
    begin
       for Lane in Lane_Index_32x4 loop
          Check (F32_Bits (Extract (Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))) and then F32_Bits (Extract (Backends.Native.Permute_Lanes (Slide32, Permute32_Map), Lane)) = F32_Bits (Extract (Slide32, Permute32_Selectors (Lane))), "F32 special lane permutation" & Lane'Image);
@@ -2249,7 +2255,7 @@ procedure Family_Tests is
             end loop;
          end loop;
       end loop;
-      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A32, B32)) = Flyology_SIMD.To_Bit_Mask (Unordered (A32, B32)), "F32 NaN unordered");
+      Check (Flyology_SIMD.To_Bit_Mask (Unordered (Unordered32_Left, Unordered32_Right)) = 7 and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (Unordered32_Left, Unordered32_Right)) = 7, "F32 independent fixed unordered oracle");
       Check (Extract (Backends.Native.Min_Number (A32, B32), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A32, B32), 0) = 1.0, "F32 quiet NaN returns number");
       Check ((F32_Bits (Extract (Backends.Native.Min_Number (From_Lanes ([SNaN32, 0.0, 0.0, 0.0]), B32), 0)) and 16#7FC0_0000#) = 16#7FC0_0000#, "F32 signaling NaN is quieted");
       Check (F32_Bits (Extract (Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Max_Number (A32, B32), 2)) = 0 and then F32_Bits (Extract (Min_Number (B32, A32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Max_Number (B32, A32), 2)) = 0 and then F32_Bits (Extract (Backends.Native.Min_Number (A32, B32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (A32, B32), 2)) = 0 and then F32_Bits (Extract (Backends.Native.Min_Number (B32, A32), 2)) = 16#8000_0000# and then F32_Bits (Extract (Backends.Native.Max_Number (B32, A32), 2)) = 0, "F32 signed zero operand orders");
@@ -2274,7 +2280,37 @@ procedure Family_Tests is
       Check (F32_Bits (Reduce_Min_Number (Positive_Zero_First32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (Positive_Zero_First32)) = 0 and then F32_Bits (Reduce_Min_Number (Negative_Zero_First32)) = 16#8000_0000# and then F32_Bits (Reduce_Max_Number (Negative_Zero_First32)) = 0 and then F32_Bits (Backends.Native.Reduce_Min_Number (Positive_Zero_First32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (Positive_Zero_First32)) = 0 and then F32_Bits (Backends.Native.Reduce_Min_Number (Negative_Zero_First32)) = 16#8000_0000# and then F32_Bits (Backends.Native.Reduce_Max_Number (Negative_Zero_First32)) = 0, "F32 reduction signed-zero orders");
       Check (Reduce_Min_Number (Quiet_Left32) = 5.0 and then Reduce_Max_Number (Quiet_Left32) = 5.0 and then Reduce_Min_Number (Quiet_Right32) = 5.0 and then Reduce_Max_Number (Quiet_Right32) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Left32) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Left32) = 5.0 and then Backends.Native.Reduce_Min_Number (Quiet_Right32) = 5.0 and then Backends.Native.Reduce_Max_Number (Quiet_Right32) = 5.0, "F32 reduction quiet-NaN orders");
       Check (Is_Quiet_NaN (Reduce_Min_Number (Signal_Left32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Left32)) and then Is_Quiet_NaN (Reduce_Min_Number (Signal_Right32)) and then Is_Quiet_NaN (Reduce_Max_Number (Signal_Right32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Left32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Left32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Min_Number (Signal_Right32)) and then Is_Quiet_NaN (Backends.Native.Reduce_Max_Number (Signal_Right32)), "F32 reduction signaling-NaN orders");
-      Check (Backends.Native.To_Bit_Mask (Backends.Native.Unordered (A64, B64)) = Flyology_SIMD.To_Bit_Mask (Unordered (A64, B64)), "F64 NaN unordered");
+      Check (Flyology_SIMD.To_Bit_Mask (Unordered (Unordered64_Left, Unordered64_Right)) = 3 and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (Unordered64_Left, Unordered64_Right)) = 3 and then Flyology_SIMD.To_Bit_Mask (Unordered (Unordered64_Both, Unordered64_Both_Right)) = 1 and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (Unordered64_Both, Unordered64_Both_Right)) = 1, "F64 independent fixed unordered oracle");
+      for Iteration in 1 .. 250 loop
+         declare
+            Left32_Lanes : Lane_Values_F32x4;
+            Right32_Lanes : Lane_Values_F32x4;
+            Left64_Lanes : Lane_Values_F64x2;
+            Right64_Lanes : Lane_Values_F64x2;
+            Expected32 : Interfaces.Unsigned_8 := 0;
+            Expected64 : Interfaces.Unsigned_8 := 0;
+         begin
+            for Lane in Lane_Index_32x4 loop
+               Left32_Lanes (Lane) := To_F32 (Interfaces.Unsigned_32 (Next_U64 and 16#FFFF_FFFF#));
+               Right32_Lanes (Lane) := To_F32 (Interfaces.Unsigned_32 (Next_U64 and 16#FFFF_FFFF#));
+               if Is_NaN (Left32_Lanes (Lane)) or else Is_NaN (Right32_Lanes (Lane)) then Expected32 := Expected32 or Interfaces.Shift_Left (Interfaces.Unsigned_8 (1), Lane); end if;
+            end loop;
+            for Lane in Lane_Index_64x2 loop
+               Left64_Lanes (Lane) := To_F64 (Next_U64);
+               Right64_Lanes (Lane) := To_F64 (Next_U64);
+               if Is_NaN (Left64_Lanes (Lane)) or else Is_NaN (Right64_Lanes (Lane)) then Expected64 := Expected64 or Interfaces.Shift_Left (Interfaces.Unsigned_8 (1), Lane); end if;
+            end loop;
+            declare
+               Left32 : constant F32x4 := From_Lanes (Left32_Lanes);
+               Right32 : constant F32x4 := From_Lanes (Right32_Lanes);
+               Left64 : constant F64x2 := From_Lanes (Left64_Lanes);
+               Right64 : constant F64x2 := From_Lanes (Right64_Lanes);
+            begin
+               Check (Flyology_SIMD.To_Bit_Mask (Unordered (Left32, Right32)) = Expected32 and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (Left32, Right32)) = Expected32, "F32 randomized raw-bit unordered oracle" & Iteration'Image);
+               Check (Flyology_SIMD.To_Bit_Mask (Unordered (Left64, Right64)) = Expected64 and then Backends.Native.To_Bit_Mask (Backends.Native.Unordered (Left64, Right64)) = Expected64, "F64 randomized raw-bit unordered oracle" & Iteration'Image);
+            end;
+         end;
+      end loop;
       Check (Extract (Backends.Native.Min_Number (A64, B64), 0) = 1.0 and then Extract (Backends.Native.Max_Number (A64, B64), 0) = 1.0, "F64 quiet NaN returns number");
       Check ((F64_Bits (Extract (Backends.Native.Max_Number (From_Lanes ([SNaN64, 0.0]), B64), 0)) and 16#7FF8_0000_0000_0000#) = 16#7FF8_0000_0000_0000#, "F64 signaling NaN is quieted");
       Check (F64_Bits (Extract (Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Max_Number (A64, B64), 1)) = 0 and then F64_Bits (Extract (Min_Number (B64, A64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Max_Number (B64, A64), 1)) = 0 and then F64_Bits (Extract (Backends.Native.Min_Number (A64, B64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (A64, B64), 1)) = 0 and then F64_Bits (Extract (Backends.Native.Min_Number (B64, A64), 1)) = 16#8000_0000_0000_0000# and then F64_Bits (Extract (Backends.Native.Max_Number (B64, A64), 1)) = 0, "F64 signed zero operand orders");

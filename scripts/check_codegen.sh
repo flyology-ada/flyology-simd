@@ -30,6 +30,7 @@ wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_prob
 float_reduction_probe_object="$probe_root/float_reduction_codegen_probe.o"
 conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 shift64_probe_object="$probe_root/shift64_codegen_probe.o"
+unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
@@ -53,6 +54,7 @@ disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reducti
 disassemble "$float_reduction_probe_object" >"$temporary/float-reduction-probe.txt"
 disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$shift64_probe_object" >"$temporary/shift64-probe.txt"
+disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -69,6 +71,7 @@ nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-und
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
 nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$shift64_probe_object" >"$temporary/shift64-undefined.txt"
+nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 
 require_pattern() {
     pattern=$1
@@ -175,6 +178,12 @@ require_count 'flyology_simd__backends__native__shift_right_arithmetic' 1 \
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/shift64-undefined.txt" \
   'portable I64x2 arithmetic-right-shift call in the Native caller probe'
+require_count 'flyology_simd__backends__native__unordered' 2 \
+  "$temporary/unordered-undefined.txt" \
+  'F32x4 and F64x2 Native Unordered calls in the public caller probe'
+forbid_pattern 'flyology_simd__unordered' \
+  "$temporary/unordered-undefined.txt" \
+  'portable Unordered call in the Native caller probe'
 
 require_count 'backends__native__reduce_add_wrap' 2 \
   "$temporary/wide-reduction-relocs.txt" \
@@ -201,6 +210,21 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        extract_symbol 'compare_unordered_f32x4' "$temporary/native.txt" \
+          "$temporary/unordered-f32x4.txt"
+        extract_symbol 'compare_unordered_f64x2' "$temporary/native.txt" \
+          "$temporary/unordered-f64x2.txt"
+        for unordered in unordered-f32x4 unordered-f64x2; do
+            require_count 'fcmeq' 2 "$temporary/${unordered}.txt" \
+              "two self-comparisons in ${unordered}"
+            require_pattern 'and.*16b' "$temporary/${unordered}.txt" \
+              "ordered-mask conjunction in ${unordered}"
+            require_pattern 'mvn.*16b' "$temporary/${unordered}.txt" \
+              "unordered-mask inversion in ${unordered}"
+            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__unordered' \
+              "$temporary/${unordered}.txt" \
+              "portable or out-of-line helper in ${unordered}"
+        done
         extract_symbol 'native_reduce_add_f32x4' "$temporary/native.txt" \
           "$temporary/reduce-add-f32x4.txt"
         extract_symbol 'native_reduce_add_f64x2' "$temporary/native.txt" \

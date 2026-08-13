@@ -217,6 +217,27 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact I64x2 "
                 "Shift_Right_Arithmetic SSE2 classification"
             )
+        unordered_blocks = [
+            block.split("function ", 1)[0].split("procedure ", 1)[0]
+            for block in text.split("function Unordered")[1:]
+            if (
+                "Left, Right : F32x4" in block.split(";", 1)[0]
+                or "Left, Right : F64x2" in block.split(";", 1)[0]
+            )
+        ]
+        unordered_phrase = (
+            "The AArch64 backend uses a dedicated NEON sequence that "
+            "compares each input with itself to mark lanes that are not NaN. "
+            "It combines the masks with bitwise AND and inverts the result."
+        )
+        if (
+            len(unordered_blocks) != 2
+            or sum(unordered_phrase in block for block in unordered_blocks) != 2
+        ):
+            invalid.append(
+                f"{path.relative_to(ROOT)}: incorrect exact floating "
+                "Unordered AArch64 classifications"
+            )
         floating_widening_support = {
             "Widen_Low": (
                 "dedicated NEON instruction that converts the selected lanes with fcvtl",
