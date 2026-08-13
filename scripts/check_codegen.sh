@@ -45,6 +45,7 @@ alignment_probe_object="$probe_root/alignment_codegen_probe.o"
 table_lookup_probe_object="$probe_root/table_lookup_codegen_probe.o"
 u8_value_probe_object="$probe_root/u8_value_codegen_probe.o"
 integer_reduction_probe_object="$probe_root/integer_reduction_codegen_probe.o"
+float_binary_probe_object="$probe_root/float_binary_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -72,6 +73,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_reduction_probe_object" \
       >"$temporary/wide-reduction-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$float_binary_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/float-binary-probe.txt"
+else
+    objdump -dr "$float_binary_probe_object" >"$temporary/float-binary-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$wide_construction_probe_object" |
@@ -170,6 +177,7 @@ nm -u "$table_lookup_probe_object" >"$temporary/table-lookup-undefined.txt"
 nm -u "$u8_value_probe_object" >"$temporary/u8-value-undefined.txt"
 nm -u "$integer_reduction_probe_object" \
   >"$temporary/integer-reduction-undefined.txt"
+nm -u "$float_binary_probe_object" >"$temporary/float-binary-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1041,8 +1049,58 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide_
   "$temporary/integer-reduction-undefined.txt" \
   'portable, Scalar, or Wide reduction retained in the 128-bit caller probe'
 
+float_binary_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/float_binary_codegen_cases.txt | wc -l | tr -d ' ')
+float_binary_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/float_binary_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$float_binary_case_count" -ne 12 ] || [ "$float_binary_unique_count" -ne 12 ]; then
+    echo 'floating binary-operation manifest must contain 12 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix shape x86_shape; do
+    caller="$temporary/float-binary-${lane_kind}-${operation}.txt"
+    extract_symbol "float_binary_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/float-binary-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected operation in ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__' 1 "$caller" \
+      "only the matching selected operation remains in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(add|subtract|multiply|divide|min_number|max_number)|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide floating operation in ${lane_kind} ${operation} caller"
+done <scripts/probes/float_binary_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(add|subtract|multiply|divide|min_number|max_number)(__2)?$' 12 \
+  "$temporary/float-binary-undefined.txt" 'all 12 selected floating binary operations'
+require_count 'flyology_simd__' 12 "$temporary/float-binary-undefined.txt" \
+  'only the 12 intended floating operations remain unresolved from the caller probe'
+
 case "$architecture" in
     aarch64)
+        while read -r lane_kind operation suffix shape x86_shape; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/float-binary-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            case "$operation" in
+                add) instruction=fadd ;;
+                subtract) instruction=fsub ;;
+                multiply) instruction=fmul ;;
+                divide) instruction=fdiv ;;
+                min_number) instruction=fminnm ;;
+                max_number) instruction=fmaxnm ;;
+            esac
+            require_count "(^|[[:space:]])(${instruction}\\.${shape}[[:space:]]|${instruction}[[:space:]].*\\.${shape}([^[:alnum:]]|$))" 1 \
+              "$leaf" "exact NEON ${shape} ${operation} leaf"
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' \
+              "$leaf" "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/float_binary_codegen_cases.txt
         for direction in low high; do
             for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
                 symbol="slide_codegen_probe__${lane_kind}_${direction}"
@@ -1719,6 +1777,43 @@ EOF
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        while read -r lane_kind operation suffix shape x86_shape; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/float-binary-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            case "$operation" in
+                add) instruction="add${x86_shape}" ;;
+                subtract) instruction="sub${x86_shape}" ;;
+                multiply) instruction="mul${x86_shape}" ;;
+                divide) instruction="div${x86_shape}" ;;
+                min_number|max_number) instruction=pcmpgtd ;;
+            esac
+            if [ "$operation" = min_number ] || [ "$operation" = max_number ]; then
+                if [ "$lane_kind" = f32 ]; then
+                    require_count '(^|[[:space:]])pcmpgtd[[:space:]]' 5 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 10 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pand[[:space:]]' 11 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])por[[:space:]]' 7 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pxor[[:space:]]' 2 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
+                else
+                    require_count '(^|[[:space:]])pcmpgtd[[:space:]]' 10 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 20 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pand[[:space:]]' 16 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])por[[:space:]]' 12 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pxor[[:space:]]' 12 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
+                    require_count '(^|[[:space:]])pshufd[[:space:]]' 21 "$leaf" "exact SSE2 64-bit mask replication in ${lane_kind} ${operation} leaf"
+                fi
+            else
+                require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" \
+                  "exact SSE2 ${lane_kind} ${operation} leaf"
+            fi
+            forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' \
+              "$leaf" "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/float_binary_codegen_cases.txt
         extract_symbol 'construction_codegen_probe__splat_u8' \
           "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
         require_pattern 'punpcklbw' "$temporary/construction-splat-u8.txt" \

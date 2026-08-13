@@ -639,6 +639,17 @@ def native_support_doc(name: str, declaration: str) -> str:
         else:
             aarch = "the NEON addp instruction over two 64-bit lanes"
         x86 = f"the SSE2 {x86_add[vector]}"
+    elif name in {"Add", "Subtract", "Multiply", "Divide"} and (
+        "F32x4" in declaration or "F64x2" in declaration
+    ):
+        width = "4s" if "F32x4" in declaration else "2d"
+        x86_width = "ps" if "F32x4" in declaration else "pd"
+        instruction = {
+            "Add": ("fadd", "add"), "Subtract": ("fsub", "sub"),
+            "Multiply": ("fmul", "mul"), "Divide": ("fdiv", "div"),
+        }[name]
+        aarch = f"the NEON {instruction[0]} instruction over {width} lanes"
+        x86 = f"the SSE2 {instruction[1]}{x86_width} instruction"
     elif name == "Reduce_Add" and (
         "F32x4" in declaration or "F64x2" in declaration
     ):
@@ -655,7 +666,12 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Min_Number", "Max_Number", "Reduce_Min_Number", "Reduce_Max_Number"
     }:
         extreme = "minimum" if "Min" in name else "maximum"
-        aarch = f"a dedicated NEON number-{extreme} sequence"
+        if name in {"Min_Number", "Max_Number"}:
+            shape = "4s" if "F32x4" in declaration else "2d"
+            instruction = "fminnm" if "Min" in name else "fmaxnm"
+            aarch = f"the NEON {instruction} instruction over {shape} lanes"
+        else:
+            aarch = f"a dedicated NEON number-{extreme} sequence"
         if name in {"Min_Number", "Max_Number"}:
             x86 = (
                 "a dedicated integer-only SSE2 classification and bit-selection "

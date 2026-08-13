@@ -270,15 +270,35 @@ reductions, mismatched `Backends.Native` reductions, and `Wide` or
 type. They require the operation-specific target sequence and reject portable
 reduction helpers.
 
-Floating
-`Reduce_Add` uses a dedicated SSE2 sequence. It starts from positive zero and
-adds one lane at a time in ascending order.
-Floating `Min_Number` and `Max_Number` use integer-only SSE2 classification
-and bit-selection sequences. The SSE2 reduction sequences start with lane 0.
-They classify each remaining lane's IEEE encoding and select the result bits
-in ascending lane order. These sequences
-preserve the documented quiet-NaN, signaling-NaN, and signed-zero results
-without executing a floating comparison during classification. The
+All 12 fixed-width floating binary overloads use dedicated target leaves. On
+AArch64, the `F32x4` leaves use one NEON `fadd`, `fsub`, `fmul`, `fdiv`,
+`fminnm`, or `fmaxnm` instruction over `4s` lanes. The `F64x2` leaves use the
+matching instruction over `2d` lanes. On x86-64, arithmetic uses `addps`,
+`subps`, `mulps`, and `divps` for `F32x4`, and the `addpd`, `subpd`, `mulpd`,
+and `divpd` instructions for `F64x2`. The number-minimum and number-maximum
+leaves use integer-only SSE2 classification and bit selection.
+
+Independent lane oracles check the root, `Backends.Scalar`, and
+`Backends.Native` results for fixed inputs and 250 deterministic finite input
+pairs at each width. Directed IEEE cases cover quiet and signaling NaNs,
+infinities, signed zero, and division edges. Direct Scalar checks also cover
+the arithmetic edges and the number-minimum and number-maximum NaN and
+signed-zero rules.
+
+A generated public caller gate covers all 12 overloads on AArch64 and x86-64.
+Each caller must call one matching selected `Backends.Native` operation. The
+gate rejects root, `Backends.Scalar`, mismatched `Backends.Native`, and Wide
+operation calls. Exact-leaf gates require the matching operation- and
+type-specific target sequence and reject branches or out-of-line helpers.
+
+Floating `Reduce_Add` uses a dedicated SSE2 sequence. It starts from positive
+zero and adds one lane at a time in ascending order. Floating
+`Reduce_Min_Number` and `Reduce_Max_Number` use integer-only SSE2
+classification and bit-selection sequences. The reduction sequences start
+with lane 0. They classify each remaining lane's IEEE encoding and select the
+result bits in ascending lane order. These sequences preserve the documented
+quiet-NaN, signaling-NaN, and signed-zero results without executing a floating
+comparison during classification. The
 integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
 overloads use SSE2 unpack, shuffle, clamp, and pack sequences. Conversions
 between 32-bit integer and binary32 lanes use packed SSE2 sequences.

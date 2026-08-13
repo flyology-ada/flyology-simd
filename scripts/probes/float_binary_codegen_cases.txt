@@ -1,0 +1,12 @@
+f32 add none 4s ps
+f32 subtract none 4s ps
+f32 multiply none 4s ps
+f32 divide none 4s ps
+f32 min_number none 4s ps
+f32 max_number none 4s ps
+f64 add 2 2d pd
+f64 subtract 2 2d pd
+f64 multiply 2 2d pd
+f64 divide 2 2d pd
+f64 min_number 2 2d pd
+f64 max_number 2 2d pd

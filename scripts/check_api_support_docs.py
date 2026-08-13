@@ -486,6 +486,40 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: incorrect exact {operation} "
                     "SSE2 classifications"
                 )
+        floating_binary_support = {
+            "Add": (("NEON fadd instruction over 4s lanes", "SSE2 addps instruction"),
+                    ("NEON fadd instruction over 2d lanes", "SSE2 addpd instruction")),
+            "Subtract": (("NEON fsub instruction over 4s lanes", "SSE2 subps instruction"),
+                         ("NEON fsub instruction over 2d lanes", "SSE2 subpd instruction")),
+            "Multiply": (("NEON fmul instruction over 4s lanes", "SSE2 mulps instruction"),
+                         ("NEON fmul instruction over 2d lanes", "SSE2 mulpd instruction")),
+            "Divide": (("NEON fdiv instruction over 4s lanes", "SSE2 divps instruction"),
+                       ("NEON fdiv instruction over 2d lanes", "SSE2 divpd instruction")),
+            "Min_Number": (("NEON fminnm instruction over 4s lanes", "integer-only SSE2 classification"),
+                           ("NEON fminnm instruction over 2d lanes", "integer-only SSE2 classification")),
+            "Max_Number": (("NEON fmaxnm instruction over 4s lanes", "integer-only SSE2 classification"),
+                           ("NEON fmaxnm instruction over 2d lanes", "integer-only SSE2 classification")),
+        }
+        for operation, expected in floating_binary_support.items():
+            blocks = declaration_blocks(text, operation)
+            float_blocks = [block for block in blocks if "F32x4" in block or "F64x2" in block]
+            exact = []
+            for vector, (aarch, x86) in zip(("F32x4", "F64x2"), expected):
+                matching = [block for block in float_blocks if vector in block.split(";", 1)[0]]
+                exact.append(
+                    len(matching) == 1
+                    and aarch in matching[0]
+                    and x86 in matching[0]
+                    and (
+                        path.name != "flyology_simd.ads"
+                        or "This overload uses the portable scalar implementation"
+                        in matching[0]
+                    )
+                )
+            if len(float_blocks) != 2 or not all(exact):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact floating {operation} classifications"
+                )
         conversion_support = {
             "Widen_Low": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),
             "Widen_High": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),

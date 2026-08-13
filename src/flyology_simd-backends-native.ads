@@ -2853,25 +2853,25 @@ is
    --  @return The operation result.
    function Add (Left, Right : F32x4) return F32x4;
    --  Add corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fadd instruction over 4s lanes. The x86-64 backend uses the SSE2 addps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract (Left, Right : F32x4) return F32x4;
    --  Subtract corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fsub instruction over 4s lanes. The x86-64 backend uses the SSE2 subps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply (Left, Right : F32x4) return F32x4;
    --  Multiply corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fmul instruction over 4s lanes. The x86-64 backend uses the SSE2 mulps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Divide (Left, Right : F32x4) return F32x4;
    --  Divide corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fdiv instruction over 4s lanes. The x86-64 backend uses the SSE2 divps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2932,13 +2932,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F32x4) return F32x4;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fminnm instruction over 4s lanes. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F32x4) return F32x4;
    --  Return the floating number maximum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fmaxnm instruction over 4s lanes. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3112,25 +3112,25 @@ is
    --  @return The operation result.
    function Add (Left, Right : F64x2) return F64x2;
    --  Add corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fadd instruction over 2d lanes. The x86-64 backend uses the SSE2 addpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract (Left, Right : F64x2) return F64x2;
    --  Subtract corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fsub instruction over 2d lanes. The x86-64 backend uses the SSE2 subpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply (Left, Right : F64x2) return F64x2;
    --  Multiply corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fmul instruction over 2d lanes. The x86-64 backend uses the SSE2 mulpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Divide (Left, Right : F64x2) return F64x2;
    --  Divide corresponding floating-point lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fdiv instruction over 2d lanes. The x86-64 backend uses the SSE2 divpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3191,13 +3191,13 @@ is
    --  @return The operation result.
    function Min_Number (Left, Right : F64x2) return F64x2;
    --  Return the floating number minimum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON number-minimum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fminnm instruction over 2d lanes. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max_Number (Left, Right : F64x2) return F64x2;
    --  Return the floating number maximum with the documented NaN and signed-zero rules.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON number-maximum sequence. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON fmaxnm instruction over 2d lanes. The x86-64 backend uses a dedicated integer-only SSE2 classification and bit-selection sequence that preserves the documented NaN and signed-zero rules. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
