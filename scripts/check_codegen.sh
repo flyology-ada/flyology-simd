@@ -650,6 +650,42 @@ __6    u32x4  i32x4  pcmpgtd psrld
 __7    i64x2  u64x2  psrad none
 __8    u64x2  i64x2  psrad psrlq
 EOF
+        while read -r suffix lane operation arithmetic expand; do
+            symbol="${operation}_saturate${suffix}"
+            output="$temporary/${symbol}_${lane}.txt"
+            extract_symbol "flyology_simd__backends__native__${symbol}" \
+              "$temporary/native.txt" "$output"
+            require_pattern "(^|[[:space:]])${arithmetic}[[:space:]]" "$output" \
+              "SSE2 packed arithmetic in ${lane} ${operation}_Saturate"
+            require_pattern '(^|[[:space:]])p(and|or|xor|andn)[[:space:]]' "$output" \
+              "SSE2 overflow or borrow mask in ${lane} ${operation}_Saturate"
+            require_pattern "$expand" "$output" \
+              "SSE2 complete-lane saturation mask in ${lane} ${operation}_Saturate"
+            case "$lane" in
+                *64x2)
+                    require_pattern '(^|[[:space:]])psrad[[:space:]]' "$output" \
+                      "SSE2 replicated 64-bit saturation mask in ${lane} ${operation}_Saturate"
+                    ;;
+            esac
+            if [ "$operation" = subtract ]; then
+                require_pattern '(^|[[:space:]])pandn[[:space:]]' "$output" \
+                  "SSE2 clamped subtraction selection in ${lane} Subtract_Saturate"
+            else
+                require_pattern '(^|[[:space:]])por[[:space:]]' "$output" \
+                  "SSE2 clamped addition selection in ${lane} Add_Saturate"
+            fi
+            forbid_pattern '(^|[[:space:]])call|flyology_simd__(add|subtract)_saturate' \
+              "$output" "scalar or out-of-line helper in ${lane} ${operation}_Saturate"
+        done <<'EOF'
+__5 u32x4 add      paddd psrad
+__5 u32x4 subtract psubd psrad
+__6 i32x4 add      paddd psrad
+__6 i32x4 subtract psubd psrad
+__7 u64x2 add      paddq pshufd
+__7 u64x2 subtract psubq pshufd
+__8 i64x2 add      paddq pshufd
+__8 i64x2 subtract psubq pshufd
+EOF
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'

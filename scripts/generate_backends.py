@@ -1157,6 +1157,108 @@ def x86_ada_instruction(instruction: str) -> str:
     return instruction.replace("\n", '" & ASCII.LF & ASCII.HT & "')
 
 
+def x86_expand_lane_sign(register: str, bits: int) -> str:
+    """Expand the high bit of each 32- or 64-bit lane to a full-lane mask."""
+    if bits == 32:
+        return f"psrad $31, %%{register}"
+    assert bits == 64
+    return (
+        f"pshufd $0xF5, %%{register}, %%{register}\n"
+        f"psrad $31, %%{register}"
+    )
+
+
+def x86_saturating_arithmetic_instruction(
+    bits: int, signed: bool, subtract: bool
+) -> str:
+    """Return an SSE2-only saturating add or subtract for 32/64-bit lanes."""
+    assert bits in (32, 64)
+    packed = f"{'psub' if subtract else 'padd'}{'d' if bits == 32 else 'q'}"
+    expand_overflow = x86_expand_lane_sign("xmm4", bits)
+
+    if not signed:
+        if subtract:
+            # The high bit of (~A and B) or (~(A xor B) and (A - B)) is
+            # the borrow out of an unsigned lane.  Convert it to a complete
+            # lane mask, then clear every lane that borrowed.
+            return (
+                "movdqa %%xmm0, %%xmm2\n"
+                "movdqa %%xmm1, %%xmm3\n"
+                f"{packed} %%xmm1, %%xmm0\n"
+                "pcmpeqd %%xmm6, %%xmm6\n"
+                "movdqa %%xmm2, %%xmm4\n"
+                "pxor %%xmm6, %%xmm4\n"
+                "pand %%xmm3, %%xmm4\n"
+                "pxor %%xmm3, %%xmm2\n"
+                "pxor %%xmm6, %%xmm2\n"
+                "pand %%xmm0, %%xmm2\n"
+                "por %%xmm2, %%xmm4\n"
+                f"{expand_overflow}\n"
+                "pandn %%xmm0, %%xmm4\n"
+                "movdqa %%xmm4, %%xmm0"
+            )
+
+        # The high bit of (A and B) or ((A or B) and not (A + B)) is the
+        # carry out of an unsigned lane.  Expand it and set an overflowing
+        # lane to all ones.
+        return (
+            "movdqa %%xmm0, %%xmm2\n"
+            "movdqa %%xmm1, %%xmm3\n"
+            f"{packed} %%xmm1, %%xmm0\n"
+            "movdqa %%xmm2, %%xmm4\n"
+            "pand %%xmm3, %%xmm4\n"
+            "por %%xmm3, %%xmm2\n"
+            "movdqa %%xmm0, %%xmm5\n"
+            "pcmpeqd %%xmm6, %%xmm6\n"
+            "pxor %%xmm6, %%xmm5\n"
+            "pand %%xmm5, %%xmm2\n"
+            "por %%xmm2, %%xmm4\n"
+            f"{expand_overflow}\n"
+            "por %%xmm4, %%xmm0"
+        )
+
+    # Signed addition overflows when equal-sign inputs produce a result with
+    # the other sign.  Signed subtraction overflows when different-sign
+    # inputs produce a result whose sign differs from the left input.
+    overflow = (
+        "movdqa %%xmm2, %%xmm4\n"
+        "pxor %%xmm3, %%xmm4\n"
+        + (
+            "pcmpeqd %%xmm6, %%xmm6\n"
+            "pxor %%xmm6, %%xmm4\n"
+            if not subtract
+            else ""
+        )
+        + "movdqa %%xmm2, %%xmm5\n"
+        "pxor %%xmm0, %%xmm5\n"
+        "pand %%xmm5, %%xmm4\n"
+        f"{expand_overflow}\n"
+    )
+    sign_of_left = x86_expand_lane_sign("xmm5", bits)
+    shift_left = "pslld $31" if bits == 32 else "psllq $63"
+    shift_right = "psrld $1" if bits == 32 else "psrlq $1"
+    return (
+        "movdqa %%xmm0, %%xmm2\n"
+        "movdqa %%xmm1, %%xmm3\n"
+        f"{packed} %%xmm1, %%xmm0\n"
+        f"{overflow}"
+        "pcmpeqd %%xmm6, %%xmm6\n"
+        "movdqa %%xmm6, %%xmm7\n"
+        f"{shift_left}, %%xmm7\n"
+        f"{shift_right}, %%xmm6\n"
+        "movdqa %%xmm2, %%xmm5\n"
+        f"{sign_of_left}\n"
+        "movdqa %%xmm5, %%xmm2\n"
+        "pand %%xmm7, %%xmm2\n"
+        "pandn %%xmm6, %%xmm5\n"
+        "por %%xmm2, %%xmm5\n"
+        "pand %%xmm4, %%xmm5\n"
+        "pandn %%xmm0, %%xmm4\n"
+        "por %%xmm5, %%xmm4\n"
+        "movdqa %%xmm4, %%xmm0"
+    )
+
+
 def x86_reduction_shuffles(bits: int) -> list[str]:
     """Return fixed SSE2 permutations for an associative lane reduction."""
     shuffles = [
@@ -1629,6 +1731,13 @@ def x86_body() -> str:
             prefix = "s" if signed else "us"
             instructions["Add_Saturate"] = f"padd{prefix}{'b' if bits == 8 else 'w'} %%xmm1, %%xmm0"
             instructions["Subtract_Saturate"] = f"psub{prefix}{'b' if bits == 8 else 'w'} %%xmm1, %%xmm0"
+        else:
+            instructions["Add_Saturate"] = x86_saturating_arithmetic_instruction(
+                bits, signed, False
+            )
+            instructions["Subtract_Saturate"] = x86_saturating_arithmetic_instruction(
+                bits, signed, True
+            )
         if (not signed and bits == 8) or (signed and bits == 16):
             instructions["Min"] = f"pmin{'ub' if bits == 8 else 'sw'} %%xmm1, %%xmm0"
             instructions["Max"] = f"pmax{'ub' if bits == 8 else 'sw'} %%xmm1, %%xmm0"
@@ -1656,11 +1765,6 @@ def x86_body() -> str:
             call("Compress", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
             call("Expand", vector, "Value, Mask", f"Value : {vector}; Mask : {mask}"),
         ]
-        if bits > 16:
-            out += [
-                call("Add_Saturate", vector, "Left, Right", f"Left, Right : {vector}"),
-                call("Subtract_Saturate", vector, "Left, Right", f"Left, Right : {vector}"),
-            ]
         out += [
             f"   function Native_SHL_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_left[bits])}\");",
             f"   function Native_SHR_{vector} is new SSE2_Shift_128 ({vector}, \"{x86_ada_instruction(shift_right[bits])}\");",
@@ -1872,6 +1976,36 @@ def test_program() -> str:
             shl_oracle = f"{scalar} (Interfaces.Shift_Left ({unsigned} (Extract (A, Lane)), 1))"
             shr_oracle = f"{scalar} (Interfaces.Shift_Right ({unsigned} (Extract (A, Lane)), 1))"
             sar_oracle = None
+        saturation_edges = {
+            "U32x4": [
+                "      Saturation_Left : constant U32x4 := From_Lanes ([U32'Last, 0, U32'Last, 0]);",
+                "      Saturation_Right : constant U32x4 := From_Lanes ([1, 1, U32'Last, U32'Last]);",
+                "      Saturating_Add_Expected : constant Lane_Values_U32x4 := [U32'Last, 1, U32'Last, U32'Last];",
+                "      Saturating_Subtract_Expected : constant Lane_Values_U32x4 := [U32'Last - 1, 0, 0, 0];",
+            ],
+            "I32x4": [
+                "      Saturation_Left : constant I32x4 := From_Lanes ([I32'Last, I32'First, I32'Last, I32'First]);",
+                "      Saturation_Right : constant I32x4 := From_Lanes ([1, -1, -1, 1]);",
+                "      Saturating_Add_Expected : constant Lane_Values_I32x4 := [I32'Last, I32'First, I32'Last - 1, I32'First + 1];",
+                "      Saturating_Subtract_Expected : constant Lane_Values_I32x4 := [I32'Last - 1, I32'First + 1, I32'Last, I32'First];",
+            ],
+            "U64x2": [
+                "      Saturation_Left : constant U64x2 := From_Lanes ([U64'Last, 0]);",
+                "      Saturation_Right : constant U64x2 := From_Lanes ([1, 1]);",
+                "      Saturating_Add_Expected : constant Lane_Values_U64x2 := [U64'Last, 1];",
+                "      Saturating_Subtract_Expected : constant Lane_Values_U64x2 := [U64'Last - 1, 0];",
+            ],
+            "I64x2": [
+                "      Saturation_Left : constant I64x2 := From_Lanes ([I64'Last, I64'First]);",
+                "      Saturation_Right : constant I64x2 := From_Lanes ([1, -1]);",
+                "      Saturating_Add_Expected : constant Lane_Values_I64x2 := [I64'Last, I64'First];",
+                "      Saturating_Subtract_Expected : constant Lane_Values_I64x2 := [I64'Last - 1, I64'First + 1];",
+                "      Saturation_Left_2 : constant I64x2 := Saturation_Left;",
+                "      Saturation_Right_2 : constant I64x2 := From_Lanes ([-1, 1]);",
+                "      Saturating_Add_Expected_2 : constant Lane_Values_I64x2 := [I64'Last - 1, I64'First + 1];",
+                "      Saturating_Subtract_Expected_2 : constant Lane_Values_I64x2 := [I64'Last, I64'First];",
+            ],
+        }.get(vector, [])
         lines += [
             *helpers,
             f"   function Reference_Add_Saturate_{vector} (Left, Right : {scalar}) return {scalar} is",
@@ -1948,6 +2082,7 @@ def test_program() -> str:
             f"      Default_Two_Source_Map : {two_source_lane_map(bits, lanes)};",
             f"      Data, Reference : {arr} (0 .. {lanes + 5}) := [others => 0];",
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
+            *saturation_edges,
             *(
                 [
                     "      Multiply_Edge_Left : constant U64x2 := From_Lanes ([16#FFFF_FFFF_0000_0001#, 16#8000_0001_0000_0001#]);",
@@ -1980,6 +2115,14 @@ def test_program() -> str:
         if bits == 64:
             lines.append(
                 f"      Check (Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, \"{vector} independent 32-bit partial-product boundaries\");"
+            )
+        if bits >= 32:
+            lines.append(
+                f"      Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, \"{vector} independent fixed saturation boundaries\");"
+            )
+        if vector == "I64x2":
+            lines.append(
+                "      Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2, \"I64x2 opposite fixed saturation boundaries\");"
             )
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
@@ -2106,7 +2249,7 @@ def test_program() -> str:
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
             f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent scalar and native multiply oracle\" & Lane'Image);",
-            f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent saturation oracle\" & Lane'Image);",
+            f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent scalar and native saturation oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Extract (Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} independent bitwise oracle\" & Lane'Image);",
             f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",
             f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} independent comparison oracle\" & Lane'Image);",

@@ -298,8 +298,6 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Min_Number", "Max_Number",
             "Reduce_Add", "Reduce_Min_Number", "Reduce_Max_Number",
         }
-        or (name in {"Add_Saturate", "Subtract_Saturate"}
-            and ("32x4" in declaration or "64x2" in declaration))
     )
     if name in fixed_ada:
         return (
@@ -312,6 +310,26 @@ def native_support_doc(name: str, declaration: str) -> str:
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"
+    elif name in {"Add_Saturate", "Subtract_Saturate"}:
+        verb = "adds" if name == "Add_Saturate" else "subtracts"
+        aarch = f"a dedicated NEON instruction that {verb} lanes with saturation"
+        if "8x16" in declaration or "16x8" in declaration:
+            x86 = f"a dedicated SSE2 instruction that {verb} lanes with saturation"
+        elif "I32x4" in declaration or "I64x2" in declaration:
+            x86 = (
+                "a dedicated SSE2 sequence that derives a signed-overflow mask "
+                "and selects the signed minimum or maximum"
+            )
+        elif name == "Add_Saturate":
+            x86 = (
+                "a dedicated SSE2 sequence that derives a carry mask and "
+                "selects the unsigned maximum"
+            )
+        else:
+            x86 = (
+                "a dedicated SSE2 sequence that derives a borrow mask and "
+                "selects zero"
+            )
     elif name == "Reduce_Add_Wrap":
         aarch = "a dedicated NEON packed reduction"
         x86 = "a dedicated SSE2 packed-add reduction tree"

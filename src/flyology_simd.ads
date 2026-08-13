@@ -116,13 +116,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U8x16) return U8x16;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that adds lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U8x16) return U8x16;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that subtracts lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1059,13 +1059,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I8x16) return I8x16;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that adds lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I8x16) return I8x16;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that subtracts lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1358,13 +1358,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U16x8) return U16x8;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that adds lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U16x8) return U16x8;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that subtracts lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1651,13 +1651,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I16x8) return I16x8;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that adds lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I16x8) return I16x8;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 instruction that subtracts lanes with saturation. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1950,13 +1950,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U32x4) return U32x4;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a carry mask and selects the unsigned maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U32x4) return U32x4;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a borrow mask and selects zero. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2243,13 +2243,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I32x4) return I32x4;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a signed-overflow mask and selects the signed minimum or maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I32x4) return I32x4;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a signed-overflow mask and selects the signed minimum or maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2542,13 +2542,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U64x2) return U64x2;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a carry mask and selects the unsigned maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U64x2) return U64x2;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a borrow mask and selects zero. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2835,13 +2835,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I64x2) return I64x2;
    --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that adds lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a signed-overflow mask and selects the signed minimum or maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I64x2) return I64x2;
    --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses scalar composition. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that subtracts lanes with saturation. The x86-64 backend uses a dedicated SSE2 sequence that derives a signed-overflow mask and selects the signed minimum or maximum. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

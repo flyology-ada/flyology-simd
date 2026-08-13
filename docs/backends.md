@@ -66,8 +66,13 @@ selection subprogram. It rejects calls to the portable selection operation.
 x86-64 SSE2 is the baseline. SSE2 implements vector arithmetic, bitwise
 operations, shifts, comparisons, compact masks, selection, shuffles, and full
 memory operations across every 128-bit integer and floating family. Lane
-slides use the immediate-byte `psrldq` and `pslldq` instructions. Saturating
-arithmetic uses scalar composition for 32- and 64-bit lanes. All 24 integer
+slides use the immediate-byte `psrldq` and `pslldq` instructions. For 8- and
+16-bit lanes, saturating arithmetic uses the packed SSE2 saturation
+instructions. For signed 32- and 64-bit lanes, it derives an overflow mask and
+selects the signed minimum or maximum. For unsigned addition, it derives a
+carry mask and selects the unsigned maximum. For unsigned subtraction, it
+derives a borrow mask and selects zero.
+All 24 integer
 reductions use SSE2 fixed-shuffle trees. Wrapping sums use packed addition.
 Minimum and maximum reductions use packed minimum or maximum where SSE2 has
 the lane operation, and comparison plus bit selection otherwise. Floating

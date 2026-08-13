@@ -200,6 +200,28 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected eight exact "
                 f"Convert_Saturate SSE2 classifications, found {found}"
             )
+        saturation_support = {
+            ("Add_Saturate", "U32x4"): "derives a carry mask and selects the unsigned maximum",
+            ("Add_Saturate", "I32x4"): "derives a signed-overflow mask and selects the signed minimum or maximum",
+            ("Add_Saturate", "U64x2"): "derives a carry mask and selects the unsigned maximum",
+            ("Add_Saturate", "I64x2"): "derives a signed-overflow mask and selects the signed minimum or maximum",
+            ("Subtract_Saturate", "U32x4"): "derives a borrow mask and selects zero",
+            ("Subtract_Saturate", "I32x4"): "derives a signed-overflow mask and selects the signed minimum or maximum",
+            ("Subtract_Saturate", "U64x2"): "derives a borrow mask and selects zero",
+            ("Subtract_Saturate", "I64x2"): "derives a signed-overflow mask and selects the signed minimum or maximum",
+        }
+        for (operation, vector), phrase in saturation_support.items():
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+                if vector in block.split(";", 1)[0]
+            ]
+            found = sum(phrase in block for block in blocks)
+            if len(blocks) != 1 or found != 1:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {vector} "
+                    f"{operation} SSE2 classification"
+                )
     if path.name == "flyology_simd-wide-native.ads":
         required = {
             "function Is_Aligned_32": "same portable Ada implementation",

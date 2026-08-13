@@ -1485,6 +1485,10 @@ package body Flyology_SIMD.Backends.Native is
    function Deinterleave_Even (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Even_U32x4 (Left, Right));
    function Native_Deinterleave_Odd_U32x4 is new SSE2_Binary_128 (U32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
    function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Odd_U32x4 (Left, Right));
+   function Native_Add_Saturate_U32x4 is new SSE2_Binary_128 (U32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm0");
+   function Add_Saturate (Left, Right : U32x4) return U32x4 is (Native_Add_Saturate_U32x4 (Left, Right));
+   function Native_Subtract_Saturate_U32x4 is new SSE2_Binary_128 (U32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Subtract_Saturate (Left, Right : U32x4) return U32x4 is (Native_Subtract_Saturate_U32x4 (Left, Right));
    function Native_Not_U32x4 is new SSE2_Unary_128 (U32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : U32x4) return U32x4 is (Native_Not_U32x4 (Value));
    function Native_Reverse_U32x4 is new SSE2_Unary_128 (U32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
@@ -1511,10 +1515,6 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Compress (Value, Mask));
    function Expand (Value : U32x4; Mask : Mask_32x4) return U32x4 is
      (Flyology_SIMD.Expand (Value, Mask));
-   function Add_Saturate (Left, Right : U32x4) return U32x4 is
-     (Flyology_SIMD.Add_Saturate (Left, Right));
-   function Subtract_Saturate (Left, Right : U32x4) return U32x4 is
-     (Flyology_SIMD.Subtract_Saturate (Left, Right));
    function Native_SHL_U32x4 is new SSE2_Shift_128 (U32x4, "pslld %%xmm1, %%xmm0");
    function Native_SHR_U32x4 is new SSE2_Shift_128 (U32x4, "psrld %%xmm1, %%xmm0");
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHL_U32x4 (Value, Interfaces.Unsigned_32 (Count)));
@@ -1570,6 +1570,10 @@ package body Flyology_SIMD.Backends.Native is
    function Deinterleave_Even (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Even_I32x4 (Left, Right));
    function Native_Deinterleave_Odd_I32x4 is new SSE2_Binary_128 (I32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
    function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Odd_I32x4 (Left, Right));
+   function Native_Add_Saturate_I32x4 is new SSE2_Binary_128 (I32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Add_Saturate (Left, Right : I32x4) return I32x4 is (Native_Add_Saturate_I32x4 (Left, Right));
+   function Native_Subtract_Saturate_I32x4 is new SSE2_Binary_128 (I32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Subtract_Saturate (Left, Right : I32x4) return I32x4 is (Native_Subtract_Saturate_I32x4 (Left, Right));
    function Native_Not_I32x4 is new SSE2_Unary_128 (I32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : I32x4) return I32x4 is (Native_Not_I32x4 (Value));
    function Native_Reverse_I32x4 is new SSE2_Unary_128 (I32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
@@ -1596,10 +1600,6 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Compress (Value, Mask));
    function Expand (Value : I32x4; Mask : Mask_32x4) return I32x4 is
      (Flyology_SIMD.Expand (Value, Mask));
-   function Add_Saturate (Left, Right : I32x4) return I32x4 is
-     (Flyology_SIMD.Add_Saturate (Left, Right));
-   function Subtract_Saturate (Left, Right : I32x4) return I32x4 is
-     (Flyology_SIMD.Subtract_Saturate (Left, Right));
    function Native_SHL_I32x4 is new SSE2_Shift_128 (I32x4, "pslld %%xmm1, %%xmm0");
    function Native_SHR_I32x4 is new SSE2_Shift_128 (I32x4, "psrld %%xmm1, %%xmm0");
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is (if Count >= 32 then Flyology_SIMD.Zero else Native_SHL_I32x4 (Value, Interfaces.Unsigned_32 (Count)));
@@ -1657,6 +1657,10 @@ package body Flyology_SIMD.Backends.Native is
    function Deinterleave_Even (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Even_U64x2 (Left, Right));
    function Native_Deinterleave_Odd_U64x2 is new SSE2_Binary_128 (U64x2, "punpckhqdq %%xmm1, %%xmm0");
    function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Odd_U64x2 (Left, Right));
+   function Native_Add_Saturate_U64x2 is new SSE2_Binary_128 (U64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm0");
+   function Add_Saturate (Left, Right : U64x2) return U64x2 is (Native_Add_Saturate_U64x2 (Left, Right));
+   function Native_Subtract_Saturate_U64x2 is new SSE2_Binary_128 (U64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Subtract_Saturate (Left, Right : U64x2) return U64x2 is (Native_Subtract_Saturate_U64x2 (Left, Right));
    function Native_Not_U64x2 is new SSE2_Unary_128 (U64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
    function Native_Reverse_U64x2 is new SSE2_Unary_128 (U64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
@@ -1683,10 +1687,6 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Compress (Value, Mask));
    function Expand (Value : U64x2; Mask : Mask_64x2) return U64x2 is
      (Flyology_SIMD.Expand (Value, Mask));
-   function Add_Saturate (Left, Right : U64x2) return U64x2 is
-     (Flyology_SIMD.Add_Saturate (Left, Right));
-   function Subtract_Saturate (Left, Right : U64x2) return U64x2 is
-     (Flyology_SIMD.Subtract_Saturate (Left, Right));
    function Native_SHL_U64x2 is new SSE2_Shift_128 (U64x2, "psllq %%xmm1, %%xmm0");
    function Native_SHR_U64x2 is new SSE2_Shift_128 (U64x2, "psrlq %%xmm1, %%xmm0");
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHL_U64x2 (Value, Interfaces.Unsigned_32 (Count)));
@@ -1742,6 +1742,10 @@ package body Flyology_SIMD.Backends.Native is
    function Deinterleave_Even (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Even_I64x2 (Left, Right));
    function Native_Deinterleave_Odd_I64x2 is new SSE2_Binary_128 (I64x2, "punpckhqdq %%xmm1, %%xmm0");
    function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Odd_I64x2 (Left, Right));
+   function Native_Add_Saturate_I64x2 is new SSE2_Binary_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm7" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Add_Saturate (Left, Right : I64x2) return I64x2 is (Native_Add_Saturate_I64x2 (Left, Right));
+   function Native_Subtract_Saturate_I64x2 is new SSE2_Binary_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm7" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Subtract_Saturate (Left, Right : I64x2) return I64x2 is (Native_Subtract_Saturate_I64x2 (Left, Right));
    function Native_Not_I64x2 is new SSE2_Unary_128 (I64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
    function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
    function Native_Reverse_I64x2 is new SSE2_Unary_128 (I64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
@@ -1768,10 +1772,6 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Compress (Value, Mask));
    function Expand (Value : I64x2; Mask : Mask_64x2) return I64x2 is
      (Flyology_SIMD.Expand (Value, Mask));
-   function Add_Saturate (Left, Right : I64x2) return I64x2 is
-     (Flyology_SIMD.Add_Saturate (Left, Right));
-   function Subtract_Saturate (Left, Right : I64x2) return I64x2 is
-     (Flyology_SIMD.Subtract_Saturate (Left, Right));
    function Native_SHL_I64x2 is new SSE2_Shift_128 (I64x2, "psllq %%xmm1, %%xmm0");
    function Native_SHR_I64x2 is new SSE2_Shift_128 (I64x2, "psrlq %%xmm1, %%xmm0");
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is (if Count >= 64 then Flyology_SIMD.Zero else Native_SHL_I64x2 (Value, Interfaces.Unsigned_32 (Count)));
