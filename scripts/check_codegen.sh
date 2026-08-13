@@ -41,6 +41,7 @@ partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
 bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
 alignment_probe_object="$probe_root/alignment_codegen_probe.o"
 table_lookup_probe_object="$probe_root/table_lookup_codegen_probe.o"
+u8_value_probe_object="$probe_root/u8_value_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -90,6 +91,12 @@ disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt
 disassemble "$bit_cast_probe_object" >"$temporary/bit-cast-probe.txt"
 disassemble "$alignment_probe_object" >"$temporary/alignment-probe.txt"
 disassemble "$table_lookup_probe_object" >"$temporary/table-lookup-probe.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$u8_value_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/u8-value-probe.txt"
+else
+    objdump -dr "$u8_value_probe_object" >"$temporary/u8-value-probe.txt"
+fi
 objdump -r "$wide_reduction_probe_object" >"$temporary/wide-reduction-relocs.txt"
 if [ -f "$wide_byte_object" ]; then
     disassemble "$wide_byte_object" >"$temporary/wide-byte.txt"
@@ -131,6 +138,7 @@ nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
 nm -u "$alignment_probe_object" >"$temporary/alignment-undefined.txt"
 nm -u "$table_lookup_probe_object" >"$temporary/table-lookup-undefined.txt"
+nm -u "$u8_value_probe_object" >"$temporary/u8-value-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -182,20 +190,76 @@ require_final_avx_instruction() {
     fi
 }
 
+require_exact_u8_operation() {
+    selected_file=$2
+    instruction_pattern=$3
+    description=$5
+    require_pattern "$instruction_pattern" "$selected_file" \
+      "$description exact selected operation"
+}
+
+bind_u8_selected_operation() {
+    caller_file=$1
+    inline_pattern=$2
+    matching_symbols=$3
+    native_file=$4
+    selected_file=$5
+    description=$6
+    case "$architecture" in
+        aarch64)
+            native_function_relocation='ARM64_RELOC_BRANCH26.*flyology_simd__backends__native__'
+            ;;
+        x86_64)
+            native_function_relocation='(X86_64_RELOC_BRANCH|R_X86_64_(PLT32|PC32)).*flyology_simd__backends__native__'
+            ;;
+    esac
+    if grep -Eiq "$inline_pattern" "$caller_file"; then
+        require_count "$native_function_relocation" 0 "$caller_file" \
+          "no selected Native function relocation in inline $description"
+        cp "$caller_file" "$selected_file"
+    else
+        require_count "${native_function_relocation}(${matching_symbols})([+-]0x[[:xdigit:]]+)?([[:space:]]|$)" 1 \
+          "$caller_file" "one matching selected Native operation in $description"
+        require_count "$native_function_relocation" 1 "$caller_file" \
+          "only one selected Native function in $description"
+        selected_symbol=$(grep -Eio \
+          "flyology_simd__backends__native__(${matching_symbols})" \
+          "$caller_file" | head -n 1)
+        extract_symbol "$selected_symbol" "$native_file" "$selected_file"
+    fi
+}
+
 extract_symbol() {
     symbol=$1
     file=$2
     output=$3
     awk -v symbol="$symbol" '
+        function label_name(line, name) {
+            if (match(line, /<[^>]+>:/)) {
+                name = substr(line, RSTART + 1, RLENGTH - 3)
+            } else if (line ~ /^_[A-Za-z0-9_$.]+:$/) {
+                name = substr(line, 1, length(line) - 1)
+            } else {
+                return ""
+            }
+            sub(/^_/, "", name)
+            return tolower(name)
+        }
         BEGIN { found = 0 }
         {
-            lowered = tolower($0)
-            if (!found && index(lowered, symbol) > 0 && $0 ~ /:$/) {
+            name = label_name($0)
+            wanted = tolower(symbol)
+            suffix = "__" wanted
+            exact = name == wanted
+            shorthand = index(wanted, "flyology_simd__") != 1 && \
+              length(name) > length(suffix) && \
+              substr(name, length(name) - length(suffix) + 1) == suffix
+            if (!found && (exact || shorthand)) {
                 found = 1
                 print
                 next
             }
-            if (found && ($0 ~ /^[[:xdigit:]]+[[:space:]]+<[^>]+>:/ || $0 ~ /^_[A-Za-z0-9_$.]+:$/)) {
+            if (found && name != "") {
                 exit
             }
             if (found) print
@@ -203,6 +267,30 @@ extract_symbol() {
         END { if (!found) exit 1 }
     ' "$file" >"$output"
 }
+
+u8_value_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/u8_value_codegen_cases.txt | wc -l | tr -d ' ')
+u8_value_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/u8_value_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$u8_value_case_count" -ne 26 ] || \
+   [ "$u8_value_unique_count" -ne 26 ]; then
+    echo 'U8 value code-generation manifest must contain 26 unique operations' >&2
+    exit 1
+fi
+
+while read -r operation; do
+    [ -n "$operation" ] || continue
+    extract_symbol "u8_value_codegen_probe__${operation}" \
+      "$temporary/u8-value-probe.txt" \
+      "$temporary/u8-value-${operation}.txt"
+    forbid_pattern 'flyology_simd__wide__native__|flyology_simd__(wide__)?(add_wrap|subtract_wrap|multiply_wrap|add_saturate|subtract_saturate|bitwise_|equal|less_|greater_|select_value|min|max|reduce_|reverse_|interleave_|deinterleave_)|flyology_simd__backends__scalar__' \
+      "$temporary/u8-value-${operation}.txt" \
+      "portable or public dispatcher call in U8 ${operation} caller"
+done <scripts/probes/u8_value_codegen_cases.txt
+
+forbid_pattern 'flyology_simd__(wide__)?(add_wrap|subtract_wrap|multiply_wrap|add_saturate|subtract_saturate|bitwise_|equal|less_|greater_|select_value|min|max|reduce_|reverse_|interleave_|deinterleave_)|flyology_simd__wide__native__|flyology_simd__backends__scalar__' \
+  "$temporary/u8-value-undefined.txt" \
+  'portable or public U8 operation in the exact caller probe'
 
 require_count 'flyology_simd__backends__native__reduce_add' 2 \
   "$temporary/float-reduction-undefined.txt" \
@@ -830,6 +918,68 @@ case "$architecture" in
         require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
         require_pattern 'uminv.*16b' "$temporary/native.txt" 'NEON unsigned byte minimum reduction'
         require_pattern 'umaxv.*16b' "$temporary/native.txt" 'NEON unsigned byte maximum reduction'
+        while read -r operation instruction_pattern matching_symbols; do
+            bind_u8_selected_operation \
+              "$temporary/u8-value-${operation}.txt" \
+              "$instruction_pattern" "$matching_symbols" \
+              "$temporary/native.txt" \
+              "$temporary/u8-native-${operation}.txt" \
+              "AArch64 U8 ${operation} caller"
+            require_exact_u8_operation \
+              "$temporary/u8-value-${operation}.txt" \
+              "$temporary/u8-native-${operation}.txt" \
+              "$instruction_pattern" "$operation" \
+              "AArch64 U8 ${operation}"
+        done <<'EOF'
+add_wrap add.*16b add_wrap|neon_add_wrap
+subtract_wrap sub.*16b subtract_wrap|neon_subtract_wrap
+multiply_wrap mul.*16b multiply_wrap|neon_multiply_wrap
+add_saturate uqadd.*16b add_saturate|neon_add_saturate
+subtract_saturate uqsub.*16b subtract_saturate|neon_subtract_saturate
+bitwise_and and.*16b bitwise_and|neon_bitwise_and
+bitwise_or orr.*16b bitwise_or|neon_bitwise_or
+bitwise_xor eor.*16b bitwise_xor|neon_bitwise_xor
+bitwise_not mvn.*16b bitwise_not|neon_bitwise_not
+equal cmeq.*16b equal|equal_bits
+less_than cmhi.*16b less_than|greater_bits
+less_equal cmhs.*16b less_equal|greater_equal_bits
+greater_than cmhi.*16b greater_than|greater_bits
+greater_equal cmhs.*16b greater_equal|greater_equal_bits
+select_value bsl.*16b select_value
+min umin.*16b min|neon_min
+max umax.*16b max|neon_max
+reduce_add_wrap uaddlv.*16b reduce_add_wrap
+reduce_min uminv.*16b reduce_min
+reduce_max umaxv.*16b reduce_max
+reverse_bytes rev64.*16b reverse_bytes|neon_reverse_bytes
+reverse_lanes rev64.*16b reverse_lanes|neon_reverse_bytes
+interleave_low zip1.*16b interleave_low|neon_interleave_low
+interleave_high zip2.*16b interleave_high|neon_interleave_high
+deinterleave_even uzp1.*16b deinterleave_even|neon_deinterleave_even
+deinterleave_odd uzp2.*16b deinterleave_odd|neon_deinterleave_odd
+EOF
+        for operation in equal less_than less_equal greater_than greater_equal; do
+            require_count 'uaddlv.*8b' 2 \
+              "$temporary/u8-native-${operation}.txt" \
+              "two byte-half mask sums in AArch64 U8 ${operation}"
+            require_count 'umov' 2 "$temporary/u8-native-${operation}.txt" \
+              "two mask-half transfers in AArch64 U8 ${operation}"
+            require_pattern 'ext.*16b.*#(0x)?8' \
+              "$temporary/u8-native-${operation}.txt" \
+              "high mask-half extraction in AArch64 U8 ${operation}"
+        done
+        require_pattern 'cmtst.*16b' \
+          "$temporary/u8-native-select_value.txt" \
+          'compact-mask expansion in AArch64 U8 Select_Value'
+        require_pattern 'bsl.*16b' "$temporary/u8-native-select_value.txt" \
+          'bit selection in AArch64 U8 Select_Value'
+        for operation in reverse_bytes reverse_lanes; do
+            require_pattern 'ext.*16b.*#(0x)?8' \
+              "$temporary/u8-native-${operation}.txt" \
+              "byte-half exchange in AArch64 U8 ${operation}"
+        done
+        require_pattern 'umov' "$temporary/u8-native-reduce_add_wrap.txt" \
+          'result transfer in AArch64 U8 Reduce_Add_Wrap'
         extract_symbol 'native_reduce_add_wrap_i32x4' "$temporary/native.txt" "$temporary/reduce_add_i32.txt"
         extract_symbol 'native_reduce_min_u16x8' "$temporary/native.txt" "$temporary/reduce_min_u16.txt"
         extract_symbol 'native_reduce_max_i8x16' "$temporary/native.txt" "$temporary/reduce_max_i8.txt"
@@ -1394,6 +1544,97 @@ EOF
         require_pattern 'paddw' "$temporary/native.txt" 'SSE2 wrapping 16-bit add'
         require_pattern 'paddd' "$temporary/native.txt" 'SSE2 wrapping 32-bit add'
         require_pattern 'paddq' "$temporary/native.txt" 'SSE2 wrapping 64-bit add'
+        while read -r operation instruction_pattern matching_symbols; do
+            bind_u8_selected_operation \
+              "$temporary/u8-value-${operation}.txt" \
+              "$instruction_pattern" "$matching_symbols" \
+              "$temporary/native.txt" \
+              "$temporary/u8-native-${operation}.txt" \
+              "x86-64 U8 ${operation} caller"
+            require_exact_u8_operation \
+              "$temporary/u8-value-${operation}.txt" \
+              "$temporary/u8-native-${operation}.txt" \
+              "$instruction_pattern" "$operation" \
+              "x86-64 U8 ${operation}"
+        done <<'EOF'
+add_wrap paddb add_wrap|u8_add_wrap
+subtract_wrap psubb subtract_wrap|u8_subtract_wrap
+multiply_wrap pmullw multiply_wrap|u8_multiply_wrap
+add_saturate paddusb add_saturate|u8_add_saturate
+subtract_saturate psubusb subtract_saturate|u8_subtract_saturate
+bitwise_and pand bitwise_and|u8_and
+bitwise_or por bitwise_or|u8_or
+bitwise_xor pxor bitwise_xor|u8_xor
+bitwise_not pcmpeqd bitwise_not|u8_not
+equal pcmpeqb equal|equal_mask
+less_than pcmpgtb less_than|greater_mask
+less_equal pcmpgtb less_equal|greater_mask
+greater_than pcmpgtb greater_than|greater_mask
+greater_equal pcmpgtb greater_equal|greater_mask
+select_value pandn select_value
+min pminub min
+max pmaxub max
+reduce_add_wrap paddb reduce_add_wrap
+reduce_min pminub reduce_min
+reduce_max pmaxub reduce_max
+reverse_bytes pshufd reverse_bytes|u8_reverse
+reverse_lanes pshufd reverse_lanes|u8_reverse
+interleave_low punpcklbw interleave_low|u8_interleave_low
+interleave_high punpckhbw interleave_high|u8_interleave_high
+deinterleave_even packuswb deinterleave_even|u8_deinterleave_even
+deinterleave_odd packuswb deinterleave_odd|u8_deinterleave_odd
+EOF
+        require_count '(^|[[:space:]])pmullw[[:space:]]' 2 \
+          "$temporary/u8-native-multiply_wrap.txt" \
+          'two widened products in x86-64 U8 Multiply_Wrap'
+        require_count '(^|[[:space:]])pand[[:space:]]' 2 \
+          "$temporary/u8-native-multiply_wrap.txt" \
+          'two low-byte masks in x86-64 U8 Multiply_Wrap'
+        require_pattern '(^|[[:space:]])packuswb[[:space:]]' \
+          "$temporary/u8-native-multiply_wrap.txt" \
+          'byte repacking in x86-64 U8 Multiply_Wrap'
+        for operation in equal less_than less_equal greater_than greater_equal; do
+            require_pattern '(^|[[:space:]])pmovmskb[[:space:]]' \
+              "$temporary/u8-native-${operation}.txt" \
+              "compact mask extraction in x86-64 U8 ${operation}"
+        done
+        for operation in less_than less_equal greater_than greater_equal; do
+            require_pattern '(^|[[:space:]])pcmpgtb[[:space:]]' \
+              "$temporary/u8-native-${operation}.txt" \
+              "unsigned ordering comparison in x86-64 U8 ${operation}"
+        done
+        require_pattern '(^|[[:space:]])punpcklbw[[:space:]]' \
+          "$temporary/u8-native-select_value.txt" \
+          'byte mask expansion in x86-64 U8 Select_Value'
+        require_pattern '(^|[[:space:]])punpcklwd[[:space:]]' \
+          "$temporary/u8-native-select_value.txt" \
+          'word mask expansion in x86-64 U8 Select_Value'
+        require_pattern '(^|[[:space:]])punpckldq[[:space:]]' \
+          "$temporary/u8-native-select_value.txt" \
+          'dword mask expansion in x86-64 U8 Select_Value'
+        require_pattern '(^|[[:space:]])pandn[[:space:]]' \
+          "$temporary/u8-native-select_value.txt" \
+          'false-lane masking in x86-64 U8 Select_Value'
+        require_pattern '(^|[[:space:]])por[[:space:]]' \
+          "$temporary/u8-native-select_value.txt" \
+          'selected-lane merge in x86-64 U8 Select_Value'
+        for operation in reverse_bytes reverse_lanes; do
+            require_pattern '(^|[[:space:]])psrlw[[:space:]]' \
+              "$temporary/u8-native-${operation}.txt" \
+              "right byte shift in x86-64 U8 ${operation}"
+            require_pattern '(^|[[:space:]])psllw[[:space:]]' \
+              "$temporary/u8-native-${operation}.txt" \
+              "left byte shift in x86-64 U8 ${operation}"
+            require_pattern '(^|[[:space:]])pshufd[[:space:]]' \
+              "$temporary/u8-native-${operation}.txt" \
+              "dword reversal in x86-64 U8 ${operation}"
+        done
+        require_count '(^|[[:space:]])pand[[:space:]]' 2 \
+          "$temporary/u8-native-deinterleave_even.txt" \
+          'two even-byte masks in x86-64 U8 Deinterleave_Even'
+        require_count '(^|[[:space:]])psrlw[[:space:]]' 2 \
+          "$temporary/u8-native-deinterleave_odd.txt" \
+          'two odd-byte shifts in x86-64 U8 Deinterleave_Odd'
         #  Inspect every public integer-reduction overload.  Aggregate object
         #  searches can pass when an unrelated operation contains the same
         #  instruction, so each reduction must retain its complete packed

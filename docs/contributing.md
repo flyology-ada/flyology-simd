@@ -27,3 +27,6 @@ narrowing, and floating-point semantics before their types become public. Run
 both `simd_tests` and `family_tests`; generated family files are reproduced by
 `scripts/generate_full_family.py`, `scripts/generate_backends.py`, and
 `scripts/generate_conversion_tests.py`, in that order.
+
+The generated `U8x16` value-operation caller probe and its 26-operation
+manifest are reproduced by `scripts/generate_u8_value_probe.py`.

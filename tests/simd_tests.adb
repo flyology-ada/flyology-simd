@@ -60,6 +60,68 @@ procedure SIMD_Tests is
    function Same (Left, Right : U8x16) return Boolean is
      (To_Lanes (Left) = To_Lanes (Right));
 
+   procedure Check_Value_Oracle
+     (Portable_Result : U8x16;
+      Scalar_Result   : U8x16;
+      Native_Result   : U8x16;
+      Expected        : Lane_Values_8x16;
+      Message         : String)
+   is
+   begin
+      Check
+        (To_Lanes (Portable_Result) = Expected
+         and then Flyology_SIMD.Backends.Scalar.To_Lanes (Scalar_Result) =
+           Expected
+         and then Flyology_SIMD.Backends.Native.To_Lanes (Native_Result) =
+           Expected,
+         Message);
+   end Check_Value_Oracle;
+
+   procedure Check_Mask_Oracle
+     (Portable_Result : Mask_8x16;
+      Scalar_Result   : Mask_8x16;
+      Native_Result   : Mask_8x16;
+      Expected        : Interfaces.Unsigned_16;
+      Message         : String)
+   is
+   begin
+      Check
+        (To_Bit_Mask (Portable_Result) = Expected
+         and then Flyology_SIMD.Backends.Scalar.To_Bit_Mask (Scalar_Result) =
+           Expected
+         and then Flyology_SIMD.Backends.Native.To_Bit_Mask (Native_Result) =
+           Expected,
+         Message);
+   end Check_Mask_Oracle;
+
+   type Comparison_Kind is
+     (Compare_Equal,
+      Compare_Less,
+      Compare_Less_Equal,
+      Compare_Greater,
+      Compare_Greater_Equal);
+
+   function Reference_Comparison
+     (Left, Right : Lane_Values_8x16;
+      Kind        : Comparison_Kind) return Interfaces.Unsigned_16
+   is
+      Result : Interfaces.Unsigned_16 := 0;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if (case Kind is
+               when Compare_Equal         => Left (Lane) = Right (Lane),
+               when Compare_Less          => Left (Lane) < Right (Lane),
+               when Compare_Less_Equal    => Left (Lane) <= Right (Lane),
+               when Compare_Greater       => Left (Lane) > Right (Lane),
+               when Compare_Greater_Equal => Left (Lane) >= Right (Lane))
+         then
+            Result := Result or Interfaces.Shift_Left
+              (Interfaces.Unsigned_16'(1), Lane);
+         end if;
+      end loop;
+      return Result;
+   end Reference_Comparison;
+
    function Reference_Horizontal_Sum
      (Values : Lane_Values_8x16) return Natural
    is
@@ -70,6 +132,43 @@ procedure SIMD_Tests is
       end loop;
       return Result;
    end Reference_Horizontal_Sum;
+
+   function Reference_Add_Saturate (Left, Right : U8) return U8 is
+     (if Left > U8'Last - Right then U8'Last else Left + Right);
+
+   function Reference_Subtract_Saturate (Left, Right : U8) return U8 is
+     (if Left < Right then 0 else Left - Right);
+
+   function Reference_Reduce_Add (Values : Lane_Values_8x16) return U8 is
+      Result : U8 := 0;
+   begin
+      for Value of Values loop
+         Result := Result + Value;
+      end loop;
+      return Result;
+   end Reference_Reduce_Add;
+
+   function Reference_Reduce_Min (Values : Lane_Values_8x16) return U8 is
+      Result : U8 := Values (Values'First);
+   begin
+      for Value of Values loop
+         if Value < Result then
+            Result := Value;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Reduce_Min;
+
+   function Reference_Reduce_Max (Values : Lane_Values_8x16) return U8 is
+      Result : U8 := Values (Values'First);
+   begin
+      for Value of Values loop
+         if Value > Result then
+            Result := Value;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Reduce_Max;
 
    function Reference_Shift_Left_Logical
      (Value : U8x16; Count : Natural) return U8x16
@@ -411,6 +510,11 @@ procedure SIMD_Tests is
       Value : constant U8x16 := From_Lanes
         ([16#80#, 1, 16#FE#, 3, 4, 16#AA#, 6, 7,
           8, 16#55#, 10, 11, 12, 13, 14, 16#FF#]);
+      Other : constant U8x16 := From_Lanes
+        ([0, 16#FE#, 2, 16#FC#, 5, 16#FA#, 7, 16#F8#,
+          9, 16#F6#, 11, 16#F4#, 13, 16#F2#, 15, 16#F0#]);
+      Value_Lanes : constant Lane_Values_8x16 := To_Lanes (Value);
+      Other_Lanes : constant Lane_Values_8x16 := To_Lanes (Other);
    begin
       for Raw in Natural range 0 .. 65_535 loop
          declare
@@ -492,6 +596,24 @@ procedure SIMD_Tests is
                  (Flyology_SIMD.Backends.Native.Expand (Value, Mask),
                   Reference_Expand (Value, Mask)),
                "expansion semantics" & Raw'Image);
+            declare
+               Expected : Lane_Values_8x16;
+            begin
+               for Lane in Lane_Index_8x16 loop
+                  Expected (Lane) :=
+                    (if (Interfaces.Shift_Right (Bits, Lane) and 1) = 1
+                     then Value_Lanes (Lane)
+                     else Other_Lanes (Lane));
+               end loop;
+               Check_Value_Oracle
+                 (Select_Value (Mask, Value, Other),
+                  Flyology_SIMD.Backends.Scalar.Select_Value
+                    (Mask, Value, Other),
+                  Flyology_SIMD.Backends.Native.Select_Value
+                    (Mask, Value, Other),
+                  Expected,
+                  "exhaustive independent selection semantics" & Raw'Image);
+            end;
          end;
       end loop;
    end Test_All_Masks;
@@ -561,12 +683,20 @@ procedure SIMD_Tests is
 
    procedure Test_Native_Differential is
    begin
-      for Iteration in 1 .. 2_000 loop
+      for Iteration in 0 .. 2_000 loop
          declare
-            A_Lanes : constant Lane_Values_8x16 := Random_Lanes;
+            A_Lanes : constant Lane_Values_8x16 :=
+              (if Iteration = 0
+               then [0, 1, 127, 128, 254, 255, 16#AA#, 16#55#,
+                     0, 1, 127, 128, 254, 255, 16#F0#, 16#0F#]
+               else Random_Lanes);
             A : constant U8x16 := From_Lanes (A_Lanes);
-            B : constant U8x16 := From_Lanes (Random_Lanes);
-            M : constant Mask_8x16 := Equal (A, B);
+            B_Lanes : constant Lane_Values_8x16 :=
+              (if Iteration = 0
+               then [0, 255, 1, 128, 2, 1, 16#55#, 16#AA#,
+                     255, 0, 128, 127, 1, 254, 16#0F#, 16#F0#]
+               else Random_Lanes);
+            B : constant U8x16 := From_Lanes (B_Lanes);
             Buffer : Byte_Array (0 .. 32) := [others => 0];
             Reference_Buffer : Byte_Array (0 .. 32) := [others => 0];
             Count : constant Lane_Count_8x16 := Iteration mod 17;
@@ -584,7 +714,66 @@ procedure SIMD_Tests is
                     else Select_Right_Lane
                       (Lane_Index_8x16
                          ((Iteration * 3 + Lane * 5) mod 16)))]);
+            Expected_Add : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) + B_Lanes (Lane)];
+            Expected_Subtract : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) - B_Lanes (Lane)];
+            Expected_Multiply : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) * B_Lanes (Lane)];
+            Expected_Add_Saturate : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 Reference_Add_Saturate (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_Subtract_Saturate : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 Reference_Subtract_Saturate
+                   (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_And : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) and B_Lanes (Lane)];
+            Expected_Or : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) or B_Lanes (Lane)];
+            Expected_Xor : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane) xor B_Lanes (Lane)];
+            Expected_Not : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => not A_Lanes (Lane)];
+            Expected_Min : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 U8'Min (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_Max : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 U8'Max (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_Reverse : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 A_Lanes (Lane_Index_8x16'Last - Lane)];
+            Expected_Interleave_Low : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 (if Lane mod 2 = 0
+                  then A_Lanes (Lane / 2)
+                  else B_Lanes (Lane / 2))];
+            Expected_Interleave_High : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 (if Lane mod 2 = 0
+                  then A_Lanes (8 + Lane / 2)
+                  else B_Lanes (8 + Lane / 2))];
+            Expected_Deinterleave_Even : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 (if Lane < 8
+                  then A_Lanes (2 * Lane)
+                  else B_Lanes (2 * (Lane - 8)))];
+            Expected_Deinterleave_Odd : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 =>
+                 (if Lane < 8
+                  then A_Lanes (2 * Lane + 1)
+                  else B_Lanes (2 * (Lane - 8) + 1))];
          begin
+            --  Iteration zero supplies explicit wrap, saturation, equality,
+            --  unsigned-ordering, and high-bit boundaries.  The remaining
+            --  2,000 iterations use full-width deterministic byte values.
             for Lane in Lane_Index_8x16 loop
                Check
                  (Flyology_SIMD.Backends.Native.Extract
@@ -627,29 +816,60 @@ procedure SIMD_Tests is
                        Iteration'Image & Lane'Image);
                end loop;
             end;
-            Check (Same (Flyology_SIMD.Backends.Native.Add_Wrap (A, B),
-                         Add_Wrap (A, B)), "native add" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Subtract_Wrap (A, B),
-                         Subtract_Wrap (A, B)),
-                   "native subtract" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Multiply_Wrap (A, B),
-                         Multiply_Wrap (A, B)),
-                   "native multiply" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Add_Saturate (A, B),
-                         Add_Saturate (A, B)), "native saturate" & Iteration'Image);
-            Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.Subtract_Saturate (A, B),
-                  Subtract_Saturate (A, B)),
-               "native subtract saturate" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_And (A, B),
-                         Bitwise_And (A, B)), "native and" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Or (A, B),
-                         Bitwise_Or (A, B)), "native or" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Xor (A, B),
-                         Bitwise_Xor (A, B)), "native xor" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Bitwise_Not (A),
-                         Bitwise_Not (A)), "native not" & Iteration'Image);
+            Check_Value_Oracle
+              (Add_Wrap (A, B),
+               Flyology_SIMD.Backends.Scalar.Add_Wrap (A, B),
+               Flyology_SIMD.Backends.Native.Add_Wrap (A, B),
+               Expected_Add,
+               "independent wrapping-add oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Subtract_Wrap (A, B),
+               Flyology_SIMD.Backends.Scalar.Subtract_Wrap (A, B),
+               Flyology_SIMD.Backends.Native.Subtract_Wrap (A, B),
+               Expected_Subtract,
+               "independent wrapping-subtract oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Multiply_Wrap (A, B),
+               Flyology_SIMD.Backends.Scalar.Multiply_Wrap (A, B),
+               Flyology_SIMD.Backends.Native.Multiply_Wrap (A, B),
+               Expected_Multiply,
+               "independent wrapping-multiply oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Add_Saturate (A, B),
+               Flyology_SIMD.Backends.Scalar.Add_Saturate (A, B),
+               Flyology_SIMD.Backends.Native.Add_Saturate (A, B),
+               Expected_Add_Saturate,
+               "independent saturating-add oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Subtract_Saturate (A, B),
+               Flyology_SIMD.Backends.Scalar.Subtract_Saturate (A, B),
+               Flyology_SIMD.Backends.Native.Subtract_Saturate (A, B),
+               Expected_Subtract_Saturate,
+               "independent saturating-subtract oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Bitwise_And (A, B),
+               Flyology_SIMD.Backends.Scalar.Bitwise_And (A, B),
+               Flyology_SIMD.Backends.Native.Bitwise_And (A, B),
+               Expected_And,
+               "independent bitwise-and oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Bitwise_Or (A, B),
+               Flyology_SIMD.Backends.Scalar.Bitwise_Or (A, B),
+               Flyology_SIMD.Backends.Native.Bitwise_Or (A, B),
+               Expected_Or,
+               "independent bitwise-or oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Bitwise_Xor (A, B),
+               Flyology_SIMD.Backends.Scalar.Bitwise_Xor (A, B),
+               Flyology_SIMD.Backends.Native.Bitwise_Xor (A, B),
+               Expected_Xor,
+               "independent bitwise-xor oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Bitwise_Not (A),
+               Flyology_SIMD.Backends.Scalar.Bitwise_Not (A),
+               Flyology_SIMD.Backends.Native.Bitwise_Not (A),
+               Expected_Not,
+               "independent bitwise-not oracle" & Iteration'Image);
             Check
               (Same
                  (Flyology_SIMD.Backends.Native.Table_Lookup (A, B),
@@ -677,60 +897,108 @@ procedure SIMD_Tests is
                  (Flyology_SIMD.Backends.Native.Shift_Right_Logical (A, Shift),
                   Reference_Shift_Right_Logical (A, Shift)),
                "native right shift" & Iteration'Image);
-            Check (Flyology_SIMD.Backends.Native.To_Bit_Mask
-                     (Flyology_SIMD.Backends.Native.Equal (A, B)) =
-                   To_Bit_Mask (M), "native compare/mask" & Iteration'Image);
-            Check
-              (Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Less_Than (A, B)) =
-                 To_Bit_Mask (Less_Than (A, B))
-               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Less_Equal (A, B)) =
-                 To_Bit_Mask (Less_Equal (A, B))
-               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Greater_Than (A, B)) =
-                 To_Bit_Mask (Greater_Than (A, B))
-               and then Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Greater_Equal (A, B)) =
-                 To_Bit_Mask (Greater_Equal (A, B)),
-               "native ordered comparisons" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Select_Value (M, A, B),
-                         Select_Value (M, A, B)), "native select" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Min (A, B), Min (A, B)),
-                   "native min" & Iteration'Image);
-            Check (Same (Flyology_SIMD.Backends.Native.Max (A, B), Max (A, B)),
-                   "native max" & Iteration'Image);
+            Check_Mask_Oracle
+              (Equal (A, B),
+               Flyology_SIMD.Backends.Scalar.Equal (A, B),
+               Flyology_SIMD.Backends.Native.Equal (A, B),
+               Reference_Comparison (A_Lanes, B_Lanes, Compare_Equal),
+               "independent equality oracle" & Iteration'Image);
+            Check_Mask_Oracle
+              (Less_Than (A, B),
+               Flyology_SIMD.Backends.Scalar.Less_Than (A, B),
+               Flyology_SIMD.Backends.Native.Less_Than (A, B),
+               Reference_Comparison (A_Lanes, B_Lanes, Compare_Less),
+               "independent less-than oracle" & Iteration'Image);
+            Check_Mask_Oracle
+              (Less_Equal (A, B),
+               Flyology_SIMD.Backends.Scalar.Less_Equal (A, B),
+               Flyology_SIMD.Backends.Native.Less_Equal (A, B),
+               Reference_Comparison (A_Lanes, B_Lanes, Compare_Less_Equal),
+               "independent less-equal oracle" & Iteration'Image);
+            Check_Mask_Oracle
+              (Greater_Than (A, B),
+               Flyology_SIMD.Backends.Scalar.Greater_Than (A, B),
+               Flyology_SIMD.Backends.Native.Greater_Than (A, B),
+               Reference_Comparison (A_Lanes, B_Lanes, Compare_Greater),
+               "independent greater-than oracle" & Iteration'Image);
+            Check_Mask_Oracle
+              (Greater_Equal (A, B),
+               Flyology_SIMD.Backends.Scalar.Greater_Equal (A, B),
+               Flyology_SIMD.Backends.Native.Greater_Equal (A, B),
+               Reference_Comparison
+                 (A_Lanes, B_Lanes, Compare_Greater_Equal),
+               "independent greater-equal oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Min (A, B),
+               Flyology_SIMD.Backends.Scalar.Min (A, B),
+               Flyology_SIMD.Backends.Native.Min (A, B),
+               Expected_Min,
+               "independent minimum oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Max (A, B),
+               Flyology_SIMD.Backends.Scalar.Max (A, B),
+               Flyology_SIMD.Backends.Native.Max (A, B),
+               Expected_Max,
+               "independent maximum oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Reverse_Bytes (A),
+               Flyology_SIMD.Backends.Scalar.Reverse_Bytes (A),
+               Flyology_SIMD.Backends.Native.Reverse_Bytes (A),
+               Expected_Reverse,
+               "independent byte-reversal oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Reverse_Lanes (A),
+               Flyology_SIMD.Backends.Scalar.Reverse_Lanes (A),
+               Flyology_SIMD.Backends.Native.Reverse_Lanes (A),
+               Expected_Reverse,
+               "independent lane-reversal oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Interleave_Low (A, B),
+               Flyology_SIMD.Backends.Scalar.Interleave_Low (A, B),
+               Flyology_SIMD.Backends.Native.Interleave_Low (A, B),
+               Expected_Interleave_Low,
+               "independent low-interleave oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Interleave_High (A, B),
+               Flyology_SIMD.Backends.Scalar.Interleave_High (A, B),
+               Flyology_SIMD.Backends.Native.Interleave_High (A, B),
+               Expected_Interleave_High,
+               "independent high-interleave oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Deinterleave_Even (A, B),
+               Flyology_SIMD.Backends.Scalar.Deinterleave_Even (A, B),
+               Flyology_SIMD.Backends.Native.Deinterleave_Even (A, B),
+               Expected_Deinterleave_Even,
+               "independent even-deinterleave oracle" & Iteration'Image);
+            Check_Value_Oracle
+              (Deinterleave_Odd (A, B),
+               Flyology_SIMD.Backends.Scalar.Deinterleave_Odd (A, B),
+               Flyology_SIMD.Backends.Native.Deinterleave_Odd (A, B),
+               Expected_Deinterleave_Odd,
+               "independent odd-deinterleave oracle" & Iteration'Image);
             Check
               (Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes)
                and then Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
                  Reference_Horizontal_Sum (A_Lanes),
                "horizontal sum oracle" & Iteration'Image);
             Check
-              (Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) =
-                 Reduce_Add_Wrap (A)
+              (Reduce_Add_Wrap (A) = Reference_Reduce_Add (A_Lanes)
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Add_Wrap (A) =
+                 Reference_Reduce_Add (A_Lanes)
+               and then Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) =
+                 Reference_Reduce_Add (A_Lanes)
+               and then Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Min (A) =
+                 Reference_Reduce_Min (A_Lanes)
                and then Flyology_SIMD.Backends.Native.Reduce_Min (A) =
-                 Reduce_Min (A)
+                 Reference_Reduce_Min (A_Lanes)
+               and then Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Max (A) =
+                 Reference_Reduce_Max (A_Lanes)
                and then Flyology_SIMD.Backends.Native.Reduce_Max (A) =
-                 Reduce_Max (A),
-               "native byte reductions" & Iteration'Image);
-            Check
-              (Same (Flyology_SIMD.Backends.Native.Reverse_Bytes (A),
-                     Reverse_Bytes (A)),
-               "native reverse" & Iteration'Image);
-            Check
-              (Same (Flyology_SIMD.Backends.Native.Interleave_Low (A, B),
-                     Interleave_Low (A, B))
-               and then Same
-                 (Flyology_SIMD.Backends.Native.Interleave_High (A, B),
-                  Interleave_High (A, B)),
-               "native interleave" & Iteration'Image);
-            Check
-              (Same (Flyology_SIMD.Backends.Native.Deinterleave_Even (A, B),
-                     Deinterleave_Even (A, B))
-               and then Same
-                 (Flyology_SIMD.Backends.Native.Deinterleave_Odd (A, B),
-                  Deinterleave_Odd (A, B)),
-               "native deinterleave" & Iteration'Image);
+                 Reference_Reduce_Max (A_Lanes),
+               "independent scalar and native byte reductions" &
+                 Iteration'Image);
             Check
               (Same
                  (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
@@ -786,12 +1054,6 @@ procedure SIMD_Tests is
                          ((Iteration * 3 + Lane * 5) mod 16)),
                   "varied independent scalar and native two-source lane permutation" &
                     Lane'Image);
-               Check (Extract (Subtract_Wrap (A, B), Lane) =
-                        Extract (A, Lane) - Extract (B, Lane),
-                      "scalar subtract lane" & Lane'Image);
-               Check (Extract (Multiply_Wrap (A, B), Lane) =
-                        Extract (A, Lane) * Extract (B, Lane),
-                      "scalar multiply lane" & Lane'Image);
                Check (Extract (Shift_Left_Logical (A, Shift), Lane) =
                         (if Shift >= 8 then 0
                          else Interfaces.Shift_Left (Extract (A, Lane), Shift)),

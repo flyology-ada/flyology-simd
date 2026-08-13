@@ -160,6 +160,21 @@ vectors check the portable and Native results against an independent
 lane-array oracle. Exact-symbol gates require these target sequences and
 reject calls to the portable sum.
 
+A focused `U8x16` suite applies 25 value operations to 2,000 deterministic
+pseudorandom vector pairs. Independent lane, mask, and scalar expectations
+check the root, `Backends.Scalar`, and `Backends.Native` results for wrapping
+and saturating arithmetic, bitwise operations, comparisons, minimum and
+maximum, fixed lane arrangements, and integer reductions. A separate
+`Select_Value` test exhausts all 65,536 compact masks and checks all three
+results against an independent lane oracle. Together, these tests cover the 26
+operations in the generated caller probe.
+
+On AArch64 and x86-64, the caller gate checks each of the 26 operations. Each
+caller must contain the matching target instruction sequence or call one
+matching selected Native leaf. The exact selected-leaf check requires the
+operation-specific target instruction. The gates reject portable root and
+public Wide dispatcher calls.
+
 Floating unordered-comparison tests use an independent IEEE encoding oracle.
 Fixed cases cover quiet and signaling NaNs in either or both inputs, NaN
 encodings with both sign-bit values, infinities, and signed zero. Another 250 deterministic cases use raw
