@@ -155,6 +155,24 @@ selects the signed minimum or maximum. For unsigned addition, it derives a
 carry mask and selects the unsigned maximum. For unsigned subtraction, it
 derives a borrow mask and selects zero.
 
+All 20 lane-slide overloads handle `Count` in three ways. If `Count` is zero,
+the target backend returns `Value`. If `Count` is greater than zero and less
+than the lane count, AArch64 uses NEON `ext` with a zero vector and the
+corresponding byte offset. If `Count` is greater than zero and less than the lane
+count, x86-64 uses `psrldq` or `pslldq` with the corresponding byte offset. If
+`Count` is equal to or greater than the lane count, the target backend calls its
+own `Zero` operation. Neither target backend calls the portable `Zero`,
+`Slide_Lanes_Toward_Low`, or `Slide_Lanes_Toward_High` operation.
+
+Independent lane expectations check scalar and Native results for every count
+from zero through two positions beyond the applicable lane count and for
+`Natural'Last`. Each value type also uses 250 deterministic pseudorandom
+inputs. Floating cases use raw special encodings and compare retained bits.
+A dynamic public caller probe covers all 20 Native overloads. Exact-symbol
+gates inspect every dispatcher. Constant-count probes verify that representative
+immediate leaves inline into callers. These gates and the Native-object gate
+reject portable `Zero` and lane-slide calls.
+
 All 16 logical-shift overloads clamp `Count` to the applicable lane width.
 The clamped count gives an oversized shift the defined all-zero result without
 calling portable `Zero`, `Shift_Left_Logical`, or `Shift_Right_Logical`.

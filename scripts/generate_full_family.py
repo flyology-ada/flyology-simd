@@ -373,6 +373,24 @@ def native_support_doc(name: str, declaration: str) -> str:
             f"The x86-64 backend {x86}. A scalar build uses the portable "
             "scalar implementation."
         )
+    if name in {"Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High"}:
+        entry = next(
+            candidate for candidate in [("U8x16", "U8", 8, 16)] + INTEGER_TYPES + FLOAT_TYPES
+            if candidate[0] in declaration
+        )
+        vector, _, bits, lanes = entry[:4]
+        direction = "lower" if name.endswith("Low") else "higher"
+        x86_instruction = "psrldq" if name.endswith("Low") else "pslldq"
+        return (
+            "Cross-platform support: For each in-range constant Count, the "
+            f"AArch64 backend uses NEON ext to move {bits}-bit lanes toward "
+            f"{direction} indexes and inserts zero bytes. The x86-64 backend "
+            f"uses SSE2 {x86_instruction} with the corresponding byte count. "
+            "A zero count returns Value directly. When Count is equal to or "
+            f"greater than {lanes}, each backend calls its own target Zero "
+            "operation and does not call the portable root operation. A scalar "
+            "build uses the portable scalar implementation."
+        )
     if name in {"Shift_Left_Logical", "Shift_Right_Logical"}:
         vector = next(
             candidate

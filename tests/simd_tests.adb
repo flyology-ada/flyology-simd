@@ -373,16 +373,38 @@ procedure SIMD_Tests is
               (Extract (Slide_Lanes_Toward_Low (Value, Count), Lane) =
                  (if Count < 16 and then Lane < 16 - Count
                   then Extract (Value, Lane_Index_8x16 (Lane + Count))
+                  else 0)
+               and then Extract
+                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
+                    (Value, Count), Lane) =
+                 (if Count < 16 and then Lane < 16 - Count
+                  then Extract (Value, Lane_Index_8x16 (Lane + Count))
                   else 0),
                "byte slide toward low" & Count'Image & Lane'Image);
             Check
               (Extract (Slide_Lanes_Toward_High (Value, Count), Lane) =
                  (if Count < 16 and then Lane >= Count
                   then Extract (Value, Lane_Index_8x16 (Lane - Count))
+                  else 0)
+               and then Extract
+                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
+                    (Value, Count), Lane) =
+                 (if Count < 16 and then Lane >= Count
+                  then Extract (Value, Lane_Index_8x16 (Lane - Count))
                   else 0),
                "byte slide toward high" & Count'Image & Lane'Image);
          end loop;
       end loop;
+      Check
+        (Same (Slide_Lanes_Toward_Low (Value, Natural'Last), Zero)
+         and then Same
+           (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
+              (Value, Natural'Last), Zero)
+         and then Same (Slide_Lanes_Toward_High (Value, Natural'Last), Zero)
+         and then Same
+           (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
+              (Value, Natural'Last), Zero),
+         "byte maximum-count lane slides");
    end Test_Lane_Slides;
 
    procedure Test_All_Masks is
@@ -768,6 +790,20 @@ procedure SIMD_Tests is
                      else 0)
                   and then
                     Extract (Slide_Lanes_Toward_High (A, Slide), Lane) =
+                      (if Slide < 16 and then Lane >= Slide
+                       then Extract (A, Lane_Index_8x16 (Lane - Slide))
+                       else 0)
+                  and then
+                    Extract
+                      (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
+                         (A, Slide), Lane) =
+                      (if Slide < 16 and then Lane < 16 - Slide
+                       then Extract (A, Lane_Index_8x16 (Lane + Slide))
+                       else 0)
+                  and then
+                    Extract
+                      (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
+                         (A, Slide), Lane) =
                       (if Slide < 16 and then Lane >= Slide
                        then Extract (A, Lane_Index_8x16 (Lane - Slide))
                        else 0),

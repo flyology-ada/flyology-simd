@@ -388,6 +388,29 @@ def invalid_support(path: Path) -> list[str]:
                     f"{path.relative_to(ROOT)}: incorrect exact all-family "
                     f"{operation} target classifications"
                 )
+        for operation, direction, x86_instruction in (
+            ("Slide_Lanes_Toward_Low", "lower", "psrldq"),
+            ("Slide_Lanes_Toward_High", "higher", "pslldq"),
+        ):
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            if (
+                len(blocks) != 10
+                or any(
+                    "AArch64 backend uses NEON ext" not in block
+                    or f"toward {direction} indexes" not in block
+                    or f"SSE2 {x86_instruction}" not in block
+                    or "each backend calls its own target Zero" not in block
+                    or "does not call the portable root operation" not in block
+                    for block in blocks
+                )
+            ):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact all-family "
+                    f"{operation} target classifications"
+                )
         shift_blocks = [
             block.split("function ", 1)[0].split("procedure ", 1)[0]
             for block in text.split("function Shift_Right_Arithmetic")[1:]

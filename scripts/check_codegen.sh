@@ -86,6 +86,8 @@ disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
 nm -u "$wide_reduction_probe_object" >"$temporary/wide-reduction-undefined.txt"
 nm -u "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-undefined.txt"
+nm -u "$slide_probe_object" >"$temporary/slide-undefined.txt"
+nm "$slide_probe_object" >"$temporary/slide-symbols.txt"
 nm -u "$float_reduction_probe_object" >"$temporary/float-reduction-undefined.txt"
 nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$integer_shift_probe_object" >"$temporary/integer-shift-undefined.txt"
@@ -218,6 +220,18 @@ forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/native-undefined.txt" \
   'portable arithmetic-right-shift call retained in the Native backend object'
+require_count 'slide_codegen_probe__(u8|i8|u16|i16|u32|i32|u64|i64|f32|f64)_low$' 10 \
+  "$temporary/slide-symbols.txt" \
+  'all ten dynamic slide-toward-low public caller probes'
+require_count 'slide_codegen_probe__(u8|i8|u16|i16|u32|i32|u64|i64|f32|f64)_high$' 10 \
+  "$temporary/slide-symbols.txt" \
+  'all ten dynamic slide-toward-high public caller probes'
+forbid_pattern 'flyology_simd__slide_lanes_toward_(low|high)' \
+  "$temporary/slide-undefined.txt" \
+  'portable lane-slide call in the Native caller probe'
+forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
+  "$temporary/native-undefined.txt" \
+  'portable zero or lane-slide call retained in the Native backend object'
 require_count 'flyology_simd__backends__native__unordered' 2 \
   "$temporary/unordered-undefined.txt" \
   'F32x4 and F64x2 Native Unordered calls in the public caller probe'
@@ -341,6 +355,19 @@ forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' 
 
 case "$architecture" in
     aarch64)
+        for operation in slide_lanes_toward_low slide_lanes_toward_high; do
+            for suffix in none 2 3 4 5 6 7 8 9 10; do
+                symbol="flyology_simd__backends__native__${operation}"
+                if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
+                output="$temporary/${operation}-${suffix}.txt"
+                extract_symbol "$symbol" "$temporary/native.txt" "$output"
+                require_pattern 'ext.*16b' "$output" \
+                  "AArch64 immediate lane movement in ${operation} overload ${suffix}"
+                forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
+                  "$output" \
+                  "portable zero or lane-slide call in ${operation} overload ${suffix}"
+            done
+        done
         for entry in \
           'shift_left_logical none 16b' 'shift_right_logical none 16b' \
           'shift_left_logical 2 16b' 'shift_right_logical 2 16b' \
@@ -1218,6 +1245,21 @@ EOF
         require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
         require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
         require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
+        for operation in slide_lanes_toward_low slide_lanes_toward_high; do
+            instruction=psrldq
+            if [ "$operation" = slide_lanes_toward_high ]; then instruction=pslldq; fi
+            for suffix in none 2 3 4 5 6 7 8 9 10; do
+                symbol="flyology_simd__backends__native__${operation}"
+                if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
+                output="$temporary/${operation}-${suffix}.txt"
+                extract_symbol "$symbol" "$temporary/native.txt" "$output"
+                require_pattern "(^|[[:space:]])${instruction}[[:space:]]" "$output" \
+                  "SSE2 immediate lane movement in ${operation} overload ${suffix}"
+                forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
+                  "$output" \
+                  "portable zero or lane-slide call in ${operation} overload ${suffix}"
+            done
+        done
         for entry in \
           'shl u8x16 psllw packuswb' 'shr u8x16 psrlw packuswb' \
           'shl i8x16 psllw packuswb' 'shr i8x16 psrlw packuswb' \

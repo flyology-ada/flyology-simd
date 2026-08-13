@@ -306,7 +306,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 8-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 16, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -317,7 +317,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 8-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 16, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1234,7 +1234,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 8-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 16, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1244,7 +1244,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 8-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 16, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1527,7 +1527,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 16-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 8, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1537,7 +1537,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 16-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 8, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1826,7 +1826,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 16-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 8, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -1836,7 +1836,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 16-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 8, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2119,7 +2119,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2129,7 +2129,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2418,7 +2418,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2428,7 +2428,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2711,7 +2711,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -2721,7 +2721,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -3010,7 +3010,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -3020,7 +3020,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
@@ -3268,7 +3268,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
@@ -3279,7 +3279,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 32-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 4, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
@@ -3527,7 +3527,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward lower lane indexes and fill vacated high-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward lower indexes and inserts zero bytes. The x86-64 backend uses SSE2 psrldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
@@ -3538,7 +3538,7 @@ is
    --  Retained lanes keep their complete bit encoding.
    --  Move them toward higher lane indexes and fill vacated low-index lanes with zero.
    --  Return Zero when Count is equal to or greater than the lane count.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, for each in-range constant Count, the AArch64 backend uses NEON ext to move 64-bit lanes toward higher indexes and inserts zero bytes. The x86-64 backend uses SSE2 pslldq with the corresponding byte count. A zero count returns Value directly. When Count is equal to or greater than 2, each backend calls its own target Zero operation and does not call the portable root operation. A scalar build uses the portable scalar implementation.
    --  Vacated floating lanes contain positive zero.
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
