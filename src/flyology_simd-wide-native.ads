@@ -24,32 +24,32 @@ is
    --  @return The operation result.
    function Zero return U8x32 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : U8) return U8x32 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U8x32) return U8x32 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : U8x32) return Lane_Values_U8x32 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : U8x32; Lane : Lane_Index_8x32) return U8 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : U8x32; Lane : Lane_Index_8x32; With_Value : U8) return U8x32 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -392,32 +392,32 @@ is
    --  @param Value The value input.
    function Zero return I8x32 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : I8) return I8x32 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I8x32) return I8x32 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : I8x32) return Lane_Values_I8x32 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : I8x32; Lane : Lane_Index_8x32) return I8 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : I8x32; Lane : Lane_Index_8x32; With_Value : I8) return I8x32 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -706,32 +706,32 @@ is
    --  @return The operation result.
    function Zero return U16x16 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : U16) return U16x16 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U16x16) return U16x16 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : U16x16) return Lane_Values_U16x16 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : U16x16; Lane : Lane_Index_16x16) return U16 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : U16x16; Lane : Lane_Index_16x16; With_Value : U16) return U16x16 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -1063,32 +1063,32 @@ is
    --  @param Value The value input.
    function Zero return I16x16 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : I16) return I16x16 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I16x16) return I16x16 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : I16x16) return Lane_Values_I16x16 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : I16x16; Lane : Lane_Index_16x16) return I16 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : I16x16; Lane : Lane_Index_16x16; With_Value : I16) return I16x16 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -1377,32 +1377,32 @@ is
    --  @return The operation result.
    function Zero return U32x8 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : U32) return U32x8 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U32x8) return U32x8 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : U32x8) return Lane_Values_U32x8 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : U32x8; Lane : Lane_Index_32x8) return U32 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : U32x8; Lane : Lane_Index_32x8; With_Value : U32) return U32x8 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -1739,32 +1739,32 @@ is
    --  @param Value The value input.
    function Zero return I32x8 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : I32) return I32x8 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I32x8) return I32x8 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : I32x8) return Lane_Values_I32x8 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : I32x8; Lane : Lane_Index_32x8) return I32 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : I32x8; Lane : Lane_Index_32x8; With_Value : I32) return I32x8 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -2058,32 +2058,32 @@ is
    --  @return The operation result.
    function Zero return U64x4 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : U64) return U64x4 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_U64x4) return U64x4 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : U64x4) return Lane_Values_U64x4 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : U64x4; Lane : Lane_Index_64x4) return U64 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : U64x4; Lane : Lane_Index_64x4; With_Value : U64) return U64x4 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -2420,32 +2420,32 @@ is
    --  @param Value The value input.
    function Zero return I64x4 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : I64) return I64x4 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_I64x4) return I64x4 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : I64x4) return Lane_Values_I64x4 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : I64x4; Lane : Lane_Index_64x4) return I64 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : I64x4; Lane : Lane_Index_64x4; With_Value : I64) return I64x4 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -2719,32 +2719,32 @@ is
    --  @param Value The value input.
    function Zero return F32x8 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : F32) return F32x8 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F32x8) return F32x8 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : F32x8) return Lane_Values_F32x8 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : F32x8; Lane : Lane_Index_32x8) return F32 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : F32x8; Lane : Lane_Index_32x8; With_Value : F32) return F32x8 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.
@@ -2977,32 +2977,32 @@ is
    --  @param Value The value input.
    function Zero return F64x4 with Inline_Always;
    --  Return a vector whose lanes are zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Zero operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @return The operation result.
    function Splat (Value : F64) return F64x4 with Inline_Always;
    --  Return a vector whose lanes all contain Value.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit Splat operation for both private parts and return the two-part result. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_F64x4) return F64x4 with Inline_Always;
    --  Construct a vector in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends split the logical lane array into low and high private parts. They call the matching selected 128-bit From_Lanes operation for each part. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Values The values input.
    --  @return The operation result.
    function To_Lanes (Value : F64x4) return Lane_Values_F64x4 with Inline_Always;
    --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation on each private part and combine the results in Ada. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit To_Lanes operation for both private parts. They concatenate the low-part lanes followed by the high-part lanes in logical order. In a scalar build, this overload uses the same composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Extract (Value : F64x4; Lane : Lane_Index_64x4) return F64 with Inline_Always;
    --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Extract operation only on the private part that contains the requested lane. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @return The operation result.
    function Replace (Value : F64x4; Lane : Lane_Index_64x4; With_Value : F64) return F64x4 with Inline_Always;
    --  Return a copy with one lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends call the selected 128-bit operation only on the private part that contains the requested lane. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and x86-64 backends call the matching selected 128-bit Replace operation only on the private part that contains the requested lane and preserve the other part. In a scalar build, this overload uses the same selected-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Lane The lane input.
    --  @param With_Value The with value input.

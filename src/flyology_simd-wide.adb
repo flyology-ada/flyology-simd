@@ -31,9 +31,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Values (Lane + 16)])));
 
    function To_Lanes (Value : U8x32) return Lane_Values_U8x32 is
-      Low : constant Lane_Values_U8x32 := [for Lane in Lane_Index_8x32 => (if Lane < 16 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 16))];
+      Low : constant Lane_Values_8x16 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_8x16 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_8x32 =>
+        (if Lane < 16 then Low (Lane)
+         else High (Lane - 16))];
    end To_Lanes;
 
    function Extract (Value : U8x32; Lane : Lane_Index_8x32) return U8 is
@@ -301,9 +304,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 15 => Values (Lane + 16)])));
 
    function To_Lanes (Value : I8x32) return Lane_Values_I8x32 is
-      Low : constant Lane_Values_I8x32 := [for Lane in Lane_Index_8x32 => (if Lane < 16 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 16))];
+      Low : constant Lane_Values_I8x16 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_I8x16 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_8x32 =>
+        (if Lane < 16 then Low (Lane)
+         else High (Lane - 16))];
    end To_Lanes;
 
    function Extract (Value : I8x32; Lane : Lane_Index_8x32) return I8 is
@@ -518,9 +524,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Values (Lane + 8)])));
 
    function To_Lanes (Value : U16x16) return Lane_Values_U16x16 is
-      Low : constant Lane_Values_U16x16 := [for Lane in Lane_Index_16x16 => (if Lane < 8 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 8))];
+      Low : constant Lane_Values_U16x8 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_U16x8 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_16x16 =>
+        (if Lane < 8 then Low (Lane)
+         else High (Lane - 8))];
    end To_Lanes;
 
    function Extract (Value : U16x16; Lane : Lane_Index_16x16) return U16 is
@@ -767,9 +776,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 7 => Values (Lane + 8)])));
 
    function To_Lanes (Value : I16x16) return Lane_Values_I16x16 is
-      Low : constant Lane_Values_I16x16 := [for Lane in Lane_Index_16x16 => (if Lane < 8 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 8))];
+      Low : constant Lane_Values_I16x8 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_I16x8 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_16x16 =>
+        (if Lane < 8 then Low (Lane)
+         else High (Lane - 8))];
    end To_Lanes;
 
    function Extract (Value : I16x16; Lane : Lane_Index_16x16) return I16 is
@@ -984,9 +996,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Values (Lane + 4)])));
 
    function To_Lanes (Value : U32x8) return Lane_Values_U32x8 is
-      Low : constant Lane_Values_U32x8 := [for Lane in Lane_Index_32x8 => (if Lane < 4 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 4))];
+      Low : constant Lane_Values_U32x4 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_U32x4 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_32x8 =>
+        (if Lane < 4 then Low (Lane)
+         else High (Lane - 4))];
    end To_Lanes;
 
    function Extract (Value : U32x8; Lane : Lane_Index_32x8) return U32 is
@@ -1236,9 +1251,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Values (Lane + 4)])));
 
    function To_Lanes (Value : I32x8) return Lane_Values_I32x8 is
-      Low : constant Lane_Values_I32x8 := [for Lane in Lane_Index_32x8 => (if Lane < 4 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 4))];
+      Low : constant Lane_Values_I32x4 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_I32x4 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_32x8 =>
+        (if Lane < 4 then Low (Lane)
+         else High (Lane - 4))];
    end To_Lanes;
 
    function Extract (Value : I32x8; Lane : Lane_Index_32x8) return I32 is
@@ -1456,9 +1474,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Values (Lane + 2)])));
 
    function To_Lanes (Value : U64x4) return Lane_Values_U64x4 is
-      Low : constant Lane_Values_U64x4 := [for Lane in Lane_Index_64x4 => (if Lane < 2 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 2))];
+      Low : constant Lane_Values_U64x2 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_U64x2 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_64x4 =>
+        (if Lane < 2 then Low (Lane)
+         else High (Lane - 2))];
    end To_Lanes;
 
    function Extract (Value : U64x4; Lane : Lane_Index_64x4) return U64 is
@@ -1708,9 +1729,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Values (Lane + 2)])));
 
    function To_Lanes (Value : I64x4) return Lane_Values_I64x4 is
-      Low : constant Lane_Values_I64x4 := [for Lane in Lane_Index_64x4 => (if Lane < 2 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 2))];
+      Low : constant Lane_Values_I64x2 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_I64x2 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_64x4 =>
+        (if Lane < 2 then Low (Lane)
+         else High (Lane - 2))];
    end To_Lanes;
 
    function Extract (Value : I64x4; Lane : Lane_Index_64x4) return I64 is
@@ -1916,9 +1940,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 3 => Values (Lane + 4)])));
 
    function To_Lanes (Value : F32x8) return Lane_Values_F32x8 is
-      Low : constant Lane_Values_F32x8 := [for Lane in Lane_Index_32x8 => (if Lane < 4 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 4))];
+      Low : constant Lane_Values_F32x4 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_F32x4 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_32x8 =>
+        (if Lane < 4 then Low (Lane)
+         else High (Lane - 4))];
    end To_Lanes;
 
    function Extract (Value : F32x8; Lane : Lane_Index_32x8) return F32 is
@@ -2106,9 +2133,12 @@ package body Flyology_SIMD.Wide is
        High => Flyology_SIMD.From_Lanes ([for Lane in 0 .. 1 => Values (Lane + 2)])));
 
    function To_Lanes (Value : F64x4) return Lane_Values_F64x4 is
-      Low : constant Lane_Values_F64x4 := [for Lane in Lane_Index_64x4 => (if Lane < 2 then Flyology_SIMD.Extract (Value.Low, Lane) else Flyology_SIMD.Extract (Value.High, Lane - 2))];
+      Low : constant Lane_Values_F64x2 := Flyology_SIMD.To_Lanes (Value.Low);
+      High : constant Lane_Values_F64x2 := Flyology_SIMD.To_Lanes (Value.High);
    begin
-      return Low;
+      return [for Lane in Lane_Index_64x4 =>
+        (if Lane < 2 then Low (Lane)
+         else High (Lane - 2))];
    end To_Lanes;
 
    function Extract (Value : F64x4; Lane : Lane_Index_64x4) return F64 is

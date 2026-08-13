@@ -726,6 +726,34 @@ def invalid_support(path: Path) -> list[str]:
                     f"{operation} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        construction_support = {
+            "Zero": "selected 128-bit Zero operation for both private parts",
+            "Splat": "selected 128-bit Splat operation for both private parts",
+            "From_Lanes": "selected 128-bit From_Lanes operation for each part",
+            "To_Lanes": "selected 128-bit To_Lanes operation for both private parts",
+            "Extract": "selected 128-bit Extract operation only on the private part",
+            "Replace": "selected 128-bit Replace operation only on the private part",
+        }
+        for operation, phrase in construction_support.items():
+            blocks = declaration_blocks(text, operation)
+            classified = sum(phrase in block for block in blocks)
+            if len(blocks) != 10 or classified != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"Wide construction classifications ({len(blocks)} "
+                    f"declarations, {classified} mechanism notes)"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block
+                    for block in blocks
+                )
+                if authority != 10:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected 10"
+                    )
         reduction_support = {
             "function Reduce_Add_Wrap": (
                 "reduce each private part with the selected 128-bit "
@@ -784,10 +812,6 @@ def invalid_support(path: Path) -> list[str]:
             "function Divide (": "optional AVX2 backend uses one isolated 256-bit vdiv",
             "function Min_Number": "isolated 256-bit integer-classification and bit-selection sequence",
             "function Max_Number": "isolated 256-bit integer-classification and bit-selection sequence",
-            "function Zero": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Splat": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function From_Lanes": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function To_Lanes": "call the selected 128-bit operation on each private part and combine the results in Ada",
             "function Mask_From_Bit_Mask": "call the selected 128-bit operation on each private part and combine the results in Ada",
             "function To_Bit_Mask": "call the selected 128-bit operation on each private part and combine the results in Ada",
             "function Mask_And": "call the selected 128-bit operation on each private part and combine the results in Ada",
@@ -800,8 +824,6 @@ def invalid_support(path: Path) -> list[str]:
             "function Population_Count": "selected 128-bit population-count operation on both private parts and add the two counts",
             "function First_True": "return a valid low-part result first",
             "function Last_True": "return a valid high-part result plus the private lane count first",
-            "function Extract": "only on the private part that contains the requested lane",
-            "function Replace": "only on the private part that contains the requested lane",
             "function Test": "only on the private part that contains the requested lane",
             "function Reduce_Add (": "dedicated SSE2 sequence with the same start value and lane order",
             "function Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
@@ -831,10 +853,6 @@ def invalid_support(path: Path) -> list[str]:
                 "function Divide (": 2,
                 "function Min_Number": 2,
                 "function Max_Number": 2,
-                "function Zero": 10,
-                "function Splat": 10,
-                "function From_Lanes": 10,
-                "function To_Lanes": 10,
                 "function Mask_From_Bit_Mask": 4,
                 "function To_Bit_Mask": 4,
                 "function Mask_And": 4,

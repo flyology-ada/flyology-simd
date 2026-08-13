@@ -26,6 +26,7 @@ slide_probe_object="$probe_root/slide_codegen_probe.o"
 permute_probe_object="$probe_root/permute_codegen_probe.o"
 wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
+wide_construction_probe_object="$probe_root/wide_construction_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -69,6 +70,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_reduction_probe_object" \
       >"$temporary/wide-reduction-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_construction_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-construction-probe.txt"
+else
+    objdump -dr "$wide_construction_probe_object" \
+      >"$temporary/wide-construction-probe.txt"
 fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
@@ -676,6 +684,100 @@ forbid_pattern 'flyology_simd__is_aligned_16__' \
 forbid_pattern 'flyology_simd__splat' \
   "$temporary/native-undefined.txt" \
   'portable Splat call retained in the Native backend object'
+
+wide_construction_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_construction_codegen_cases.txt | wc -l | tr -d ' ')
+wide_construction_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_construction_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_construction_case_count" -ne 60 ] || \
+   [ "$wide_construction_unique_count" -ne 60 ]; then
+    echo 'Wide construction code-generation manifest must contain 60 unique operations' >&2
+    exit 1
+fi
+
+while read -r lane_kind operation suffix half_lanes; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-construction-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_construction_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-construction-probe.txt" "$caller"
+    if [ "$suffix" = none ]; then
+        operation_symbol="$operation"
+    else
+        operation_symbol="${operation}__${suffix}"
+    fi
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    case "$operation" in
+        zero|splat)
+            if grep -Eiq "backends__native__${operation_symbol}${symbol_end}" "$caller"; then
+                require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+                  "$caller" "two matching selected ${operation} calls in ${lane_kind}"
+                selected_count=2
+            else
+                if [ "$lane_kind" != u8 ]; then
+                    echo "missing selected ${operation} calls in ${lane_kind}" >&2
+                    exit 1
+                fi
+                case "$architecture:$operation" in
+                    aarch64:splat)
+                        require_pattern 'dup\.16b' "$caller" \
+                          'inlined AArch64 U8 Wide Splat'
+                        ;;
+                    x86_64:splat)
+                        require_pattern 'punpcklbw' "$caller" \
+                          'inlined x86-64 U8 Wide Splat byte expansion'
+                        require_pattern 'punpcklwd' "$caller" \
+                          'inlined x86-64 U8 Wide Splat word expansion'
+                        require_pattern 'pshufd' "$caller" \
+                          'inlined x86-64 U8 Wide Splat broadcast'
+                        ;;
+                    *)
+                        echo "unexpected inline ${operation} in ${architecture} ${lane_kind}" >&2
+                        exit 1
+                        ;;
+                esac
+                selected_count=0
+            fi
+            ;;
+        from_lanes|to_lanes|replace)
+            require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+              "$caller" "two matching selected ${operation} calls in ${lane_kind}"
+            selected_count=2
+            ;;
+        extract)
+            selected_count=$(grep -Eic \
+              "backends__native__${operation_symbol}${symbol_end}" "$caller" || true)
+            if [ "$selected_count" -ne 1 ] && [ "$selected_count" -ne 2 ]; then
+                echo "code-generation count mismatch: one merged call or two branch calls for ${lane_kind} extract ($selected_count)" >&2
+                exit 1
+            fi
+            ;;
+    esac
+    require_count 'backends__native__' "$selected_count" "$caller" \
+      "only matching selected operations in ${lane_kind} ${operation}"
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(zero|splat|from_lanes|to_lanes|extract|replace)([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
+      "$caller" "portable or dispatcher construction call in ${lane_kind} ${operation}"
+    case "$operation" in
+        extract|replace)
+            half_hex=$(printf '%x' "$half_lanes")
+            require_pattern "sub.*(#(0x)?${half_hex}|\\\$(0x${half_hex}|${half_lanes}))([^[:xdigit:]]|$)" \
+              "$caller" "high-half lane adjustment in ${lane_kind} ${operation}"
+            case "$architecture" in
+                aarch64) branch_pattern='(^|[[:space:]])b\.[a-z]+' ;;
+                x86_64) branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]' ;;
+            esac
+            require_pattern "$branch_pattern" "$caller" \
+              "private-half conditional selection in ${lane_kind} ${operation}"
+            forbid_pattern 'cmov' "$caller" \
+              "unchecked branchless private-half selection in ${lane_kind} ${operation}"
+            ;;
+    esac
+done <scripts/probes/wide_construction_codegen_cases.txt
+
+nm -u "$object_root/flyology_simd-wide-native.o" \
+  >"$temporary/wide-native-construction-undefined.txt"
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(zero|splat|from_lanes|to_lanes|extract|replace)([[:space:]]|$)' \
+  "$temporary/wide-native-construction-undefined.txt" \
+  'portable or dispatcher construction operation retained in Wide.Native'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')

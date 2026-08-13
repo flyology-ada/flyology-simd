@@ -90,6 +90,11 @@ class Family:
         return f"Lane_Values_{suffix}{self.lanes}"
 
     @property
+    def half_values(self) -> str:
+        prefix = "8" if self.scalar == "U8" else self.scalar
+        return f"Lane_Values_{prefix}x{self.half_lanes}"
+
+    @property
     def mask(self) -> str:
         return f"Mask_{self.bits}x{self.lanes}"
 
@@ -166,6 +171,52 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     """Describe the verified Wide.Native implementation class."""
     match = re.match(r"   (?:function|procedure)\s+([A-Za-z0-9_]+)", declaration)
     operation = match.group(1) if match else ""
+    if operation == "Zero":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call "
+            "the selected 128-bit Zero operation for both private parts and "
+            "return the two-part result. In a scalar build, this overload uses "
+            "the same composition through the portable 128-bit implementation."
+        )
+    if operation == "Splat":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call "
+            "the selected 128-bit Splat operation for both private parts and "
+            "return the two-part result. In a scalar build, this overload uses "
+            "the same composition through the portable 128-bit implementation."
+        )
+    if operation == "From_Lanes":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends split "
+            "the logical lane array into low and high private parts. They call "
+            "the matching selected 128-bit From_Lanes operation for each part. "
+            "In a scalar build, this overload uses the same composition through "
+            "the portable 128-bit implementation."
+        )
+    if operation == "To_Lanes":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call "
+            "the matching selected 128-bit To_Lanes operation for both private "
+            "parts. They concatenate the low-part lanes followed by the "
+            "high-part lanes in logical order. In a scalar build, this overload "
+            "uses the same composition through the portable 128-bit implementation."
+        )
+    if operation == "Extract":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call "
+            "the matching selected 128-bit Extract operation only on the "
+            "private part that contains the requested lane. In a scalar build, "
+            "this overload uses the same selected-part composition through the "
+            "portable 128-bit implementation."
+        )
+    if operation == "Replace":
+        return (
+            "Cross-platform support: The AArch64 and x86-64 backends call "
+            "the matching selected 128-bit Replace operation only on the "
+            "private part that contains the requested lane and preserve the "
+            "other part. In a scalar build, this overload uses the same "
+            "selected-part composition through the portable 128-bit implementation."
+        )
     if operation in {"Widen_Low", "Widen_High"}:
         part = "low" if operation == "Widen_Low" else "high"
         return (
@@ -286,7 +337,6 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "private parts"
         )
     elif operation in {
-        "Zero", "Splat", "From_Lanes", "To_Lanes",
         "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
         "Mask_Xor", "Mask_Not", "Any_True", "All_True",
         "None_True",
@@ -317,7 +367,7 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "AArch64 and x86-64 call the selected 128-bit population-count "
             "operation on both private parts and add the two counts"
         )
-    elif operation in {"Extract", "Replace", "Test"}:
+    elif operation == "Test":
         mechanism = (
             "AArch64 and x86-64 call the selected 128-bit operation only on "
             "the private part that contains the requested lane"
@@ -867,8 +917,13 @@ def family_body(f: Family, first_shape: bool, prefix: str = "Flyology_SIMD") -> 
         f"     ((Low => {p}.From_Lanes ([for Lane in 0 .. {f.half_lanes - 1} => Values (Lane)]),\n"
         f"       High => {p}.From_Lanes ([for Lane in 0 .. {f.half_lanes - 1} => Values (Lane + {f.half_lanes})])));",
         f"   function To_Lanes (Value : {f.vector}) return {f.values} is\n"
-        f"      Low : constant {f.values} := [for Lane in {f.index} => (if Lane < {f.half_lanes} then {p}.Extract (Value.Low, Lane) else {p}.Extract (Value.High, Lane - {f.half_lanes}))];\n"
-        f"   begin\n      return Low;\n   end To_Lanes;",
+        f"      Low : constant {f.half_values} := {p}.To_Lanes (Value.Low);\n"
+        f"      High : constant {f.half_values} := {p}.To_Lanes (Value.High);\n"
+        f"   begin\n"
+        f"      return [for Lane in {f.index} =>\n"
+        f"        (if Lane < {f.half_lanes} then Low (Lane)\n"
+        f"         else High (Lane - {f.half_lanes}))];\n"
+        f"   end To_Lanes;",
         f"   function Extract (Value : {f.vector}; Lane : {f.index}) return {f.scalar} is\n"
         f"     (if Lane < {f.half_lanes} then {p}.Extract (Value.Low, Lane) else {p}.Extract (Value.High, Lane - {f.half_lanes}));",
         f"   function Replace (Value : {f.vector}; Lane : {f.index}; With_Value : {f.scalar}) return {f.vector} is\n"

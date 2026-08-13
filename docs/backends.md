@@ -348,6 +348,27 @@ current Wide tests cover fixed vectors and 128 deterministic pseudorandom inputs
 for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
 floating reduction order, signed zero, and special lane encodings.
+
+All 60 Wide construction and lane-access overloads compose selected 128-bit
+operations. `Zero` and `Splat` apply the matching selected operation to both
+private parts. `From_Lanes` splits the lane array at the private-part boundary.
+`To_Lanes` applies the matching selected operation to both parts and
+concatenates the low-part lanes before the high-part lanes. `Extract` applies
+the matching selected operation only to the part that contains the requested
+lane. `Replace` applies the matching selected operation only to the part that
+contains the requested lane and preserves the other part. A scalar build uses
+the same composition through the portable 128-bit implementation.
+
+Independent store- and load-backed lane-array checks cover fixed inputs and 128
+deterministic inputs for each of the ten types. Floating checks use raw bit
+patterns. The checks cover every returned, extracted, preserved, and replaced
+lane for both the scalar Wide implementation and `Wide.Native`. A generated
+caller probe covers all 60 overloads in each target configuration. The gates
+require matching selected 128-bit calls or verified inline U8 `Splat` code.
+They also require the private-half boundary and a high-half lane adjustment for
+`Extract` and `Replace`. The gates reject mismatched selected operations,
+portable calls, and Wide dispatchers.
+
 Wide `Compress` and `Expand` use the scalar Wide body as their semantic
 authority. On AArch64, the mechanism applies selected 128-bit `To_Bit_Mask` to
 both private mask parts. Ada combines the two compact results and derives one

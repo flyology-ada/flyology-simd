@@ -554,6 +554,99 @@ def memory_declarations(f: Family) -> str:
 '''
 
 
+def construction_declarations(f: Family) -> str:
+    """Independent construction/access oracle using verified array memory."""
+    zero = "0.0" if f.floating else "0"
+    fill = f"{f.scalar} (3.25)" if f.floating else f"{f.scalar}'Last"
+    same = (
+        "Value_To_Bits (Left) = Value_To_Bits (Right)"
+        if f.floating else "Left = Right"
+    )
+    return f'''
+      procedure Check_Construction
+        (Values : Wide.{f.values}; Context : String)
+      is
+         Scalar_Data : {f.array} (0 .. {f.lanes - 1}) := [others => {fill}];
+         Native_Data : {f.array} (0 .. {f.lanes - 1}) := [others => {fill}];
+         Scalar_Value : Wide.{f.vector};
+         Native_Value : Wide.{f.vector};
+         function Same (Left, Right : {f.scalar}) return Boolean is
+           ({same});
+         procedure Check_Array
+           (Actual : {f.array}; Expected : Wide.{f.values}; Label : String)
+         is
+         begin
+            for Lane in Wide.{f.index} loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "{f.vector} independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => {zero}], "scalar zero ");
+         Check_Array (Native_Data, [others => {zero}], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.{f.values} :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.{f.values} :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.{f.index} loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "{f.vector} independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "{f.vector} independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.{f.index} loop
+            declare
+               Replacement : constant {f.scalar} :=
+                 Values (Wide.{f.index}'Last - Lane);
+               Expected : Wide.{f.values} := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.{f.index} => Values (Position)];
+               Native_Data := [for Position in Wide.{f.index} => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+'''
+
+
 def random_conversion_helpers() -> str:
     out: list[str] = []
     for family in FAMILIES:
@@ -1839,6 +1932,7 @@ def integer_test(f: Family) -> str:
 {permutation_declarations(f)}
 {movement_declarations(f)}
 {memory_declarations(f)}
+{construction_declarations(f)}
 {lookup_declarations}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       B_Lanes : constant Wide.{f.values} := [{b_values}];
@@ -1863,6 +1957,7 @@ def integer_test(f: Family) -> str:
       Native_Two_Selectors : Wide.{f.two_selectors};
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.{f.values}'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.{f.values}'[others => 0],
@@ -2179,6 +2274,7 @@ def integer_test(f: Family) -> str:
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.{f.index} loop
                declare
                   One_Lane : constant Wide.{f.index} :=
@@ -2525,6 +2621,7 @@ def float_test(f: Family) -> str:
 {permutation_declarations(f)}
 {movement_declarations(f)}
 {memory_declarations(f)}
+{construction_declarations(f)}
       A_Lanes : constant Wide.{f.values} := [{a_values}];
       A : constant Wide.{f.vector} := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.{f.vector} := Wide.Splat (2.0);
@@ -2551,6 +2648,7 @@ def float_test(f: Family) -> str:
       Native_Two_Selectors : Wide.{f.two_selectors};
    begin
       Check_Memory (Special_Lanes, "fixed IEEE bits");
+      Check_Construction (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "{f.vector} lane round trip");
       Check ((for all Lane in Wide.{f.index} =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -2866,6 +2964,8 @@ def float_test(f: Family) -> str:
             Slide : constant Natural := Natural (Next_U64 mod {f.lanes + 3});
          begin
             Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
+            Check_Construction
+              (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.{f.index} loop
                declare
                   One_Lane : constant Wide.{f.index} :=

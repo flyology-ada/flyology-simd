@@ -467,6 +467,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_U8x32; Context : String)
+      is
+         Scalar_Data : Byte_Array (0 .. 31) := [others => U8'Last];
+         Native_Data : Byte_Array (0 .. 31) := [others => U8'Last];
+         Scalar_Value : Wide.U8x32;
+         Native_Value : Wide.U8x32;
+         function Same (Left, Right : U8) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : Byte_Array; Expected : Wide.Lane_Values_U8x32; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "U8x32 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_U8x32 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_U8x32 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "U8x32 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "U8x32 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_8x32 loop
+            declare
+               Replacement : constant U8 :=
+                 Values (Wide.Lane_Index_8x32'Last - Lane);
+               Expected : Wide.Lane_Values_U8x32 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_8x32 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_8x32 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       function Reference_Table_Lookup
         (Table, Indices : Wide.Lane_Values_U8x32)
          return Wide.Lane_Values_U8x32
@@ -523,6 +606,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U8x32'[others => 0],
@@ -1034,6 +1118,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                declare
                   One_Lane : constant Wide.Lane_Index_8x32 :=
@@ -1664,6 +1749,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_I8x32; Context : String)
+      is
+         Scalar_Data : I8_Array (0 .. 31) := [others => I8'Last];
+         Native_Data : I8_Array (0 .. 31) := [others => I8'Last];
+         Scalar_Value : Wide.I8x32;
+         Native_Value : Wide.I8x32;
+         function Same (Left, Right : I8) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : I8_Array; Expected : Wide.Lane_Values_I8x32; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "I8x32 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_I8x32 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_I8x32 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "I8x32 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "I8x32 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_8x32 loop
+            declare
+               Replacement : constant I8 :=
+                 Values (Wide.Lane_Index_8x32'Last - Lane);
+               Expected : Wide.Lane_Values_I8x32 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_8x32 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_8x32 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_I8x32 := [-16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_I8x32 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#)), Bits_To_Value (U8 (16#00#)), Bits_To_Value (U8 (16#80#)), Bits_To_Value (U8 (16#FF#)), Bits_To_Value (U8 (16#AA#))];
@@ -1687,6 +1855,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_8x32;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I8x32 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I8x32'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I8x32'[others => 0],
@@ -2173,6 +2342,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 35);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                declare
                   One_Lane : constant Wide.Lane_Index_8x32 :=
@@ -2759,6 +2929,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_U16x16; Context : String)
+      is
+         Scalar_Data : U16_Array (0 .. 15) := [others => U16'Last];
+         Native_Data : U16_Array (0 .. 15) := [others => U16'Last];
+         Scalar_Value : Wide.U16x16;
+         Native_Value : Wide.U16x16;
+         function Same (Left, Right : U16) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : U16_Array; Expected : Wide.Lane_Values_U16x16; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "U16x16 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_U16x16 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_U16x16 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "U16x16 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "U16x16 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_16x16 loop
+            declare
+               Replacement : constant U16 :=
+                 Values (Wide.Lane_Index_16x16'Last - Lane);
+               Expected : Wide.Lane_Values_U16x16 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_16x16 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_16x16 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_U16x16 := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
       B_Lanes : constant Wide.Lane_Values_U16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#), U16 (16#0000#), U16 (16#8000#), U16 (16#FFFF#), U16 (16#AAAA#)];
@@ -2782,6 +3035,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U16x16'[others => 0],
@@ -3157,6 +3411,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                declare
                   One_Lane : constant Wide.Lane_Index_16x16 :=
@@ -3652,6 +3907,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_I16x16; Context : String)
+      is
+         Scalar_Data : I16_Array (0 .. 15) := [others => I16'Last];
+         Native_Data : I16_Array (0 .. 15) := [others => I16'Last];
+         Scalar_Value : Wide.I16x16;
+         Native_Value : Wide.I16x16;
+         function Same (Left, Right : I16) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : I16_Array; Expected : Wide.Lane_Values_I16x16; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "I16x16 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_I16x16 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_I16x16 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "I16x16 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "I16x16 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_16x16 loop
+            declare
+               Replacement : constant I16 :=
+                 Values (Wide.Lane_Index_16x16'Last - Lane);
+               Expected : Wide.Lane_Values_I16x16 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_16x16 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_16x16 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_I16x16 := [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_I16x16 := [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#)), Bits_To_Value (U16 (16#0000#)), Bits_To_Value (U16 (16#8000#)), Bits_To_Value (U16 (16#FFFF#)), Bits_To_Value (U16 (16#AAAA#))];
@@ -3675,6 +4013,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_16x16;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I16x16 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I16x16'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I16x16'[others => 0],
@@ -4049,6 +4388,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 19);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                declare
                   One_Lane : constant Wide.Lane_Index_16x16 :=
@@ -4543,6 +4883,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_U32x8; Context : String)
+      is
+         Scalar_Data : U32_Array (0 .. 7) := [others => U32'Last];
+         Native_Data : U32_Array (0 .. 7) := [others => U32'Last];
+         Scalar_Value : Wide.U32x8;
+         Native_Value : Wide.U32x8;
+         function Same (Left, Right : U32) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : U32_Array; Expected : Wide.Lane_Values_U32x8; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "U32x8 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_U32x8 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_U32x8 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "U32x8 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "U32x8 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_32x8 loop
+            declare
+               Replacement : constant U32 :=
+                 Values (Wide.Lane_Index_32x8'Last - Lane);
+               Expected : Wide.Lane_Values_U32x8 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_U32x8 := [0, 1, 2, 3, 4, 5, 6, 7];
       B_Lanes : constant Wide.Lane_Values_U32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#), U32 (16#00000000#), U32 (16#80000000#), U32 (16#FFFFFFFF#), U32 (16#AAAAAAAA#)];
@@ -4566,6 +4989,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U32x8'[others => 0],
@@ -4957,6 +5381,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -5468,6 +5893,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_I32x8; Context : String)
+      is
+         Scalar_Data : I32_Array (0 .. 7) := [others => I32'Last];
+         Native_Data : I32_Array (0 .. 7) := [others => I32'Last];
+         Scalar_Value : Wide.I32x8;
+         Native_Value : Wide.I32x8;
+         function Same (Left, Right : I32) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : I32_Array; Expected : Wide.Lane_Values_I32x8; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "I32x8 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_I32x8 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_I32x8 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "I32x8 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "I32x8 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_32x8 loop
+            declare
+               Replacement : constant I32 :=
+                 Values (Wide.Lane_Index_32x8'Last - Lane);
+               Expected : Wide.Lane_Values_I32x8 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_I32x8 := [-4, -3, -2, -1, 0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_I32x8 := [2, 2, 2, 2, 2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#)), Bits_To_Value (U32 (16#00000000#)), Bits_To_Value (U32 (16#80000000#)), Bits_To_Value (U32 (16#FFFFFFFF#)), Bits_To_Value (U32 (16#AAAAAAAA#))];
@@ -5491,6 +5999,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I32x8 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I32x8'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I32x8'[others => 0],
@@ -5881,6 +6390,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -6391,6 +6901,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_U64x4; Context : String)
+      is
+         Scalar_Data : U64_Array (0 .. 3) := [others => U64'Last];
+         Native_Data : U64_Array (0 .. 3) := [others => U64'Last];
+         Scalar_Value : Wide.U64x4;
+         Native_Value : Wide.U64x4;
+         function Same (Left, Right : U64) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : U64_Array; Expected : Wide.Lane_Values_U64x4; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "U64x4 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_U64x4 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_U64x4 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "U64x4 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "U64x4 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_64x4 loop
+            declare
+               Replacement : constant U64 :=
+                 Values (Wide.Lane_Index_64x4'Last - Lane);
+               Expected : Wide.Lane_Values_U64x4 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_U64x4 := [0, 1, 2, 3];
       B_Lanes : constant Wide.Lane_Values_U64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (16#0000000000000000#), U64 (16#8000000000000000#), U64 (16#FFFFFFFFFFFFFFFF#), U64 (16#AAAAAAAAAAAAAAAA#)];
@@ -6414,6 +7007,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "U64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_U64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_U64x4'[others => 0],
@@ -6805,6 +7399,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=
@@ -7316,6 +7911,89 @@ procedure Wide_Tests is
       end Check_Memory;
 
 
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_I64x4; Context : String)
+      is
+         Scalar_Data : I64_Array (0 .. 3) := [others => I64'Last];
+         Native_Data : I64_Array (0 .. 3) := [others => I64'Last];
+         Scalar_Value : Wide.I64x4;
+         Native_Value : Wide.I64x4;
+         function Same (Left, Right : I64) return Boolean is
+           (Left = Right);
+         procedure Check_Array
+           (Actual : I64_Array; Expected : Wide.Lane_Values_I64x4; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "I64x4 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_I64x4 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_I64x4 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "I64x4 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "I64x4 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_64x4 loop
+            declare
+               Replacement : constant I64 :=
+                 Values (Wide.Lane_Index_64x4'Last - Lane);
+               Expected : Wide.Lane_Values_I64x4 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
+
       A_Lanes : constant Wide.Lane_Values_I64x4 := [-2, -1, 0, 1];
       B_Lanes : constant Wide.Lane_Values_I64x4 := [2, 2, 2, 2];
       Bit_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (16#0000000000000000#)), Bits_To_Value (U64 (16#8000000000000000#)), Bits_To_Value (U64 (16#FFFFFFFFFFFFFFFF#)), Bits_To_Value (U64 (16#AAAAAAAAAAAAAAAA#))];
@@ -7339,6 +8017,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check_Memory (Bit_Lanes, "fixed bits");
+      Check_Construction (Bit_Lanes, "fixed bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "I64x4 lane round trip");
       Check (Wide.To_Lanes (Wide.Zero) = Wide.Lane_Values_I64x4'[others => 0]
         and then Native.To_Lanes (Native.Zero) = Wide.Lane_Values_I64x4'[others => 0],
@@ -7729,6 +8408,7 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
             Check_Memory (R_A_Lanes, "random" & Iteration'Image);
+            Check_Construction (R_A_Lanes, "random" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=
@@ -8441,6 +9121,89 @@ procedure Wide_Tests is
            "F32x8 zero-count memory avoids element addresses " & Context);
       end Check_Memory;
 
+
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_F32x8; Context : String)
+      is
+         Scalar_Data : F32_Array (0 .. 7) := [others => F32 (3.25)];
+         Native_Data : F32_Array (0 .. 7) := [others => F32 (3.25)];
+         Scalar_Value : Wide.F32x8;
+         Native_Value : Wide.F32x8;
+         function Same (Left, Right : F32) return Boolean is
+           (Value_To_Bits (Left) = Value_To_Bits (Right));
+         procedure Check_Array
+           (Actual : F32_Array; Expected : Wide.Lane_Values_F32x8; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "F32x8 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0.0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0.0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_F32x8 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_F32x8 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "F32x8 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "F32x8 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_32x8 loop
+            declare
+               Replacement : constant F32 :=
+                 Values (Wide.Lane_Index_32x8'Last - Lane);
+               Expected : Wide.Lane_Values_F32x8 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_32x8 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
       A_Lanes : constant Wide.Lane_Values_F32x8 := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
       A : constant Wide.F32x8 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F32x8 := Wide.Splat (2.0);
@@ -8467,6 +9230,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_32x8;
    begin
       Check_Memory (Special_Lanes, "fixed IEEE bits");
+      Check_Construction (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "F32x8 lane round trip");
       Check ((for all Lane in Wide.Lane_Index_32x8 =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -8942,6 +9706,8 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 11);
          begin
             Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
+            Check_Construction
+              (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                declare
                   One_Lane : constant Wide.Lane_Index_32x8 :=
@@ -9648,6 +10414,89 @@ procedure Wide_Tests is
            "F64x4 zero-count memory avoids element addresses " & Context);
       end Check_Memory;
 
+
+      procedure Check_Construction
+        (Values : Wide.Lane_Values_F64x4; Context : String)
+      is
+         Scalar_Data : F64_Array (0 .. 3) := [others => F64 (3.25)];
+         Native_Data : F64_Array (0 .. 3) := [others => F64 (3.25)];
+         Scalar_Value : Wide.F64x4;
+         Native_Value : Wide.F64x4;
+         function Same (Left, Right : F64) return Boolean is
+           (Value_To_Bits (Left) = Value_To_Bits (Right));
+         procedure Check_Array
+           (Actual : F64_Array; Expected : Wide.Lane_Values_F64x4; Label : String)
+         is
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Actual (Lane), Expected (Lane)),
+                 "F64x4 independent construction " & Label & Context
+                 & Lane'Image);
+            end loop;
+         end Check_Array;
+      begin
+         Scalar_Value := Wide.Zero;
+         Native_Value := Native.Zero;
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, [others => 0.0], "scalar zero ");
+         Check_Array (Native_Data, [others => 0.0], "native zero ");
+
+         Scalar_Value := Wide.Splat (Values (Values'First));
+         Native_Value := Native.Splat (Values (Values'First));
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array
+           (Scalar_Data, [others => Values (Values'First)], "scalar splat ");
+         Check_Array
+           (Native_Data, [others => Values (Values'First)], "native splat ");
+
+         Scalar_Value := Wide.From_Lanes (Values);
+         Native_Value := Native.From_Lanes (Values);
+         Wide.Store (Scalar_Data, 0, Scalar_Value);
+         Native.Store (Native_Data, 0, Native_Value);
+         Check_Array (Scalar_Data, Values, "scalar from-lanes ");
+         Check_Array (Native_Data, Values, "native from-lanes ");
+
+         Scalar_Value := Wide.Load (Scalar_Data, 0);
+         Native_Value := Native.Load (Native_Data, 0);
+         declare
+            Scalar_Lanes : constant Wide.Lane_Values_F64x4 :=
+              Wide.To_Lanes (Scalar_Value);
+            Native_Lanes : constant Wide.Lane_Values_F64x4 :=
+              Native.To_Lanes (Native_Value);
+         begin
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Same (Scalar_Lanes (Lane), Values (Lane))
+                 and then Same (Native_Lanes (Lane), Values (Lane)),
+                 "F64x4 independent to-lanes " & Context & Lane'Image);
+               Check (Same (Wide.Extract (Scalar_Value, Lane), Values (Lane))
+                 and then Same (Native.Extract (Native_Value, Lane), Values (Lane)),
+                 "F64x4 independent extract " & Context & Lane'Image);
+            end loop;
+         end;
+
+         for Lane in Wide.Lane_Index_64x4 loop
+            declare
+               Replacement : constant F64 :=
+                 Values (Wide.Lane_Index_64x4'Last - Lane);
+               Expected : Wide.Lane_Values_F64x4 := Values;
+            begin
+               Expected (Lane) := Replacement;
+               Scalar_Value := Wide.Replace (Wide.Load (Scalar_Data, 0), Lane,
+                                             Replacement);
+               Native_Value := Native.Replace (Native.Load (Native_Data, 0), Lane,
+                                               Replacement);
+               Wide.Store (Scalar_Data, 0, Scalar_Value);
+               Native.Store (Native_Data, 0, Native_Value);
+               Check_Array (Scalar_Data, Expected, "scalar replace ");
+               Check_Array (Native_Data, Expected, "native replace ");
+               Scalar_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+               Native_Data := [for Position in Wide.Lane_Index_64x4 => Values (Position)];
+            end;
+         end loop;
+      end Check_Construction;
+
       A_Lanes : constant Wide.Lane_Values_F64x4 := [1.0, 2.0, 3.0, 4.0];
       A : constant Wide.F64x4 := Wide.From_Lanes (A_Lanes);
       Two : constant Wide.F64x4 := Wide.Splat (2.0);
@@ -9674,6 +10523,7 @@ procedure Wide_Tests is
       Native_Two_Selectors : Wide.Two_Source_Lane_Selectors_64x4;
    begin
       Check_Memory (Special_Lanes, "fixed IEEE bits");
+      Check_Construction (Special_Lanes, "fixed IEEE bits");
       Check (Wide.To_Lanes (A) = A_Lanes, "F64x4 lane round trip");
       Check ((for all Lane in Wide.Lane_Index_64x4 =>
         Value_To_Bits (Wide.Extract (Wide.Splat (2.0), Lane)) =
@@ -10149,6 +10999,8 @@ procedure Wide_Tests is
             Slide : constant Natural := Natural (Next_U64 mod 7);
          begin
             Check_Memory (R_Bit_Lanes, "random raw bits" & Iteration'Image);
+            Check_Construction
+              (R_Bit_Lanes, "random raw bits" & Iteration'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                declare
                   One_Lane : constant Wide.Lane_Index_64x4 :=
