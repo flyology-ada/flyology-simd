@@ -227,8 +227,10 @@ The optional AVX2 backend uses one dedicated 256-bit implementation.
 
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
-defines the result. AArch64 derives a 32-byte index map from the mask. It runs
-one two-register `tbl` operation for each 128-bit result half. The x86-64
+defines the result. AArch64 applies selected 128-bit `To_Bit_Mask` to both
+private mask parts and combines the two compact results. It derives one 32-byte
+index map and runs one two-register `tbl` operation for each 128-bit result
+half. The x86-64
 composed and AVX2 mechanisms each derive one two-source lane map for each
 128-bit result half. Each mechanism calls selected 128-bit `Permute_Lanes`
 twice and selected 128-bit `Select_Value` twice. `Select_Value` selects `Zero`

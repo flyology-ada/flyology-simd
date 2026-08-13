@@ -162,9 +162,10 @@ The complete artifact is written to the ignored `build/site/` directory.
   The composed x86-64 and scalar selections use selected 128-bit operations;
   the optional AVX2 selection uses a dedicated 256-bit implementation. Wide
   `Compress` and `Expand` use the target-selected compression and expansion
-  mechanism. On AArch64, the mechanism derives a 32-byte index
-  map from the mask. It runs one two-register `tbl` operation for each 128-bit
-  result half. The x86-64 composed and AVX2 mechanisms each derive one
+  mechanism. On AArch64, the mechanism applies selected 128-bit
+  `To_Bit_Mask` to both private mask parts and combines the two results. It
+  derives one 32-byte index map and runs one two-register `tbl` operation for
+  each 128-bit result half. The x86-64 composed and AVX2 mechanisms each derive one
   two-source lane map for each 128-bit result half. Each mechanism calls
   selected 128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value`
   twice. `Select_Value` selects `Zero` for each zero-fill lane. The lane-movement

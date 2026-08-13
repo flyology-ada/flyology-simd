@@ -311,15 +311,19 @@ for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
 floating reduction order, signed zero, and special lane encodings.
 Wide `Compress` and `Expand` use the scalar Wide body as their semantic
-authority. On AArch64, Ada derives one 32-byte index map from the mask. An
-isolated assembly subprogram runs one two-register `tbl` operation for each
-128-bit result half. The x86-64 composed and AVX2 mechanisms each derive one
+authority. On AArch64, the mechanism applies selected 128-bit `To_Bit_Mask` to
+both private mask parts. Ada combines the two compact results and derives one
+32-byte index map. An isolated assembly subprogram runs one two-register `tbl`
+operation for each 128-bit result half. The x86-64 composed and AVX2 mechanisms each derive one
 two-source lane map for each 128-bit result half. Each mechanism calls selected
 128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value` twice.
 `Select_Value` selects `Zero` for each zero-fill lane. Independent lane-array
 oracles cover zero, all, one-hot, prefix, suffix, half-boundary, alternating,
 and deterministic pseudorandom masks for all ten value types. Floating cases
-compare the bit patterns of moved lanes and positive-zero fill lanes.
+compare the bit patterns of moved lanes and positive-zero fill lanes. AArch64
+caller-level probes cover all 20 overloads. Each probe requires one
+two-register `tbl` operation for each result half. The gates reject out-of-line
+mask extraction, dispatchers, and per-lane helpers.
 Wide bit casts compose two selected 128-bit bit casts. The Wide lane-movement
 operations and both `Permute_Lanes` overloads use a target-selected permutation
 mechanism. On AArch64, reverse, slides, and the one-source `Permute_Lanes`

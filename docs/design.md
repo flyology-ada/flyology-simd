@@ -232,10 +232,11 @@ uses the portable Wide implementation.
 
 The target-selected compression and expansion mechanism implements Wide Native
 `Compress` and `Expand` for all ten value types. The Wide scalar body
-remains the semantic authority. On AArch64, Ada code derives a 32-byte index
-map from the mask. One isolated assembly subprogram runs one two-register
-`tbl` operation for each 128-bit result half. An index of 32 produces the
-defined zero fill. The x86-64 composed and AVX2 mechanisms each derive one
+remains the semantic authority. On AArch64, the mechanism applies selected
+128-bit `To_Bit_Mask` to both private mask parts. Ada code combines the two
+compact results and derives one 32-byte index map. One isolated assembly
+subprogram runs one two-register `tbl` operation for each 128-bit result half.
+An index of 32 produces the defined zero fill. The x86-64 composed and AVX2 mechanisms each derive one
 two-source lane map for each 128-bit result half. Each mechanism calls selected
 128-bit `Permute_Lanes` twice and selected 128-bit `Select_Value` twice.
 `Select_Value` selects `Zero` for each zero-fill lane.

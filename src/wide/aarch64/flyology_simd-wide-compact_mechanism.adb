@@ -1,3 +1,4 @@
+with Flyology_SIMD.Backends.Native;
 with System.Machine_Code;
 
 package body Flyology_SIMD.Wide.Compact_Mechanism is
@@ -58,7 +59,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
 
    function Compress (Value : U8x32; Mask : Mask_8x32) return U8x32 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_8x32 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_8x32 :=
+        Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              16);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_8x32 loop
@@ -74,7 +79,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : U8x32; Mask : Mask_8x32) return U8x32 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_8x32 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_8x32 :=
+        Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              16);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_8x32 loop
@@ -90,7 +99,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : I8x32; Mask : Mask_8x32) return I8x32 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_8x32 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_8x32 :=
+        Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              16);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_8x32 loop
@@ -106,7 +119,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : I8x32; Mask : Mask_8x32) return I8x32 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_8x32 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_8x32 :=
+        Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_8x32 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              16);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_8x32 loop
@@ -122,7 +139,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : U16x16; Mask : Mask_16x16) return U16x16 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_16x16 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_16x16 :=
+        Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              8);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_16x16 loop
@@ -138,7 +159,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : U16x16; Mask : Mask_16x16) return U16x16 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_16x16 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_16x16 :=
+        Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              8);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_16x16 loop
@@ -154,7 +179,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : I16x16; Mask : Mask_16x16) return I16x16 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_16x16 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_16x16 :=
+        Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              8);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_16x16 loop
@@ -170,7 +199,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : I16x16; Mask : Mask_16x16) return I16x16 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_16x16 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_16x16 :=
+        Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_16x16 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              8);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_16x16 loop
@@ -186,7 +219,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : U32x8; Mask : Mask_32x8) return U32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -202,7 +239,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : U32x8; Mask : Mask_32x8) return U32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -218,7 +259,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : I32x8; Mask : Mask_32x8) return I32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -234,7 +279,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : I32x8; Mask : Mask_32x8) return I32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -250,7 +299,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : U64x4; Mask : Mask_64x4) return U64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop
@@ -266,7 +319,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : U64x4; Mask : Mask_64x4) return U64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop
@@ -282,7 +339,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : I64x4; Mask : Mask_64x4) return I64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop
@@ -298,7 +359,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : I64x4; Mask : Mask_64x4) return I64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop
@@ -314,7 +379,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : F32x8; Mask : Mask_32x8) return F32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -330,7 +399,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : F32x8; Mask : Mask_32x8) return F32x8 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_32x8 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_32x8 :=
+        Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_32x8 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              4);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_32x8 loop
@@ -346,7 +419,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Expand;
    function Compress (Value : F64x4; Mask : Mask_64x4) return F64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Result_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop
@@ -362,7 +439,11 @@ package body Flyology_SIMD.Wide.Compact_Mechanism is
    end Compress;
    function Expand (Value : F64x4; Mask : Mask_64x4) return F64x4 is
       Map : Byte_Map := [others => 32];
-      Bits : constant Mask_Bits_64x4 := Flyology_SIMD.Wide.To_Bit_Mask (Mask);
+      Bits : constant Mask_Bits_64x4 :=
+        Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))
+        or Interfaces.Shift_Left
+             (Mask_Bits_64x4 (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),
+              2);
       Source_Lane : Natural := 0;
    begin
       for Lane in Lane_Index_64x4 loop

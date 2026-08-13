@@ -812,6 +812,20 @@ def invalid_support(path: Path) -> list[str]:
                     f"appears {count} times, expected {expected}"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        for operation in ("Compress", "Expand"):
+            blocks = [
+                block.split("function ", 1)[0].split("procedure ", 1)[0]
+                for block in text.split(f"function {operation}")[1:]
+            ]
+            phrase = (
+                "AArch64 backend applies the selected 128-bit To_Bit_Mask "
+                "operation to each private mask part"
+            )
+            if len(blocks) != 10 or sum(phrase in block for block in blocks) != 10:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: exact Wide {operation} "
+                    "selected mask-extraction classifications are incomplete"
+                )
         wide_numeric_conversion_support = (
             ("Convert_Round", "Value : I32x8", "return F32x8"),
             ("Convert_Round", "Value : U32x8", "return F32x8"),

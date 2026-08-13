@@ -44,6 +44,7 @@ wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
 wide_permute_object="$object_root/flyology_simd-wide-permute_mechanism.o"
+wide_compact_object="$object_root/flyology_simd-wide-compact_mechanism.o"
 wide_float_reduction_leaf_object="$object_root/flyology_simd-wide-float_reduce_selected_leaf.o"
 
 disassemble() {
@@ -101,6 +102,7 @@ disassemble "$wide_lookup_object" >"$temporary/wide-lookup.txt"
 nm -u "$wide_lookup_object" >"$temporary/wide-lookup-undefined.txt"
 objdump -r "$wide_lookup_object" >"$temporary/wide-lookup-relocs.txt"
 disassemble "$wide_permute_object" >"$temporary/wide-permute.txt"
+nm -u "$wide_compact_object" >"$temporary/wide-compact-object-undefined.txt"
 disassemble "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf.txt"
 nm -u "$wide_float_reduction_leaf_object" >"$temporary/wide-float-reduction-leaf-undefined.txt"
 nm -u "$wide_probe_object" >"$temporary/wide-undefined.txt"
@@ -846,11 +848,20 @@ case "$architecture" in
                 require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "two-register TBL operations in AArch64 ${lane_kind} ${operation} caller"
+                forbid_pattern 'flyology_simd__(__wide)?__to_bit_mask|flyology_simd__backends__native__to_bit_mask' \
+                  "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
+                  "out-of-line mask extraction in AArch64 ${lane_kind} ${operation} caller"
                 forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "per-lane or dispatcher call in AArch64 ${lane_kind} ${operation} caller"
             done
         done
+        require_count 'flyology_simd__' 0 \
+          "$temporary/wide-compact-object-undefined.txt" \
+          'no Flyology operation remains unresolved in the AArch64 Wide compact object'
+        forbid_pattern 'flyology_simd__wide__to_bit_mask|flyology_simd__wide__(compress|expand)|flyology_simd__wide__native__' \
+          "$temporary/wide-compact-object-undefined.txt" \
+          'portable or public Wide helper retained in the AArch64 Wide compact object'
         for vector_kind in u8x32 i8x32 u16x16 i16x16 u32x8 i32x8 u64x4 i64x4 f32x8 f64x4; do
             for operation in permute_1 reverse slide_low slide_high; do
                 extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \

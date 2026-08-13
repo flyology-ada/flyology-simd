@@ -234,9 +234,11 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
     elif summary.startswith("Stably pack") or summary.startswith("Place consecutive"):
         movement = "compression" if summary.startswith("Stably pack") else "expansion"
         return (
-            "Cross-platform support: The AArch64 backend derives one 32-byte "
-            f"{movement} map and runs one two-register NEON tbl operation for "
-            "each result half. The x86-64 composed and optional AVX2 backends "
+            "Cross-platform support: The AArch64 backend applies the selected "
+            "128-bit To_Bit_Mask operation to each private mask part. It "
+            f"combines the two results and derives one 32-byte {movement} map. "
+            "An isolated assembly subprogram runs one two-register NEON tbl "
+            "operation for each result half. The x86-64 composed and optional AVX2 backends "
             f"derive two selected-128-bit {movement} maps. They run one SSE2 "
             "two-source permutation for each result half and apply the "
             "selected 128-bit mask and zero operations for defined zero fill. "
@@ -2882,7 +2884,11 @@ def compact_aarch64_body_text() -> str:
         bodies.append(
             f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
             "      Map : Byte_Map := [others => 32];\n"
-            f"      Bits : constant {f.mask_bits} := Flyology_SIMD.Wide.To_Bit_Mask (Mask);\n"
+            f"      Bits : constant {f.mask_bits} :=\n"
+            f"        {f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))\n"
+            f"        or Interfaces.Shift_Left\n"
+            f"             ({f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),\n"
+            f"              {f.half_lanes});\n"
             "      Result_Lane : Natural := 0;\n"
             "   begin\n"
             f"      for Lane in {f.index} loop\n"
@@ -2900,7 +2906,11 @@ def compact_aarch64_body_text() -> str:
         bodies.append(
             f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n"
             "      Map : Byte_Map := [others => 32];\n"
-            f"      Bits : constant {f.mask_bits} := Flyology_SIMD.Wide.To_Bit_Mask (Mask);\n"
+            f"      Bits : constant {f.mask_bits} :=\n"
+            f"        {f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.Low))\n"
+            f"        or Interfaces.Shift_Left\n"
+            f"             ({f.mask_bits} (Flyology_SIMD.Backends.Native.To_Bit_Mask (Mask.High)),\n"
+            f"              {f.half_lanes});\n"
             "      Source_Lane : Natural := 0;\n"
             "   begin\n"
             f"      for Lane in {f.index} loop\n"
@@ -2915,7 +2925,8 @@ def compact_aarch64_body_text() -> str:
             f"      return {permute} (Value, Map);\n"
             "   end Expand;"
         )
-    return f"""with System.Machine_Code;
+    return f"""with Flyology_SIMD.Backends.Native;
+with System.Machine_Code;
 
 package body Flyology_SIMD.Wide.Compact_Mechanism is
    use System.Machine_Code;
