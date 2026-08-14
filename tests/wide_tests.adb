@@ -163,6 +163,15 @@ procedure Wide_Tests is
       end Reference_Reduce_Max;
 
 
+      function Reference_Add_Saturate
+        (Left, Right : U8) return U8 is
+        (if Left > U8'Last - Right then U8'Last else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : U8) return U8 is
+        (if Left < Right then 0 else Left - Right);
+
+
       function Reference_Compress
         (Values : Wide.Lane_Values_U8x32; Bits : Wide.Mask_Bits_8x32)
          return Wide.Lane_Values_U8x32
@@ -679,6 +688,30 @@ procedure Wide_Tests is
         "U8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U8x32 double complement");
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0];
+         Right_Lanes : constant Wide.Lane_Values_U8x32 := [1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last];
+         Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U8x32 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U8x32 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.U8x32 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U8x32 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U8x32 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U8x32 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
 
       declare
          Edge_A : constant Wide.U8x32 := Wide.From_Lanes ([0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55, 0, 255, 255, 1, 128, 127, 200, 55]);
@@ -1264,6 +1297,27 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.U8x32 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.U8x32 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.U8x32 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.U8x32 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_8x32 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U8x32 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                R_A_Lanes : constant Wide.Lane_Values_U8x32 := Wide.To_Lanes (R_A);
                R_B_Lanes : constant Wide.Lane_Values_U8x32 := Wide.To_Lanes (R_B);
                R_Bits : constant Wide.Mask_Bits_8x32 := Wide.To_Bit_Mask (R_Mask);
@@ -1485,6 +1539,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : I8) return I8 is
+        (if Right > 0 and then Left > I8'Last - Right then I8'Last
+         elsif Right < 0 and then Left < I8'First - Right then I8'First
+         else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : I8) return I8 is
+        (if Right > 0 and then Left < I8'First + Right then I8'First
+         elsif Right < 0 and then Left > I8'Last + Right then I8'Last
+         else Left - Right);
 
 
       function Reference_Compress
@@ -1970,6 +2037,30 @@ procedure Wide_Tests is
         "I8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I8x32 double complement");
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I8x32 := [I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First];
+         Right_Lanes : constant Wide.Lane_Values_I8x32 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
+         Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I8x32 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I8x32 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.I8x32 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I8x32 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I8x32 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I8x32 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
 
       declare
          Edge_A : constant Wide.I8x32 := Wide.From_Lanes ([-128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1, -128, 127, 127, -128, 100, -100, -1, 1]);
@@ -2530,6 +2621,27 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.I8x32 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.I8x32 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.I8x32 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.I8x32 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_8x32 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I8x32 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                R_A_Lanes : constant Wide.Lane_Values_I8x32 := Wide.To_Lanes (R_A);
                R_B_Lanes : constant Wide.Lane_Values_I8x32 := Wide.To_Lanes (R_B);
                R_Bits : constant Wide.Mask_Bits_8x32 := Wide.To_Bit_Mask (R_Mask);
@@ -2739,6 +2851,15 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : U16) return U16 is
+        (if Left > U16'Last - Right then U16'Last else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : U16) return U16 is
+        (if Left < Right then 0 else Left - Right);
 
 
       function Reference_Compress
@@ -3225,6 +3346,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U16x16 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0];
+         Right_Lanes : constant Wide.Lane_Values_U16x16 := [1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last];
+         Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U16x16 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U16x16 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.U16x16 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U16x16 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U16x16 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U16x16 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_U16x16'[others => 0]
@@ -3614,6 +3759,27 @@ procedure Wide_Tests is
               "U16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            declare
+               Root_Add : constant Wide.U16x16 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.U16x16 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.U16x16 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.U16x16 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_16x16 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U16x16 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
@@ -3791,6 +3957,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : I16) return I16 is
+        (if Right > 0 and then Left > I16'Last - Right then I16'Last
+         elsif Right < 0 and then Left < I16'First - Right then I16'First
+         else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : I16) return I16 is
+        (if Right > 0 and then Left < I16'First + Right then I16'First
+         elsif Right < 0 and then Left > I16'Last + Right then I16'Last
+         else Left - Right);
 
 
       function Reference_Compress
@@ -4277,6 +4456,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I16x16 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I16x16 := [I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First];
+         Right_Lanes : constant Wide.Lane_Values_I16x16 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
+         Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I16x16 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I16x16 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.I16x16 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I16x16 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I16x16 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I16x16 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 16)) = Wide.Lane_Values_I16x16'[others => 0]
@@ -4665,6 +4868,27 @@ procedure Wide_Tests is
               "I16x16 randomized bitwise extrema" & Iteration'Image);
 
 
+            declare
+               Root_Add : constant Wide.I16x16 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.I16x16 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.I16x16 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.I16x16 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_16x16 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I16x16 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
@@ -4841,6 +5065,15 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : U32) return U32 is
+        (if Left > U32'Last - Right then U32'Last else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : U32) return U32 is
+        (if Left < Right then 0 else Left - Right);
 
 
       function Reference_Compress
@@ -5327,6 +5560,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U32x8 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32'Last, 0, U32'Last, 0, U32'Last, 0, U32'Last, 0];
+         Right_Lanes : constant Wide.Lane_Values_U32x8 := [1, 1, U32'Last, U32'Last, 1, 1, U32'Last, U32'Last];
+         Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U32x8 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U32x8 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.U32x8 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U32x8 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U32x8 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U32x8 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_U32x8'[others => 0]
@@ -5732,6 +5989,27 @@ procedure Wide_Tests is
               "U32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            declare
+               Root_Add : constant Wide.U32x8 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.U32x8 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.U32x8 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.U32x8 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_32x8 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U32x8 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
@@ -5925,6 +6203,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : I32) return I32 is
+        (if Right > 0 and then Left > I32'Last - Right then I32'Last
+         elsif Right < 0 and then Left < I32'First - Right then I32'First
+         else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : I32) return I32 is
+        (if Right > 0 and then Left < I32'First + Right then I32'First
+         elsif Right < 0 and then Left > I32'Last + Right then I32'Last
+         else Left - Right);
 
 
       function Reference_Compress
@@ -6411,6 +6702,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I32x8 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I32x8 := [I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First];
+         Right_Lanes : constant Wide.Lane_Values_I32x8 := [1, -1, -1, 1, 1, -1, -1, 1];
+         Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I32x8 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I32x8 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.I32x8 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I32x8 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I32x8 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I32x8 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 32)) = Wide.Lane_Values_I32x8'[others => 0]
@@ -6815,6 +7130,27 @@ procedure Wide_Tests is
               "I32x8 randomized bitwise extrema" & Iteration'Image);
 
 
+            declare
+               Root_Add : constant Wide.I32x8 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.I32x8 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.I32x8 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.I32x8 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_32x8 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I32x8 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
@@ -7007,6 +7343,15 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : U64) return U64 is
+        (if Left > U64'Last - Right then U64'Last else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : U64) return U64 is
+        (if Left < Right then 0 else Left - Right);
 
 
       function Reference_Compress
@@ -7493,6 +7838,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U64x4 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64'Last, 0, U64'Last, 0];
+         Right_Lanes : constant Wide.Lane_Values_U64x4 := [1, 1, U64'Last, U64'Last];
+         Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U64x4 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U64x4 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.U64x4 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U64x4 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U64x4 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U64x4 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_U64x4'[others => 0]
@@ -7898,6 +8267,27 @@ procedure Wide_Tests is
               "U64x4 randomized bitwise extrema" & Iteration'Image);
 
 
+            declare
+               Root_Add : constant Wide.U64x4 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.U64x4 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.U64x4 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.U64x4 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_64x4 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U64x4 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
@@ -8091,6 +8481,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Saturate
+        (Left, Right : I64) return I64 is
+        (if Right > 0 and then Left > I64'Last - Right then I64'Last
+         elsif Right < 0 and then Left < I64'First - Right then I64'First
+         else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : I64) return I64 is
+        (if Right > 0 and then Left < I64'First + Right then I64'First
+         elsif Right < 0 and then Left > I64'Last + Right then I64'Last
+         else Left - Right);
 
 
       function Reference_Compress
@@ -8577,6 +8980,30 @@ procedure Wide_Tests is
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I64x4 double complement");
 
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I64x4 := [I64'Last, I64'First, I64'Last, I64'First];
+         Right_Lanes : constant Wide.Lane_Values_I64x4 := [1, -1, -1, 1];
+         Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I64x4 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I64x4 := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.I64x4 := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I64x4 := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I64x4 := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I64x4 directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
 
 
       Check (Wide.To_Lanes (Wide.Shift_Left_Logical (A, 64)) = Wide.Lane_Values_I64x4'[others => 0]
@@ -8979,6 +9406,27 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I64x4 randomized bitwise extrema" & Iteration'Image);
+
+
+            declare
+               Root_Add : constant Wide.I64x4 := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.I64x4 := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.I64x4 := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.I64x4 := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_64x4 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I64x4 randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
 
 
             Check_Predicates

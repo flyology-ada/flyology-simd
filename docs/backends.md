@@ -520,6 +520,25 @@ for all ten value families. They compare every current Native operation group
 with the scalar authority, cover all partial-memory counts, and exercise
 floating reduction order, signed zero, and special lane encodings.
 
+The Wide integer family has 16 saturating-arithmetic overloads in total: eight
+`Add_Saturate` and eight `Subtract_Saturate`. AArch64 and the composed x86-64
+backend apply the matching selected 128-bit operation to both private parts.
+The optional AVX2 backend uses isolated `vpaddusb`, `vpsubusb`, `vpaddsb`, or
+`vpsubsb` leaves for the four byte overloads. For the other 12 overloads, the
+optional AVX2 backend retains the two-part selected composition. A scalar build
+uses the same composition through the portable 128-bit implementation.
+
+Independent lane oracles check fixed clamp boundaries and 128 deterministic
+full-width input pairs for each Wide integer type. They check the scalar Wide
+implementation and `Wide.Native` results. A generated caller probe covers all
+16 overloads in each target configuration. The AArch64, composed x86-64, and
+non-byte AVX2 gates require two relocations to the exact matching selected
+128-bit operation and exactly two out-of-line branches. Each byte AVX2 caller
+gate requires one matching isolated leaf. The byte leaf gates require the
+matching packed AVX2 saturation instruction and
+`vzeroupper`. The caller gates reject mismatched selected operations, portable
+calls, Scalar calls, Wide dispatchers, and the general byte mechanism.
+
 All 60 Wide construction and lane-access overloads compose selected 128-bit
 operations. `Zero` and `Splat` apply the matching selected operation to both
 private parts. `From_Lanes` splits the lane array at the private-part boundary.

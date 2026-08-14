@@ -28,6 +28,7 @@ wide_probe_object="$probe_root/wide_codegen_probe.o"
 wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_construction_probe_object="$probe_root/wide_construction_codegen_probe.o"
 wide_comparison_probe_object="$probe_root/wide_comparison_codegen_probe.o"
+wide_saturating_arithmetic_probe_object="$probe_root/wide_saturating_arithmetic_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -148,6 +149,14 @@ else
     objdump -dr "$wide_comparison_probe_object" \
       >"$temporary/wide-comparison-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_saturating_arithmetic_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' \
+      >"$temporary/wide-saturating-arithmetic-probe.txt"
+else
+    objdump -dr "$wide_saturating_arithmetic_probe_object" \
+      >"$temporary/wide-saturating-arithmetic-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -234,6 +243,8 @@ nm -u "$integer_reduction_probe_object" \
 nm -u "$float_binary_probe_object" >"$temporary/float-binary-undefined.txt"
 nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt"
 nm -u "$comparison_probe_object" >"$temporary/comparison-undefined.txt"
+nm -u "$wide_saturating_arithmetic_probe_object" \
+  >"$temporary/wide-saturating-arithmetic-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -915,7 +926,7 @@ while read -r lane_kind operation suffix operation_class; do
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
         require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 "$caller" \
           "only one out-of-line helper in AVX2 ${lane_kind} ${operation}"
-        require_count "$selected_function_reloc" 0 "$caller" \
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
         forbid_pattern 'wide__byte_mechanism__' "$caller" \
           "out-of-line byte mechanism in AVX2 ${lane_kind} ${operation}"
@@ -1009,6 +1020,88 @@ while read -r lane_kind operation suffix operation_class; do
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(equal|less_than|less_equal|greater_than|greater_equal|unordered|select_value)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
       "$caller" "portable or dispatcher comparison call in ${lane_kind} ${operation}"
 done <scripts/probes/wide_comparison_codegen_cases.txt
+
+wide_saturation_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_saturating_arithmetic_codegen_cases.txt | wc -l | tr -d ' ')
+wide_saturation_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_saturating_arithmetic_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_saturation_case_count" -ne 16 ] || \
+   [ "$wide_saturation_unique_count" -ne 16 ]; then
+    echo 'Wide saturating-arithmetic manifest must contain 16 unique operations' >&2
+    exit 1
+fi
+
+case "$architecture" in
+    aarch64) wide_saturation_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) wide_saturation_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+
+while read -r lane_kind operation wide_suffix half_suffix route; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-saturation-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_saturating_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-saturating-arithmetic-probe.txt" "$caller"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$wide_backend" = avx2 ] && [ "$route" = byte ]; then
+        leaf_suffix=
+        [ "$lane_kind" = i8 ] && leaf_suffix='__2'
+        require_count "wide__byte_avx2_leaf__${operation}${leaf_suffix}${symbol_end}" 1 \
+          "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
+        require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
+          "only one AVX2 byte leaf in ${lane_kind} ${operation}"
+        require_count "$wide_saturation_branch" 1 "$caller" \
+          "only one out-of-line branch in AVX2 ${lane_kind} ${operation}"
+        require_count "$selected_function_reloc" 0 "$caller" \
+          "no composed selected operation in AVX2 ${lane_kind} ${operation}"
+    else
+        if [ "$route" = parts ]; then
+            symbol_suffix="__${half_suffix}"
+            selected_symbol="${operation}${symbol_suffix}"
+        elif [ "$lane_kind" = u8 ]; then
+            case "$architecture" in
+                aarch64) selected_symbol="neon_${operation}" ;;
+                x86_64) selected_symbol="u8_${operation}" ;;
+            esac
+        else
+            selected_symbol="native_${operation}_i8x16"
+        fi
+        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+          "$caller" "two matching selected parts in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+          "only two matching selected operations in ${lane_kind} ${operation}"
+        require_count "$wide_saturation_branch" 2 "$caller" \
+          "only two out-of-line branches in ${lane_kind} ${operation}"
+    fi
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
+      "$caller" \
+      "portable, dispatcher, Scalar, or byte-mechanism route in ${lane_kind} ${operation}"
+done <scripts/probes/wide_saturating_arithmetic_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(add_saturate|subtract_saturate)__(3|4|5|6|7|8)$' 12 \
+  "$temporary/wide-saturating-arithmetic-undefined.txt" \
+  'twelve selected non-byte Wide saturation operations'
+if [ "$wide_backend" = avx2 ]; then
+    require_count 'flyology_simd__wide__byte_avx2_leaf__(add_saturate|subtract_saturate)(__2)?$' 4 \
+      "$temporary/wide-saturating-arithmetic-undefined.txt" \
+      'four isolated AVX2 byte saturation operations'
+else
+    case "$architecture" in
+        aarch64) u8_prefix=neon ;;
+        x86_64) u8_prefix=u8 ;;
+    esac
+    require_count "flyology_simd__backends__native__${u8_prefix}_(add_saturate|subtract_saturate)$" 2 \
+      "$temporary/wide-saturating-arithmetic-undefined.txt" \
+      'two selected U8 Wide saturation operations'
+    require_count 'flyology_simd__backends__native__native_(add_saturate|subtract_saturate)_i8x16$' 2 \
+      "$temporary/wide-saturating-arithmetic-undefined.txt" \
+      'two selected I8 Wide saturation operations'
+fi
+require_count 'flyology_simd__' 16 \
+  "$temporary/wide-saturating-arithmetic-undefined.txt" \
+  'only the 16 intended Wide saturation operations remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?$|wide__byte_mechanism__' \
+  "$temporary/wide-saturating-arithmetic-undefined.txt" \
+  'portable, dispatcher, Scalar, or byte-mechanism route retained in Wide saturation probe'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')

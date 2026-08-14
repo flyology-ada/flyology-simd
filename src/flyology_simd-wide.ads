@@ -128,13 +128,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U8x32) return U8x32;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and composed x86-64 backends call the selected 128-bit Add_Saturate operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpaddusb leaf and then runs vzeroupper. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U8x32) return U8x32;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and composed x86-64 backends call the selected 128-bit Subtract_Saturate operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpsubusb leaf and then runs vzeroupper. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -493,13 +493,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I8x32) return I8x32;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and composed x86-64 backends call the selected 128-bit Add_Saturate operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpaddsb leaf and then runs vzeroupper. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I8x32) return I8x32;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and composed x86-64 backends call the selected 128-bit Subtract_Saturate operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpsubsb leaf and then runs vzeroupper. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -828,13 +828,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U16x16) return U16x16;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U16x16) return U16x16;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1188,13 +1188,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I16x16) return I16x16;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I16x16) return I16x16;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1528,13 +1528,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U32x8) return U32x8;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U32x8) return U32x8;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1893,13 +1893,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I32x8) return I32x8;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I32x8) return I32x8;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2233,13 +2233,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : U64x4) return U64x4;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : U64x4) return U64x4;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2598,13 +2598,13 @@ is
    --  @return The operation result.
    function Add_Saturate (Left, Right : I64x4) return I64x4;
    --  Apply Add_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Saturate (Left, Right : I64x4) return I64x4;
    --  Apply Subtract_Saturate independently to corresponding lanes.
-   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: This overload uses the portable scalar Wide implementation on every supported GNAT target. For the matching Wide.Native overload, the AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Saturate operation for both private parts. In a scalar build, the matching Wide.Native overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

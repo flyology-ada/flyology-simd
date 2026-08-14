@@ -1,0 +1,16 @@
+u8 add_saturate none none byte
+u8 subtract_saturate none none byte
+i8 add_saturate 2 2 byte
+i8 subtract_saturate 2 2 byte
+u16 add_saturate 3 3 parts
+u16 subtract_saturate 3 3 parts
+i16 add_saturate 4 4 parts
+i16 subtract_saturate 4 4 parts
+u32 add_saturate 5 5 parts
+u32 subtract_saturate 5 5 parts
+i32 add_saturate 6 6 parts
+i32 subtract_saturate 6 6 parts
+u64 add_saturate 7 7 parts
+u64 subtract_saturate 7 7 parts
+i64 add_saturate 8 8 parts
+i64 subtract_saturate 8 8 parts

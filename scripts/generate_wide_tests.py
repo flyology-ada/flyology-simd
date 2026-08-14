@@ -1640,6 +1640,91 @@ def integer_test(f: Family) -> str:
          return Result;
       end Reference_Reduce_Max;
 '''
+    if f.signed:
+        saturation_declarations = f'''
+      function Reference_Add_Saturate
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        (if Right > 0 and then Left > {f.scalar}'Last - Right then {f.scalar}'Last
+         elsif Right < 0 and then Left < {f.scalar}'First - Right then {f.scalar}'First
+         else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        (if Right > 0 and then Left < {f.scalar}'First + Right then {f.scalar}'First
+         elsif Right < 0 and then Left > {f.scalar}'Last + Right then {f.scalar}'Last
+         else Left - Right);
+'''
+        saturation_left = [
+            f"{f.scalar}'Last" if lane % 2 == 0 else f"{f.scalar}'First"
+            for lane in range(f.lanes)
+        ]
+        saturation_right = [
+            ("1", "-1", "-1", "1")[lane % 4]
+            for lane in range(f.lanes)
+        ]
+    else:
+        saturation_declarations = f'''
+      function Reference_Add_Saturate
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        (if Left > {f.scalar}'Last - Right then {f.scalar}'Last else Left + Right);
+
+      function Reference_Subtract_Saturate
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        (if Left < Right then 0 else Left - Right);
+'''
+        saturation_left = [
+            f"{f.scalar}'Last" if lane % 2 == 0 else "0"
+            for lane in range(f.lanes)
+        ]
+        saturation_right = [
+            ("1", "1", f"{f.scalar}'Last", f"{f.scalar}'Last")[lane % 4]
+            for lane in range(f.lanes)
+        ]
+    saturation_boundary_checks = f'''
+      declare
+         Left_Lanes : constant Wide.{f.values} := [{", ".join(saturation_left)}];
+         Right_Lanes : constant Wide.{f.values} := [{", ".join(saturation_right)}];
+         Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.{f.vector} := Wide.Add_Saturate (Left_Value, Right_Value);
+         Native_Add : constant Wide.{f.vector} := Native.Add_Saturate (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.{f.vector} := Wide.Subtract_Saturate (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.{f.vector} := Native.Subtract_Saturate (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Saturate (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "{f.vector} directed independent saturation boundaries" & Lane'Image);
+         end loop;
+      end;
+'''
+    saturation_randomized = f'''
+            declare
+               Root_Add : constant Wide.{f.vector} := Wide.Add_Saturate (R_A, R_B);
+               Native_Add : constant Wide.{f.vector} := Native.Add_Saturate (R_A, R_B);
+               Root_Subtract : constant Wide.{f.vector} := Wide.Subtract_Saturate (R_A, R_B);
+               Native_Subtract : constant Wide.{f.vector} := Native.Subtract_Saturate (R_A, R_B);
+            begin
+               for Lane in Wide.{f.index} loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Saturate (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "{f.vector} randomized independent saturation oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+'''
     edge_patterns = (0, 1 << (f.bits - 1), (1 << f.bits) - 1,
                      int("AA" * (f.bits // 8), 16))
     edge_values = []
@@ -2003,6 +2088,7 @@ def integer_test(f: Family) -> str:
          return Result;
       end Random_Lanes;
 {reduction_declarations}
+{saturation_declarations}
 {compaction_declarations(f)}
 {mask_position_declarations(f)}
 {permutation_declarations(f)}
@@ -2063,6 +2149,7 @@ def integer_test(f: Family) -> str:
         "{f.vector} complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
+{saturation_boundary_checks}
 {byte_boundary_checks}
 {byte_predicate_checks}
 {lookup_checks}
@@ -2393,6 +2480,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
+{saturation_randomized}
 {byte_predicate_randomized}
             Check_Predicates
               (R_A_Lanes, R_B_Lanes, Wide.To_Bit_Mask (R_Mask),

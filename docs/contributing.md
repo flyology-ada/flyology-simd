@@ -43,6 +43,8 @@ The generated fixed-width wrapping-arithmetic caller probe and its
 `scripts/generate_wrapping_arithmetic_probe.py`.
 The generated fixed-width saturating-arithmetic probe and its 16-operation
 manifest are reproduced by `scripts/generate_saturating_arithmetic_probe.py`.
+The generated Wide saturating-arithmetic probe and its 16-operation manifest
+are reproduced by `scripts/generate_wide_saturating_arithmetic_probe.py`.
 The generated fixed-width lane-arrangement caller probe and its 50-operation
 manifest are reproduced by `scripts/generate_lane_arrangement_probe.py`.
 The generated fixed-width bitwise caller probe and its 32-operation manifest
