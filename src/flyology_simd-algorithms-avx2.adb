@@ -71,6 +71,13 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Count (Data, Needle);
    end Count;
 
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Count_In_Range (Data, Low, High);
+   end Count_In_Range;
+
    function Is_ASCII (Data : Byte_Array) return Boolean is
    begin
       Features.Require (Features.AVX2);

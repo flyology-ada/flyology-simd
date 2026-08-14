@@ -119,6 +119,18 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Needle The byte to count.
    --  @param Backend The compiled and available backend to use.
    --  @return The number of matching elements.
+   function Count_In_Range
+     (Data : Byte_Array;
+      Low, High : U8;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Natural;
+   --  Count bytes in an inclusive unsigned interval after one runtime backend
+   --  selection. An inverted interval is empty.
+   --  @param Data The complete byte array to scan.
+   --  @param Low The inclusive lower byte bound.
+   --  @param High The inclusive upper byte bound.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The number of elements in the interval.
    function Is_ASCII
      (Data : Byte_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

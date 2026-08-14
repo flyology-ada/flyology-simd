@@ -1376,6 +1376,7 @@ procedure SIMD_Tests is
       Reference_Find, Native_Find, Runtime_Find : Algorithms.Search_Result;
       Needles : constant Byte_Array := [0, 42, 128, 255];
       Reference_Of : Algorithms.Search_Result := (Found => False, Index => 0);
+      Reference_Range : Natural := 0;
    begin
       for Index in Data'Range loop
          Data (Index) := Next_U8;
@@ -1383,6 +1384,11 @@ procedure SIMD_Tests is
       if Length > 0 then
          Data (Data'Last) := 42;
       end if;
+      for Value of Data loop
+         if Value >= 40 and then Value <= 150 then
+            Reference_Range := Reference_Range + 1;
+         end if;
+      end loop;
       Other := Data;
       Check
         (Algorithms.Scalar.Find_First_Difference (Data, Other) =
@@ -1448,6 +1454,16 @@ procedure SIMD_Tests is
              "native count length" & Length'Image);
       Check (Algorithms.Runtime.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
              "runtime count length" & Length'Image);
+      Check
+        (Algorithms.Scalar.Count_In_Range (Data, 40, 150) = Reference_Range,
+         "scalar count-in-range length" & Length'Image);
+      Check
+        (Algorithms.Native.Count_In_Range (Data, 40, 150) = Reference_Range,
+         "native count-in-range length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Count_In_Range (Data, 40, 150) =
+           Reference_Range,
+         "runtime count-in-range length" & Length'Image);
       Check (Algorithms.Native.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
              "native ASCII length" & Length'Image);
       Check (Algorithms.Runtime.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
@@ -1470,6 +1486,10 @@ procedure SIMD_Tests is
             "runtime AVX2 find-first-of length" & Length'Image);
          Check (Algorithms.AVX2.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
                 "AVX2 count length" & Length'Image);
+         Check
+           (Algorithms.AVX2.Count_In_Range (Data, 40, 150) =
+              Reference_Range,
+            "AVX2 count-in-range length" & Length'Image);
          Check (Algorithms.AVX2.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
                 "AVX2 ASCII length" & Length'Image);
       end if;
@@ -1495,6 +1515,46 @@ procedure SIMD_Tests is
         (Algorithms.Native.Find_First_Of (Lane_Data, Empty_Set) =
            (Found => False, Index => 0),
          "find-first-of empty set");
+      declare
+         All_Bytes : Byte_Array (0 .. 255);
+      begin
+         for Index in All_Bytes'Range loop
+            All_Bytes (Index) := U8 (Index);
+         end loop;
+         for Low_Value in U8 loop
+            for High_Value in U8 loop
+               declare
+                  Expected : constant Natural :=
+                    (if Low_Value <= High_Value
+                     then Natural (High_Value) - Natural (Low_Value) + 1
+                     else 0);
+               begin
+                  Check
+                    (Algorithms.Scalar.Count_In_Range
+                       (All_Bytes, Low_Value, High_Value) = Expected,
+                     "scalar exhaustive count-in-range" &
+                       Low_Value'Image & High_Value'Image);
+                  Check
+                    (Algorithms.Native.Count_In_Range
+                       (All_Bytes, Low_Value, High_Value) = Expected,
+                     "native exhaustive count-in-range" &
+                       Low_Value'Image & High_Value'Image);
+                  Check
+                    (Algorithms.Runtime.Count_In_Range
+                       (All_Bytes, Low_Value, High_Value) = Expected,
+                     "runtime exhaustive count-in-range" &
+                       Low_Value'Image & High_Value'Image);
+                  if Features.Available (Features.AVX2) then
+                     Check
+                       (Algorithms.AVX2.Count_In_Range
+                          (All_Bytes, Low_Value, High_Value) = Expected,
+                        "AVX2 exhaustive count-in-range" &
+                          Low_Value'Image & High_Value'Image);
+                  end if;
+               end;
+            end loop;
+         end loop;
+      end;
       Lane_Data := [others => 65];
       Lane_Data (37) := 32;
       Check
@@ -2016,6 +2076,25 @@ procedure SIMD_Tests is
          begin
             Result := Algorithms.AVX2.Count (Data, 0);
             Check (False, "direct unavailable AVX2 accepted" & Result'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Result := Algorithms.Runtime.Count_In_Range
+              (Data, 0, 255, Features.AVX2);
+            Check
+              (False,
+               "unavailable runtime AVX2 count-in-range accepted" &
+                 Result'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Result := Algorithms.AVX2.Count_In_Range (Data, 0, 255);
+            Check
+              (False,
+               "unavailable direct AVX2 count-in-range accepted" &
+                 Result'Image);
          exception
             when Features.Backend_Unavailable => null;
          end;

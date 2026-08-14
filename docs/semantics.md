@@ -197,6 +197,11 @@ requirement and is true exactly when `Find_First_Difference` reports no
 difference. Every backend reads only complete vectors and the remaining scalar
 tail from each input.
 
+`Count_In_Range (Data, Low, High)` counts bytes in the inclusive unsigned
+interval `Low .. High`. If `Low` is greater than `High`, the interval is empty
+and the result is zero. Every backend scans only complete vectors and the
+remaining scalar tail.
+
 ## Memory
 
 All ordinary memory operations use a typed lane array plus an Ada array index.

@@ -351,6 +351,37 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    end High_Bit_Mask_32;
    pragma Inline_Always (High_Bit_Mask_32);
 
+   function Range_Mask_32
+     (Data : Byte_Array; Start : Natural; Low, High : U8)
+      return Interfaces.Unsigned_32
+   is
+      Result     : Interfaces.Unsigned_32;
+      Local_Low  : aliased U8 := Low;
+      Local_High : aliased U8 := High;
+   begin
+      Asm
+        (Template =>
+           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%2), %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%3), %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpmaxub %%ymm1, %%ymm0, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm3, %%ymm0, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpminub %%ymm2, %%ymm0, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm4, %%ymm0, %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpand %%ymm4, %%ymm3, %%ymm3" & ASCII.LF & ASCII.HT &
+           "vpmovmskb %%ymm3, %0" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs =>
+           [System.Address'Asm_Input ("r", Data (Start)'Address),
+            System.Address'Asm_Input ("r", Local_Low'Address),
+            System.Address'Asm_Input ("r", Local_High'Address)],
+         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,memory",
+         Volatile => True);
+      return Result;
+   end Range_Mask_32;
+   pragma Inline_Always (Range_Mask_32);
+
    function Equal_Any_Offset_32
      (Data : Byte_Array;
       Start : Natural;
@@ -611,6 +642,28 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       end loop;
       return Result;
    end Count;
+
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural
+   is
+      Offset : Natural := 0;
+      Result : Natural := 0;
+   begin
+      while Data'Length - Offset >= 32 loop
+         Result := Result + Popcount
+           (Range_Mask_32 (Data, Data'First + Offset, Low, High));
+         Offset := Offset + 32;
+      end loop;
+      while Offset < Data'Length loop
+         if Data (Data'First + Offset) >= Low
+           and then Data (Data'First + Offset) <= High
+         then
+            Result := Result + 1;
+         end if;
+         Offset := Offset + 1;
+      end loop;
+      return Result;
+   end Count_In_Range;
 
    function Is_ASCII (Data : Byte_Array) return Boolean is
       Offset : Natural := 0;

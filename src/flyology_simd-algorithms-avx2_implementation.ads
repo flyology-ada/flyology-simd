@@ -59,6 +59,14 @@ is
    --  @param Data The complete byte array to scan.
    --  @param Needle The byte to count.
    --  @return The number of matching elements.
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural;
+   --  Count bytes in an inclusive unsigned interval. An inverted interval is
+   --  empty.
+   --  @param Data The complete byte array to scan.
+   --  @param Low The inclusive lower byte bound.
+   --  @param High The inclusive upper byte bound.
+   --  @return The number of elements in the interval.
    function Is_ASCII (Data : Byte_Array) return Boolean;
    --  Report whether every byte is in the 7-bit ASCII range.
    --  @param Data The complete byte array to validate.

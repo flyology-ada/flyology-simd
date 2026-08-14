@@ -180,6 +180,23 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Count;
 
+   function Count_In_Range
+     (Data : Byte_Array;
+      Low, High : U8;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Natural is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar.Count_In_Range (Data, Low, High);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native.Count_In_Range (Data, Low, High);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Count_In_Range (Data, Low, High);
+      end case;
+   end Count_In_Range;
+
    function Is_ASCII
      (Data : Byte_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

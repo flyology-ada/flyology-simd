@@ -4,12 +4,22 @@ with Interfaces;
 --  @formal Backend_Splat Construct a byte vector with one repeated value.
 --  @formal Backend_Bitwise_And Apply bitwise AND to two byte vectors.
 --  @formal Backend_Equal Compare corresponding byte lanes for equality.
+--  @formal Backend_Less_Equal Compare unsigned byte lanes with less-or-equal.
+--  @formal Backend_Greater_Equal Compare unsigned byte lanes with
+--  greater-or-equal.
+--  @formal Backend_Mask_And Apply Boolean AND to two byte masks.
 --  @formal Backend_To_Bit_Mask Convert comparison truths to compact bits.
 --  @formal Backend_Load_Unaligned Load 16 bytes without an alignment rule.
 generic
    with function Backend_Splat (Value : U8) return U8x16;
    with function Backend_Bitwise_And (Left, Right : U8x16) return U8x16;
    with function Backend_Equal (Left, Right : U8x16) return Mask_8x16;
+   with function Backend_Less_Equal
+     (Left, Right : U8x16) return Mask_8x16;
+   with function Backend_Greater_Equal
+     (Left, Right : U8x16) return Mask_8x16;
+   with function Backend_Mask_And
+     (Left, Right : Mask_8x16) return Mask_8x16;
    with function Backend_To_Bit_Mask
      (Mask : Mask_8x16) return Interfaces.Unsigned_16;
    with function Backend_Load_Unaligned
@@ -49,6 +59,14 @@ is
    --  @param Data The complete byte array to scan.
    --  @param Needle The byte to count.
    --  @return The number of matching elements.
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural;
+   --  Count bytes in the inclusive unsigned interval Low .. High. If Low is
+   --  greater than High, the interval is empty and the result is zero.
+   --  @param Data The complete byte array to scan.
+   --  @param Low The inclusive lower byte bound.
+   --  @param High The inclusive upper byte bound.
+   --  @return The number of elements in the interval.
    function Is_ASCII (Data : Byte_Array) return Boolean;
    --  Report whether every byte is in the 7-bit ASCII range.
    --  @param Data The complete byte array to validate.

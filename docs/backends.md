@@ -872,6 +872,13 @@ extraction, and no relocation to a per-vector comparison primitive. Tests cover
 every possible mismatch offset and put both operand orders against an
 inaccessible page.
 
+`Count_In_Range` composes one inclusive lower-bound comparison, one inclusive
+upper-bound comparison, and one mask intersection per 16-byte Native block.
+The AVX2 loop uses `vpmaxub`, `vpminub`, equality classification, `vpand`, and
+`vpmovmskb` for 32 bytes at a time. Exhaustive tests cover all 65,536 ordered
+interval endpoints over a buffer containing every byte value, including every
+inverted interval. Protected-page tests cover every tail length.
+
 The binary32 and binary64 `Scale`, `Sum`, and `Dot_Product` algorithms have
 scalar and Native generic instances. Runtime dispatch selects one
 implementation before the complete-array loop. The optional AVX2 scaling

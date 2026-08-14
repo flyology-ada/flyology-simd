@@ -240,6 +240,23 @@ begin
          begin
             Data := [others => 65];
             Check
+              (Algorithms.Scalar.Count_In_Range (Data, 65, 65) = Length
+               and then Algorithms.Native.Count_In_Range
+                 (Data, 65, 65) = Length
+               and then Algorithms.Runtime.Count_In_Range
+                 (Data, 65, 65) = Length
+               and then Algorithms.Runtime.Count_In_Range
+                 (Data, 66, 65) = 0,
+               "protected-tail count-in-range length" & Length'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Count_In_Range (Data, 65, 65) = Length
+                  and then Algorithms.AVX2.Count_In_Range
+                    (Data, 66, 65) = 0,
+                  "AVX2 protected-tail count-in-range length" &
+                    Length'Image);
+            end if;
+            Check
               (Algorithms.Scalar.Find_First_Difference (Data, Other) =
                  (Found => False, Index => 0)
                and then Algorithms.Native.Find_First_Difference

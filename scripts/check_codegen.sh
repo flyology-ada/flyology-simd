@@ -78,7 +78,12 @@ disassemble() {
 }
 
 disassemble "$native_object" >"$temporary/native.txt"
-disassemble "$algorithm_object" >"$temporary/algorithm.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$algorithm_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/algorithm.txt"
+else
+    disassemble "$algorithm_object" >"$temporary/algorithm.txt"
+fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$floating_algorithm_object" |
       grep -Ev '<ltmp[0-9]+>:$' >"$temporary/floating-algorithm.txt"
@@ -3235,6 +3240,22 @@ EOF
           'bl.*flyology_simd__backends__native__(load_unaligned|equal|to_bit_mask)' \
           "$temporary/find-first-difference.txt" \
           'out-of-line primitive in the Native difference loop'
+        extract_symbol 'flyology_simd__algorithms__native__count_in_range' \
+          "$temporary/algorithm.txt" "$temporary/count-in-range.txt"
+        require_pattern 'ldr[[:space:]]+q[0-9]+' \
+          "$temporary/count-in-range.txt" \
+          'Native range-count NEON vector load'
+        require_count 'flyology_simd__backends__native__greater_equal' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected lower-bound comparison in Native range count'
+        require_count 'flyology_simd__backends__native__less_equal' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected upper-bound comparison in Native range count'
+        require_count 'flyology_simd__backends__native__mask_and' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected mask intersection in Native range count'
+        require_pattern 'cnt.*8b' "$temporary/count-in-range.txt" \
+          'NEON population count in Native range count'
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
@@ -4926,6 +4947,19 @@ EOF
           'call.*flyology_simd__backends__native__(load_unaligned|equal|to_bit_mask)' \
           "$temporary/find-first-difference.txt" \
           'out-of-line primitive in the Native difference loop'
+        extract_symbol 'flyology_simd__algorithms__native__count_in_range' \
+          "$temporary/algorithm.txt" "$temporary/count-in-range.txt"
+        require_pattern 'movdqu' "$temporary/count-in-range.txt" \
+          'Native range-count SSE2 vector load'
+        require_count 'flyology_simd__backends__native__greater_equal' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected lower-bound comparison in Native range count'
+        require_count 'flyology_simd__backends__native__less_equal' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected upper-bound comparison in Native range count'
+        require_count 'flyology_simd__backends__native__mask_and' 1 \
+          "$temporary/count-in-range.txt" \
+          'one selected mask intersection in Native range count'
         #  In GNU and Apple disassembly, an instruction mnemonic is a
         #  whitespace-delimited token. Reject every VEX/EVEX mnemonic, not
         #  only the instruction classes used by the current AVX2 leaves.
@@ -4988,6 +5022,23 @@ EOF
               'AVX-SSE transition cleanup in binary64 scaling'
             forbid_pattern 'vaddpd' "$temporary/avx2-f64-scale.txt" \
               'addition in binary64 scaling'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__count_in_range' \
+              "$temporary/avx2.txt" "$temporary/avx2-count-in-range.txt"
+            require_pattern 'vpmaxub' "$temporary/avx2-count-in-range.txt" \
+              'AVX2 inclusive byte lower-bound classification'
+            require_pattern 'vpminub' "$temporary/avx2-count-in-range.txt" \
+              'AVX2 inclusive byte upper-bound classification'
+            require_pattern 'vpcmpeqb' "$temporary/avx2-count-in-range.txt" \
+              'AVX2 range-bound equality classification'
+            require_pattern 'vpand' "$temporary/avx2-count-in-range.txt" \
+              'AVX2 range-mask intersection'
+            require_pattern 'vpmovmskb' \
+              "$temporary/avx2-count-in-range.txt" \
+              'AVX2 range-mask extraction'
+            require_pattern 'vzeroupper' \
+              "$temporary/avx2-count-in-range.txt" \
+              'AVX-SSE transition cleanup in range count'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__sum' \
               "$temporary/avx2.txt" "$temporary/avx2-f32-sum.txt"

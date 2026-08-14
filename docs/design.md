@@ -301,6 +301,11 @@ set bit. `Equal` derives from that complete-buffer result. The optional AVX2
 object keeps both loads, equality, mask complement, and extraction inside an
 isolated 32-byte loop.
 
+`Count_In_Range` intersects inclusive unsigned lower- and upper-bound masks
+before counting their compact bits. The optional AVX2 object expresses the
+same interval through unsigned byte minimum and maximum classification in an
+isolated 32-byte loop.
+
 Feature information is immutable and computed once during package elaboration,
 without a racy writable cache. Runtime selection occurs once per complete
 buffer operation, never per vector.

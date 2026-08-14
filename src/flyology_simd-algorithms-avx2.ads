@@ -68,6 +68,15 @@ package Flyology_SIMD.Algorithms.AVX2 is
    --  @param Data The complete byte array to scan.
    --  @param Needle The byte to count.
    --  @return The number of matching elements.
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural;
+   --  Count bytes in an inclusive unsigned interval with the optional AVX2
+   --  algorithm after checking CPU and OS support. An inverted interval is
+   --  empty.
+   --  @param Data The complete byte array to scan.
+   --  @param Low The inclusive lower byte bound.
+   --  @param High The inclusive upper byte bound.
+   --  @return The number of elements in the interval.
    function Is_ASCII (Data : Byte_Array) return Boolean;
    --  Validate ASCII with the optional AVX2 algorithm.
    --  @param Data The complete byte array to validate.

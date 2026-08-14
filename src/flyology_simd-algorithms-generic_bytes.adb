@@ -198,6 +198,38 @@ package body Flyology_SIMD.Algorithms.Generic_Bytes is
       return Result;
    end Count;
 
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural
+   is
+      Offset : Natural := 0;
+      Result : Natural := 0;
+      Lower  : constant U8x16 := Backend_Splat (Low);
+      Upper  : constant U8x16 := Backend_Splat (High);
+   begin
+      while Data'Length - Offset >= 16 loop
+         declare
+            Value : constant U8x16 :=
+              Backend_Load_Unaligned (Data, Data'First + Offset);
+         begin
+            Result := Result + Popcount
+              (Backend_To_Bit_Mask
+                 (Backend_Mask_And
+                    (Backend_Greater_Equal (Value, Lower),
+                     Backend_Less_Equal (Value, Upper))));
+         end;
+         Offset := Offset + 16;
+      end loop;
+      while Offset < Data'Length loop
+         if Data (Data'First + Offset) >= Low
+           and then Data (Data'First + Offset) <= High
+         then
+            Result := Result + 1;
+         end if;
+         Offset := Offset + 1;
+      end loop;
+      return Result;
+   end Count_In_Range;
+
    function Is_ASCII (Data : Byte_Array) return Boolean is
       Offset    : Natural := 0;
       High_Bit  : constant U8x16 := Backend_Splat (16#80#);

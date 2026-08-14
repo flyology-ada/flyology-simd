@@ -30,6 +30,9 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
      (Algorithms.Scalar.Find_First_Of (Data, Needles));
    function Count (Data : Byte_Array; Needle : U8) return Natural is
      (Algorithms.Scalar.Count (Data, Needle));
+   function Count_In_Range
+     (Data : Byte_Array; Low, High : U8) return Natural is
+     (Algorithms.Scalar.Count_In_Range (Data, Low, High));
    function Is_ASCII (Data : Byte_Array) return Boolean is
      (Algorithms.Scalar.Is_ASCII (Data));
 end Flyology_SIMD.Algorithms.AVX2_Implementation;
