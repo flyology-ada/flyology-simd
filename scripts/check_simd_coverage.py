@@ -21,6 +21,11 @@ LAYERS = {
 }
 DIMENSIONS = ("semantic", "codegen", "docs", "teaching")
 STATUSES = {"complete", "gap", "not_applicable"}
+TEXT_EVIDENCE_SUFFIXES = {".adb", ".ads", ".py", ".sh", ".txt"}
+EVIDENCE_ALIASES = {
+    "Slide_Lanes_Toward_Low": ("slide_lanes_toward_low", "slide_low"),
+    "Slide_Lanes_Toward_High": ("slide_lanes_toward_high", "slide_high"),
+}
 
 
 def declarations(path: Path) -> Counter[str]:
@@ -158,6 +163,23 @@ def validate(data: dict, families: list[dict]) -> dict:
             except ValueError as exc:
                 errors.append(str(exc))
 
+        for dimension in ("semantic", "codegen"):
+            entry = family.get(dimension)
+            if not isinstance(entry, dict) or entry.get("status") != "complete":
+                continue
+            evidence_text = "\n".join(
+                relative(item).read_text().lower()
+                for item in entry.get("evidence", [])
+                if relative(item).suffix in TEXT_EVIDENCE_SUFFIXES
+            )
+            for operation in operations:
+                tokens = EVIDENCE_ALIASES.get(operation, (operation.lower(),))
+                if not any(token in evidence_text for token in tokens):
+                    errors.append(
+                        f"{family_id}: complete {dimension} evidence does not "
+                        f"name operation {operation}"
+                    )
+
     for layer in LAYERS:
         missing = parsed[layer] - assigned[layer]
         extra = assigned[layer] - parsed[layer]
@@ -247,19 +269,26 @@ def render_report(families: list[dict], state: dict) -> str:
         "",
         "## Declared gaps",
         "",
-        "| Layer | Family | Overloads | Dimension | Gap | Deterministic closure |",
-        "| --- | --- | ---: | --- | --- | --- |",
     ])
+    gap_rows: list[str] = []
     for family in families:
         for dimension in DIMENSIONS:
             entry = family[dimension]
             if entry["status"] != "gap":
                 continue
-            lines.append(
+            gap_rows.append(
                 f"| {family['layer']} | `{family['id']}` | "
                 f"{state['family_counts'][family['id']]} | {dimension} | "
                 f"{entry['reason']} | {entry['closure']} |"
             )
+    if gap_rows:
+        lines.extend([
+            "| Layer | Family | Overloads | Dimension | Gap | Deterministic closure |",
+            "| --- | --- | ---: | --- | --- | --- |",
+            *gap_rows,
+        ])
+    else:
+        lines.append("None.")
     lines.extend([
         "",
         "## Family ledger",

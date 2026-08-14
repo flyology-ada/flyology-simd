@@ -60,6 +60,7 @@ lane_arrangement_probe_object="$probe_root/lane_arrangement_codegen_probe.o"
 bitwise_probe_object="$probe_root/bitwise_codegen_probe.o"
 integer_minmax_probe_object="$probe_root/integer_minmax_codegen_probe.o"
 saturating_arithmetic_probe_object="$probe_root/saturating_arithmetic_codegen_probe.o"
+integer_conversion_probe_object="$probe_root/integer_conversion_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -114,6 +115,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$saturating_arithmetic_probe_object" \
       >"$temporary/saturating-arithmetic-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$integer_conversion_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/integer-conversion-probe.txt"
+else
+    objdump -dr "$integer_conversion_probe_object" \
+      >"$temporary/integer-conversion-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$float_binary_probe_object" |
@@ -305,6 +313,8 @@ nm -u "$integer_minmax_probe_object" \
   >"$temporary/integer-minmax-undefined.txt"
 nm -u "$saturating_arithmetic_probe_object" \
   >"$temporary/saturating-arithmetic-undefined.txt"
+nm -u "$integer_conversion_probe_object" \
+  >"$temporary/integer-conversion-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -555,6 +565,51 @@ require_count 'flyology_simd__backends__native__(widen_(low|high)|narrow_(trunca
 require_count 'flyology_simd__' 46 \
   "$temporary/wide-numeric-conversion-undefined.txt" \
   'only the 38 non-numeric and eight numeric conversion symbols remain unresolved'
+
+integer_conversion_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_conversion_codegen_cases.txt | wc -l | tr -d ' ')
+integer_conversion_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_conversion_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$integer_conversion_case_count" -ne 35 ] || \
+   [ "$integer_conversion_unique_count" -ne 35 ]; then
+    echo 'Integer conversion manifest must contain 35 unique operations' >&2
+    exit 1
+fi
+
+case "$architecture" in
+    aarch64) integer_conversion_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) integer_conversion_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+integer_conversion_symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+while read -r kind operation source target suffix arity; do
+    [ -n "$kind" ] || continue
+    caller="$temporary/integer-conversion-${kind}-${operation}.txt"
+    extract_symbol "integer_conversion_codegen_probe__${kind}_${operation}" \
+      "$temporary/integer-conversion-probe.txt" "$caller"
+    selected_symbol=$operation
+    if [ "$suffix" != none ]; then
+        selected_symbol="${operation}__${suffix}"
+    fi
+    require_count "flyology_simd__backends__native__${selected_symbol}${integer_conversion_symbol_end}" 1 \
+      "$caller" "one matching Native route in ${kind} ${operation}"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one Native route in ${kind} ${operation}"
+    require_count "$integer_conversion_branch" 1 "$caller" \
+      "only one out-of-line branch in ${kind} ${operation}"
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
+      "$caller" "portable, Scalar, Wide, or dispatcher route in ${kind} ${operation}"
+done <scripts/probes/integer_conversion_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)(__[0-9]+)?([[:space:]]|$)' 35 \
+  "$temporary/integer-conversion-undefined.txt" \
+  'all 35 exact Native integer-conversion routes in the generated probe'
+require_count 'flyology_simd__' 35 \
+  "$temporary/integer-conversion-undefined.txt" \
+  'only the 35 Native integer-conversion symbols remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)' \
+  "$temporary/integer-conversion-undefined.txt" \
+  'portable, Scalar, Wide, or dispatcher conversion in generated probe'
+
 wide_memory_cases='scripts/probes/wide_memory_codegen_cases.txt'
 symbol_end='([+-]0x[[:xdigit:]]+)?$'
 while read -r caller operation overload; do
@@ -2937,6 +2992,81 @@ EOF
         require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'unsigned saturating narrowing'
         require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed saturating narrowing'
         require_pattern '(^|[[:space:]])sqxtun2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed-to-unsigned saturating narrowing'
+        while read -r kind operation source target suffix arity; do
+            [ -n "$kind" ] || continue
+            selected_symbol=$operation
+            if [ "$suffix" != none ]; then
+                selected_symbol="${operation}__${suffix}"
+            fi
+            leaf="$temporary/aarch_integer_conversion_${kind}_${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${selected_symbol}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,' 1 "$leaf" \
+              "one q0 source transfer in ${kind} ${operation}"
+            if [ "$arity" -eq 2 ]; then
+                require_count '(^|[[:space:]])ldr[[:space:]]+q1,' 1 "$leaf" \
+                  "one q1 source transfer in ${kind} ${operation}"
+            else
+                require_count '(^|[[:space:]])ldr[[:space:]]+q1,' 0 "$leaf" \
+                  "no second source transfer in unary ${kind} ${operation}"
+            fi
+            require_count '(^|[[:space:]])str[[:space:]]+q0,' 1 "$leaf" \
+              "one q0 result transfer in ${kind} ${operation}"
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' \
+              "$leaf" "branch or helper in ${kind} ${operation} leaf"
+
+            case "$operation" in
+                widen_low|widen_high)
+                    case "$source" in
+                        u8x16) mnemonic=ushll; shape=8h ;;
+                        i8x16) mnemonic=sshll; shape=8h ;;
+                        u16x8) mnemonic=ushll; shape=4s ;;
+                        i16x8) mnemonic=sshll; shape=4s ;;
+                        u32x4) mnemonic=ushll; shape=2d ;;
+                        i32x4) mnemonic=sshll; shape=2d ;;
+                    esac
+                    [ "$operation" = widen_high ] && mnemonic="${mnemonic}2"
+                    require_count "(^|[[:space:]])${mnemonic}\\.${shape}[[:space:]]" 1 \
+                      "$leaf" "exact ${mnemonic}.${shape} in ${kind} ${operation}"
+                    ;;
+                narrow_truncate|narrow_saturate)
+                    case "$target" in
+                        u8x16|i8x16) low_shape=8b; high_shape=16b ;;
+                        u16x8|i16x8) low_shape=4h; high_shape=8h ;;
+                        u32x4|i32x4) low_shape=2s; high_shape=4s ;;
+                    esac
+                    if [ "$operation" = narrow_truncate ]; then
+                        mnemonic=xtn
+                    elif echo "$source:$target" | grep -Eq '^i.*:u'; then
+                        mnemonic=sqxtun
+                    elif echo "$source" | grep -Eq '^i'; then
+                        mnemonic=sqxtn
+                    else
+                        mnemonic=uqxtn
+                    fi
+                    require_count "(^|[[:space:]])${mnemonic}\\.${low_shape}[[:space:]]" 1 \
+                      "$leaf" "exact ${mnemonic}.${low_shape} low half in ${kind} ${operation}"
+                    require_count "(^|[[:space:]])${mnemonic}2\\.${high_shape}[[:space:]]" 1 \
+                      "$leaf" "exact ${mnemonic}2.${high_shape} high half in ${kind} ${operation}"
+                    ;;
+                convert_saturate)
+                    case "$source:$target" in
+                        i8x16:u8x16) required='movi.*v1.*#(0x)?0+|smax.*16b' ;;
+                        u8x16:i8x16) required='movi.*v1.*#0xff|ushr.*16b.*#(0x)?1|umin.*16b' ;;
+                        i16x8:u16x8) required='movi.*v1.*#(0x)?0+|smax.*8h' ;;
+                        u16x8:i16x8) required='movi.*v1.*#0xff|ushr.*8h.*#(0x)?1|umin.*8h' ;;
+                        i32x4:u32x4) required='movi.*v1.*#(0x)?0+|smax.*4s' ;;
+                        u32x4:i32x4) required='movi.*v1.*#0xff|ushr.*4s.*#(0x)?1|umin.*4s' ;;
+                        i64x2:u64x2) required='cmge.*2d.*#(0x)?0+|and.*16b' ;;
+                        u64x2:i64x2) required='movi.*v1.*#0xff|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov.*v0.*v2' ;;
+                    esac
+                    printf '%s\n' "$required" | tr '|' '\n' | while read -r instruction; do
+                        require_count "(^|[[:space:]])${instruction}" 1 "$leaf" \
+                          "exact conversion step ${instruction} in ${kind} ${operation}"
+                    done
+                    ;;
+            esac
+        done <scripts/probes/integer_conversion_codegen_cases.txt
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/algorithm.txt" \
           'inlined vector load in representative loop'
         require_pattern 'cmeq.*16b' "$temporary/algorithm.txt" \
@@ -3944,6 +4074,22 @@ __6    u32x4  i32x4  pcmpgtd psrld
 __7    i64x2  u64x2  psrad none
 __8    u64x2  i64x2  psrad psrlq
 EOF
+        while read -r kind operation source target suffix arity; do
+            [ -n "$kind" ] || continue
+            selected_symbol=$operation
+            if [ "$suffix" != none ]; then
+                selected_symbol="${operation}__${suffix}"
+            fi
+            leaf="$temporary/x86_integer_conversion_${kind}_${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${selected_symbol}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[01]([[:space:]]|$)' \
+              "$arity" "$leaf" "exact source transfers in ${kind} ${operation}"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' \
+              1 "$leaf" "one result transfer in ${kind} ${operation}"
+            forbid_pattern '(^|[[:space:]])(callq?|jmpq?|j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z))[[:space:]]' \
+              "$leaf" "branch or helper in ${kind} ${operation} leaf"
+        done <scripts/probes/integer_conversion_codegen_cases.txt
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
         require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'

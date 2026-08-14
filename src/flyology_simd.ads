@@ -761,62 +761,62 @@ is
 
    function Widen_Low (Value : U8x16) return U16x8;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll instruction over 8h lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpcklbw with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U8x16) return U16x8;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll2 instruction over 8h lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpckhbw with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I8x16) return I16x8;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll instruction over 8h lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtb to form a sign mask, then punpcklbw. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I8x16) return I16x8;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll2 instruction over 8h lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtb to form a sign mask, then punpckhbw. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : U16x8) return U32x4;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll instruction over 4s lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpcklwd with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U16x8) return U32x4;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll2 instruction over 4s lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpckhwd with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I16x8) return I32x4;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll instruction over 4s lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtw to form a sign mask, then punpcklwd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I16x8) return I32x4;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll2 instruction over 4s lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtw to form a sign mask, then punpckhwd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : U32x4) return U64x2;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll instruction over 2d lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpckldq with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : U32x4) return U64x2;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON ushll2 instruction over 2d lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using punpckhdq with a zero vector. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : I32x4) return I64x2;
    --  Convert the low source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll instruction over 2d lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtd to form a sign mask, then punpckldq. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_High (Value : I32x4) return I64x2;
    --  Convert the high source half according to the documented widening semantics.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction that extends the selected lanes. The x86-64 backend uses a dedicated SSE2 sequence that unpacks and extends the selected lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sshll2 instruction over 2d lanes with a zero shift. The x86-64 backend uses an SSE2 sequence using pcmpgtd to form a sign mask, then punpckhdq. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Widen_Low (Value : F32x4) return F64x2;
@@ -832,91 +832,91 @@ is
 
    function Narrow_Truncate (Low, High : U16x8) return U8x16;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.8b and xtn2.16b instructions. The x86-64 backend uses an SSE2 packuswb sequence that retains each lane's low byte. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U16x8) return U8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON uqxtn.8b and uqxtn2.16b instructions. The x86-64 backend uses an SSE2 psrlw, pcmpeqw, pandn, and packuswb clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I16x8) return I8x16;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.8b and xtn2.16b instructions. The x86-64 backend uses an SSE2 packuswb sequence that retains each lane's low byte. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I16x8) return I8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtn.8b and sqxtn2.16b instructions. The x86-64 backend uses the SSE2 packsswb instruction. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : U32x4) return U16x8;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.4h and xtn2.8h instructions. The x86-64 backend uses an SSE2 pshuflw, pshufhw, pshufd, and punpcklqdq sequence that retains each lane's low word. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U32x4) return U16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON uqxtn.4h and uqxtn2.8h instructions. The x86-64 backend uses an SSE2 psrld, pcmpeqd, pandn, and punpcklqdq clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I32x4) return I16x8;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.4h and xtn2.8h instructions. The x86-64 backend uses an SSE2 pshuflw, pshufhw, pshufd, and punpcklqdq sequence that retains each lane's low word. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I32x4) return I16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtn.4h and sqxtn2.8h instructions. The x86-64 backend uses the SSE2 packssdw instruction. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : U64x2) return U32x4;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.2s and xtn2.4s instructions. The x86-64 backend uses an SSE2 pshufd and punpcklqdq sequence that retains each lane's low doubleword. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : U64x2) return U32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON uqxtn.2s and uqxtn2.4s instructions. The x86-64 backend uses an SSE2 psrlq, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Truncate (Low, High : I64x2) return I32x4;
    --  Keep the low bits of each source lane and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows the lanes. The x86-64 backend uses a dedicated SSE2 sequence that selects the low bits and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON xtn.2s and xtn2.4s instructions. The x86-64 backend uses an SSE2 pshufd and punpcklqdq sequence that retains each lane's low doubleword. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I64x2) return I32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtn.2s and sqxtn2.4s instructions. The x86-64 backend uses an SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I16x8) return U8x16;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtun.8b and sqxtun2.16b instructions. The x86-64 backend uses the SSE2 packuswb instruction. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I32x4) return U16x8;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtun.4h and sqxtun2.8h instructions. The x86-64 backend uses an SSE2 pcmpgtd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
    function Narrow_Saturate (Low, High : I64x2) return U32x4;
    --  Clamp each source lane to the result range and combine both source vectors.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON instruction sequence that narrows with saturation. The x86-64 backend uses a dedicated SSE2 sequence that clamps and packs the result lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses the NEON sqxtun.2s and sqxtun2.4s instructions. The x86-64 backend uses an SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence. A scalar build uses the portable scalar implementation.
    --  @param Low The source for the low result half.
    --  @param High The source for the high result half.
    --  @return The operation result.
@@ -968,42 +968,42 @@ is
    --  @return The operation result.
    function Convert_Saturate (Value : I8x16) return U8x16;
    --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-zero and smax.16b clamp sequence. The x86-64 backend uses an SSE2 pcmpgtb sign-mask and pandn clamp sequence. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : U8x16) return I8x16;
    --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-all-ones and ushr.16b signed-maximum construction followed by umin.16b. The x86-64 backend uses an SSE2 pcmpgtb, psrlw, pandn, and por sequence that constructs and selects the signed maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : I16x8) return U16x8;
    --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-zero and smax.8h clamp sequence. The x86-64 backend uses an SSE2 pcmpgtw sign-mask and pandn clamp sequence. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : U16x8) return I16x8;
    --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-all-ones and ushr.8h signed-maximum construction followed by umin.8h. The x86-64 backend uses an SSE2 pcmpgtw, psrlw, pandn, and por sequence that constructs and selects the signed maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : I32x4) return U32x4;
    --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-zero and smax.4s clamp sequence. The x86-64 backend uses an SSE2 pcmpgtd sign-mask and pandn clamp sequence. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : U32x4) return I32x4;
    --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-all-ones and ushr.4s signed-maximum construction followed by umin.4s. The x86-64 backend uses an SSE2 pcmpgtd, psrld, pandn, and por sequence that constructs and selects the signed maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : I64x2) return U64x2;
    --  Convert each signed lane to the same-width unsigned lane. A negative input becomes zero. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON cmge.2d nonnegative mask followed by and.16b. The x86-64 backend uses an SSE2 psrad sign-mask and pandn clamp sequence. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Convert_Saturate (Value : U64x2) return I64x2;
    --  Convert each unsigned lane to the same-width signed lane. An input above the signed maximum becomes that maximum. Other values and all lane positions are preserved.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON sequence that clamps each lane to the destination type's range. The x86-64 backend uses a dedicated SSE2 sequence that derives a sign mask and selects the clamped lanes. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a NEON movi-all-ones and ushr.2d signed-maximum construction followed by cmhi.2d and bsl.16b selection. The x86-64 backend uses an SSE2 psrad, psrlq, pandn, and por sequence that constructs and selects the signed maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 

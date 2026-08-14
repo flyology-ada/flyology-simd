@@ -6,11 +6,11 @@ from `scripts/simd_coverage.toml`. Do not edit it by hand.
 ## Summary
 
 - Public overloads: **1210** (606 fixed-width + 604 Wide)
-- Fully evidenced overloads: **1175**
-- Overloads in families with a declared gap: **35**
+- Fully evidenced overloads: **1210**
+- Overloads in families with a declared gap: **0**
 - Semantic gap surface: **0 overloads**
-- Codegen gap surface: **35 overloads**
-- Docs gap surface: **35 overloads**
+- Codegen gap surface: **0 overloads**
+- Docs gap surface: **0 overloads**
 - Teaching gap surface: **0 overloads**
 
 A family is fully evidenced only when semantic, code-generation, API-documentation,
@@ -18,12 +18,7 @@ and teaching coverage are all complete or explicitly not applicable.
 
 ## Declared gaps
 
-| Layer | Family | Overloads | Dimension | Gap | Deterministic closure |
-| --- | --- | ---: | --- | --- | --- |
-| fixed | `fixed-integer-width-conversions` | 27 | codegen | The 27 public callers lack one generated all-overload route manifest, and AArch64 leaf coverage is incomplete. | Generate 27 callers and require exact matching caller routes and target leaves on AArch64 and x86-64. |
-| fixed | `fixed-integer-width-conversions` | 27 | docs | The 27 support notes use generic widening or narrowing descriptions instead of operation-and-type exact mechanisms. | Generate exact support notes in root and Native specs and enforce every declaration block. |
-| fixed | `fixed-signedness-conversions` | 8 | codegen | The eight public callers lack an all-overload route manifest despite selected x86 leaf checks. | Generate eight callers and require exact matching routes and target leaf evidence on both targets. |
-| fixed | `fixed-signedness-conversions` | 8 | docs | Same-width signedness support notes are not operation-and-type exact. | Generate exact clamp and conversion mechanisms for all eight root and Native declaration blocks. |
+None.
 
 ## Family ledger
 
@@ -49,9 +44,9 @@ and teaching coverage are all complete or explicitly not applicable.
 | fixed | `fixed-mask-core` | 40 | complete | complete | complete | complete |
 | fixed | `fixed-mask-positions` | 12 | complete | complete | complete | complete |
 | fixed | `fixed-bitcasts` | 16 | complete | complete | complete | complete |
-| fixed | `fixed-integer-width-conversions` | 27 | complete | gap | gap | complete |
+| fixed | `fixed-integer-width-conversions` | 27 | complete | complete | complete | complete |
 | fixed | `fixed-float-width-conversions` | 3 | complete | complete | complete | complete |
-| fixed | `fixed-signedness-conversions` | 8 | complete | gap | gap | complete |
+| fixed | `fixed-signedness-conversions` | 8 | complete | complete | complete | complete |
 | fixed | `fixed-numeric-conversions` | 8 | complete | complete | complete | complete |
 | fixed | `fixed-table-lookup` | 1 | complete | complete | complete | complete |
 | fixed | `fixed-horizontal-sum` | 1 | complete | complete | complete | complete |

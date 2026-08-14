@@ -429,23 +429,48 @@ classification and bit-selection sequences. The reduction sequences start
 with lane 0. They classify each remaining lane's IEEE encoding and select the
 result bits in ascending lane order. These sequences preserve the documented
 quiet-NaN, signaling-NaN, and signed-zero results without executing a floating
-comparison during classification. The
-integer `Widen_Low`, `Widen_High`, `Narrow_Truncate`, and `Narrow_Saturate`
-overloads use SSE2 unpack, shuffle, clamp, and pack sequences. Conversions
-between 32-bit integer and binary32 lanes use packed SSE2 sequences.
+comparison during classification.
+
+The 27 integer lane-width conversions comprise six `Widen_Low`, six
+`Widen_High`, six `Narrow_Truncate`, and nine `Narrow_Saturate` overloads.
+AArch64 widening uses `ushll` or `sshll` for the low half and `ushll2` or
+`sshll2` for the high half. Truncating narrowing uses `xtn` and `xtn2`;
+saturating narrowing uses `uqxtn`/`uqxtn2`, `sqxtn`/`sqxtn2`, or
+`sqxtun`/`sqxtun2` according to the source and result signedness. The x86-64
+backend uses operation- and type-specific SSE2 unpack, sign-extension,
+shuffle, clamp, and pack sequences.
+
+The eight same-width signedness conversions clamp rather than reinterpret.
+For 8-, 16-, and 32-bit lanes, AArch64 uses `smax` with zero for
+signed-to-unsigned conversion and constructs the signed maximum before
+`umin` for unsigned-to-signed conversion. Its 64-bit forms use `cmge` plus
+`and`, or `cmhi` plus `bsl`. The x86-64 forms derive sign or range masks and
+select with `pandn`; unsigned-to-signed forms also construct and merge the
+signed maximum.
+
+The remaining conversions between 32-bit integer and binary32 lanes use
+packed SSE2 sequences.
 Conversions between 64-bit integer
 and binary64 lanes process each lane separately with SSE2. Floating-to-integer
 conversions classify inputs for saturation. Unsigned conversions apply an
-additional correction across 2 to the power of 63. Same-width conversion
-between signed and unsigned integer types uses SSE2 sign-mask and bit-selection
-sequences.
+additional correction across 2 to the power of 63.
 Floating widening uses `cvtps2pd`; high-half widening first selects the upper
 binary32 lanes. Floating narrowing uses two `cvtpd2ps` conversions and merges
 their result lanes. Independent lane and bit oracles use 512 deterministic
 full-width inputs and directly check the root, `Backends.Scalar`, and
-`Backends.Native` result of every explicit conversion overload. All 16
-lane-preserving bit-cast overloads reinterpret the
-complete private vector value directly in both target backends. They do not
+`Backends.Native` result of every explicit conversion overload.
+
+A generated caller probe covers all 35 integer lane-width and signedness
+conversions. Every caller must contain exactly one matching
+`Backends.Native` relocation and one out-of-line branch; the gates reject
+root, `Backends.Scalar`, Wide, and mismatched Native routes. AArch64 leaf
+gates bind the source and result transfers and require the exact operation-
+and type-specific instruction sequence. The x86-64 gates require the exact
+operation- and type-specific instruction classes and bind every source and
+result transfer. Both reject branches or out-of-line helpers inside a leaf.
+
+All 16 lane-preserving bit-cast overloads reinterpret the complete private
+vector value directly in both target backends. They do not
 call the portable root operation or need an arithmetic SIMD instruction. This
 direct reinterpretation of the same 128 storage bits does not make the private
 vector representation part of the public contract.

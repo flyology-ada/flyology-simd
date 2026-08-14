@@ -186,6 +186,116 @@ def lane_arrangement_phrases(operation: str, vector: str) -> tuple[str, str]:
     return aarch, x86
 
 
+INTEGER_CONVERSION_CASES = (
+    *((operation, source, target)
+      for source, target in (
+          ("U8x16", "U16x8"), ("I8x16", "I16x8"),
+          ("U16x8", "U32x4"), ("I16x8", "I32x4"),
+          ("U32x4", "U64x2"), ("I32x4", "I64x2"),
+      ) for operation in ("Widen_Low", "Widen_High")),
+    *((operation, source, target)
+      for source, target in (
+          ("U16x8", "U8x16"), ("I16x8", "I8x16"),
+          ("U32x4", "U16x8"), ("I32x4", "I16x8"),
+          ("U64x2", "U32x4"), ("I64x2", "I32x4"),
+      ) for operation in ("Narrow_Truncate", "Narrow_Saturate")),
+    *(("Narrow_Saturate", source, target) for source, target in (
+        ("I16x8", "U8x16"), ("I32x4", "U16x8"),
+        ("I64x2", "U32x4"),
+    )),
+    *(("Convert_Saturate", source, target) for source, target in (
+        ("I8x16", "U8x16"), ("U8x16", "I8x16"),
+        ("I16x8", "U16x8"), ("U16x8", "I16x8"),
+        ("I32x4", "U32x4"), ("U32x4", "I32x4"),
+        ("I64x2", "U64x2"), ("U64x2", "I64x2"),
+    )),
+)
+
+
+def integer_conversion_phrases(
+    operation: str, source: str, target: str
+) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for an integer conversion overload."""
+    source_bits = int(re.search(r"[UI]([0-9]+)x", source).group(1))
+    target_bits = int(re.search(r"[UI]([0-9]+)x", target).group(1))
+    source_signed = source.startswith("I")
+    target_signed = target.startswith("I")
+    if operation in {"Widen_Low", "Widen_High"}:
+        high = operation == "Widen_High"
+        shape = {8: "8h", 16: "4s", 32: "2d"}[source_bits]
+        neon = ("sshll" if source_signed else "ushll") + ("2" if high else "")
+        unpack = {
+            (8, False, False): "punpcklbw with a zero vector",
+            (8, False, True): "punpckhbw with a zero vector",
+            (8, True, False): "pcmpgtb to form a sign mask, then punpcklbw",
+            (8, True, True): "pcmpgtb to form a sign mask, then punpckhbw",
+            (16, False, False): "punpcklwd with a zero vector",
+            (16, False, True): "punpckhwd with a zero vector",
+            (16, True, False): "pcmpgtw to form a sign mask, then punpcklwd",
+            (16, True, True): "pcmpgtw to form a sign mask, then punpckhwd",
+            (32, False, False): "punpckldq with a zero vector",
+            (32, False, True): "punpckhdq with a zero vector",
+            (32, True, False): "pcmpgtd to form a sign mask, then punpckldq",
+            (32, True, True): "pcmpgtd to form a sign mask, then punpckhdq",
+        }[(source_bits, source_signed, high)]
+        return (
+            f"NEON {neon} instruction over {shape} lanes with a zero shift",
+            f"SSE2 sequence using {unpack}",
+        )
+    if operation == "Narrow_Truncate":
+        shapes = {8: ("8b", "16b"), 16: ("4h", "8h"), 32: ("2s", "4s")}
+        low, high = shapes[target_bits]
+        x86 = {
+            8: "SSE2 packuswb sequence that retains each lane's low byte",
+            16: "SSE2 pshuflw, pshufhw, pshufd, and punpcklqdq sequence that retains each lane's low word",
+            32: "SSE2 pshufd and punpcklqdq sequence that retains each lane's low doubleword",
+        }[target_bits]
+        return f"NEON xtn.{low} and xtn2.{high} instructions", x86
+    if operation == "Narrow_Saturate":
+        shapes = {8: ("8b", "16b"), 16: ("4h", "8h"), 32: ("2s", "4s")}
+        low, high = shapes[target_bits]
+        neon = "sqxtun" if source_signed and not target_signed else (
+            "sqxtn" if source_signed else "uqxtn"
+        )
+        x86 = {
+            ("U16x8", "U8x16"): "SSE2 psrlw, pcmpeqw, pandn, and packuswb clamp-and-pack sequence",
+            ("I16x8", "I8x16"): "SSE2 packsswb instruction",
+            ("U32x4", "U16x8"): "SSE2 psrld, pcmpeqd, pandn, and punpcklqdq clamp-and-pack sequence",
+            ("I32x4", "I16x8"): "SSE2 packssdw instruction",
+            ("U64x2", "U32x4"): "SSE2 psrlq, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I64x2", "I32x4"): "SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I16x8", "U8x16"): "SSE2 packuswb instruction",
+            ("I32x4", "U16x8"): "SSE2 pcmpgtd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I64x2", "U32x4"): "SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+        }[(source, target)]
+        return f"NEON {neon}.{low} and {neon}2.{high} instructions", x86
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[source_bits]
+    if source_signed and source_bits < 64:
+        aarch = f"NEON movi-zero and smax.{shape} clamp sequence"
+    elif source_signed:
+        aarch = "NEON cmge.2d nonnegative mask followed by and.16b"
+    elif source_bits < 64:
+        aarch = (
+            f"NEON movi-all-ones and ushr.{shape} signed-maximum construction "
+            f"followed by umin.{shape}"
+        )
+    else:
+        aarch = (
+            "NEON movi-all-ones and ushr.2d signed-maximum construction "
+            "followed by cmhi.2d and bsl.16b selection"
+        )
+    compare = {8: "pcmpgtb", 16: "pcmpgtw", 32: "pcmpgtd", 64: "psrad"}[source_bits]
+    if source_signed:
+        x86 = f"SSE2 {compare} sign-mask and pandn clamp sequence"
+    else:
+        shift = {8: "psrlw", 16: "psrlw", 32: "psrld", 64: "psrlq"}[source_bits]
+        x86 = (
+            f"SSE2 {compare}, {shift}, pandn, and por sequence that constructs "
+            "and selects the signed maximum"
+        )
+    return aarch, x86
+
+
 def bitwise_phrases(operation: str) -> tuple[str, str]:
     """Return exact AArch64/x86 phrases for one integer bitwise operation."""
     return {
@@ -350,6 +460,31 @@ def invalid_support(path: Path) -> list[str]:
             "U8x16", "I8x16", "U16x8", "I16x8",
             "U32x4", "I32x4", "U64x2", "I64x2",
         )
+        for operation, source, target in INTEGER_CONVERSION_CASES:
+            parameter = "Value" if operation.startswith("Widen") or operation == "Convert_Saturate" else "Low, High"
+            matching = [
+                block for block in declaration_blocks(text, operation)
+                if f"{parameter} : {source}" in block.split(";", 1)[0]
+                and f"return {target}" in block.split(";", 1)[0]
+            ]
+            aarch_phrase, x86_phrase = integer_conversion_phrases(
+                operation, source, target
+            )
+            if (
+                len(matching) != 1
+                or aarch_phrase not in matching[0]
+                or x86_phrase not in matching[0]
+                or "A scalar build uses the portable scalar implementation" not in matching[0]
+                or (
+                    path.name == "flyology_simd.ads"
+                    and "This overload uses the portable scalar implementation"
+                    not in matching[0]
+                )
+            ):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {source}-to-{target} "
+                    f"{operation} classification"
+                )
         for operation in ("Reduce_Add_Wrap", "Reduce_Min", "Reduce_Max"):
             blocks = declaration_blocks(text, operation)
             if len(blocks) != 8:
@@ -859,23 +994,6 @@ def invalid_support(path: Path) -> list[str]:
                 invalid.append(
                     f"{path.relative_to(ROOT)}: incorrect exact floating {operation} classifications"
                 )
-        conversion_support = {
-            "Widen_Low": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),
-            "Widen_High": ("dedicated SSE2 sequence that unpacks and extends the selected lanes", 6),
-            "Narrow_Truncate": ("dedicated SSE2 sequence that selects the low bits and packs the result lanes", 6),
-            "Narrow_Saturate": ("dedicated SSE2 sequence that clamps and packs the result lanes", 9),
-        }
-        for operation, (phrase, expected) in conversion_support.items():
-            blocks = [
-                block.split("function ", 1)[0].split("procedure ", 1)[0]
-                for block in text.split(f"function {operation}")[1:]
-            ]
-            found = sum(phrase in block for block in blocks)
-            if found != expected:
-                invalid.append(
-                    f"{path.relative_to(ROOT)}: expected {expected} exact "
-                    f"{operation} SSE2 classifications, found {found}"
-                )
         conversion64_support = {
             "cvtsi2sdq and merges the two binary64 results": 1,
             "shifts each unsigned value above the signed maximum to the right": 1,
@@ -1099,23 +1217,6 @@ def invalid_support(path: Path) -> list[str]:
             invalid.append(
                 f"{path.relative_to(ROOT)}: incorrect exact floating "
                 "Narrow_Round backend classification"
-            )
-        convert_saturate_blocks = [
-            block.split("function ", 1)[0].split("procedure ", 1)[0]
-            for block in text.split("function Convert_Saturate")[1:]
-        ]
-        convert_saturate_phrase = (
-            "dedicated SSE2 sequence that derives a sign mask and selects "
-            "the clamped lanes"
-        )
-        found = sum(
-            convert_saturate_phrase in block
-            for block in convert_saturate_blocks
-        )
-        if found != 8:
-            invalid.append(
-                f"{path.relative_to(ROOT)}: expected eight exact "
-                f"Convert_Saturate SSE2 classifications, found {found}"
             )
         numeric_conversion_support = {
             ("Convert_Round", "Value : I32x4"): (

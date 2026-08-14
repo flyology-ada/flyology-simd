@@ -536,6 +536,110 @@ def comparison_support_doc(name: str, declaration: str) -> str:
     )
 
 
+def integer_conversion_support_doc(name: str, declaration: str) -> str:
+    """Describe one exact fixed-width integer conversion lowering."""
+    source_match = re.search(r"(?:Value|Low, High) : ([UI][0-9]+x[0-9]+)", declaration)
+    target_match = re.search(r"return ([UI][0-9]+x[0-9]+)", declaration)
+    if source_match is None or target_match is None:
+        raise ValueError(f"not an integer conversion declaration: {declaration}")
+    source = source_match.group(1)
+    target = target_match.group(1)
+    source_bits = int(re.search(r"[UI]([0-9]+)x", source).group(1))
+    target_bits = int(re.search(r"[UI]([0-9]+)x", target).group(1))
+    source_signed = source.startswith("I")
+    target_signed = target.startswith("I")
+
+    if name in {"Widen_Low", "Widen_High"}:
+        high = name == "Widen_High"
+        shape = {8: "8h", 16: "4s", 32: "2d"}[source_bits]
+        neon = ("sshll" if source_signed else "ushll") + ("2" if high else "")
+        unpack = {
+            (8, False, False): "punpcklbw with a zero vector",
+            (8, False, True): "punpckhbw with a zero vector",
+            (8, True, False): "pcmpgtb to form a sign mask, then punpcklbw",
+            (8, True, True): "pcmpgtb to form a sign mask, then punpckhbw",
+            (16, False, False): "punpcklwd with a zero vector",
+            (16, False, True): "punpckhwd with a zero vector",
+            (16, True, False): "pcmpgtw to form a sign mask, then punpcklwd",
+            (16, True, True): "pcmpgtw to form a sign mask, then punpckhwd",
+            (32, False, False): "punpckldq with a zero vector",
+            (32, False, True): "punpckhdq with a zero vector",
+            (32, True, False): "pcmpgtd to form a sign mask, then punpckldq",
+            (32, True, True): "pcmpgtd to form a sign mask, then punpckhdq",
+        }[(source_bits, source_signed, high)]
+        aarch = f"the NEON {neon} instruction over {shape} lanes with a zero shift"
+        x86 = f"an SSE2 sequence using {unpack}"
+    elif name == "Narrow_Truncate":
+        low_shape, high_shape = {
+            8: ("8b", "16b"), 16: ("4h", "8h"), 32: ("2s", "4s")
+        }[target_bits]
+        aarch = f"the NEON xtn.{low_shape} and xtn2.{high_shape} instructions"
+        x86 = {
+            8: "an SSE2 packuswb sequence that retains each lane's low byte",
+            16: (
+                "an SSE2 pshuflw, pshufhw, pshufd, and punpcklqdq sequence "
+                "that retains each lane's low word"
+            ),
+            32: (
+                "an SSE2 pshufd and punpcklqdq sequence that retains each "
+                "lane's low doubleword"
+            ),
+        }[target_bits]
+    elif name == "Narrow_Saturate":
+        low_shape, high_shape = {
+            8: ("8b", "16b"), 16: ("4h", "8h"), 32: ("2s", "4s")
+        }[target_bits]
+        if source_signed and not target_signed:
+            neon = "sqxtun"
+        elif source_signed:
+            neon = "sqxtn"
+        else:
+            neon = "uqxtn"
+        aarch = f"the NEON {neon}.{low_shape} and {neon}2.{high_shape} instructions"
+        x86 = {
+            ("U16x8", "U8x16"): "an SSE2 psrlw, pcmpeqw, pandn, and packuswb clamp-and-pack sequence",
+            ("I16x8", "I8x16"): "the SSE2 packsswb instruction",
+            ("U32x4", "U16x8"): "an SSE2 psrld, pcmpeqd, pandn, and punpcklqdq clamp-and-pack sequence",
+            ("I32x4", "I16x8"): "the SSE2 packssdw instruction",
+            ("U64x2", "U32x4"): "an SSE2 psrlq, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I64x2", "I32x4"): "an SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I16x8", "U8x16"): "the SSE2 packuswb instruction",
+            ("I32x4", "U16x8"): "an SSE2 pcmpgtd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+            ("I64x2", "U32x4"): "an SSE2 psrad, pcmpeqd, pandn, pshufd, and punpcklqdq clamp-and-pack sequence",
+        }[(source, target)]
+    elif name == "Convert_Saturate":
+        shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[source_bits]
+        if source_signed and source_bits < 64:
+            aarch = f"a NEON movi-zero and smax.{shape} clamp sequence"
+        elif source_signed:
+            aarch = "a NEON cmge.2d nonnegative mask followed by and.16b"
+        elif source_bits < 64:
+            aarch = (
+                f"a NEON movi-all-ones and ushr.{shape} signed-maximum "
+                f"construction followed by umin.{shape}"
+            )
+        else:
+            aarch = (
+                "a NEON movi-all-ones and ushr.2d signed-maximum construction "
+                "followed by cmhi.2d and bsl.16b selection"
+            )
+        compare = {8: "pcmpgtb", 16: "pcmpgtw", 32: "pcmpgtd", 64: "psrad"}[source_bits]
+        if source_signed:
+            x86 = f"an SSE2 {compare} sign-mask and pandn clamp sequence"
+        else:
+            shift = {8: "psrlw", 16: "psrlw", 32: "psrld", 64: "psrlq"}[source_bits]
+            x86 = (
+                f"an SSE2 {compare}, {shift}, pandn, and por sequence that "
+                "constructs and selects the signed maximum"
+            )
+    else:
+        raise ValueError(f"unsupported integer conversion: {name}")
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
+
 def native_support_doc(name: str, declaration: str) -> str:
     """Describe the verified implementation class of one exact overload."""
     fixed_ada = {
@@ -544,6 +648,11 @@ def native_support_doc(name: str, declaration: str) -> str:
         "None_True",
         "Is_Aligned_16", "Has_Extent",
     }
+    if name in {
+        "Widen_Low", "Widen_High", "Narrow_Truncate", "Narrow_Saturate",
+        "Convert_Saturate",
+    } and re.search(r"(?:Value|Low, High) : [UI][0-9]+x[0-9]+", declaration):
+        return integer_conversion_support_doc(name, declaration)
     if name in {"From_Lanes", "To_Lanes", "Extract", "Replace"}:
         action = {
             "From_Lanes": "copy the supplied lane array into private vector storage",

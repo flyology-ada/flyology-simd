@@ -57,6 +57,8 @@ The generated fixed-width wrapping-arithmetic caller probe and its
 `scripts/generate_wrapping_arithmetic_probe.py`.
 The generated fixed-width saturating-arithmetic probe and its 16-operation
 manifest are reproduced by `scripts/generate_saturating_arithmetic_probe.py`.
+The generated fixed-width integer-conversion probe and its 35-operation
+manifest are reproduced by `scripts/generate_integer_conversion_probe.py`.
 The generated Wide saturating-arithmetic probe and its 16-operation manifest
 are reproduced by `scripts/generate_wide_saturating_arithmetic_probe.py`.
 The generated Wide wrapping-arithmetic probe and its 24-operation manifest are

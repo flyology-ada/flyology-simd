@@ -1,12 +1,7 @@
 schema = 1
 expected_overloads = { fixed = 606, wide = 604 }
 split_operations = ["Widen_Low", "Widen_High"]
-expected_gap = [
-  { family = "fixed-integer-width-conversions", dimension = "codegen" },
-  { family = "fixed-integer-width-conversions", dimension = "docs" },
-  { family = "fixed-signedness-conversions", dimension = "codegen" },
-  { family = "fixed-signedness-conversions", dimension = "docs" },
-]
+expected_gap = []
 
 [profile.fixed_semantic]
 status = "complete"
@@ -35,6 +30,10 @@ evidence = ["scripts/check_codegen.sh"]
 [profile.mask_core_codegen]
 status = "complete"
 evidence = ["scripts/generate_mask_core_probe.py", "scripts/probes/mask_core_codegen_cases.txt", "scripts/check_codegen.sh"]
+
+[profile.integer_conversion_codegen]
+status = "complete"
+evidence = ["scripts/generate_integer_conversion_probe.py", "scripts/probes/integer_conversion_codegen_cases.txt", "scripts/check_codegen.sh"]
 
 [profile.wide_codegen]
 status = "complete"
@@ -67,26 +66,6 @@ evidence = ["website/guide/conversions/index.html", "examples/conversions.adb"]
 [profile.teaching_practical]
 status = "complete"
 evidence = ["website/guide/practical/index.html"]
-
-[profile.gap_integer_width_codegen]
-status = "gap"
-reason = "The 27 public callers lack one generated all-overload route manifest, and AArch64 leaf coverage is incomplete."
-closure = "Generate 27 callers and require exact matching caller routes and target leaves on AArch64 and x86-64."
-
-[profile.gap_integer_width_docs]
-status = "gap"
-reason = "The 27 support notes use generic widening or narrowing descriptions instead of operation-and-type exact mechanisms."
-closure = "Generate exact support notes in root and Native specs and enforce every declaration block."
-
-[profile.gap_signedness_codegen]
-status = "gap"
-reason = "The eight public callers lack an all-overload route manifest despite selected x86 leaf checks."
-closure = "Generate eight callers and require exact matching routes and target leaf evidence on both targets."
-
-[profile.gap_signedness_docs]
-status = "gap"
-reason = "Same-width signedness support notes are not operation-and-type exact."
-closure = "Generate exact clamp and conversion mechanisms for all eight root and Native declaration blocks."
 
 [[family]]
 id = "fixed-contracts"
@@ -273,8 +252,8 @@ id = "fixed-integer-width-conversions"
 layer = "fixed"
 operations = { Widen_Low = 6, Widen_High = 6, Narrow_Truncate = 6, Narrow_Saturate = 9 }
 semantic = "fixed_conversion_semantic"
-codegen = "gap_integer_width_codegen"
-docs = "gap_integer_width_docs"
+codegen = "integer_conversion_codegen"
+docs = "api_docs"
 teaching = "teaching_conversions"
 
 [[family]]
@@ -291,8 +270,8 @@ id = "fixed-signedness-conversions"
 layer = "fixed"
 operations = { Convert_Saturate = 8 }
 semantic = "fixed_conversion_semantic"
-codegen = "gap_signedness_codegen"
-docs = "gap_signedness_docs"
+codegen = "integer_conversion_codegen"
+docs = "api_docs"
 teaching = "teaching_conversions"
 
 [[family]]
