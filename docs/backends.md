@@ -175,8 +175,11 @@ implementation. The 4- and 2-lane shapes mask unused storage bits. Exhaustive
 tests check every logical mask and every `Test` result against independent
 integer expectations. Fixed cases set unused high bits in the
 `Mask_From_Bit_Mask` input and verify that the result excludes them.
-Target-backend public-caller and Native-object gates reject calls to the
-portable mask operations.
+A generated public-caller probe covers all 40 operation and shape pairs. The
+two `Mask_8x16` bit-conversion callers are verified inline. Each of the other
+38 callers requires one matching `Backends.Native` overload and one
+out-of-line branch. Caller and Native-object gates reject root, Scalar, Wide,
+and mismatched mask-operation routes.
 
 For all ten 128-bit value types, `Zero` and `Splat` construct the result
 directly in the selected backend. AArch64 constructs zero in target registers and uses

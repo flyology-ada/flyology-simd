@@ -2,7 +2,6 @@ schema = 1
 expected_overloads = { fixed = 606, wide = 604 }
 split_operations = ["Widen_Low", "Widen_High"]
 expected_gap = [
-  { family = "fixed-mask-core", dimension = "codegen" },
   { family = "fixed-integer-width-conversions", dimension = "semantic" },
   { family = "fixed-integer-width-conversions", dimension = "codegen" },
   { family = "fixed-integer-width-conversions", dimension = "docs" },
@@ -36,6 +35,10 @@ evidence = ["tests/wide_tests.adb", "tests/guard_page_tests.adb"]
 [profile.fixed_codegen]
 status = "complete"
 evidence = ["scripts/check_codegen.sh"]
+
+[profile.mask_core_codegen]
+status = "complete"
+evidence = ["scripts/generate_mask_core_probe.py", "scripts/probes/mask_core_codegen_cases.txt", "scripts/check_codegen.sh"]
 
 [profile.wide_codegen]
 status = "complete"
@@ -93,11 +96,6 @@ closure = "Generate eight callers and require exact matching routes and target l
 status = "gap"
 reason = "Same-width signedness support notes are not operation-and-type exact."
 closure = "Generate exact clamp and conversion mechanisms for all eight root and Native declaration blocks."
-
-[profile.gap_mask_core_codegen]
-status = "gap"
-reason = "The 40 fixed-width mask-core overloads lack a dedicated all-caller manifest and route gate."
-closure = "Generate 40 callers and gate exact matching conversions, algebra, Test, and query routes."
 
 [[family]]
 id = "fixed-contracts"
@@ -257,7 +255,7 @@ id = "fixed-mask-core"
 layer = "fixed"
 operations = { Mask_From_Bit_Mask = 4, To_Bit_Mask = 4, Mask_And = 4, Mask_Or = 4, Mask_Xor = 4, Mask_Not = 4, Test = 4, Any_True = 4, All_True = 4, None_True = 4 }
 semantic = "fixed_semantic"
-codegen = "gap_mask_core_codegen"
+codegen = "mask_core_codegen"
 docs = "api_docs"
 teaching = "teaching_masks"
 

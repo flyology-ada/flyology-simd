@@ -6,10 +6,10 @@ from `scripts/simd_coverage.toml`. Do not edit it by hand.
 ## Summary
 
 - Public overloads: **1210** (606 fixed-width + 604 Wide)
-- Fully evidenced overloads: **1124**
-- Overloads in families with a declared gap: **86**
+- Fully evidenced overloads: **1164**
+- Overloads in families with a declared gap: **46**
 - Semantic gap surface: **46 overloads**
-- Codegen gap surface: **75 overloads**
+- Codegen gap surface: **35 overloads**
 - Docs gap surface: **35 overloads**
 - Teaching gap surface: **0 overloads**
 
@@ -20,7 +20,6 @@ and teaching coverage are all complete or explicitly not applicable.
 
 | Layer | Family | Overloads | Dimension | Gap | Deterministic closure |
 | --- | --- | ---: | --- | --- | --- |
-| fixed | `fixed-mask-core` | 40 | codegen | The 40 fixed-width mask-core overloads lack a dedicated all-caller manifest and route gate. | Generate 40 callers and gate exact matching conversions, algebra, Test, and query routes. |
 | fixed | `fixed-integer-width-conversions` | 27 | semantic | Independent conversion expectations do not directly exercise Backends.Scalar for every overload. | Add direct root, Backends.Scalar, and Backends.Native assertions to each independent conversion oracle. |
 | fixed | `fixed-integer-width-conversions` | 27 | codegen | The 27 public callers lack one generated all-overload route manifest, and AArch64 leaf coverage is incomplete. | Generate 27 callers and require exact matching caller routes and target leaves on AArch64 and x86-64. |
 | fixed | `fixed-integer-width-conversions` | 27 | docs | The 27 support notes use generic widening or narrowing descriptions instead of operation-and-type exact mechanisms. | Generate exact support notes in root and Native specs and enforce every declaration block. |
@@ -51,7 +50,7 @@ and teaching coverage are all complete or explicitly not applicable.
 | fixed | `fixed-integer-reductions` | 24 | complete | complete | complete | complete |
 | fixed | `fixed-float-binary` | 12 | complete | complete | complete | complete |
 | fixed | `fixed-float-reductions` | 6 | complete | complete | complete | complete |
-| fixed | `fixed-mask-core` | 40 | complete | gap | complete | complete |
+| fixed | `fixed-mask-core` | 40 | complete | complete | complete | complete |
 | fixed | `fixed-mask-positions` | 12 | complete | complete | complete | complete |
 | fixed | `fixed-bitcasts` | 16 | complete | complete | complete | complete |
 | fixed | `fixed-integer-width-conversions` | 27 | gap | gap | gap | complete |

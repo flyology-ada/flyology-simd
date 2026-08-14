@@ -44,6 +44,7 @@ conversion64_probe_object="$probe_root/conversion64_codegen_probe.o"
 integer_shift_probe_object="$probe_root/integer_shift_codegen_probe.o"
 unordered_probe_object="$probe_root/unordered_codegen_probe.o"
 mask_position_probe_object="$probe_root/mask_position_codegen_probe.o"
+mask_core_probe_object="$probe_root/mask_core_codegen_probe.o"
 construction_probe_object="$probe_root/construction_codegen_probe.o"
 partial_memory_probe_object="$probe_root/partial_memory_codegen_probe.o"
 bit_cast_probe_object="$probe_root/bit_cast_codegen_probe.o"
@@ -216,6 +217,12 @@ disassemble "$conversion64_probe_object" >"$temporary/conversion64-probe.txt"
 disassemble "$integer_shift_probe_object" >"$temporary/integer-shift-probe.txt"
 disassemble "$unordered_probe_object" >"$temporary/unordered-probe.txt"
 disassemble "$mask_position_probe_object" >"$temporary/mask-position-probe.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$mask_core_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/mask-core-probe.txt"
+else
+    objdump -dr "$mask_core_probe_object" >"$temporary/mask-core-probe.txt"
+fi
 disassemble "$construction_probe_object" >"$temporary/construction-probe.txt"
 disassemble "$partial_memory_probe_object" >"$temporary/partial-memory-probe.txt"
 disassemble "$bit_cast_probe_object" >"$temporary/bit-cast-probe.txt"
@@ -269,6 +276,7 @@ nm -u "$conversion64_probe_object" >"$temporary/conversion64-undefined.txt"
 nm -u "$integer_shift_probe_object" >"$temporary/integer-shift-undefined.txt"
 nm -u "$unordered_probe_object" >"$temporary/unordered-undefined.txt"
 nm -u "$mask_position_probe_object" >"$temporary/mask-position-undefined.txt"
+nm -u "$mask_core_probe_object" >"$temporary/mask-core-undefined.txt"
 nm -u "$construction_probe_object" >"$temporary/construction-undefined.txt"
 nm -u "$partial_memory_probe_object" >"$temporary/partial-memory-undefined.txt"
 nm -u "$bit_cast_probe_object" >"$temporary/bit-cast-undefined.txt"
@@ -1418,6 +1426,60 @@ require_count 'flyology_simd__' 16 "$temporary/wide-minmax-undefined.txt" \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-minmax-undefined.txt" \
   'portable, dispatcher, Scalar, or byte-mechanism extrema route retained'
+
+mask_core_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/mask_core_codegen_cases.txt | wc -l | tr -d ' ')
+mask_core_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/mask_core_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$mask_core_case_count" -ne 40 ] || [ "$mask_core_unique_count" -ne 40 ]; then
+    echo 'fixed-width compact-mask manifest must contain 40 unique operations' >&2
+    exit 1
+fi
+
+mask_core_operations='(mask_from_bit_mask|to_bit_mask|mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true)'
+case "$architecture" in
+    aarch64) mask_core_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) mask_core_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+while read -r mask_kind operation suffix; do
+    [ -n "$mask_kind" ] || continue
+    caller="$temporary/mask-core-${mask_kind}-${operation}.txt"
+    extract_symbol "mask_core_codegen_probe__${mask_kind}_${operation}" \
+      "$temporary/mask-core-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" != none ] && symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+
+    if [ "$mask_kind" = m8 ] && \
+       { [ "$operation" = mask_from_bit_mask ] || [ "$operation" = to_bit_mask ]; }; then
+        require_count 'flyology_simd__' 0 "$caller" \
+          "inline fixed-width ${operation} has no out-of-line operation"
+        require_pattern '(^|[[:space:]])ret(q)?([[:space:]]|$)' "$caller" \
+          "inline fixed-width ${operation} returns directly"
+    else
+        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+          "$caller" "one matching fixed-width mask operation in ${mask_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+          "only one selected mask operation in ${mask_kind} ${operation}"
+        require_count "$mask_core_branch" 1 "$caller" \
+          "one out-of-line branch in ${mask_kind} ${operation}"
+    fi
+
+    forbid_pattern "flyology_simd__${mask_core_operations}(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|flyology_simd__backends__scalar__${mask_core_operations}(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|flyology_simd__wide__(native__)?${mask_core_operations}(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)" \
+      "$caller" "root, Scalar, or Wide compact-mask route"
+done <scripts/probes/mask_core_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
+  "$temporary/mask-core-undefined.txt" \
+  'six out-of-line fixed-width mask conversion operations remain unresolved'
+require_count 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true)(__[234])?$' 32 \
+  "$temporary/mask-core-undefined.txt" \
+  'thirty-two fixed-width mask algebra and query operations remain unresolved'
+require_count 'flyology_simd__' 38 "$temporary/mask-core-undefined.txt" \
+  'only the thirty-eight intended fixed-width mask operations remain unresolved'
+forbid_pattern "flyology_simd__${mask_core_operations}(__[0-9]+)?$|flyology_simd__backends__scalar__${mask_core_operations}(__[0-9]+)?$|flyology_simd__wide__(native__)?${mask_core_operations}(__[0-9]+)?$" \
+  "$temporary/mask-core-undefined.txt" \
+  'root, Scalar, or Wide compact-mask route retained'
 
 wide_mask_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_mask_codegen_cases.txt | wc -l | tr -d ' ')
