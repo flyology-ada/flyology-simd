@@ -70,6 +70,27 @@ Exact-leaf gates require the operation- and type-specific Advanced SIMD or
 SSE2 sequence. They reject root, Scalar, Wide, mismatched Native, and
 out-of-line helper routes.
 
+The fixed-width integer family has 16 saturating-arithmetic overloads in
+total: eight `Add_Saturate` and eight `Subtract_Saturate`. AArch64 uses
+`uqadd` and `uqsub` for unsigned lanes and `sqadd` and `sqsub` for signed
+lanes. For 8- and 16-bit lanes, x86-64 uses the matching packed SSE2
+saturating-add or saturating-subtract instruction. For unsigned 32- and
+64-bit addition, its SSE2 leaves derive a carry mask and select the unsigned
+maximum. Unsigned subtraction derives a borrow mask and selects zero. Signed
+32- and 64-bit addition and subtraction derive an overflow mask and select
+the applicable signed limit.
+
+For each non-U8 integer type, tests use fixed clamp-boundary inputs and 250
+deterministic full-width input pairs. Independent lane oracles check the root,
+`Backends.Scalar`, and `Backends.Native` results. The focused U8x16 suite uses
+fixed inputs and 2,000 deterministic full-width input pairs. A generated
+public caller probe covers all 16 overloads. Each caller gate requires exactly
+one relocation to the matching `Backends.Native` overload and exactly one
+out-of-line branch. It rejects root, Scalar, Wide, and mismatched routes.
+Exact-leaf gates bind operand and result
+transfers, require the operation- and type-specific Advanced SIMD or SSE2
+sequence, and reject branches to out-of-line helpers.
+
 All 32 fixed-width integer bitwise overloads use target leaves.
 `Bitwise_And`, `Bitwise_Or`, and `Bitwise_Xor` use one NEON `and`, `orr`, or
 `eor` instruction on AArch64 and one SSE2 `pand`, `por`, or `pxor` instruction

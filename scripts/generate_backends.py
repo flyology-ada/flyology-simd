@@ -2890,20 +2890,27 @@ def test_program() -> str:
         edge_2_or_oracle = or_oracle.replace("R_A", "Bitwise_Left_2").replace("R_B", "Bitwise_Right_2")
         edge_2_xor_oracle = xor_oracle.replace("R_A", "Bitwise_Left_2").replace("R_B", "Bitwise_Right_2")
         edge_2_not_oracle = not_oracle.replace("R_A", "Bitwise_Left_2")
-        saturation_edges = {
-            "U32x4": [
-                "      Saturation_Left : constant U32x4 := From_Lanes ([U32'Last, 0, U32'Last, 0]);",
-                "      Saturation_Right : constant U32x4 := From_Lanes ([1, 1, U32'Last, U32'Last]);",
-                "      Saturating_Add_Expected : constant Lane_Values_U32x4 := [U32'Last, 1, U32'Last, U32'Last];",
-                "      Saturating_Subtract_Expected : constant Lane_Values_U32x4 := [U32'Last - 1, 0, 0, 0];",
-            ],
-            "I32x4": [
-                "      Saturation_Left : constant I32x4 := From_Lanes ([I32'Last, I32'First, I32'Last, I32'First]);",
-                "      Saturation_Right : constant I32x4 := From_Lanes ([1, -1, -1, 1]);",
-                "      Saturating_Add_Expected : constant Lane_Values_I32x4 := [I32'Last, I32'First, I32'Last - 1, I32'First + 1];",
-                "      Saturating_Subtract_Expected : constant Lane_Values_I32x4 := [I32'Last - 1, I32'First + 1, I32'Last, I32'First];",
-            ],
-            "U64x2": [
+        if bits < 64:
+            if signed:
+                saturation_left = [f"{scalar}'Last", f"{scalar}'First", f"{scalar}'Last", f"{scalar}'First"]
+                saturation_right = ["1", "-1", "-1", "1"]
+                saturation_add = [f"{scalar}'Last", f"{scalar}'First", f"{scalar}'Last - 1", f"{scalar}'First + 1"]
+                saturation_subtract = [f"{scalar}'Last - 1", f"{scalar}'First + 1", f"{scalar}'Last", f"{scalar}'First"]
+            else:
+                saturation_left = [f"{scalar}'Last", "0", f"{scalar}'Last", "0"]
+                saturation_right = ["1", "1", f"{scalar}'Last", f"{scalar}'Last"]
+                saturation_add = [f"{scalar}'Last", "1", f"{scalar}'Last", f"{scalar}'Last"]
+                saturation_subtract = [f"{scalar}'Last - 1", "0", "0", "0"]
+            repeat = lanes // 4
+            saturation_edges = [
+                f"      Saturation_Left : constant {vector} := From_Lanes ([{', '.join(saturation_left * repeat)}]);",
+                f"      Saturation_Right : constant {vector} := From_Lanes ([{', '.join(saturation_right * repeat)}]);",
+                f"      Saturating_Add_Expected : constant {lane_values(vector)} := [{', '.join(saturation_add * repeat)}];",
+                f"      Saturating_Subtract_Expected : constant {lane_values(vector)} := [{', '.join(saturation_subtract * repeat)}];",
+            ]
+        else:
+            saturation_edges = {
+              "U64x2": [
                 "      Saturation_Left : constant U64x2 := From_Lanes ([U64'Last, 0]);",
                 "      Saturation_Right : constant U64x2 := From_Lanes ([1, 1]);",
                 "      Saturating_Add_Expected : constant Lane_Values_U64x2 := [U64'Last, 1];",
@@ -2918,8 +2925,8 @@ def test_program() -> str:
                 "      Saturation_Right_2 : constant I64x2 := From_Lanes ([-1, 1]);",
                 "      Saturating_Add_Expected_2 : constant Lane_Values_I64x2 := [I64'Last - 1, I64'First + 1];",
                 "      Saturating_Subtract_Expected_2 : constant Lane_Values_I64x2 := [I64'Last, I64'First];",
-            ],
-        }.get(vector, [])
+              ],
+            }[vector]
         reduction_edges = {
             "U64x2": [
                 "      Reduction_Wrap : constant U64x2 := From_Lanes ([U64'Last, 2]);",
@@ -3141,13 +3148,12 @@ def test_program() -> str:
             lines.append(
                 f"      Check (To_Lanes (Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected and then Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, \"{vector} independent root, Scalar, and Native 32-bit partial-product boundaries\");"
             )
-        if bits >= 32:
-            lines.append(
-                f"      Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, \"{vector} independent fixed saturation boundaries\");"
-            )
+        lines.append(
+            f"      Check (To_Lanes (Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then To_Lanes (Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, \"{vector} independent fixed root, Scalar, and Native saturation boundaries\");"
+        )
         if vector == "I64x2":
             lines.append(
-                "      Check (Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2, \"I64x2 opposite fixed saturation boundaries\");"
+                "      Check (To_Lanes (Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Scalar.To_Lanes (Backends.Scalar.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Add_Expected_2 and then To_Lanes (Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2 and then Backends.Scalar.To_Lanes (Backends.Scalar.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2 and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left_2, Saturation_Right_2)) = Saturating_Subtract_Expected_2, \"I64x2 opposite fixed root, Scalar, and Native saturation boundaries\");"
             )
         if vector == "U64x2":
             lines += [
@@ -3307,7 +3313,7 @@ def test_program() -> str:
             f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (R_A, R_B), Lane) = {add_oracle} and then Backends.Native.Extract (Backends.Native.Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent root, Scalar, and Native add oracle\" & Lane'Image);",
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent root, Scalar, and Native subtract oracle\" & Lane'Image);",
             f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent root, Scalar, and Native multiply oracle\" & Lane'Image);",
-            f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent scalar and native saturation oracle\" & Lane'Image);",
+            f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} randomized independent root, Scalar, and Native saturation oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (R_A, R_B), Lane) = {and_oracle}, \"{vector} randomized independent root, Scalar, and Native AND oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (R_A, R_B), Lane) = {or_oracle}, \"{vector} randomized independent root, Scalar, and Native OR oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle}, \"{vector} randomized independent root, Scalar, and Native XOR oracle\" & Lane'Image);",

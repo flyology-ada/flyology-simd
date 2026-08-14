@@ -222,6 +222,24 @@ def integer_minmax_phrases(operation: str, vector: str) -> tuple[str, str]:
     return aarch, x86
 
 
+def saturating_arithmetic_phrases(operation: str, vector: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for saturating integer arithmetic."""
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    signed = vector.startswith("I")
+    adding = operation == "Add_Saturate"
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[bits]
+    aarch = f"one NEON {'sq' if signed else 'uq'}{'add' if adding else 'sub'} instruction over {shape} lanes"
+    if bits < 32:
+        x86 = f"one SSE2 p{'add' if adding else 'sub'}{'s' if signed else 'us'}{'b' if bits == 8 else 'w'} instruction"
+    elif signed:
+        x86 = "SSE2 sequence that derives a signed-overflow mask and selects the signed minimum or maximum"
+    elif adding:
+        x86 = "SSE2 sequence that derives a carry mask and selects the unsigned maximum"
+    else:
+        x86 = "SSE2 sequence that derives a borrow mask and selects zero"
+    return aarch, x86
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -514,6 +532,23 @@ def invalid_support(path: Path) -> list[str]:
                     block for block in blocks if f"Left, Right : {vector}" in block
                 ]
                 aarch, x86 = integer_minmax_phrases(operation, vector)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} classification, found {len(exact)}"
+                    )
+        for operation in ("Add_Saturate", "Subtract_Saturate"):
+            blocks = declaration_blocks(text, operation)
+            for vector in wrapping_vectors:
+                matching = [
+                    block for block in blocks if f"Left, Right : {vector}" in block
+                ]
+                aarch, x86 = saturating_arithmetic_phrases(operation, vector)
                 exact = [
                     block for block in matching
                     if aarch in block and x86 in block
@@ -1113,28 +1148,6 @@ def invalid_support(path: Path) -> list[str]:
                 invalid.append(
                     f"{path.relative_to(ROOT)}: incorrect exact {operation} "
                     f"{signature_part} SSE2 classification"
-                )
-        saturation_support = {
-            ("Add_Saturate", "U32x4"): "derives a carry mask and selects the unsigned maximum",
-            ("Add_Saturate", "I32x4"): "derives a signed-overflow mask and selects the signed minimum or maximum",
-            ("Add_Saturate", "U64x2"): "derives a carry mask and selects the unsigned maximum",
-            ("Add_Saturate", "I64x2"): "derives a signed-overflow mask and selects the signed minimum or maximum",
-            ("Subtract_Saturate", "U32x4"): "derives a borrow mask and selects zero",
-            ("Subtract_Saturate", "I32x4"): "derives a signed-overflow mask and selects the signed minimum or maximum",
-            ("Subtract_Saturate", "U64x2"): "derives a borrow mask and selects zero",
-            ("Subtract_Saturate", "I64x2"): "derives a signed-overflow mask and selects the signed minimum or maximum",
-        }
-        for (operation, vector), phrase in saturation_support.items():
-            blocks = [
-                block.split("function ", 1)[0].split("procedure ", 1)[0]
-                for block in text.split(f"function {operation}")[1:]
-                if vector in block.split(";", 1)[0]
-            ]
-            found = sum(phrase in block for block in blocks)
-            if len(blocks) != 1 or found != 1:
-                invalid.append(
-                    f"{path.relative_to(ROOT)}: incorrect exact {vector} "
-                    f"{operation} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
         predicate_support = {

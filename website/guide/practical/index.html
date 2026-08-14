@@ -191,7 +191,7 @@ differences:
         </section>
         <section id="integers">
           <h2>Choose integer arithmetic and bitwise operations</h2>
-          <p>Integer vector arithmetic does not use one implicit overflow policy. <a data-api="Flyology_SIMD.Add_Wrap" data-api-signature="U16x8"><code>Add_Wrap</code></a> computes modulo the lane width. <a data-api="Flyology_SIMD.Add_Saturate" data-api-signature="U16x8"><code>Add_Saturate</code></a> clamps to the lane range.</p>
+          <p>Integer vector arithmetic does not use one implicit overflow policy. <a data-api="Flyology_SIMD.Add_Wrap" data-api-signature="U16x8"><code>Add_Wrap</code></a> computes modulo the lane width. <a data-api="Flyology_SIMD.Add_Saturate" data-api-signature="U16x8"><code>Add_Saturate</code></a> clamps addition to the lane range. <a data-api="Flyology_SIMD.Subtract_Saturate" data-api-signature="U16x8"><code>Subtract_Saturate</code></a> clamps subtraction to that range.</p>
           <p>A <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> has eight unsigned 16-bit lanes. <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs the input, and <a data-api="Flyology_SIMD.Splat" data-api-signature="Value : U16) return U16x8"><code>Splat</code></a> repeats the increment.</p>
           <pre><code class="language-ada">Input : constant U16x8 :=
   From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
@@ -200,13 +200,16 @@ Increment : constant U16x8 := Splat (10);
 Added      : constant U16x8 := Add_Wrap (Input, Increment);
 Subtracted : constant U16x8 := Subtract_Wrap (Input, Increment);
 Multiplied : constant U16x8 := Multiply_Wrap (Input, Increment);
-Saturated : constant U16x8 := Add_Saturate (Input, Increment);
+Saturated_Added : constant U16x8 := Add_Saturate (Input, Increment);
+Saturated_Subtracted : constant U16x8 :=
+  Subtract_Saturate (Input, Increment);
 
 --  Added lane 0 = 4
 --  Subtracted lane 1 = 65_527
 --  Multiplied lane 0 = 65_476
---  Saturated lane 0 = 65_535</code></pre>
-          <p><a data-api="Flyology_SIMD.Subtract_Wrap" data-api-signature="U16x8"><code>Subtract_Wrap</code></a> and <a data-api="Flyology_SIMD.Multiply_Wrap" data-api-signature="U16x8"><code>Multiply_Wrap</code></a> use the same modulo-lane-width rule as <code>Add_Wrap</code>. All three wrapping forms discard bits above the lane width. The signed and unsigned families use the same explicit naming rule. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/integer_vectors.adb"><code>integer_vectors</code> example</a> asserts these four arithmetic results before printing them.</p>
+--  Saturated_Added lane 0 = 65_535
+--  Saturated_Subtracted lane 1 = 0</code></pre>
+          <p><a data-api="Flyology_SIMD.Subtract_Wrap" data-api-signature="U16x8"><code>Subtract_Wrap</code></a> and <a data-api="Flyology_SIMD.Multiply_Wrap" data-api-signature="U16x8"><code>Multiply_Wrap</code></a> use the same modulo-lane-width rule as <code>Add_Wrap</code>. All three wrapping forms discard bits above the lane width. By contrast, <code>Subtract_Saturate</code> clamps lane 1 to the unsigned lower limit instead of wrapping it to 65,527. The signed and unsigned families use the same explicit naming rule. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/integer_vectors.adb"><code>integer_vectors</code> example</a> asserts these five arithmetic results before printing them.</p>
           <p>Integer lanes also work as packed flag fields. <a data-api="Flyology_SIMD.Bitwise_And" data-api-signature="Left, Right : U16x8"><code>Bitwise_And</code></a> sets a result bit when that bit is set in both inputs. <a data-api="Flyology_SIMD.Bitwise_Or" data-api-signature="Left, Right : U16x8"><code>Bitwise_Or</code></a> sets a result bit when that bit is set in either input. <a data-api="Flyology_SIMD.Bitwise_Xor" data-api-signature="Left, Right : U16x8"><code>Bitwise_Xor</code></a> sets a result bit when that bit is set in exactly one input. To clear selected bits, apply <a data-api="Flyology_SIMD.Bitwise_Not" data-api-signature="Value : U16x8"><code>Bitwise_Not</code></a> to the clear mask, then pass that result to <code>Bitwise_And</code>:</p>
           <pre><code class="language-ada">Flags : constant U16x8 :=
   From_Lanes ([16#ABF7#, 16#1234#, 16#00AA#, 16#FFFF#,

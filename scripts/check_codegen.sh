@@ -52,6 +52,7 @@ wrapping_arithmetic_probe_object="$probe_root/wrapping_arithmetic_codegen_probe.
 lane_arrangement_probe_object="$probe_root/lane_arrangement_codegen_probe.o"
 bitwise_probe_object="$probe_root/bitwise_codegen_probe.o"
 integer_minmax_probe_object="$probe_root/integer_minmax_codegen_probe.o"
+saturating_arithmetic_probe_object="$probe_root/saturating_arithmetic_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -99,6 +100,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$integer_minmax_probe_object" \
       >"$temporary/integer-minmax-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$saturating_arithmetic_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/saturating-arithmetic-probe.txt"
+else
+    objdump -dr "$saturating_arithmetic_probe_object" \
+      >"$temporary/saturating-arithmetic-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$float_binary_probe_object" |
@@ -233,6 +241,8 @@ nm -u "$lane_arrangement_probe_object" \
 nm -u "$bitwise_probe_object" >"$temporary/bitwise-undefined.txt"
 nm -u "$integer_minmax_probe_object" \
   >"$temporary/integer-minmax-undefined.txt"
+nm -u "$saturating_arithmetic_probe_object" \
+  >"$temporary/saturating-arithmetic-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1213,6 +1223,42 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?(min|max)(__[0-9]+)?|flyolog
   "$temporary/integer-minmax-undefined.txt" \
   'portable, Scalar, Wide, or mismatched Min/Max route retained in the caller probe'
 
+saturating_arithmetic_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/saturating_arithmetic_codegen_cases.txt | wc -l | tr -d ' ')
+saturating_arithmetic_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/saturating_arithmetic_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$saturating_arithmetic_case_count" -ne 16 ] || \
+   [ "$saturating_arithmetic_unique_count" -ne 16 ]; then
+    echo 'fixed-width saturating-arithmetic manifest must contain 16 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix bits lanes signedness; do
+    caller="$temporary/saturating-arithmetic-${lane_kind}-${operation}.txt"
+    extract_symbol "saturating_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/saturating-arithmetic-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected saturating operation in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?|flyology_simd__wide__' \
+      "$caller" \
+      "portable, Scalar, Wide, or mismatched saturation route in ${lane_kind} ${operation} caller"
+done <scripts/probes/saturating_arithmetic_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(add_saturate|subtract_saturate)(__[2-8])?$' 16 \
+  "$temporary/saturating-arithmetic-undefined.txt" \
+  'all 16 selected fixed-width saturating-arithmetic operations'
+require_count 'flyology_simd__' 16 \
+  "$temporary/saturating-arithmetic-undefined.txt" \
+  'only the 16 intended saturating operations remain unresolved'
+forbid_pattern 'flyology_simd__(backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?|flyology_simd__wide__' \
+  "$temporary/saturating-arithmetic-undefined.txt" \
+  'portable, Scalar, Wide, or mismatched saturation route retained in the caller probe'
+
 lane_arrangement_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/lane_arrangement_codegen_cases.txt | wc -l | tr -d ' ')
 lane_arrangement_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -1596,6 +1642,26 @@ case "$architecture" in
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/integer_minmax_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes signedness; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/saturating-arithmetic-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
+            if [ "$signedness" = signed ]; then prefix=sq; else prefix=uq; fi
+            if [ "$operation" = add_saturate ]; then instruction=${prefix}add; else instruction=${prefix}sub; fi
+            require_count "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${instruction}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape},[[:space:]]*v1\.${shape})" 1 "$leaf" \
+              "exact NEON ${shape} ${lane_kind} ${operation}"
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/saturating_arithmetic_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -2493,6 +2559,81 @@ EOF
             forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/integer_minmax_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes signedness; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/saturating-arithmetic-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            if [ "$bits" -lt 32 ]; then
+                if [ "$operation" = add_saturate ]; then stem=padd; else stem=psub; fi
+                if [ "$signedness" = signed ]; then sign=s; else sign=us; fi
+                if [ "$bits" -eq 8 ]; then width=b; else width=w; fi
+                instruction="${stem}${sign}${width}"
+                require_count "(^|[[:space:]])${instruction}[[:space:]]+%xmm1,[[:space:]]*%xmm0" 1 "$leaf" \
+                  "exact SSE2 ${lane_kind} ${operation}"
+            else
+                if [ "$operation" = add_saturate ]; then arithmetic=padd; else arithmetic=psub; fi
+                if [ "$bits" -eq 32 ]; then arithmetic="${arithmetic}d"; else arithmetic="${arithmetic}q"; fi
+                require_count "(^|[[:space:]])${arithmetic}[[:space:]]+%xmm1,[[:space:]]*%xmm0" 1 "$leaf" \
+                  "exact SSE2 ${lane_kind} ${operation} arithmetic"
+                if [ "$bits" -eq 64 ]; then
+                    if [ "$signedness" = signed ]; then shuffle_count=2; else shuffle_count=1; fi
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*f5|245)([,[:space:]]|$)' \
+                      "$shuffle_count" "$leaf" \
+                      "64-bit lane-mask replication in ${lane_kind} ${operation}"
+                fi
+                if [ "$signedness" = unsigned ]; then
+                    if [ "$operation" = add_saturate ]; then
+                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned carry masks in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])por[[:space:]]' 3 "$leaf" "unsigned maximum selection in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "unsigned sum inversion in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pandn[[:space:]]' 0 "$leaf" "no subtract selection in ${lane_kind} ${operation}"
+                    else
+                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned borrow masks in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "unsigned borrow merge in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pxor[[:space:]]' 3 "$leaf" "unsigned borrow transforms in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" "zero-clamped selection in ${lane_kind} ${operation}"
+                    fi
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones construction in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
+                      "overflow or borrow lane expansion in ${lane_kind} ${operation}"
+                else
+                    if [ "$operation" = add_saturate ]; then xor_count=3; ones_count=2; else xor_count=2; ones_count=1; fi
+                    require_count '(^|[[:space:]])pxor[[:space:]]' "$xor_count" "$leaf" \
+                      "signed overflow transforms in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' "$ones_count" "$leaf" \
+                      "signed limit construction in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
+                      "signed overflow and limit masks in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])pandn[[:space:]]' 2 "$leaf" \
+                      "signed non-overflow selection arms in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
+                      "signed saturation merges in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 2 "$leaf" \
+                      "signed overflow and sign-mask expansion in ${lane_kind} ${operation}"
+                    if [ "$bits" -eq 32 ]; then
+                        require_count '(^|[[:space:]])pslld[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
+                          "signed minimum construction in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])psrld[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
+                          "signed maximum construction in ${lane_kind} ${operation}"
+                    else
+                        require_count '(^|[[:space:]])psllq[[:space:]].*\$(0x0*3f|63)([,[:space:]]|$)' 1 "$leaf" \
+                          "signed minimum construction in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])psrlq[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
+                          "signed maximum construction in ${lane_kind} ${operation}"
+                    fi
+                fi
+            fi
+            forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/saturating_arithmetic_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -3262,42 +3403,6 @@ __5    i32x4  u32x4  pcmpgtd none
 __6    u32x4  i32x4  pcmpgtd psrld
 __7    i64x2  u64x2  psrad none
 __8    u64x2  i64x2  psrad psrlq
-EOF
-        while read -r suffix lane operation arithmetic expand; do
-            symbol="${operation}_saturate${suffix}"
-            output="$temporary/${symbol}_${lane}.txt"
-            extract_symbol "flyology_simd__backends__native__${symbol}" \
-              "$temporary/native.txt" "$output"
-            require_pattern "(^|[[:space:]])${arithmetic}[[:space:]]" "$output" \
-              "SSE2 packed arithmetic in ${lane} ${operation}_Saturate"
-            require_pattern '(^|[[:space:]])p(and|or|xor|andn)[[:space:]]' "$output" \
-              "SSE2 overflow or borrow mask in ${lane} ${operation}_Saturate"
-            require_pattern "$expand" "$output" \
-              "SSE2 complete-lane saturation mask in ${lane} ${operation}_Saturate"
-            case "$lane" in
-                *64x2)
-                    require_pattern '(^|[[:space:]])psrad[[:space:]]' "$output" \
-                      "SSE2 replicated 64-bit saturation mask in ${lane} ${operation}_Saturate"
-                    ;;
-            esac
-            if [ "$operation" = subtract ]; then
-                require_pattern '(^|[[:space:]])pandn[[:space:]]' "$output" \
-                  "SSE2 clamped subtraction selection in ${lane} Subtract_Saturate"
-            else
-                require_pattern '(^|[[:space:]])por[[:space:]]' "$output" \
-                  "SSE2 clamped addition selection in ${lane} Add_Saturate"
-            fi
-            forbid_pattern '(^|[[:space:]])call|flyology_simd__(add|subtract)_saturate' \
-              "$output" "scalar or out-of-line helper in ${lane} ${operation}_Saturate"
-        done <<'EOF'
-__5 u32x4 add      paddd psrad
-__5 u32x4 subtract psubd psrad
-__6 i32x4 add      paddd psrad
-__6 i32x4 subtract psubd psrad
-__7 u64x2 add      paddq pshufd
-__7 u64x2 subtract psubq pshufd
-__8 i64x2 add      paddq pshufd
-__8 i64x2 subtract psubq pshufd
 EOF
         require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
         require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'

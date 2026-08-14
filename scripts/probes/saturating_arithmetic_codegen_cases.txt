@@ -1,0 +1,16 @@
+u8 add_saturate none 8 16 unsigned
+u8 subtract_saturate none 8 16 unsigned
+i8 add_saturate 2 8 16 signed
+i8 subtract_saturate 2 8 16 signed
+u16 add_saturate 3 16 8 unsigned
+u16 subtract_saturate 3 16 8 unsigned
+i16 add_saturate 4 16 8 signed
+i16 subtract_saturate 4 16 8 signed
+u32 add_saturate 5 32 4 unsigned
+u32 subtract_saturate 5 32 4 unsigned
+i32 add_saturate 6 32 4 signed
+i32 subtract_saturate 6 32 4 signed
+u64 add_saturate 7 64 2 unsigned
+u64 subtract_saturate 7 64 2 unsigned
+i64 add_saturate 8 64 2 signed
+i64 subtract_saturate 8 64 2 signed

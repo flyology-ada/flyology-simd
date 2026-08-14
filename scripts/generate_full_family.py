@@ -233,6 +233,41 @@ def integer_minmax_support(name: str, declaration: str) -> str:
         f"backend uses {x86}. A scalar build uses the portable scalar implementation."
     )
 
+
+def saturating_arithmetic_support(name: str, declaration: str) -> str:
+    """Describe one exact fixed-width saturating arithmetic overload."""
+    vector = next(
+        candidate for candidate in (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        ) if candidate in declaration
+    )
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    signed = vector.startswith("I")
+    adding = name == "Add_Saturate"
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[bits]
+    aarch = f"one NEON {'sq' if signed else 'uq'}{'add' if adding else 'sub'} instruction over {shape} lanes"
+    if bits < 32:
+        x86 = (
+            f"one SSE2 p{'add' if adding else 'sub'}"
+            f"{'s' if signed else 'us'}{'b' if bits == 8 else 'w'} instruction"
+        )
+    elif signed:
+        x86 = (
+            "an SSE2 sequence that derives a signed-overflow mask and selects "
+            "the signed minimum or maximum"
+        )
+    elif adding:
+        x86 = (
+            "an SSE2 sequence that derives a carry mask and selects the unsigned maximum"
+        )
+    else:
+        x86 = "an SSE2 sequence that derives a borrow mask and selects zero"
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
 SIGNED_UNSIGNED_CONVERSIONS = [
     ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
     ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
@@ -878,25 +913,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"
     elif name in {"Add_Saturate", "Subtract_Saturate"}:
-        verb = "adds" if name == "Add_Saturate" else "subtracts"
-        aarch = f"a dedicated NEON instruction that {verb} lanes with saturation"
-        if "8x16" in declaration or "16x8" in declaration:
-            x86 = f"a dedicated SSE2 instruction that {verb} lanes with saturation"
-        elif "I32x4" in declaration or "I64x2" in declaration:
-            x86 = (
-                "a dedicated SSE2 sequence that derives a signed-overflow mask "
-                "and selects the signed minimum or maximum"
-            )
-        elif name == "Add_Saturate":
-            x86 = (
-                "a dedicated SSE2 sequence that derives a carry mask and "
-                "selects the unsigned maximum"
-            )
-        else:
-            x86 = (
-                "a dedicated SSE2 sequence that derives a borrow mask and "
-                "selects zero"
-            )
+        return saturating_arithmetic_support(name, declaration)
     elif name == "Reduce_Add_Wrap":
         x86_add = {
             "U8x16": "paddb instruction in a four-stage fixed-shuffle tree",
