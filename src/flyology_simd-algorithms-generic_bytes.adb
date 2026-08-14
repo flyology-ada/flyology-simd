@@ -230,6 +230,31 @@ package body Flyology_SIMD.Algorithms.Generic_Bytes is
       return Result;
    end Count_In_Range;
 
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
+      Offset : Natural := 0;
+      Addend : constant U8x16 := Backend_Splat (Value);
+   begin
+      while Data'Length - Offset >= 16 loop
+         Backend_Store_Unaligned
+           (Data, Data'First + Offset,
+            Backend_Add_Saturate
+              (Backend_Load_Unaligned (Data, Data'First + Offset), Addend));
+         Offset := Offset + 16;
+      end loop;
+      while Offset < Data'Length loop
+         declare
+            Index : constant Natural := Data'First + Offset;
+         begin
+            if Data (Index) > U8'Last - Value then
+               Data (Index) := U8'Last;
+            else
+               Data (Index) := Data (Index) + Value;
+            end if;
+         end;
+         Offset := Offset + 1;
+      end loop;
+   end Add_Saturate;
+
    function Is_ASCII (Data : Byte_Array) return Boolean is
       Offset    : Natural := 0;
       High_Bit  : constant U8x16 := Backend_Splat (16#80#);

@@ -109,6 +109,10 @@ is
    --  @param Low The inclusive lower byte bound.
    --  @param High The inclusive upper byte bound.
    --  @return The number of elements in the interval.
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8);
+   --  Add one byte to every element with unsigned saturation.
+   --  @param Data The complete byte buffer to transform in place.
+   --  @param Value The unsigned byte addend broadcast to every element.
    function Is_ASCII (Data : Byte_Array) return Boolean;
    --  Report whether every byte is in the 7-bit ASCII range.
    --  @param Data The complete byte array to validate.

@@ -11,5 +11,7 @@ package Flyology_SIMD.Algorithms.Native is new
      Backend_Greater_Equal  => Flyology_SIMD.Backends.Native.Greater_Equal,
      Backend_Mask_And       => Flyology_SIMD.Backends.Native.Mask_And,
      Backend_To_Bit_Mask    => Flyology_SIMD.Backends.Native.To_Bit_Mask,
-     Backend_Load_Unaligned => Flyology_SIMD.Backends.Native.Load_Unaligned);
+     Backend_Load_Unaligned => Flyology_SIMD.Backends.Native.Load_Unaligned,
+     Backend_Store_Unaligned => Flyology_SIMD.Backends.Native.Store_Unaligned,
+     Backend_Add_Saturate    => Flyology_SIMD.Backends.Native.Add_Saturate);
 --  Complete-buffer byte algorithms instantiated with the compiled backend.

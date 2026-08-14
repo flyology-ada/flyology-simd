@@ -585,6 +585,24 @@ forbid_pattern \
   "$temporary/floating-algorithm-undefined.txt" \
   'portable, scalar, or runtime route in the native floating loops'
 
+extract_symbol 'flyology_simd__algorithms__native__add_saturate' \
+  "$temporary/algorithm.txt" "$temporary/byte-add-saturate.txt"
+require_pattern 'flyology_simd__backends__native__splat([^_]|$)|dup\.16b|pshufd' \
+  "$temporary/byte-add-saturate.txt" \
+  'selected or inlined addend splat in Native byte Add_Saturate'
+require_pattern 'flyology_simd__backends__native__load_unaligned([^_]|$)|ldr[[:space:]]+q[0-9]+|movdqu' \
+  "$temporary/byte-add-saturate.txt" \
+  'selected or inlined load in Native byte Add_Saturate'
+require_count 'flyology_simd__backends__native__add_saturate([^_]|$)' 1 \
+  "$temporary/byte-add-saturate.txt" \
+  'one selected saturating add in Native byte Add_Saturate'
+require_count 'flyology_simd__backends__native__store_unaligned([^_]|$)' 1 \
+  "$temporary/byte-add-saturate.txt" \
+  'one selected store in Native byte Add_Saturate'
+forbid_pattern 'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__add_saturate' \
+  "$temporary/byte-add-saturate.txt" \
+  'portable, Scalar, or runtime route in Native byte Add_Saturate'
+
 u8_value_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/u8_value_codegen_cases.txt | wc -l | tr -d ' ')
 u8_value_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -5151,6 +5169,17 @@ EOF
             require_pattern 'vzeroupper' \
               "$temporary/avx2-count-in-range.txt" \
               'AVX-SSE transition cleanup in range count'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__add_saturate' \
+              "$temporary/avx2.txt" "$temporary/avx2-add-saturate.txt"
+            require_pattern 'vpbroadcastb' "$temporary/avx2-add-saturate.txt" \
+              'AVX2-width byte Add_Saturate addend broadcast'
+            require_count 'vmovdqu' 2 "$temporary/avx2-add-saturate.txt" \
+              'one AVX2-width byte Add_Saturate load and store'
+            require_pattern 'vpaddusb' "$temporary/avx2-add-saturate.txt" \
+              'AVX2 unsigned saturating byte addition'
+            require_pattern 'vzeroupper' "$temporary/avx2-add-saturate.txt" \
+              'AVX-SSE transition cleanup in byte Add_Saturate'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__sum' \
               "$temporary/avx2.txt" "$temporary/avx2-f32-sum.txt"

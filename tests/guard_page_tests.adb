@@ -313,6 +313,18 @@ begin
                     (Found => True, Index => Data'Last),
                   "AVX2 protected-tail final-match length" & Length'Image);
             end if;
+            Data := [others => 250];
+            Algorithms.Runtime.Add_Saturate (Data, 10);
+            Check
+              (Data = [Data'Range => 255],
+               "runtime Add_Saturate protected tail length" & Length'Image);
+            if Features.Available (Features.AVX2) then
+               Data := [others => 250];
+               Algorithms.AVX2.Add_Saturate (Data, 10);
+               Check
+                 (Data = [Data'Range => 255],
+                  "AVX2 Add_Saturate protected tail length" & Length'Image);
+            end if;
          end;
       end loop;
    end;

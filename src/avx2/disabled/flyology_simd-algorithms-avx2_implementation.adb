@@ -57,6 +57,10 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    function Count_In_Range
      (Data : Byte_Array; Low, High : U8) return Natural is
      (Algorithms.Scalar.Count_In_Range (Data, Low, High));
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
+   begin
+      Algorithms.Scalar.Add_Saturate (Data, Value);
+   end Add_Saturate;
    function Is_ASCII (Data : Byte_Array) return Boolean is
      (Algorithms.Scalar.Is_ASCII (Data));
 end Flyology_SIMD.Algorithms.AVX2_Implementation;

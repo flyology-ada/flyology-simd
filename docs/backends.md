@@ -879,6 +879,12 @@ The AVX2 loop uses `vpmaxub`, `vpminub`, equality classification, `vpand`, and
 interval endpoints over a buffer containing every byte value, including every
 inverted interval. Protected-page tests cover every tail length.
 
+`Add_Saturate` composes selected 128-bit load, unsigned byte `Add_Saturate`,
+and store operations in the Native loop. The optional AVX2 loop uses
+`vpbroadcastb`, `vpaddusb`, and one 32-byte load/store pair. Exhaustive tests
+cover every input byte for every possible broadcast addend; protected-page
+tests cover lengths 1 through 160.
+
 The binary32 and binary64 `Scale`, `Clamp`, `AXPY`, `Sum`, `Min_Number`,
 `Max_Number`, and `Dot_Product` algorithms have
 scalar and Native generic instances. Runtime dispatch selects one

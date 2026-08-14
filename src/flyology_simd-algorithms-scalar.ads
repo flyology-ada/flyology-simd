@@ -11,5 +11,7 @@ package Flyology_SIMD.Algorithms.Scalar is new
      Backend_Greater_Equal  => Flyology_SIMD.Backends.Scalar.Greater_Equal,
      Backend_Mask_And       => Flyology_SIMD.Backends.Scalar.Mask_And,
      Backend_To_Bit_Mask    => Flyology_SIMD.Backends.Scalar.To_Bit_Mask,
-     Backend_Load_Unaligned => Flyology_SIMD.Backends.Scalar.Load_Unaligned);
+     Backend_Load_Unaligned => Flyology_SIMD.Backends.Scalar.Load_Unaligned,
+     Backend_Store_Unaligned => Flyology_SIMD.Backends.Scalar.Store_Unaligned,
+     Backend_Add_Saturate    => Flyology_SIMD.Backends.Scalar.Add_Saturate);
 --  Complete-buffer byte algorithms instantiated with the scalar backend.

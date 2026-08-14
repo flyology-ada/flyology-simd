@@ -327,6 +327,22 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Count_In_Range;
 
+   procedure Add_Saturate
+     (Data : in out Byte_Array;
+      Value : U8;
+      Backend : Features.Backend_Kind := Features.Best_Available) is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            Algorithms.Scalar.Add_Saturate (Data, Value);
+         when Features.NEON | Features.SSE2 =>
+            Algorithms.Native.Add_Saturate (Data, Value);
+         when Features.AVX2 =>
+            Algorithms.AVX2.Add_Saturate (Data, Value);
+      end case;
+   end Add_Saturate;
+
    function Is_ASCII
      (Data : Byte_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

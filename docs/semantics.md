@@ -221,6 +221,11 @@ interval `Low .. High`. If `Low` is greater than `High`, the interval is empty
 and the result is zero. Every backend scans only complete vectors and the
 remaining scalar tail.
 
+`Algorithms.Generic_Bytes.Add_Saturate` and its static and runtime instances
+replace every byte with `min (Byte + Value, 255)`. The scalar addend is
+broadcast once per complete-buffer call. Empty buffers are unchanged and no
+tail access extends beyond the array.
+
 ## Memory
 
 All ordinary memory operations use a typed lane array plus an Ada array index.
@@ -237,7 +242,8 @@ Partial operations never perform a full vector access followed by masking.
 Protected-page tests put each valid byte tail directly before an inaccessible
 page. They exercise scalar and native partial operations for counts 0 through
 16. The same tests put binary32 and binary64 arrays before the protected page
-and run runtime-dispatched scaling, clamping, AXPY, sums, and dot products across full blocks
+and run runtime-dispatched scaling, clamping, AXPY, sums, number extrema, and
+dot products across full blocks
 and every tail shape.
 
 Overlap is ordinary sequential Ada assignment: a store consumes its vector

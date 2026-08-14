@@ -126,6 +126,12 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Count_In_Range (Data, Low, High);
    end Count_In_Range;
 
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
+   begin
+      Features.Require (Features.AVX2);
+      AVX2_Implementation.Add_Saturate (Data, Value);
+   end Add_Saturate;
+
    function Is_ASCII (Data : Byte_Array) return Boolean is
    begin
       Features.Require (Features.AVX2);

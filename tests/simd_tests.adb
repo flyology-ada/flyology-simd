@@ -1662,6 +1662,96 @@ procedure SIMD_Tests is
       end if;
    end Test_Algorithms;
 
+   procedure Test_Add_Saturate_For_Length (Length : Natural) is
+      Original : Byte_Array (37 .. 36 + Length);
+      Expected : Byte_Array (Original'Range);
+      Addend   : constant U8 := 173;
+   begin
+      for Index in Original'Range loop
+         Original (Index) := U8 ((11 * (Index - Original'First) + 3) mod 256);
+      end loop;
+      for Index in Expected'Range loop
+         Expected (Index) := Reference_Add_Saturate (Original (Index), Addend);
+      end loop;
+      declare
+         Scalar  : Byte_Array := Original;
+         Native  : Byte_Array := Original;
+         Runtime : Byte_Array := Original;
+      begin
+         Algorithms.Scalar.Add_Saturate (Scalar, Addend);
+         Algorithms.Native.Add_Saturate (Native, Addend);
+         Algorithms.Runtime.Add_Saturate (Runtime, Addend);
+         Check (Scalar = Expected,
+                "scalar byte Add_Saturate length" & Length'Image);
+         Check (Native = Expected,
+                "native byte Add_Saturate length" & Length'Image);
+         Check (Runtime = Expected,
+                "runtime byte Add_Saturate length" & Length'Image);
+      end;
+      for Backend in Features.Backend_Kind loop
+         if Features.Available (Backend) then
+            declare
+               Selected : Byte_Array := Original;
+            begin
+               Algorithms.Runtime.Add_Saturate (Selected, Addend, Backend);
+               Check
+                 (Selected = Expected,
+                  "selected byte Add_Saturate " & Features.Name (Backend) &
+                    " length" & Length'Image);
+            end;
+         end if;
+      end loop;
+      if Features.Available (Features.AVX2) then
+         declare
+            AVX2_Data : Byte_Array := Original;
+         begin
+            Algorithms.AVX2.Add_Saturate (AVX2_Data, Addend);
+            Check (AVX2_Data = Expected,
+                   "direct AVX2 byte Add_Saturate length" & Length'Image);
+         end;
+      end if;
+   end Test_Add_Saturate_For_Length;
+
+   procedure Test_Add_Saturate is
+      Original : constant Byte_Array (0 .. 255) :=
+        [for Index in 0 .. 255 => U8 (Index)];
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_Add_Saturate_For_Length (Length);
+      end loop;
+      Test_Add_Saturate_For_Length (4_096);
+      for Addend in U8 loop
+         declare
+            Expected : Byte_Array (Original'Range);
+            Scalar   : Byte_Array := Original;
+            Native   : Byte_Array := Original;
+            Runtime  : Byte_Array := Original;
+         begin
+            for Index in Original'Range loop
+               Expected (Index) :=
+                 Reference_Add_Saturate (Original (Index), Addend);
+            end loop;
+            Algorithms.Scalar.Add_Saturate (Scalar, Addend);
+            Algorithms.Native.Add_Saturate (Native, Addend);
+            Algorithms.Runtime.Add_Saturate (Runtime, Addend);
+            Check
+              (Scalar = Expected and then Native = Expected
+               and then Runtime = Expected,
+               "exhaustive byte Add_Saturate addend" & Addend'Image);
+            if Features.Available (Features.AVX2) then
+               declare
+                  AVX2_Data : Byte_Array := Original;
+               begin
+                  Algorithms.AVX2.Add_Saturate (AVX2_Data, Addend);
+                  Check (AVX2_Data = Expected,
+                         "exhaustive AVX2 byte Add_Saturate addend" &
+                           Addend'Image);
+               end;
+            end if;
+         end;
+      end loop;
+   end Test_Add_Saturate;
+
    function Reference_Dot_Product
      (Left, Right : F32_Array) return F32
    is
@@ -2478,6 +2568,7 @@ procedure SIMD_Tests is
       F64_Data : constant F64_Array (1 .. 1) := [1 => 1.0];
       F32_Work : F32_Array := F32_Data;
       F64_Work : F64_Array := F64_Data;
+      Byte_Work : Byte_Array := Data;
       Result : Natural;
       Dot : F32;
       Dot_64 : F64;
@@ -2617,6 +2708,19 @@ procedure SIMD_Tests is
             when Features.Backend_Unavailable => null;
          end;
          begin
+            Algorithms.Runtime.Add_Saturate
+              (Byte_Work, 1, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 Add_Saturate accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.Add_Saturate (Byte_Work, 1);
+            Check (False, "unavailable direct AVX2 Add_Saturate accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
             Search := Algorithms.Runtime.Find_First_Of
               (Data, Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 find-first-of accepted" &
@@ -2742,6 +2846,7 @@ begin
    Test_Memory;
    Test_Native_Differential;
    Test_Algorithms;
+   Test_Add_Saturate;
    Test_Scale;
    Test_Clamp;
    Test_AXPY;

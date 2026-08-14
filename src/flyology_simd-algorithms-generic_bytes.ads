@@ -10,6 +10,8 @@ with Interfaces;
 --  @formal Backend_Mask_And Apply Boolean AND to two byte masks.
 --  @formal Backend_To_Bit_Mask Convert comparison truths to compact bits.
 --  @formal Backend_Load_Unaligned Load 16 bytes without an alignment rule.
+--  @formal Backend_Store_Unaligned Store 16 bytes without an alignment rule.
+--  @formal Backend_Add_Saturate Add unsigned byte lanes with saturation.
 generic
    with function Backend_Splat (Value : U8) return U8x16;
    with function Backend_Bitwise_And (Left, Right : U8x16) return U8x16;
@@ -24,6 +26,10 @@ generic
      (Mask : Mask_8x16) return Interfaces.Unsigned_16;
    with function Backend_Load_Unaligned
      (Data : Byte_Array; Start : Natural) return U8x16;
+   with procedure Backend_Store_Unaligned
+     (Data : in out Byte_Array; Start : Natural; Value : U8x16);
+   with function Backend_Add_Saturate
+     (Left, Right : U8x16) return U8x16;
 package Flyology_SIMD.Algorithms.Generic_Bytes
   with Preelaborate
 is
@@ -67,6 +73,11 @@ is
    --  @param Low The inclusive lower byte bound.
    --  @param High The inclusive upper byte bound.
    --  @return The number of elements in the interval.
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8);
+   --  Add Value to every byte in place, clamping each result to 255. Empty
+   --  buffers are unchanged.
+   --  @param Data The complete byte buffer to transform in place.
+   --  @param Value The unsigned byte addend broadcast to every element.
    function Is_ASCII (Data : Byte_Array) return Boolean;
    --  Report whether every byte is in the 7-bit ASCII range.
    --  @param Data The complete byte array to validate.

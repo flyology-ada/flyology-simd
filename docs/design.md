@@ -313,6 +313,10 @@ before counting their compact bits. The optional AVX2 object expresses the
 same interval through unsigned byte minimum and maximum classification in an
 isolated 32-byte loop.
 
+`Add_Saturate` broadcasts one byte and applies the selected unsigned
+saturating-add primitive per 16-byte Native block. Its isolated AVX2 loop uses
+`vpbroadcastb` and `vpaddusb` for 32-byte blocks before the exact scalar tail.
+
 Feature information is immutable and computed once during package elaboration,
 without a racy writable cache. Runtime selection occurs once per complete
 buffer operation, never per vector.

@@ -773,6 +773,48 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Count_In_Range;
 
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
+      Value_Copy   : aliased U8 := Value;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Data'Length / 32;
+      Cursor       : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Cursor := Data (Data'First)'Address;
+         Asm
+           (Template =>
+              "vpbroadcastb (%2), %%ymm1" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovdqu (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vpaddusb %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovdqu %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "subl $1, %1" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs => System.Address'Asm_Input ("r", Value_Copy'Address),
+            Clobber => "ymm0,ymm1,cc,memory",
+            Volatile => True);
+         Offset := (Data'Length / 32) * 32;
+      end if;
+
+      while Offset < Data'Length loop
+         declare
+            Index : constant Natural := Data'First + Offset;
+         begin
+            if Data (Index) > U8'Last - Value then
+               Data (Index) := U8'Last;
+            else
+               Data (Index) := Data (Index) + Value;
+            end if;
+         end;
+         Offset := Offset + 1;
+      end loop;
+   end Add_Saturate;
+
    function Is_ASCII (Data : Byte_Array) return Boolean is
       Offset : Natural := 0;
    begin

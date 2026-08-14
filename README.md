@@ -24,7 +24,8 @@ stable mask compression and expansion. `Scale`, `Clamp`, `AXPY`, `Sum`,
 `Min_Number`, `Max_Number`, and `Dot_Product` provide runtime-dispatched
 binary32 and binary64 complete-array algorithms.
 `Find_First`, `Find_First_Of`,
-`Find_First_Difference`, `Equal`, `Count`, `Count_In_Range`, and `Is_ASCII`
+`Find_First_Difference`, `Equal`, `Count`, `Count_In_Range`, `Add_Saturate`,
+and `Is_ASCII`
 provide whole-buffer byte algorithms. `Find_First_Of` keeps loading, small-set classification, mask
 extraction, and first-match selection inside one complete-buffer call.
 
@@ -208,7 +209,8 @@ The complete artifact is written to the ignored `build/site/` directory.
   depend on this order.
 - `Algorithms.Generic_Bytes` provides **compile-time backend selection**.  The
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
-  whole loops to compose against a known backend.
+  whole loops to compose against a known backend, including an in-place
+  unsigned saturating byte add.
 - `Algorithms.Generic_Floating` provides the same static composition boundary
   for binary32 and binary64 scaling, clamping, AXPY, sums, number extrema,
   and dot products. The supplied
