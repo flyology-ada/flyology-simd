@@ -4,6 +4,7 @@
   --simd-lime: oklch(78% 0.16 125);
   --simd-graphite: oklch(22% 0.035 250);
   --simd-cream: oklch(96% 0.025 85);
+  --simd-code-ink: oklch(91% 0.02 270);
 }
 
 :root[data-theme="dark"] {
@@ -405,7 +406,7 @@
   border: 1px solid var(--code-line);
   border-radius: var(--radius-sm);
   background: var(--code-bg);
-  color: var(--inverse);
+  color: var(--simd-code-ink);
   font-size: 0.86rem;
 }
 
