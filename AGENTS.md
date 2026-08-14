@@ -6,3 +6,21 @@
   `System.Machine_Code` assembly leaf over an out-of-line C wrapper.  Keep
   semantics and validation in Ada, differentially test the leaf against the
   scalar backend, and inspect its generated code.
+
+## Releases
+
+- Publish `flyology_simd` through an immutable annotated tag named
+  `flyology_simd/v<version>`, for example `flyology_simd/v0.1.0`.
+- Before tagging, set the root `alire.toml` to the exact stable version,
+  replace inappropriate `-dev` dependency constraints with stable constraints,
+  and run the required checks plus `alr show`. The manifest must declare
+  `name = "flyology_simd"` and the same version as the tag.
+- Create and push the tag only after committing the release-ready manifest:
+
+  ```sh
+  git tag -a flyology_simd/v<version> -m "Release flyology_simd <version>"
+  git push origin refs/tags/flyology_simd/v<version>
+  ```
+
+- Never move, replace, or reuse a published release tag. Put the next
+  development-version change in a later commit.
