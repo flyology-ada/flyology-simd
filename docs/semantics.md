@@ -180,6 +180,14 @@ an exact scalar fallback with the same semantics. Every backend scans only
 complete vectors and then the remaining scalar tail, so it does not read past
 `Data'Last`.
 
+`Find_First_Difference (Left, Right)` requires identical array bounds and
+returns the lowest Ada index at which corresponding bytes differ. Equal arrays,
+including two empty arrays with matching bounds, return
+`(Found => False, Index => 0)`. `Equal (Left, Right)` has the same bounds
+requirement and is true exactly when `Find_First_Difference` reports no
+difference. Every backend reads only complete vectors and the remaining scalar
+tail from each input.
+
 ## Memory
 
 All ordinary memory operations use a typed lane array plus an Ada array index.

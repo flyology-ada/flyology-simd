@@ -14,6 +14,19 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Dot_Product (Left, Right);
    end Dot_Product;
 
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Find_First_Difference (Left, Right);
+   end Find_First_Difference;
+
+   function Equal (Left, Right : Byte_Array) return Boolean is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Equal (Left, Right);
+   end Equal;
+
    function Find_First
      (Data : Byte_Array; Needle : U8) return Search_Result is
    begin

@@ -6,6 +6,11 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
      (Algorithms.Scalar_Floating.Dot_Product (Left, Right));
    function Dot_Product (Left, Right : F64_Array) return F64 is
      (Algorithms.Scalar_Floating.Dot_Product (Left, Right));
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result is
+     (Algorithms.Scalar.Find_First_Difference (Left, Right));
+   function Equal (Left, Right : Byte_Array) return Boolean is
+     (Algorithms.Scalar.Equal (Left, Right));
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result is
      (Algorithms.Scalar.Find_First (Data, Needle));
    function Find_First_Of

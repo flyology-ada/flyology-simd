@@ -51,7 +51,7 @@ Native : constant F32 :=
   Flyology_SIMD.Algorithms.Runtime.Dot_Product (Left, Right);</code></pre>
           <p>The binary32 and binary64 overloads require arrays with matching bounds. Binary32 uses four accumulator lane groups. Binary64 uses two groups. Both reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
           <p>An AVX2 selection loads and multiplies eight binary32 or four binary64 elements at a time, then adds the two 128-bit halves to one accumulator in source order. This route retains the same four-lane or two-lane accumulation order as the other runtime backends.</p>
-          <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
+          <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Difference"><code>Find_First_Difference</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Equal"><code>Equal</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
           <pre><code class="language-ada">Matches : constant Natural :=
   Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>
           <p>The runtime package selects one safe implementation before it scans the complete byte array. No feature test runs for each vector operation.</p>
@@ -60,6 +60,10 @@ Native : constant F32 :=
 First      : constant Algorithms.Search_Result :=
   Flyology_SIMD.Algorithms.Runtime.Find_First_Of
     (Data, Separators);</code></pre>
+          <p><code>Find_First_Difference</code> and <code>Equal</code> compare arrays with identical Ada bounds. The first operation returns the lowest differing index, while equal arrays return <code>(Found =&gt; False, Index =&gt; 0)</code>. The Boolean operation is true exactly in that no-difference case.</p>
+          <pre><code class="language-ada">First_Change : constant Algorithms.Search_Result :=
+  Flyology_SIMD.Algorithms.Runtime.Find_First_Difference
+    (Previous, Current);</code></pre>
           <p>The <a href="../../journal/2026-08-small-set-scanning/">AArch64 small-set scan journal</a> records the representation decision, generated-code checks, and measured crossover on one machine.</p>
         </section>
         <section id="features">

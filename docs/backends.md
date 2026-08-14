@@ -863,6 +863,15 @@ tail. Its gate requires `vpcmpeqb`, `vpor`, `vpmovmskb`, `bsf`, and
 `vzeroupper`. Protected-page tests place lengths 1 through 160 immediately
 before an inaccessible page and cover both no-match and final-match scans.
 
+`Find_First_Difference` and `Equal` compare byte arrays with identical bounds.
+The scalar and Native instances use one 16-byte comparison loop; the optional
+AVX2 object uses one 32-byte comparison loop. Both finish with an exact scalar
+tail and return the left array's Ada index for the first difference. Generated
+code checks require two vector loads, byte equality, complemented mask
+extraction, and no relocation to a per-vector comparison primitive. Tests cover
+every possible mismatch offset and put both operand orders against an
+inaccessible page.
+
 The binary32 and binary64 `Dot_Product` algorithms have scalar and Native
 generic instances. Runtime dispatch selects one implementation before the
 complete-array loop. The optional AVX2 object loads and multiplies eight

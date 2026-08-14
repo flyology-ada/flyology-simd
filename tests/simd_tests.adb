@@ -1372,6 +1372,7 @@ procedure SIMD_Tests is
 
    procedure Test_Algorithms_For_Length (Length : Natural) is
       Data : Byte_Array (1 .. Length);
+      Other : Byte_Array (1 .. Length);
       Reference_Find, Native_Find, Runtime_Find : Algorithms.Search_Result;
       Needles : constant Byte_Array := [0, 42, 128, 255];
       Reference_Of : Algorithms.Search_Result := (Found => False, Index => 0);
@@ -1381,6 +1382,40 @@ procedure SIMD_Tests is
       end loop;
       if Length > 0 then
          Data (Data'Last) := 42;
+      end if;
+      Other := Data;
+      Check
+        (Algorithms.Scalar.Find_First_Difference (Data, Other) =
+           (Found => False, Index => 0)
+         and then Algorithms.Scalar.Equal (Data, Other),
+         "scalar equal buffers length" & Length'Image);
+      Check
+        (Algorithms.Native.Find_First_Difference (Data, Other) =
+           (Found => False, Index => 0)
+         and then Algorithms.Native.Equal (Data, Other),
+         "native equal buffers length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Find_First_Difference (Data, Other) =
+           (Found => False, Index => 0)
+         and then Algorithms.Runtime.Equal (Data, Other),
+         "runtime equal buffers length" & Length'Image);
+      if Length > 0 then
+         Other (Other'Last) := Other (Other'Last) xor 1;
+         Check
+           (Algorithms.Scalar.Find_First_Difference (Data, Other) =
+              (Found => True, Index => Data'Last)
+            and then not Algorithms.Scalar.Equal (Data, Other),
+            "scalar final difference length" & Length'Image);
+         Check
+           (Algorithms.Native.Find_First_Difference (Data, Other) =
+              (Found => True, Index => Data'Last)
+            and then not Algorithms.Native.Equal (Data, Other),
+            "native final difference length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Find_First_Difference (Data, Other) =
+              (Found => True, Index => Data'Last)
+            and then not Algorithms.Runtime.Equal (Data, Other),
+            "runtime final difference length" & Length'Image);
       end if;
       Reference_Find := Algorithms.Scalar.Find_First (Data, 42);
       Native_Find := Algorithms.Native.Find_First (Data, 42);
@@ -1418,6 +1453,12 @@ procedure SIMD_Tests is
       Check (Algorithms.Runtime.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
              "runtime ASCII length" & Length'Image);
       if Features.Available (Features.AVX2) then
+         Check
+           (Algorithms.AVX2.Find_First_Difference (Data, Other) =
+              Algorithms.Scalar.Find_First_Difference (Data, Other)
+            and then Algorithms.AVX2.Equal (Data, Other) =
+              Algorithms.Scalar.Equal (Data, Other),
+            "AVX2 buffer comparison length" & Length'Image);
          Check (Algorithms.AVX2.Find_First (Data, 42) = Reference_Find,
                 "AVX2 find length" & Length'Image);
          Check
@@ -1489,6 +1530,33 @@ procedure SIMD_Tests is
                  (Algorithms.AVX2.Find_First_Of (Offset_Data, Four_Set) =
                     (Found => True, Index => Position),
                   "AVX2 find-first-of offset" & Position'Image);
+            end if;
+         end loop;
+      end;
+      declare
+         Left  : constant Byte_Array (37 .. 196) := [others => 65];
+         Right : Byte_Array (37 .. 196) := [others => 65];
+      begin
+         for Position in Left'Range loop
+            Right := [others => 65];
+            Right (Position) := 66;
+            Check
+              (Algorithms.Scalar.Find_First_Difference (Left, Right) =
+                 (Found => True, Index => Position),
+               "scalar first difference offset" & Position'Image);
+            Check
+              (Algorithms.Native.Find_First_Difference (Left, Right) =
+                 (Found => True, Index => Position),
+               "native first difference offset" & Position'Image);
+            Check
+              (Algorithms.Runtime.Find_First_Difference (Left, Right) =
+                 (Found => True, Index => Position),
+               "runtime first difference offset" & Position'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Difference (Left, Right) =
+                    (Found => True, Index => Position),
+                  "AVX2 first difference offset" & Position'Image);
             end if;
          end loop;
       end;
@@ -1657,6 +1725,7 @@ procedure SIMD_Tests is
       Dot : F32;
       Dot_64 : F64;
       Search : Algorithms.Search_Result;
+      Same : Boolean;
    begin
       if not Features.Available (Features.AVX2) then
          begin
@@ -1683,6 +1752,32 @@ procedure SIMD_Tests is
             Search := Algorithms.AVX2.Find_First_Of (Data, Data);
             Check (False, "unavailable direct AVX2 find-first-of accepted" &
                    Search.Index'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Search := Algorithms.Runtime.Find_First_Difference
+              (Data, Data, Features.AVX2);
+            Check
+              (False,
+               "unavailable runtime AVX2 difference accepted" &
+                 Search.Index'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Search := Algorithms.AVX2.Find_First_Difference (Data, Data);
+            Check
+              (False,
+               "unavailable direct AVX2 difference accepted" &
+                 Search.Index'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Same := Algorithms.Runtime.Equal (Data, Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 equal accepted" &
+                   Same'Image);
          exception
             when Features.Backend_Unavailable => null;
          end;

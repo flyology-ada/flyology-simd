@@ -117,6 +117,30 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Dot_Product;
 
+   function Difference_Mask_32
+     (Left, Right : Byte_Array; Start : Natural)
+      return Interfaces.Unsigned_32
+   is
+      Result : Interfaces.Unsigned_32;
+   begin
+      Asm
+        (Template =>
+           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+           "vpmovmskb %%ymm0, %0" & ASCII.LF & ASCII.HT &
+           "notl %0" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs =>
+           [System.Address'Asm_Input ("r", Left (Start)'Address),
+            System.Address'Asm_Input ("r", Right (Start)'Address)],
+         Clobber => "ymm0,ymm1,memory",
+         Volatile => True);
+      return Result;
+   end Difference_Mask_32;
+   pragma Inline_Always (Difference_Mask_32);
+
    function Equal_Mask_32
      (Data : Byte_Array; Start : Natural; Needle : U8)
       return Interfaces.Unsigned_32
@@ -272,6 +296,33 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Natural (Result);
    end First_Set_Bit;
    pragma Inline_Always (First_Set_Bit);
+
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result
+   is
+      Offset : Natural := 0;
+      Bits   : Interfaces.Unsigned_32;
+   begin
+      while Left'Length - Offset >= 32 loop
+         Bits := Difference_Mask_32 (Left, Right, Left'First + Offset);
+         if Bits /= 0 then
+            return
+              (Found => True,
+               Index => Left'First + Offset + First_Set_Bit (Bits));
+         end if;
+         Offset := Offset + 32;
+      end loop;
+      while Offset < Left'Length loop
+         if Left (Left'First + Offset) /= Right (Right'First + Offset) then
+            return (Found => True, Index => Left'First + Offset);
+         end if;
+         Offset := Offset + 1;
+      end loop;
+      return (Found => False, Index => 0);
+   end Find_First_Difference;
+
+   function Equal (Left, Right : Byte_Array) return Boolean is
+     (not Find_First_Difference (Left, Right).Found);
 
    function Popcount (Value : Interfaces.Unsigned_32) return Natural is
       Bits : Interfaces.Unsigned_32 := Value;

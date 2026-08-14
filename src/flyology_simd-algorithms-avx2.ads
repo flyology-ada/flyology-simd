@@ -14,6 +14,21 @@ package Flyology_SIMD.Algorithms.AVX2 is
    --  @param Left The left complete array.
    --  @param Right The right complete array with matching bounds.
    --  @return The lane-grouped sum of corresponding products.
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the first differing Ada index with the optional AVX2 algorithm
+   --  after checking CPU and OS support.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @return A found flag and the first differing Ada index.
+   function Equal (Left, Right : Byte_Array) return Boolean
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Compare two complete byte buffers with the optional AVX2 algorithm
+   --  after checking CPU and OS support.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @return True when every corresponding byte is equal.
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result;
    --  Return the first matching Ada index with the optional AVX2 algorithm.
    --  @param Data The complete byte array to search.

@@ -17,6 +17,19 @@ generic
 package Flyology_SIMD.Algorithms.Generic_Bytes
   with Preelaborate
 is
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the first Ada index at which the complete buffers differ.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @return A found flag and the first differing Ada index.
+   function Equal (Left, Right : Byte_Array) return Boolean
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Report whether two complete byte arrays have identical elements.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @return True when every corresponding byte is equal.
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result;
    --  Return the first Ada index at which Needle occurs.
    --  @param Data The complete byte array to search.

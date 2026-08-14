@@ -28,6 +28,27 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Backend The compiled and available backend to use.
    --  @return The lane-grouped sum of corresponding products.
 
+   function Find_First_Difference
+     (Left, Right : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Search_Result
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Find the first differing byte after one runtime backend selection.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @param Backend The compiled and available backend to use.
+   --  @return A found flag and the first differing Ada index.
+   function Equal
+     (Left, Right : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Boolean
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Compare two complete byte buffers after one runtime backend selection.
+   --  @param Left The left complete byte array.
+   --  @param Right The right complete byte array with matching bounds.
+   --  @param Backend The compiled and available backend to use.
+   --  @return True when every corresponding byte is equal.
+
    function Find_First
      (Data : Byte_Array;
       Needle : U8;

@@ -37,6 +37,38 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Dot_Product;
 
+   function Find_First_Difference
+     (Left, Right : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Search_Result is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar.Find_First_Difference (Left, Right);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native.Find_First_Difference (Left, Right);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Find_First_Difference (Left, Right);
+      end case;
+   end Find_First_Difference;
+
+   function Equal
+     (Left, Right : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Boolean is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar.Equal (Left, Right);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native.Equal (Left, Right);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Equal (Left, Right);
+      end case;
+   end Equal;
+
    function Find_First
      (Data : Byte_Array;
       Needle : U8;

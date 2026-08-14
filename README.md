@@ -22,9 +22,9 @@ lanes from one source vector, or select lanes from two source vectors. Every fam
 has zero-filled lane slides in both index directions. Every family also has
 stable mask compression and expansion. `Dot_Product` provides runtime-dispatched
 binary32 and binary64 complete-array algorithms. `Find_First`, `Find_First_Of`,
-`Count`, and `Is_ASCII` provide whole-buffer byte algorithms. `Find_First_Of` keeps loading,
-small-set classification, mask extraction, and first-match selection inside one
-complete-buffer call.
+`Find_First_Difference`, `Equal`, `Count`, and `Is_ASCII` provide whole-buffer
+byte algorithms. `Find_First_Of` keeps loading, small-set classification, mask
+extraction, and first-match selection inside one complete-buffer call.
 
 “Full family” refers to the ten 128-bit value types. The API includes
 lane-preserving bit casts, adjacent integer widening and narrowing, and exact

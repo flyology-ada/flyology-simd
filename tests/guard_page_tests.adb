@@ -234,10 +234,25 @@ begin
       for Length in Positive range 1 .. 160 loop
          declare
             Data : Byte_Array (1 .. Length);
+            Other : constant Byte_Array (1 .. Length) := [others => 65];
             for Data'Address use Add (Allocation, Page_Size - Length);
             pragma Import (Ada, Data);
          begin
             Data := [others => 65];
+            Check
+              (Algorithms.Scalar.Find_First_Difference (Data, Other) =
+                 (Found => False, Index => 0)
+               and then Algorithms.Native.Find_First_Difference
+                 (Data, Other) = (Found => False, Index => 0)
+               and then Algorithms.Runtime.Equal (Data, Other),
+               "protected-tail equal buffers length" & Length'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Difference (Data, Other) =
+                    (Found => False, Index => 0)
+                  and then Algorithms.AVX2.Equal (Other, Data),
+                  "AVX2 protected-tail equal buffers length" & Length'Image);
+            end if;
             Check
               (Algorithms.Scalar.Find_First_Of (Data, Needles) =
                  (Found => False, Index => 0),
@@ -257,6 +272,20 @@ begin
                   "AVX2 protected-tail no-match length" & Length'Image);
             end if;
             Data (Data'Last) := Needles (Needles'Last);
+            Check
+              (Algorithms.Runtime.Find_First_Difference (Data, Other) =
+                 (Found => True, Index => Data'Last)
+               and then not Algorithms.Runtime.Equal (Data, Other),
+               "runtime protected-tail final difference length" &
+                 Length'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Difference (Other, Data) =
+                    (Found => True, Index => Data'Last)
+                  and then not Algorithms.AVX2.Equal (Data, Other),
+                  "AVX2 protected-tail final difference length" &
+                    Length'Image);
+            end if;
             Check
               (Algorithms.Native.Find_First_Of (Data, Needles) =
                  (Found => True, Index => Data'Last),

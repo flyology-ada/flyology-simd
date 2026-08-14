@@ -13,6 +13,43 @@ package body Flyology_SIMD.Algorithms.Generic_Bytes is
       return Result;
    end Popcount;
 
+   function Find_First_Difference
+     (Left, Right : Byte_Array) return Search_Result
+   is
+      Offset : Natural := 0;
+      Bits   : Interfaces.Unsigned_16;
+   begin
+      while Left'Length - Offset >= 16 loop
+         Bits := not Backend_To_Bit_Mask
+           (Backend_Equal
+              (Backend_Load_Unaligned (Left, Left'First + Offset),
+               Backend_Load_Unaligned (Right, Right'First + Offset)));
+         if Bits /= 0 then
+            for Lane in Lane_Index_8x16 loop
+               if (Bits and Interfaces.Shift_Left
+                     (Interfaces.Unsigned_16'(1), Lane)) /= 0
+               then
+                  return
+                    (Found => True,
+                     Index => Left'First + Offset + Lane);
+               end if;
+            end loop;
+         end if;
+         Offset := Offset + 16;
+      end loop;
+
+      while Offset < Left'Length loop
+         if Left (Left'First + Offset) /= Right (Right'First + Offset) then
+            return (Found => True, Index => Left'First + Offset);
+         end if;
+         Offset := Offset + 1;
+      end loop;
+      return (Found => False, Index => 0);
+   end Find_First_Difference;
+
+   function Equal (Left, Right : Byte_Array) return Boolean is
+     (not Find_First_Difference (Left, Right).Found);
+
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result is
       Offset : Natural := 0;
       Bits   : Interfaces.Unsigned_16;

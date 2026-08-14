@@ -3171,6 +3171,25 @@ EOF
           'fused small-set NEON comparisons'
         require_pattern 'uaddlv' "$temporary/find-first-of.txt" \
           'fused small-set NEON mask extraction'
+        extract_symbol \
+          'flyology_simd__algorithms__native__find_first_difference' \
+          "$temporary/algorithm.txt" "$temporary/find-first-difference.txt"
+        require_pattern 'ldr[[:space:]]+q[0-9]+' \
+          "$temporary/find-first-difference.txt" \
+          'fused two-buffer NEON vector loads'
+        require_pattern 'cmeq.*16b' \
+          "$temporary/find-first-difference.txt" \
+          'fused two-buffer NEON byte comparison'
+        require_pattern 'uaddlv' \
+          "$temporary/find-first-difference.txt" \
+          'fused two-buffer NEON mask extraction'
+        require_pattern '(^|[[:space:]])mvn[[:space:]]' \
+          "$temporary/find-first-difference.txt" \
+          'complemented NEON equality mask'
+        forbid_pattern \
+          'bl.*flyology_simd__backends__native__(load_unaligned|equal|to_bit_mask)' \
+          "$temporary/find-first-difference.txt" \
+          'out-of-line primitive in the Native difference loop'
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
@@ -4846,6 +4865,22 @@ EOF
           'fused small-set SSE2 mask extraction'
         require_pattern 'movdqu' "$temporary/find-first-of.txt" \
           'fused small-set SSE2 vector load'
+        extract_symbol \
+          'flyology_simd__algorithms__native__find_first_difference' \
+          "$temporary/algorithm.txt" "$temporary/find-first-difference.txt"
+        require_pattern 'movdqu' "$temporary/find-first-difference.txt" \
+          'fused two-buffer SSE2 vector loads'
+        require_pattern 'pcmpeqb' "$temporary/find-first-difference.txt" \
+          'fused two-buffer SSE2 byte comparison'
+        require_pattern 'pmovmskb' "$temporary/find-first-difference.txt" \
+          'fused two-buffer SSE2 mask extraction'
+        require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+          "$temporary/find-first-difference.txt" \
+          'complemented SSE2 equality mask'
+        forbid_pattern \
+          'call.*flyology_simd__backends__native__(load_unaligned|equal|to_bit_mask)' \
+          "$temporary/find-first-difference.txt" \
+          'out-of-line primitive in the Native difference loop'
         #  In GNU and Apple disassembly, an instruction mnemonic is a
         #  whitespace-delimited token. Reject every VEX/EVEX mnemonic, not
         #  only the instruction classes used by the current AVX2 leaves.
@@ -4882,6 +4917,24 @@ EOF
               'ordered binary64 dot-product accumulation'
             require_pattern 'vextractf128' "$temporary/avx2.txt" \
               'ordered AVX2 dot-product half extraction'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__find_first_difference' \
+              "$temporary/avx2.txt" "$temporary/avx2-find-first-difference.txt"
+            require_pattern 'vmovdqu' \
+              "$temporary/avx2-find-first-difference.txt" \
+              'two-buffer AVX2 vector loads'
+            require_pattern 'vpcmpeqb' \
+              "$temporary/avx2-find-first-difference.txt" \
+              'two-buffer AVX2 byte comparison'
+            require_pattern 'vpmovmskb' \
+              "$temporary/avx2-find-first-difference.txt" \
+              'two-buffer AVX2 mask extraction'
+            require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+              "$temporary/avx2-find-first-difference.txt" \
+              'complemented AVX2 equality mask'
+            require_pattern 'vzeroupper' \
+              "$temporary/avx2-find-first-difference.txt" \
+              'AVX-SSE transition cleanup in the difference loop'
             forbid_pattern \
               'flyology_simd(__backends__native)?__(splat|load_unaligned|equal|bitwise_(and|or)|shift_right_logical|table_lookup|to_bit_mask|first_true)$' \
               "$temporary/avx2-undefined.txt" \

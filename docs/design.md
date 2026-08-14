@@ -281,8 +281,9 @@ inlining through complete-buffer and complete-array loops. Named scalar/native
 instantiations are supplied. Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation. The floating
 generic supplies binary32 and binary64 dot products. An AVX2 runtime selection
-uses the compiled 128-bit native instance, so every runtime backend retains the
-same four-lane or two-lane accumulation order.
+uses an isolated 256-bit complete-array loop that adds its two halves in source
+order, so every runtime backend retains the same four-lane or two-lane
+accumulation order.
 
 `Find_First_Of` accepts an ordinary `Byte_Array` small set. Its static
 instances load each full vector once, compare all set members inside the
@@ -292,6 +293,12 @@ with a 16-byte path before the exact scalar tail. The public API does not expose
 a nibble-table encoding because intersected eight-bit nibble tables cannot
 represent every possible byte class and baseline SSE2 has no efficient
 byte-table lookup.
+
+`Find_First_Difference` compares corresponding blocks from two arrays with
+identical bounds and complements the equality mask before selecting the first
+set bit. `Equal` derives from that complete-buffer result. The optional AVX2
+object keeps both loads, equality, mask complement, and extraction inside an
+isolated 32-byte loop.
 
 Feature information is immutable and computed once during package elaboration,
 without a racy writable cache. Runtime selection occurs once per complete
