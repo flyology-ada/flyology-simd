@@ -2,14 +2,10 @@ schema = 1
 expected_overloads = { fixed = 606, wide = 604 }
 split_operations = ["Widen_Low", "Widen_High"]
 expected_gap = [
-  { family = "fixed-integer-width-conversions", dimension = "semantic" },
   { family = "fixed-integer-width-conversions", dimension = "codegen" },
   { family = "fixed-integer-width-conversions", dimension = "docs" },
-  { family = "fixed-float-width-conversions", dimension = "semantic" },
-  { family = "fixed-signedness-conversions", dimension = "semantic" },
   { family = "fixed-signedness-conversions", dimension = "codegen" },
   { family = "fixed-signedness-conversions", dimension = "docs" },
-  { family = "fixed-numeric-conversions", dimension = "semantic" },
 ]
 
 [profile.fixed_semantic]
@@ -71,11 +67,6 @@ evidence = ["website/guide/conversions/index.html", "examples/conversions.adb"]
 [profile.teaching_practical]
 status = "complete"
 evidence = ["website/guide/practical/index.html"]
-
-[profile.gap_conversion_scalar]
-status = "gap"
-reason = "Independent conversion expectations do not directly exercise Backends.Scalar for every overload."
-closure = "Add direct root, Backends.Scalar, and Backends.Native assertions to each independent conversion oracle."
 
 [profile.gap_integer_width_codegen]
 status = "gap"
@@ -281,7 +272,7 @@ teaching = "teaching_conversions"
 id = "fixed-integer-width-conversions"
 layer = "fixed"
 operations = { Widen_Low = 6, Widen_High = 6, Narrow_Truncate = 6, Narrow_Saturate = 9 }
-semantic = "gap_conversion_scalar"
+semantic = "fixed_conversion_semantic"
 codegen = "gap_integer_width_codegen"
 docs = "gap_integer_width_docs"
 teaching = "teaching_conversions"
@@ -290,7 +281,7 @@ teaching = "teaching_conversions"
 id = "fixed-float-width-conversions"
 layer = "fixed"
 operations = { Widen_Low = 1, Widen_High = 1, Narrow_Round = 1 }
-semantic = "gap_conversion_scalar"
+semantic = "fixed_conversion_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
 teaching = "teaching_conversions"
@@ -299,7 +290,7 @@ teaching = "teaching_conversions"
 id = "fixed-signedness-conversions"
 layer = "fixed"
 operations = { Convert_Saturate = 8 }
-semantic = "gap_conversion_scalar"
+semantic = "fixed_conversion_semantic"
 codegen = "gap_signedness_codegen"
 docs = "gap_signedness_docs"
 teaching = "teaching_conversions"
@@ -308,7 +299,7 @@ teaching = "teaching_conversions"
 id = "fixed-numeric-conversions"
 layer = "fixed"
 operations = { Convert_Round = 4, Convert_Truncate_Saturate = 4 }
-semantic = "gap_conversion_scalar"
+semantic = "fixed_conversion_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
 teaching = "teaching_conversions"

@@ -441,7 +441,10 @@ between signed and unsigned integer types uses SSE2 sign-mask and bit-selection
 sequences.
 Floating widening uses `cvtps2pd`; high-half widening first selects the upper
 binary32 lanes. Floating narrowing uses two `cvtpd2ps` conversions and merges
-their result lanes. All 16 lane-preserving bit-cast overloads reinterpret the
+their result lanes. Independent lane and bit oracles use 512 deterministic
+full-width inputs and directly check the root, `Backends.Scalar`, and
+`Backends.Native` result of every explicit conversion overload. All 16
+lane-preserving bit-cast overloads reinterpret the
 complete private vector value directly in both target backends. They do not
 call the portable root operation or need an arithmetic SIMD instruction. This
 direct reinterpretation of the same 128 storage bits does not make the private
