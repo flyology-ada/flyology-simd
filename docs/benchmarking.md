@@ -9,6 +9,7 @@ cd benchmarks
 alr build --release
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build dot_product_benchmark
 ```
 
 Alire selects AArch64 NEON or x86-64 automatically from the host architecture.
@@ -24,7 +25,7 @@ The `flyology_bench` test-only dependency is pinned to an exact repository
 commit and monorepo subdirectory, so a clean benchmark checkout does not rely
 on an ignored lockfile or local Flyology tree.
 
-The program uses `Flyology_Bench.Compare_Many` with this method:
+The programs use `Flyology_Bench.Compare_Many` with this method:
 
 - 250 ms of warmup;
 - equal-time calibration and three seconds of measurement;
@@ -33,12 +34,28 @@ The program uses `Flyology_Bench.Compare_Many` with this method:
 - retained raw samples and bootstrap confidence intervals;
 - order-effect and lag-one-correlation diagnostics.
 
-It does not silently discard outliers or subtract timer cost. The
-sizes 7, 15, 16, 17, 4,096, and 1,048,576 cover sub-vector, boundary, cache, and
-streaming behavior. Candidates are ordinary Ada, scalar backend, statically
+They do not silently discard outliers or subtract timer cost. The byte-count
+sizes 7, 15, 16, 17, 4,096, and 1,048,576 cover sub-vector, boundary, cache,
+and streaming behavior. The dot-product sizes 3, 4, 5, 7, 8, 9, 4,096, and
+1,048,576 exercise both binary32 and binary64 vector boundaries. Candidates
+are ordinary Ada with matching semantics, the scalar backend, the statically
 selected native backend, and coarse runtime dispatch.
 Each run prints the compiler version and the project-declared library and
 benchmark switches alongside the backend and CPU-feature selection.
+
+## Dot product
+
+`dot_product_benchmark` validates every candidate by complete result bits
+before measurement. Its ordinary Ada candidate uses the same four-group
+binary32 or two-group binary64 accumulation order as the library. Reported
+throughput counts both input arrays and excludes the scalar result write.
+
+The code-generation check separately inspects the static Native floating
+algorithm object. It requires exactly two selected partial-load sites and one
+selected multiplication, addition, reduction, and zero-construction route at
+each precision. It rejects portable, scalar, or runtime routes. The optional
+AVX2 object must contain 256-bit multiplication, ordered half extraction and
+accumulation, and transition cleanup.
 
 The method follows the controls in the
 [Flyology benchmarking guide](https://flyology.org/guide/benchmarking/).

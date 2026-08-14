@@ -21,6 +21,7 @@ object_root="obj/$architecture/$avx2/$wide_backend"
 probe_root="obj/codegen-probes/$architecture/$avx2/$wide_backend"
 native_object="$object_root/flyology_simd-backends-native.o"
 algorithm_object="$object_root/flyology_simd-algorithms-native.o"
+floating_algorithm_object="$object_root/flyology_simd-algorithms-native_floating.o"
 feature_object="$object_root/flyology_simd-features.o"
 slide_probe_object="$probe_root/slide_codegen_probe.o"
 permute_probe_object="$probe_root/permute_codegen_probe.o"
@@ -78,6 +79,15 @@ disassemble() {
 
 disassemble "$native_object" >"$temporary/native.txt"
 disassemble "$algorithm_object" >"$temporary/algorithm.txt"
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$floating_algorithm_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/floating-algorithm.txt"
+else
+    disassemble "$floating_algorithm_object" \
+      >"$temporary/floating-algorithm.txt"
+fi
+nm -u "$floating_algorithm_object" \
+  >"$temporary/floating-algorithm-undefined.txt"
 disassemble "$feature_object" >"$temporary/features.txt"
 disassemble "$slide_probe_object" >"$temporary/slide-probe.txt"
 disassemble "$permute_probe_object" >"$temporary/permute-probe.txt"
@@ -443,6 +453,24 @@ extract_symbol() {
         END { if (!found) exit 1 }
     ' "$file" >"$output"
 }
+
+require_count 'flyology_simd__backends__native__load_partial__9' 2 \
+  "$temporary/floating-algorithm.txt" \
+  'two selected binary32 partial loads in the native dot loop'
+require_count 'flyology_simd__backends__native__load_partial__10' 2 \
+  "$temporary/floating-algorithm.txt" \
+  'two selected binary64 partial loads in the native dot loop'
+for selected in \
+  multiply add reduce_add zero__9 multiply__2 add__2 reduce_add__2 zero__10
+do
+    require_count "flyology_simd__backends__native__${selected}([^_]|$)" 1 \
+      "$temporary/floating-algorithm.txt" \
+      "one selected ${selected} route in the native dot loops"
+done
+forbid_pattern \
+  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(dot_product|multiply|add|reduce_add|load_partial)' \
+  "$temporary/floating-algorithm-undefined.txt" \
+  'portable, scalar, or runtime route in the native dot loops'
 
 u8_value_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/u8_value_codegen_cases.txt | wc -l | tr -d ' ')

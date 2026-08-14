@@ -24,17 +24,18 @@
           <p>Before you inspect the maintained example's object, build the example with optimization. The path below is for the recorded AArch64 build with AVX2 disabled. For another selected architecture, substitute its object-directory path.</p>
           <pre><code class="language-shell">alr exec -- gprbuild -f -p -P examples/examples.gpr -cargs:Ada -O3
 objdump -dr obj/examples/aarch64/disabled/dot_product.o</code></pre>
-          <p>On 2026-08-11, an Apple <code>Mac15,9</code> AArch64 host used GNAT FSF 16.1.0. Its optimized dot-product object called native load, multiply, add, and reduction primitive bodies.</p>
-          <p>Static composition removes runtime backend selection. It does not guarantee that GNAT inlines each primitive body. Inspect the target backend object or run the code-generation script to verify the instructions inside those primitive bodies.</p>
-          <div class="semantic-callout"><strong>The maintained statistical benchmark does not yet measure the dot product.</strong><p>The recorded performance evidence below applies to byte counting. Do not use it as a floating-point performance claim.</p></div>
+          <p>The code-generation script inspects the instantiated Native floating algorithm object. At each precision, it requires two selected partial-load sites and one selected multiplication, addition, reduction, and zero-construction route. It rejects portable, scalar, and runtime routes.</p>
+          <p>Static composition removes runtime backend selection. GNAT can retain selected primitive calls in the complete-array loop, so benchmark the complete operation rather than inferring its cost from primitive disassembly.</p>
+          <div class="semantic-callout"><strong>The maintained dot-product benchmark has no recorded performance claim yet.</strong><p>Run it on the target host and preserve its environment and diagnostics before drawing a crossover conclusion.</p></div>
         </section>
         <section id="run">
           <h2>Build and run the byte-count benchmark crate</h2>
           <pre><code class="language-shell">cd benchmarks
 alr build --release
-FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark</code></pre>
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build dot_product_benchmark</code></pre>
           <p>Alire detects an AArch64 or x86-64 host. For a scalar-only measurement, rebuild with <code>-XFLYOLOGY_SIMD_ARCH=scalar</code>.</p>
-          <p>The benchmark compares an ordinary Ada loop, the scalar reference composition, static native composition, and runtime dispatch. Sizes range from 7 through 1,048,576 bytes.</p>
+          <p>Both benchmarks compare ordinary Ada with matching semantics, the scalar reference composition, static native composition, and runtime dispatch. The dot-product program measures binary32 and binary64 inputs on both sides of their vector boundaries and at 4,096 and 1,048,576 elements.</p>
         </section>
         <section id="method">
           <h2>Use repeated and balanced measurements</h2>
@@ -65,13 +66,13 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark</code><
 
 # x86-64 baseline host
 ./scripts/check_codegen.sh x86_64 disabled</code></pre>
-          <p>The script checks primitive and whole-byte-algorithm objects. It requires vector load, byte comparison, and mask extraction or reduction instruction classes in the applicable objects.</p>
-          <p>The script also verifies baseline isolation and rejects selected unresolved primitive calls from the native byte-algorithm object. It matches instruction classes instead of complete disassembly text.</p>
+          <p>The script checks primitive, floating-array, and whole-byte-algorithm objects. It requires the applicable vector load, multiplication, addition, byte comparison, and mask extraction or reduction instruction classes.</p>
+          <p>The script also verifies baseline isolation and rejects selected unresolved primitive calls from the native complete-algorithm objects. It matches instruction classes instead of complete disassembly text.</p>
         </section>
         <section id="interpret">
           <h2>Check build equivalence before interpretation</h2>
           <p>An earlier large-buffer result favored the ordinary loop because imported library code lacked optimization. The benchmark unit used release optimization. Verbose compiler commands exposed the mismatch.</p>
-          <p>Do not generalize the recorded table to another host or to the dot product. Repeat the measurement, keep diagnostics, and inspect generated code. The <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> explains the statistical procedure.</p>
+          <p>Do not generalize the recorded byte-count table to another host or to the dot product. Repeat the applicable measurement, keep diagnostics, and inspect generated code. The <a href="https://flyology.org/guide/benchmarking/">flyology_bench method guide</a> explains the statistical procedure.</p>
           <div class="next-links"><a href="../dispatch/"><span>Chapter 6</span>Review backend selection</a><a href="../operations/"><span>Reference</span>Review primitive semantics</a></div>
         </section>
       </article>
