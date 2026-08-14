@@ -50,6 +50,7 @@ complete_memory_probe_object="$probe_root/complete_memory_codegen_probe.o"
 comparison_probe_object="$probe_root/comparison_codegen_probe.o"
 wrapping_arithmetic_probe_object="$probe_root/wrapping_arithmetic_codegen_probe.o"
 lane_arrangement_probe_object="$probe_root/lane_arrangement_codegen_probe.o"
+bitwise_probe_object="$probe_root/bitwise_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -84,6 +85,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$lane_arrangement_probe_object" \
       >"$temporary/lane-arrangement-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$bitwise_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/bitwise-probe.txt"
+else
+    objdump -dr "$bitwise_probe_object" >"$temporary/bitwise-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$float_binary_probe_object" |
@@ -215,6 +222,7 @@ nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
   >"$temporary/lane-arrangement-undefined.txt"
+nm -u "$bitwise_probe_object" >"$temporary/bitwise-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1122,6 +1130,45 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|mult
   "$temporary/wrapping-arithmetic-undefined.txt" \
   'portable, Scalar, or Wide arithmetic retained in the caller probe'
 
+bitwise_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/bitwise_codegen_cases.txt | wc -l | tr -d ' ')
+bitwise_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/bitwise_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$bitwise_case_count" -ne 32 ] || [ "$bitwise_unique_count" -ne 32 ]; then
+    echo 'fixed-width bitwise manifest must contain 32 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix bits lanes arity; do
+    caller="$temporary/bitwise-${lane_kind}-${operation}.txt"
+    extract_symbol "bitwise_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/bitwise-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          'inlined U8x16 Bitwise_And caller has no selected relocation'
+        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 0 "$caller" \
+          'inlined U8x16 Bitwise_And caller has no out-of-line branch'
+    else
+        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+          "$caller" "matching selected ${lane_kind} ${operation} caller"
+        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+          "only one selected bitwise operation in ${lane_kind} ${operation} caller"
+        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+          "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    fi
+    forbid_pattern 'flyology_simd__(backends__scalar__)?bitwise_(and|or|xor|not)|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide bitwise route in ${lane_kind} ${operation} caller"
+done <scripts/probes/bitwise_codegen_cases.txt
+require_count 'flyology_simd__backends__native__bitwise_(and|or|xor|not)(__[2-8])?$' 31 \
+  "$temporary/bitwise-undefined.txt" '31 selected plus one inlined fixed-width bitwise operation'
+require_count 'flyology_simd__' 31 "$temporary/bitwise-undefined.txt" \
+  'only the 31 intended out-of-line bitwise operations remain unresolved'
+forbid_pattern 'flyology_simd__(backends__scalar__)?bitwise_(and|or|xor|not)|flyology_simd__wide__' \
+  "$temporary/bitwise-undefined.txt" \
+  'portable, Scalar, or Wide bitwise route retained in the caller probe'
+
 lane_arrangement_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/lane_arrangement_codegen_cases.txt | wc -l | tr -d ' ')
 lane_arrangement_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -1439,6 +1486,44 @@ case "$architecture" in
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes arity; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/bitwise-leaf-${lane_kind}-${operation}.txt"
+            if [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
+                extract_symbol 'bitwise_codegen_probe__u8_bitwise_and' \
+                  "$temporary/bitwise-probe.txt" "$leaf"
+            else
+                extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                  "$temporary/native.txt" "$leaf"
+            fi
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            if [ "$arity" -eq 2 ]; then
+                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+                  "right operand transfer in ${lane_kind} ${operation} leaf"
+            else
+                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 0 "$leaf" \
+                  "no second memory operand in ${lane_kind} ${operation} leaf"
+            fi
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$operation" in
+                bitwise_and) instruction=and ;;
+                bitwise_or) instruction=orr ;;
+                bitwise_xor) instruction=eor ;;
+                bitwise_not) instruction=mvn ;;
+            esac
+            if [ "$arity" -eq 2 ]; then
+                require_count "(^|[[:space:]])(${instruction}\\.16b[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${instruction}[[:space:]]+v0\\.16b,[[:space:]]*v0\\.16b,[[:space:]]*v1\\.16b)" 1 "$leaf" \
+                  "exact NEON ${lane_kind} ${operation} operation"
+            else
+                require_count "(^|[[:space:]])(mvn\\.16b[[:space:]]+v0,[[:space:]]*v0|mvn[[:space:]]+v0\\.16b,[[:space:]]*v0\\.16b)" 1 "$leaf" \
+                  "exact NEON ${lane_kind} ${operation} operation"
+            fi
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/bitwise_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -2231,6 +2316,40 @@ EOF
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes arity; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/bitwise-leaf-${lane_kind}-${operation}.txt"
+            if [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
+                extract_symbol 'bitwise_codegen_probe__u8_bitwise_and' \
+                  "$temporary/bitwise-probe.txt" "$leaf"
+            else
+                extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                  "$temporary/native.txt" "$leaf"
+            fi
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            if [ "$arity" -eq 2 ]; then
+                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+                  "right operand transfer in ${lane_kind} ${operation} leaf"
+            else
+                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 0 "$leaf" \
+                  "no second memory operand in ${lane_kind} ${operation} leaf"
+            fi
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$operation" in
+                bitwise_and) require_count '(^|[[:space:]])pand[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} AND" ;;
+                bitwise_or) require_count '(^|[[:space:]])por[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} OR" ;;
+                bitwise_xor) require_count '(^|[[:space:]])pxor[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} XOR" ;;
+                bitwise_not)
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]+%xmm1,[[:space:]]*%xmm1' 1 "$leaf" "all-one construction in ${lane_kind} NOT"
+                    require_count '(^|[[:space:]])pxor[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} NOT"
+                    ;;
+            esac
+            forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/bitwise_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"

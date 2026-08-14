@@ -13,7 +13,7 @@
   <main id="main" class="page-shell">
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>2. Arithmetic and lane movement</li></ol><h1>Compute and rearrange lanes explicitly</h1></div><p class="doc-hero-copy">Chapter 2 completes a four-lane dot product, computes an eight-lane weighted sum, and then moves lanes within and across vector blocks.</p></header>
     <div class="docs-layout">
-      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#dot-result">Dot-product result</a></li><li><a href="#wide-dot">Eight-lane weighted sum</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#permutations">Point rotation</a></li><li><a href="#two-source">Cross-block differences</a></li><li><a href="#integers">Integer overflow</a></li><li><a href="#floats">Floating-point limits</a></li></ul></aside>
+      <aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#loop">Dot-product loop</a></li><li><a href="#reduce">Reduction order</a></li><li><a href="#dot-result">Dot-product result</a></li><li><a href="#wide-dot">Eight-lane weighted sum</a></li><li><a href="#neighbors">Neighboring lanes</a></li><li><a href="#permutations">Point rotation</a></li><li><a href="#two-source">Cross-block differences</a></li><li><a href="#integers">Integer arithmetic and flags</a></li><li><a href="#floats">Floating-point limits</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">Chapter 1 formed four products. This chapter completes the dot product, then shows how slides and lane maps rearrange data for other calculations.</p>
         <section id="loop">
@@ -190,7 +190,7 @@ differences:
           <p>The <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/cross_block_differences.adb">maintained cross-block example</a> asserts the intermediate and final vectors before it prints them.</p>
         </section>
         <section id="integers">
-          <h2>Choose wrapping or saturating integer arithmetic</h2>
+          <h2>Choose integer arithmetic and bitwise operations</h2>
           <p>Integer vector arithmetic does not use one implicit overflow policy. <a data-api="Flyology_SIMD.Add_Wrap" data-api-signature="U16x8"><code>Add_Wrap</code></a> computes modulo the lane width. <a data-api="Flyology_SIMD.Add_Saturate" data-api-signature="U16x8"><code>Add_Saturate</code></a> clamps to the lane range.</p>
           <p>A <a data-api="Flyology_SIMD.U16x8"><code>U16x8</code></a> has eight unsigned 16-bit lanes. <a data-api="Flyology_SIMD.From_Lanes" data-api-signature="Lane_Values_U16x8"><code>From_Lanes</code></a> constructs the input, and <a data-api="Flyology_SIMD.Splat" data-api-signature="Value : U16) return U16x8"><code>Splat</code></a> repeats the increment.</p>
           <pre><code class="language-ada">Input : constant U16x8 :=
@@ -206,7 +206,20 @@ Saturated : constant U16x8 := Add_Saturate (Input, Increment);
 --  Subtracted lane 1 = 65_527
 --  Multiplied lane 0 = 65_476
 --  Saturated lane 0 = 65_535</code></pre>
-          <p><a data-api="Flyology_SIMD.Subtract_Wrap" data-api-signature="U16x8"><code>Subtract_Wrap</code></a> and <a data-api="Flyology_SIMD.Multiply_Wrap" data-api-signature="U16x8"><code>Multiply_Wrap</code></a> use the same modulo-lane-width rule as <code>Add_Wrap</code>. All three wrapping forms discard bits above the lane width. The signed and unsigned families use the same explicit naming rule. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/integer_vectors.adb"><code>integer_vectors</code> example</a> asserts these four results before printing them.</p>
+          <p><a data-api="Flyology_SIMD.Subtract_Wrap" data-api-signature="U16x8"><code>Subtract_Wrap</code></a> and <a data-api="Flyology_SIMD.Multiply_Wrap" data-api-signature="U16x8"><code>Multiply_Wrap</code></a> use the same modulo-lane-width rule as <code>Add_Wrap</code>. All three wrapping forms discard bits above the lane width. The signed and unsigned families use the same explicit naming rule. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/integer_vectors.adb"><code>integer_vectors</code> example</a> asserts these four arithmetic results before printing them.</p>
+          <p>Integer lanes also work as packed flag fields. <a data-api="Flyology_SIMD.Bitwise_And" data-api-signature="Left, Right : U16x8"><code>Bitwise_And</code></a> sets a result bit when that bit is set in both inputs. <a data-api="Flyology_SIMD.Bitwise_Or" data-api-signature="Left, Right : U16x8"><code>Bitwise_Or</code></a> sets a result bit when that bit is set in either input. <a data-api="Flyology_SIMD.Bitwise_Xor" data-api-signature="Left, Right : U16x8"><code>Bitwise_Xor</code></a> sets a result bit when that bit is set in exactly one input. To clear selected bits, apply <a data-api="Flyology_SIMD.Bitwise_Not" data-api-signature="Value : U16x8"><code>Bitwise_Not</code></a> to the clear mask, then pass that result to <code>Bitwise_And</code>:</p>
+          <pre><code class="language-ada">Flags : constant U16x8 :=
+  From_Lanes ([16#ABF7#, 16#1234#, 16#00AA#, 16#FFFF#,
+               16#8001#, 16#0102#, 16#5555#, 16#AAAA#]);
+
+Known      : constant U16x8 := Bitwise_And (Flags, Splat (16#00FF#));
+With_Ready : constant U16x8 := Bitwise_Or (Known, Splat (16#0100#));
+Toggled    : constant U16x8 := Bitwise_Xor (With_Ready, Splat (16#0003#));
+Cleared    : constant U16x8 :=
+  Bitwise_And (Toggled, Bitwise_Not (Splat (16#0004#)));
+
+--  Lane 0: ABF7 -> 00F7 -> 01F7 -> 01F4 -> 01F0.</code></pre>
+          <p>The example independently asserts the masked, set, toggled, and cleared lane values.</p>
         </section>
         <section id="shifts">
           <h2>Shift signed lanes with sign fill</h2>

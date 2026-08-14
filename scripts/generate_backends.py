@@ -2855,6 +2855,41 @@ def test_program() -> str:
         fixed_add_oracle = add_oracle.replace("R_A", "A").replace("R_B", "B")
         fixed_sub_oracle = sub_oracle.replace("R_A", "A").replace("R_B", "B")
         fixed_mul_oracle = mul_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_and_oracle = and_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_or_oracle = or_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_xor_oracle = xor_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_not_oracle = not_oracle.replace("R_A", "A")
+        full_bits = (1 << bits) - 1
+        alternating_high = int("AA" * (bits // 8), 16)
+        alternating_low = int("55" * (bits // 8), 16)
+        sign_bit = 1 << (bits - 1)
+        def bit_lane(raw: int) -> str:
+            literal = f"16#{raw:0{bits // 4}X}#"
+            return f"Bits_To_{vector} ({literal})" if signed else f"{scalar} ({literal})"
+        bitwise_left = ", ".join(
+            bit_lane((0, full_bits, alternating_high, sign_bit)[lane % 4])
+            for lane in range(lanes)
+        )
+        bitwise_right = ", ".join(
+            bit_lane((full_bits, 0, alternating_low, sign_bit - 1)[lane % 4])
+            for lane in range(lanes)
+        )
+        bitwise_left_2 = ", ".join(
+            bit_lane((alternating_high, sign_bit)[lane % 2])
+            for lane in range(lanes)
+        )
+        bitwise_right_2 = ", ".join(
+            bit_lane((alternating_low, sign_bit - 1)[lane % 2])
+            for lane in range(lanes)
+        )
+        edge_and_oracle = and_oracle.replace("R_A", "Bitwise_Left").replace("R_B", "Bitwise_Right")
+        edge_or_oracle = or_oracle.replace("R_A", "Bitwise_Left").replace("R_B", "Bitwise_Right")
+        edge_xor_oracle = xor_oracle.replace("R_A", "Bitwise_Left").replace("R_B", "Bitwise_Right")
+        edge_not_oracle = not_oracle.replace("R_A", "Bitwise_Left")
+        edge_2_and_oracle = and_oracle.replace("R_A", "Bitwise_Left_2").replace("R_B", "Bitwise_Right_2")
+        edge_2_or_oracle = or_oracle.replace("R_A", "Bitwise_Left_2").replace("R_B", "Bitwise_Right_2")
+        edge_2_xor_oracle = xor_oracle.replace("R_A", "Bitwise_Left_2").replace("R_B", "Bitwise_Right_2")
+        edge_2_not_oracle = not_oracle.replace("R_A", "Bitwise_Left_2")
         saturation_edges = {
             "U32x4": [
                 "      Saturation_Left : constant U32x4 := From_Lanes ([U32'Last, 0, U32'Last, 0]);",
@@ -3017,6 +3052,10 @@ def test_program() -> str:
             f"   procedure Test_{vector} is",
             f"      A : constant {vector} := From_Lanes ([{agg_a}]);",
             f"      B : constant {vector} := From_Lanes ([{agg_b}]);",
+            f"      Bitwise_Left : constant {vector} := From_Lanes ([{bitwise_left}]);",
+            f"      Bitwise_Right : constant {vector} := From_Lanes ([{bitwise_right}]);",
+            f"      Bitwise_Left_2 : constant {vector} := From_Lanes ([{bitwise_left_2}]);",
+            f"      Bitwise_Right_2 : constant {vector} := From_Lanes ([{bitwise_right_2}]);",
             f"      Fixed_Selectors : constant {lane_selectors(bits, lanes)} := [{', '.join(str((n * 3 + 1) % lanes) for n in range(lanes))}];",
             f"      Fixed_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map (Fixed_Selectors);",
             f"      Broadcast_Map : constant {lane_map(bits, lanes)} := Make_Lane_Map ([others => {lanes - 1}]);",
@@ -3066,6 +3105,22 @@ def test_program() -> str:
             f"         Check (Extract (Add_Wrap (A, B), Lane) = {fixed_add_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (A, B), Lane) = {fixed_add_oracle} and then Backends.Native.Extract (Backends.Native.Add_Wrap (A, B), Lane) = {fixed_add_oracle}, \"{vector} independent fixed root, Scalar, and Native add oracle\" & Lane'Image);",
             f"         Check (Extract (Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle} and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle}, \"{vector} independent fixed root, Scalar, and Native subtract oracle\" & Lane'Image);",
             f"         Check (Extract (Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle}, \"{vector} independent fixed root, Scalar, and Native multiply oracle\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_And (A, B), Lane) = {fixed_and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (A, B), Lane) = {fixed_and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (A, B), Lane) = {fixed_and_oracle}, \"{vector} independent fixed root, Scalar, and Native AND oracle\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Or (A, B), Lane) = {fixed_or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (A, B), Lane) = {fixed_or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (A, B), Lane) = {fixed_or_oracle}, \"{vector} independent fixed root, Scalar, and Native OR oracle\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle}, \"{vector} independent fixed root, Scalar, and Native XOR oracle\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Not (A), Lane) = {fixed_not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (A), Lane) = {fixed_not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (A), Lane) = {fixed_not_oracle}, \"{vector} independent fixed root, Scalar, and Native NOT oracle\" & Lane'Image);",
+            "      end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle}, \"{vector} directed zero, one, alternating, and sign-bit AND\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = {edge_or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = {edge_or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = {edge_or_oracle}, \"{vector} directed zero, one, alternating, and sign-bit OR\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = {edge_xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = {edge_xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = {edge_xor_oracle}, \"{vector} directed zero, one, alternating, and sign-bit XOR\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Not (Bitwise_Left), Lane) = {edge_not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (Bitwise_Left), Lane) = {edge_not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (Bitwise_Left), Lane) = {edge_not_oracle}, \"{vector} directed zero, one, alternating, and sign-bit NOT\" & Lane'Image);",
+            "      end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_and_oracle}, \"{vector} directed alternating and sign-bit AND\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_or_oracle}, \"{vector} directed alternating and sign-bit OR\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = {edge_2_xor_oracle}, \"{vector} directed alternating and sign-bit XOR\" & Lane'Image);",
+            f"         Check (Extract (Bitwise_Not (Bitwise_Left_2), Lane) = {edge_2_not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (Bitwise_Left_2), Lane) = {edge_2_not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (Bitwise_Left_2), Lane) = {edge_2_not_oracle}, \"{vector} directed alternating and sign-bit NOT\" & Lane'Image);",
             "      end loop;",
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
@@ -3237,7 +3292,10 @@ def test_program() -> str:
             f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent root, Scalar, and Native subtract oracle\" & Lane'Image);",
             f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent root, Scalar, and Native multiply oracle\" & Lane'Image);",
             f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent scalar and native saturation oracle\" & Lane'Image);",
-            f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Extract (Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} independent bitwise oracle\" & Lane'Image);",
+            f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (R_A, R_B), Lane) = {and_oracle}, \"{vector} randomized independent root, Scalar, and Native AND oracle\" & Lane'Image);",
+            f"               Check (Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (R_A, R_B), Lane) = {or_oracle}, \"{vector} randomized independent root, Scalar, and Native OR oracle\" & Lane'Image);",
+            f"               Check (Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle}, \"{vector} randomized independent root, Scalar, and Native XOR oracle\" & Lane'Image);",
+            f"               Check (Extract (Bitwise_Not (R_A), Lane) = {not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (R_A), Lane) = {not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} randomized independent root, Scalar, and Native NOT oracle\" & Lane'Image);",
             f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",
             f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} independent comparison oracle\" & Lane'Image);",
             "            end loop;",

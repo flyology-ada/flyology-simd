@@ -165,6 +165,29 @@ def lane_arrangement_support(name: str, declaration: str) -> str:
         f"backend uses {x86}. A scalar build uses the portable scalar implementation."
     )
 
+
+def bitwise_support(name: str) -> str:
+    """Describe one exact fixed-width integer bitwise operation."""
+    aarch = {
+        "Bitwise_And": "one NEON and instruction over 16b",
+        "Bitwise_Or": "one NEON orr instruction over 16b",
+        "Bitwise_Xor": "one NEON eor instruction over 16b",
+        "Bitwise_Not": "one NEON mvn instruction over 16b",
+    }[name]
+    x86 = {
+        "Bitwise_And": "one SSE2 pand instruction",
+        "Bitwise_Or": "one SSE2 por instruction",
+        "Bitwise_Xor": "one SSE2 pxor instruction",
+        "Bitwise_Not": (
+            "one SSE2 pcmpeqd instruction to construct all-one bits, followed "
+            "by one pxor instruction"
+        ),
+    }[name]
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
 SIGNED_UNSIGNED_CONVERSIONS = [
     ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
     ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
@@ -797,6 +820,8 @@ def native_support_doc(name: str, declaration: str) -> str:
         "Deinterleave_Even", "Deinterleave_Odd",
     }:
         return lane_arrangement_support(name, declaration)
+    elif name in {"Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Bitwise_Not"}:
+        return bitwise_support(name)
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"

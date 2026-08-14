@@ -186,6 +186,19 @@ def lane_arrangement_phrases(operation: str, vector: str) -> tuple[str, str]:
     return aarch, x86
 
 
+def bitwise_phrases(operation: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for one integer bitwise operation."""
+    return {
+        "Bitwise_And": ("one NEON and instruction over 16b", "one SSE2 pand instruction"),
+        "Bitwise_Or": ("one NEON orr instruction over 16b", "one SSE2 por instruction"),
+        "Bitwise_Xor": ("one NEON eor instruction over 16b", "one SSE2 pxor instruction"),
+        "Bitwise_Not": (
+            "one NEON mvn instruction over 16b",
+            "one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction",
+        ),
+    }[operation]
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -445,6 +458,22 @@ def invalid_support(path: Path) -> list[str]:
                 marker = f"Value : {vector}" if operation == "Reverse_Lanes" else f"Left, Right : {vector}"
                 matching = [block for block in blocks if marker in block]
                 aarch, x86 = lane_arrangement_phrases(operation, vector)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} classification, found {len(exact)}"
+                    )
+        for operation in ("Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Bitwise_Not"):
+            blocks = declaration_blocks(text, operation)
+            for vector in wrapping_vectors:
+                marker = f"Value : {vector}" if operation == "Bitwise_Not" else f"Left, Right : {vector}"
+                matching = [block for block in blocks if marker in block]
+                aarch, x86 = bitwise_phrases(operation)
                 exact = [
                     block for block in matching
                     if aarch in block and x86 in block

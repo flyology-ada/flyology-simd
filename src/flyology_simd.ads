@@ -129,25 +129,25 @@ is
 
    function Bitwise_And (Left, Right : U8x16) return U8x16;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U8x16) return U8x16;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U8x16) return U8x16;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : U8x16) return U8x16;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
 
@@ -1071,25 +1071,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I8x16) return I8x16;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I8x16) return I8x16;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I8x16) return I8x16;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : I8x16) return I8x16;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16;
@@ -1370,25 +1370,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U16x8) return U16x8;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U16x8) return U16x8;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U16x8) return U16x8;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : U16x8) return U16x8;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8;
@@ -1663,25 +1663,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I16x8) return I16x8;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I16x8) return I16x8;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I16x8) return I16x8;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : I16x8) return I16x8;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8;
@@ -1962,25 +1962,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U32x4) return U32x4;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U32x4) return U32x4;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U32x4) return U32x4;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : U32x4) return U32x4;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4;
@@ -2255,25 +2255,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I32x4) return I32x4;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I32x4) return I32x4;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I32x4) return I32x4;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : I32x4) return I32x4;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4;
@@ -2554,25 +2554,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U64x2) return U64x2;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U64x2) return U64x2;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U64x2) return U64x2;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : U64x2) return U64x2;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2;
@@ -2847,25 +2847,25 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I64x2) return I64x2;
    --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I64x2) return I64x2;
    --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I64x2) return I64x2;
    --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Not (Value : I64x2) return I64x2;
    --  Complement every bit in every integer lane.
-   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2;

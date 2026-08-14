@@ -70,6 +70,24 @@ Exact-leaf gates require the operation- and type-specific Advanced SIMD or
 SSE2 sequence. They reject root, Scalar, Wide, mismatched Native, and
 out-of-line helper routes.
 
+All 32 fixed-width integer bitwise overloads use target leaves.
+`Bitwise_And`, `Bitwise_Or`, and `Bitwise_Xor` use one NEON `and`, `orr`, or
+`eor` instruction on AArch64 and one SSE2 `pand`, `por`, or `pxor` instruction
+on x86-64. `Bitwise_Not` uses NEON `mvn`; its SSE2 leaf constructs all-one bits
+with `pcmpeqd` and applies `pxor`.
+
+For each non-U8 integer type, tests use fixed inputs with zero, all-one,
+alternating, and sign-bit patterns. They also use 250 deterministic full-width
+input pairs. Independent lane oracles check the root, `Backends.Scalar`, and
+`Backends.Native` results. The focused U8x16 suite supplies fixed and 2,000
+deterministic cases. A generated public caller probe covers all 32 overloads.
+The U8x16 `Bitwise_And` caller must contain the exact inlined target operation;
+each of the other 31 caller gates requires exactly one call to the matching
+`Backends.Native` overload. Caller
+gates reject root, Scalar, Wide, and mismatched Native routes. Exact-leaf gates
+bind operand and result transfers, require the operation-specific Advanced
+SIMD or SSE2 sequence, and reject out-of-line helpers.
+
 All 50 canonical fixed-width lane arrangements use target leaves.
 `Reverse_Lanes` uses width-specific NEON `rev64` and `ext` sequences on
 AArch64 and SSE2 shifts and shuffles on x86-64. `Interleave_Low` and
