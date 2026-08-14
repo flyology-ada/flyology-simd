@@ -76,6 +76,41 @@ FLOAT_TO_INTEGER_CONVERSIONS = [
     ("F64x2", "F64", "U64x2", "U64", 64, 2, False),
 ]
 
+
+def wrapping_arithmetic_support(name: str, declaration: str) -> str:
+    """Describe the exact target lowering for one wrapping arithmetic overload."""
+    vector = next(
+        candidate
+        for candidate in (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        )
+        if candidate in declaration
+    )
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[bits]
+    if name == "Add_Wrap":
+        aarch = f"the NEON add instruction over {shape} lanes"
+        x86 = f"the SSE2 padd{ {8: 'b', 16: 'w', 32: 'd', 64: 'q'}[bits] } instruction"
+    elif name == "Subtract_Wrap":
+        aarch = f"the NEON sub instruction over {shape} lanes"
+        x86 = f"the SSE2 psub{ {8: 'b', 16: 'w', 32: 'd', 64: 'q'}[bits] } instruction"
+    elif bits < 64:
+        aarch = f"the NEON mul instruction over {shape} lanes"
+        x86 = {
+            8: "an SSE2 sequence that widens bytes, uses two pmullw instructions, and packs the low product bytes",
+            16: "the SSE2 pmullw instruction",
+            32: "an SSE2 sequence that uses two pmuludq instructions and repacks the dword products",
+        }[bits]
+    else:
+        aarch = "a NEON 32-bit partial-product sequence"
+        x86 = "an SSE2 three-pmuludq partial-product sequence"
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. "
+        f"The x86-64 backend uses {x86}. A scalar build uses the portable "
+        "scalar implementation."
+    )
+
 SIGNED_UNSIGNED_CONVERSIONS = [
     ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
     ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
@@ -701,9 +736,8 @@ def native_support_doc(name: str, declaration: str) -> str:
             "Cross-platform support: The AArch64, x86-64, and scalar backends use "
             "the same fixed-width Ada implementation."
         )
-    if name == "Multiply_Wrap" and "64x2" in declaration:
-        aarch = "a dedicated NEON 32-bit partial-product sequence"
-        x86 = "a dedicated SSE2 32-bit partial-product sequence"
+    if name in {"Add_Wrap", "Subtract_Wrap", "Multiply_Wrap"}:
+        return wrapping_arithmetic_support(name, declaration)
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"

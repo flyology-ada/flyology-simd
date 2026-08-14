@@ -48,6 +48,7 @@ integer_reduction_probe_object="$probe_root/integer_reduction_codegen_probe.o"
 float_binary_probe_object="$probe_root/float_binary_codegen_probe.o"
 complete_memory_probe_object="$probe_root/complete_memory_codegen_probe.o"
 comparison_probe_object="$probe_root/comparison_codegen_probe.o"
+wrapping_arithmetic_probe_object="$probe_root/wrapping_arithmetic_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -94,6 +95,13 @@ if command -v otool >/dev/null 2>&1; then
       grep -Ev '<ltmp[0-9]+>:$' >"$temporary/comparison-probe.txt"
 else
     objdump -dr "$comparison_probe_object" >"$temporary/comparison-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wrapping_arithmetic_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wrapping-arithmetic-probe.txt"
+else
+    objdump -dr "$wrapping_arithmetic_probe_object" \
+      >"$temporary/wrapping-arithmetic-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$wide_construction_probe_object" |
@@ -195,6 +203,8 @@ nm -u "$integer_reduction_probe_object" \
 nm -u "$float_binary_probe_object" >"$temporary/float-binary-undefined.txt"
 nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt"
 nm -u "$comparison_probe_object" >"$temporary/comparison-undefined.txt"
+nm -u "$wrapping_arithmetic_probe_object" \
+  >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1066,6 +1076,42 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide_
   "$temporary/integer-reduction-undefined.txt" \
   'portable, Scalar, or Wide reduction retained in the 128-bit caller probe'
 
+wrapping_arithmetic_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wrapping_arithmetic_codegen_cases.txt | wc -l | tr -d ' ')
+wrapping_arithmetic_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wrapping_arithmetic_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wrapping_arithmetic_case_count" -ne 24 ] || \
+   [ "$wrapping_arithmetic_unique_count" -ne 24 ]; then
+    echo 'fixed-width wrapping-arithmetic manifest must contain 24 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix bits lanes; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wrapping-arithmetic-${lane_kind}-${operation}.txt"
+    extract_symbol "wrapping_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wrapping-arithmetic-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected operation in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide arithmetic in ${lane_kind} ${operation} caller"
+done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)(__[2-8])?$' 24 \
+  "$temporary/wrapping-arithmetic-undefined.txt" \
+  'all 24 selected fixed-width wrapping-arithmetic operations'
+require_count 'flyology_simd__' 24 \
+  "$temporary/wrapping-arithmetic-undefined.txt" \
+  'only the 24 intended wrapping operations remain unresolved'
+forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)|flyology_simd__wide__' \
+  "$temporary/wrapping-arithmetic-undefined.txt" \
+  'portable, Scalar, or Wide arithmetic retained in the caller probe'
+
 float_binary_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/float_binary_codegen_cases.txt | wc -l | tr -d ' ')
 float_binary_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -1311,6 +1357,44 @@ done <scripts/probes/comparison_codegen_cases.txt
 
 case "$architecture" in
     aarch64)
+        while read -r lane_kind operation suffix bits lanes; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/wrapping-arithmetic-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$bits" in
+                8) shape=16b ;;
+                16) shape=8h ;;
+                32) shape=4s ;;
+                64) shape=2d ;;
+            esac
+            case "$operation" in
+                add_wrap) require_count "(^|[[:space:]])(add\.${shape}[[:space:]]|add[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
+                subtract_wrap) require_count "(^|[[:space:]])(sub\.${shape}[[:space:]]|sub[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
+                multiply_wrap)
+                    if [ "$bits" -lt 64 ]; then
+                        require_count "(^|[[:space:]])(mul\.${shape}[[:space:]]|mul[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
+                    else
+                        require_count '(^|[[:space:]])uzp1(\.4s)?[[:space:]]' 2 "$leaf" "two low-word deinterleaves in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])uzp2(\.4s)?[[:space:]]' 2 "$leaf" "two high-word deinterleaves in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])umull(\.2d)?[[:space:]]' 1 "$leaf" "one low-word full product in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])mul(\.2s)?[[:space:]]' 1 "$leaf" "one first cross product in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])mla(\.2s)?[[:space:]]' 1 "$leaf" "one second cross product in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])shll(\.2d)?[[:space:]].*#(32|0x20)([^[:xdigit:]]|$)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
+                        require_count '(^|[[:space:]])add(\.2d)?[[:space:]]+v[0-9]+' 1 "$leaf" "one modulo-64 product combination in ${lane_kind} multiplication"
+                    fi
+                    ;;
+            esac
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
         while read -r lane_kind operation suffix shape x86_shape; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -2022,6 +2106,54 @@ EOF
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
+        while read -r lane_kind operation suffix bits lanes; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/wrapping-arithmetic-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$bits:$operation" in
+                8:add_wrap) require_count '(^|[[:space:]])paddb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                8:subtract_wrap) require_count '(^|[[:space:]])psubb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                16:add_wrap) require_count '(^|[[:space:]])paddw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                16:subtract_wrap) require_count '(^|[[:space:]])psubw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                32:add_wrap) require_count '(^|[[:space:]])paddd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                32:subtract_wrap) require_count '(^|[[:space:]])psubd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                64:add_wrap) require_count '(^|[[:space:]])paddq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                64:subtract_wrap) require_count '(^|[[:space:]])psubq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                8:multiply_wrap)
+                    require_count '(^|[[:space:]])punpcklbw[[:space:]]' 2 "$leaf" "two low-byte widening steps in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])punpckhbw[[:space:]]' 2 "$leaf" "two high-byte widening steps in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pmullw[[:space:]]' 2 "$leaf" "two widened products in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two low-byte masks in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "byte repacking in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "zero construction in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones mask construction in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)([,[:space:]]|$)' 1 "$leaf" "low-byte mask derivation in ${lane_kind} multiplication"
+                    ;;
+                16:multiply_wrap) require_count '(^|[[:space:]])pmullw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} multiplication" ;;
+                32:multiply_wrap)
+                    require_count '(^|[[:space:]])pmuludq[[:space:]]' 2 "$leaf" "two even-dword products in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])psrldq[[:space:]].*\$(0x0*4|4)([,[:space:]]|$)' 2 "$leaf" "two four-byte odd-dword advances in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)([,[:space:]]|$)' 2 "$leaf" "two 0x88 dword product packings in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword product merge in ${lane_kind} multiplication"
+                    ;;
+                64:multiply_wrap)
+                    require_count '(^|[[:space:]])pmuludq[[:space:]]' 3 "$leaf" "three partial products in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*b1|177)([,[:space:]]|$)' 2 "$leaf" "two 0xb1 cross-part broadcasts in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])paddq[[:space:]]' 2 "$leaf" "two partial-product additions in ${lane_kind} multiplication"
+                    require_count '(^|[[:space:]])psllq[[:space:]].*\$(0x20|32)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
+                    ;;
+            esac
+            forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
         while read -r lane_kind operation suffix; do
             if [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
                 continue

@@ -38,6 +38,9 @@ The generated complete 128-bit memory caller probe and its 60-operation
 manifest are reproduced by `scripts/generate_complete_memory_probe.py`.
 The generated fixed-width comparison and selection caller probe and its
 62-operation manifest are reproduced by `scripts/generate_comparison_probe.py`.
+The generated fixed-width wrapping-arithmetic caller probe and its
+24-operation manifest are reproduced by
+`scripts/generate_wrapping_arithmetic_probe.py`.
 The generated Wide integer-reduction caller probe and its 24-operation
 manifest are reproduced by `scripts/generate_wide_reduction_probe.py`.
 The generated Wide construction and lane-access caller probe and its

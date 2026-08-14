@@ -38,13 +38,19 @@ expanded byte indexes, so each AArch64 `Permute_Lanes` overload uses `tbl`
 after map construction. Two-source maps use a two-register `tbl` table.
 `Compress` and `Expand` derive an index map from the mask and then use
 `tbl` for every value family.
-The `U64x2` and `I64x2` `Multiply_Wrap` overloads use a dedicated Advanced
-SIMD sequence. The sequence separates each operand lane into low and high
-32-bit parts. It computes the low-by-low product and the low 32 bits of the
-low-by-high and high-by-low cross-products. It adds the cross-products, shifts
-that sum left by 32 bits, and adds the shifted value to the low-by-low product.
-The sequence keeps the low 64 bits. The high-by-high product cannot affect
-those bits. All ten 128-bit `Select_Value` overloads expand the compact mask
+
+All 24 fixed-width wrapping-arithmetic overloads use target leaves. AArch64
+uses `add` and `sub` at the applicable `16b`, `8h`, `4s`, or `2d` lane shape.
+It uses `mul` for 8-, 16-, and 32-bit lanes. Its `U64x2` and `I64x2`
+`Multiply_Wrap` leaves separate each lane into low and high 32-bit parts,
+combine the low-by-low and cross-products, and retain the low 64 bits. x86-64
+uses `paddb`/`paddw`/`paddd`/`paddq` and
+`psubb`/`psubw`/`psubd`/`psubq`. Its multiplication leaves use two widened
+word products and byte repacking for 8-bit lanes, `pmullw` for 16-bit lanes,
+two `pmuludq` products and repacking for 32-bit lanes, and three `pmuludq`
+partial products for 64-bit lanes.
+
+All ten 128-bit `Select_Value` overloads expand the compact mask
 with `cmtst` and select lane bits with `bsl`. Floating `Reduce_Add` uses a
 dedicated Advanced SIMD sequence. It starts from positive zero and adds one
 lane at a time in ascending order. `Unordered` compares each input with itself
@@ -53,12 +59,16 @@ inverts the result.
 Floating minimum-number and maximum-number reductions use scalar Advanced SIMD
 leaves in ascending lane order.
 
-Fixed test cases for signed and unsigned lanes cover 32-bit partial-product
-boundaries. For each type, 250 deterministic pseudorandom cases use an
-independent lane oracle for wrapping multiplication. The AArch64
-code-generation gate requires the deinterleave, low-by-low multiplication,
-cross-product, shift, and addition instruction classes in both overloads. It
-rejects calls to the portable multiplication operation.
+For U8x16, fixed inputs and 2,000 deterministic full-width input pairs check
+`Add_Wrap`, `Subtract_Wrap`, and `Multiply_Wrap` against independent
+modular-bit lane oracles. Each of the other seven integer types uses fixed
+inputs and 250 deterministic full-width pairs. Every oracle checks the root,
+`Backends.Scalar`, and `Backends.Native` result. Directed 64-bit cases cover
+the partial-product boundaries. A generated public caller probe covers all 24
+overloads. Each caller must enter the matching `Backends.Native` overload.
+Exact-leaf gates require the operation- and type-specific Advanced SIMD or
+SSE2 sequence. They reject root, Scalar, Wide, mismatched Native, and
+out-of-line helper routes.
 
 For each of the ten 128-bit value types, the tests check every mask pattern
 against an independent per-lane `Select_Value` oracle. The floating checks

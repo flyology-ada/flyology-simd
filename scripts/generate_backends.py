@@ -2852,6 +2852,9 @@ def test_program() -> str:
             shl_oracle = f"{scalar} (Interfaces.Shift_Left ({unsigned} (Extract (A, Lane)), 1))"
             shr_oracle = f"{scalar} (Interfaces.Shift_Right ({unsigned} (Extract (A, Lane)), 1))"
             sar_oracle = None
+        fixed_add_oracle = add_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_sub_oracle = sub_oracle.replace("R_A", "A").replace("R_B", "B")
+        fixed_mul_oracle = mul_oracle.replace("R_A", "A").replace("R_B", "B")
         saturation_edges = {
             "U32x4": [
                 "      Saturation_Left : constant U32x4 := From_Lanes ([U32'Last, 0, U32'Last, 0]);",
@@ -3059,12 +3062,17 @@ def test_program() -> str:
             f"         Check (Backends.Native.Extract (A, Lane) = To_Lanes (A) (Lane), \"{vector} independent native extract\" & Lane'Image);",
             f"         for Result_Lane in {lane_index(bits, lanes)} loop Check (Extract (Backends.Native.Replace (A, Lane, To_Lanes (B) (Lane)), Result_Lane) = (if Result_Lane = Lane then To_Lanes (B) (Lane) else To_Lanes (A) (Result_Lane)), \"{vector} independent native replace\" & Lane'Image & Result_Lane'Image); end loop;",
             "      end loop;",
+            f"      for Lane in {lane_index(bits, lanes)} loop",
+            f"         Check (Extract (Add_Wrap (A, B), Lane) = {fixed_add_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (A, B), Lane) = {fixed_add_oracle} and then Backends.Native.Extract (Backends.Native.Add_Wrap (A, B), Lane) = {fixed_add_oracle}, \"{vector} independent fixed root, Scalar, and Native add oracle\" & Lane'Image);",
+            f"         Check (Extract (Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle} and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (A, B), Lane) = {fixed_sub_oracle}, \"{vector} independent fixed root, Scalar, and Native subtract oracle\" & Lane'Image);",
+            f"         Check (Extract (Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (A, B), Lane) = {fixed_mul_oracle}, \"{vector} independent fixed root, Scalar, and Native multiply oracle\" & Lane'Image);",
+            "      end loop;",
         ]
         for name in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap", "Add_Saturate", "Subtract_Saturate", "Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Min", "Max", "Interleave_Low", "Interleave_High", "Deinterleave_Even", "Deinterleave_Odd"):
             lines.append(f"      Check (Same (Backends.Native.{name} (A, B), {name} (A, B)), \"{vector} {name}\");")
         if bits == 64:
             lines.append(
-                f"      Check (Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, \"{vector} independent 32-bit partial-product boundaries\");"
+                f"      Check (To_Lanes (Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected and then Backends.Native.To_Lanes (Backends.Native.Multiply_Wrap (Multiply_Edge_Left, Multiply_Edge_Right)) = Multiply_Edge_Expected, \"{vector} independent root, Scalar, and Native 32-bit partial-product boundaries\");"
             )
         if bits >= 32:
             lines.append(
@@ -3220,9 +3228,9 @@ def test_program() -> str:
             f"               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})) and then Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), {lane_index(bits, lanes)} ((Iteration * 3 + Lane * 5) mod {lanes})), \"{vector} varied independent scalar and native two-source lane permutation\" & Lane'Image);",
             f"               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), \"{vector} randomized native lane access\" & Lane'Image);",
             f"               Check (Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Lane) = (if Slide < {lanes} and then Lane < {lanes} - Slide then R_Lanes ({lane_index(bits, lanes)} (Lane + Slide)) else 0) and then Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Lane) = (if Slide < {lanes} and then Lane >= Slide then R_Lanes ({lane_index(bits, lanes)} (Lane - Slide)) else 0), \"{vector} randomized independent native lane slides\" & Lane'Image);",
-            f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent add oracle\" & Lane'Image);",
-            f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent subtract oracle\" & Lane'Image);",
-            f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent scalar and native multiply oracle\" & Lane'Image);",
+            f"               Check (Extract (Add_Wrap (R_A, R_B), Lane) = {add_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (R_A, R_B), Lane) = {add_oracle} and then Backends.Native.Extract (Backends.Native.Add_Wrap (R_A, R_B), Lane) = {add_oracle}, \"{vector} independent root, Scalar, and Native add oracle\" & Lane'Image);",
+            f"               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle} and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (R_A, R_B), Lane) = {sub_oracle}, \"{vector} independent root, Scalar, and Native subtract oracle\" & Lane'Image);",
+            f"               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle} and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = {mul_oracle}, \"{vector} independent root, Scalar, and Native multiply oracle\" & Lane'Image);",
             f"               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_{vector} (Extract (R_A, Lane), Extract (R_B, Lane)), \"{vector} independent scalar and native saturation oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_And (R_A, R_B), Lane) = {and_oracle} and then Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Extract (Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} independent bitwise oracle\" & Lane'Image);",
             f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",

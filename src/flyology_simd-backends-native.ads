@@ -40,19 +40,19 @@ is
 
    function Add_Wrap (Left, Right : U8x16) return U8x16;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 16b lanes. The x86-64 backend uses the SSE2 paddb instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U8x16) return U8x16;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 16b lanes. The x86-64 backend uses the SSE2 psubb instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U8x16) return U8x16;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 16b lanes. The x86-64 backend uses an SSE2 sequence that widens bytes, uses two pmullw instructions, and packs the low product bytes. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -778,19 +778,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I8x16) return I8x16;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 16b lanes. The x86-64 backend uses the SSE2 paddb instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I8x16) return I8x16;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 16b lanes. The x86-64 backend uses the SSE2 psubb instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I8x16) return I8x16;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 16b lanes. The x86-64 backend uses an SSE2 sequence that widens bytes, uses two pmullw instructions, and packs the low product bytes. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1077,19 +1077,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U16x8) return U16x8;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 8h lanes. The x86-64 backend uses the SSE2 paddw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U16x8) return U16x8;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 8h lanes. The x86-64 backend uses the SSE2 psubw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U16x8) return U16x8;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 8h lanes. The x86-64 backend uses the SSE2 pmullw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1370,19 +1370,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I16x8) return I16x8;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 8h lanes. The x86-64 backend uses the SSE2 paddw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I16x8) return I16x8;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 8h lanes. The x86-64 backend uses the SSE2 psubw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I16x8) return I16x8;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 8h lanes. The x86-64 backend uses the SSE2 pmullw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1669,19 +1669,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U32x4) return U32x4;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 4s lanes. The x86-64 backend uses the SSE2 paddd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U32x4) return U32x4;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 4s lanes. The x86-64 backend uses the SSE2 psubd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U32x4) return U32x4;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 4s lanes. The x86-64 backend uses an SSE2 sequence that uses two pmuludq instructions and repacks the dword products. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1962,19 +1962,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I32x4) return I32x4;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 4s lanes. The x86-64 backend uses the SSE2 paddd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I32x4) return I32x4;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 4s lanes. The x86-64 backend uses the SSE2 psubd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I32x4) return I32x4;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 4s lanes. The x86-64 backend uses an SSE2 sequence that uses two pmuludq instructions and repacks the dword products. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2261,19 +2261,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U64x2) return U64x2;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 2d lanes. The x86-64 backend uses the SSE2 paddq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U64x2) return U64x2;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 2d lanes. The x86-64 backend uses the SSE2 psubq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U64x2) return U64x2;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON 32-bit partial-product sequence. The x86-64 backend uses a dedicated SSE2 32-bit partial-product sequence. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON 32-bit partial-product sequence. The x86-64 backend uses an SSE2 three-pmuludq partial-product sequence. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2554,19 +2554,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I64x2) return I64x2;
    --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 2d lanes. The x86-64 backend uses the SSE2 paddq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I64x2) return I64x2;
    --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 2d lanes. The x86-64 backend uses the SSE2 psubq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I64x2) return I64x2;
    --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON 32-bit partial-product sequence. The x86-64 backend uses a dedicated SSE2 32-bit partial-product sequence. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON 32-bit partial-product sequence. The x86-64 backend uses an SSE2 three-pmuludq partial-product sequence. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

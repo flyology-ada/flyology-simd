@@ -117,6 +117,35 @@ def comparison_phrases(operation: str, vector: str) -> tuple[str, str]:
     return aarch, x86
 
 
+def wrapping_arithmetic_phrases(operation: str, vector: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for wrapping integer arithmetic."""
+    width = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[width]
+    if operation == "Add_Wrap":
+        return (
+            f"NEON add instruction over {shape} lanes",
+            f"SSE2 padd{ {8: 'b', 16: 'w', 32: 'd', 64: 'q'}[width] } instruction",
+        )
+    if operation == "Subtract_Wrap":
+        return (
+            f"NEON sub instruction over {shape} lanes",
+            f"SSE2 psub{ {8: 'b', 16: 'w', 32: 'd', 64: 'q'}[width] } instruction",
+        )
+    if width < 64:
+        return (
+            f"NEON mul instruction over {shape} lanes",
+            {
+                8: "widens bytes, uses two pmullw instructions, and packs the low product bytes",
+                16: "SSE2 pmullw instruction",
+                32: "uses two pmuludq instructions and repacks the dword products",
+            }[width],
+        )
+    return (
+        "NEON 32-bit partial-product sequence",
+        "SSE2 three-pmuludq partial-product sequence",
+    )
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -341,13 +370,28 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: expected 18 operations without a "
                 f"Native counterpart, found {text.count(shared)}"
             )
-        multiply_support = "dedicated NEON 32-bit partial-product sequence"
-        if text.count(multiply_support) != 2:
-            invalid.append(
-                f"{path.relative_to(ROOT)}: expected two portable 64-bit "
-                f"Multiply_Wrap notes with exact Native lowering, found "
-                f"{text.count(multiply_support)}"
-            )
+    if path.name in {"flyology_simd.ads", "flyology_simd-backends-native.ads"}:
+        wrapping_vectors = (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        )
+        for operation in ("Add_Wrap", "Subtract_Wrap", "Multiply_Wrap"):
+            blocks = declaration_blocks(text, operation)
+            for vector in wrapping_vectors:
+                matching = [
+                    block for block in blocks if f"Left, Right : {vector}" in block
+                ]
+                aarch, x86 = wrapping_arithmetic_phrases(operation, vector)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} classification, found {len(exact)}"
+                    )
     if path.name == "flyology_simd-backends-native.ads":
         lane_access_support = {
             "From_Lanes": "copy the supplied lane array into private vector storage",
@@ -530,15 +574,6 @@ def invalid_support(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}: incorrect exact Horizontal_Sum "
                 "backend classification"
             )
-        for phrase, backend in (
-            ("dedicated NEON 32-bit partial-product sequence", "AArch64"),
-            ("dedicated SSE2 32-bit partial-product sequence", "x86-64"),
-        ):
-            if text.count(phrase) != 2:
-                invalid.append(
-                    f"{path.relative_to(ROOT)}: expected two exact 64-bit "
-                    f"Multiply_Wrap {backend} notes, found {text.count(phrase)}"
-                )
         select_support = (
             "Select_Value", "The AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence."
         )

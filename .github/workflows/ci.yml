@@ -41,6 +41,7 @@ jobs:
           python3 scripts/generate_float_binary_probe.py
           python3 scripts/generate_complete_memory_probe.py
           python3 scripts/generate_comparison_probe.py
+          python3 scripts/generate_wrapping_arithmetic_probe.py
           python3 scripts/generate_wide_reduction_probe.py
           python3 scripts/generate_wide_construction_probe.py
           python3 scripts/generate_wide_comparison_probe.py

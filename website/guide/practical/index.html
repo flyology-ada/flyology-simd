@@ -197,12 +197,16 @@ differences:
   From_Lanes ([65_530, 1, 2, 3, 100, 200, 300, 400]);
 Increment : constant U16x8 := Splat (10);
 
-Wrapped   : constant U16x8 := Add_Wrap (Input, Increment);
+Added      : constant U16x8 := Add_Wrap (Input, Increment);
+Subtracted : constant U16x8 := Subtract_Wrap (Input, Increment);
+Multiplied : constant U16x8 := Multiply_Wrap (Input, Increment);
 Saturated : constant U16x8 := Add_Saturate (Input, Increment);
 
---  Wrapped lane 0 = 4
+--  Added lane 0 = 4
+--  Subtracted lane 1 = 65_527
+--  Multiplied lane 0 = 65_476
 --  Saturated lane 0 = 65_535</code></pre>
-          <p>The signed and unsigned families use the same explicit naming rule.</p>
+          <p><a data-api="Flyology_SIMD.Subtract_Wrap" data-api-signature="U16x8"><code>Subtract_Wrap</code></a> and <a data-api="Flyology_SIMD.Multiply_Wrap" data-api-signature="U16x8"><code>Multiply_Wrap</code></a> use the same modulo-lane-width rule as <code>Add_Wrap</code>. All three wrapping forms discard bits above the lane width. The signed and unsigned families use the same explicit naming rule. The maintained <a href="https://github.com/flyology-ada/flyology-simd/blob/main/examples/integer_vectors.adb"><code>integer_vectors</code> example</a> asserts these four results before printing them.</p>
         </section>
         <section id="shifts">
           <h2>Shift signed lanes with sign fill</h2>
