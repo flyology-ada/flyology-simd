@@ -97,19 +97,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_And operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpand leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Or operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpor leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpxor leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -127,7 +127,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : U8x32) return U8x32 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Not operation to both private parts. The optional AVX2 backend calls an isolated 256-bit leaf that constructs an all-one mask with vpcmpeqd and complements with vpxor and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U8x32; Count : Natural) return U8x32 with Inline_Always;
@@ -459,19 +459,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_And operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpand leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Or operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpor leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. The optional AVX2 backend calls an isolated 256-bit vpxor leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -489,7 +489,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : I8x32) return I8x32 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends apply the selected 128-bit Bitwise_Not operation to both private parts. The optional AVX2 backend calls an isolated 256-bit leaf that constructs an all-one mask with vpcmpeqd and complements with vpxor and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
@@ -773,19 +773,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -803,7 +803,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : U16x16) return U16x16 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U16x16; Count : Natural) return U16x16 with Inline_Always;
@@ -1130,19 +1130,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1160,7 +1160,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : I16x16) return I16x16 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
@@ -1449,19 +1449,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1479,7 +1479,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : U32x8) return U32x8 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U32x8; Count : Natural) return U32x8 with Inline_Always;
@@ -1811,19 +1811,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1841,7 +1841,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : I32x8) return I32x8 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
@@ -2130,19 +2130,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2160,7 +2160,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : U64x4) return U64x4 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : U64x4; Count : Natural) return U64x4 with Inline_Always;
@@ -2492,19 +2492,19 @@ is
    --  @return The operation result.
    function Bitwise_And (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Bitwise_And independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_And operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Or (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Bitwise_Or independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Or operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Bitwise_Xor (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Bitwise_Xor independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Xor operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2522,7 +2522,7 @@ is
    --  @return The operation result.
    function Bitwise_Not (Value : I64x4) return I64x4 with Inline_Always;
    --  Complement every bit in every lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Bitwise_Not operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @return The operation result.
    function Shift_Left_Logical (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;

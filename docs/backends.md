@@ -559,6 +559,28 @@ matching packed AVX2 saturation instruction and
 `vzeroupper`. The caller gates reject mismatched selected operations, portable
 calls, Scalar calls, Wide dispatchers, and the general byte mechanism.
 
+The Wide integer family has 32 bitwise overloads in total: eight each of
+`Bitwise_And`, `Bitwise_Or`, `Bitwise_Xor`, and `Bitwise_Not`. AArch64 and the
+composed x86-64 backend apply the matching selected 128-bit operation to both
+private parts. For the eight byte overloads, the optional AVX2 backend uses
+isolated `vpand`, `vpor`, or `vpxor` leaves. Each AVX2 `Bitwise_Not` leaf
+constructs an all-one mask with `vpcmpeqd` and complements with `vpxor`. All
+eight byte leaves run `vzeroupper`. For the other 24 overloads, the optional
+AVX2 backend retains the two-part selected composition. A scalar build uses the
+same composition through the portable 128-bit implementation.
+
+Independent bitwise lane oracles check zero, all-one, alternating, and sign-bit
+patterns. They also check 128 deterministic full-width input pairs for each
+Wide integer type. Every case checks the scalar Wide implementation and
+`Wide.Native` results. A generated caller probe covers all 32 overloads in each
+target configuration. The AArch64 and composed x86-64 gates verify two inline
+target operations for `U8x32` `Bitwise_And`. The other composed and non-byte
+AVX2 gates require two relocations to the exact matching selected 128-bit
+operation and exactly two out-of-line branches. Each byte AVX2 caller gate
+requires one matching isolated leaf and exactly one out-of-line branch. The
+caller gates reject mismatched selected operations, portable calls, Scalar
+calls, Wide dispatchers, and the general byte mechanism.
+
 All 60 Wide construction and lane-access overloads compose selected 128-bit
 operations. `Zero` and `Splat` apply the matching selected operation to both
 private parts. `From_Lanes` splits the lane array at the private-part boundary.

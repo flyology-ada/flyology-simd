@@ -176,6 +176,22 @@ procedure Wide_Tests is
         (Left * Right);
 
 
+      function Reference_Bitwise_And
+        (Left, Right : U8) return U8 is
+        (Left and Right);
+
+      function Reference_Bitwise_Or
+        (Left, Right : U8) return U8 is
+        (Left or Right);
+
+      function Reference_Bitwise_Xor
+        (Left, Right : U8) return U8 is
+        (Left xor Right);
+
+      function Reference_Bitwise_Not (Value : U8) return U8 is
+        (not Value);
+
+
       function Reference_Add_Saturate
         (Left, Right : U8) return U8 is
         (if Left > U8'Last - Right then U8'Last else Left + Right);
@@ -728,6 +744,34 @@ procedure Wide_Tests is
               and then Native.Extract (Native_Multiply, Lane) =
                 Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
               "U8x32 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128), U8 (0), U8 (255), U8 (170), U8 (128)];
+         Right_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127), U8 (255), U8 (0), U8 (85), U8 (127)];
+         Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U8x32 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "U8x32 directed independent bitwise patterns" & Lane'Image);
          end loop;
       end;
 
@@ -1366,6 +1410,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "U8x32 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.U8x32 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U8x32 := Native.Add_Saturate (R_A, R_B);
@@ -1622,6 +1688,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : I8) return I8 is
         (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
+
+
+      function Reference_Bitwise_And
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) and Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Or
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) or Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Xor
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) xor Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Not (Value : I8) return I8 is
+        (Bits_To_Value (not Value_To_Bits (Value)));
 
 
       function Reference_Add_Saturate
@@ -2147,6 +2229,34 @@ procedure Wide_Tests is
               and then Native.Extract (Native_Multiply, Lane) =
                 Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
               "I8x32 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (128))];
+         Right_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (0)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (127))];
+         Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I8x32 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "I8x32 directed independent bitwise patterns" & Lane'Image);
          end loop;
       end;
 
@@ -2760,6 +2870,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_8x32 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "I8x32 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.I8x32 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I8x32 := Native.Add_Saturate (R_A, R_B);
@@ -3004,6 +3136,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : U16) return U16 is
         (Left * Right);
+
+
+      function Reference_Bitwise_And
+        (Left, Right : U16) return U16 is
+        (Left and Right);
+
+      function Reference_Bitwise_Or
+        (Left, Right : U16) return U16 is
+        (Left or Right);
+
+      function Reference_Bitwise_Xor
+        (Left, Right : U16) return U16 is
+        (Left xor Right);
+
+      function Reference_Bitwise_Not (Value : U16) return U16 is
+        (not Value);
 
 
       function Reference_Add_Saturate
@@ -3530,6 +3678,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (0), U16 (65535), U16 (43690), U16 (32768), U16 (0), U16 (65535), U16 (43690), U16 (32768), U16 (0), U16 (65535), U16 (43690), U16 (32768), U16 (0), U16 (65535), U16 (43690), U16 (32768)];
+         Right_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (65535), U16 (0), U16 (21845), U16 (32767), U16 (65535), U16 (0), U16 (21845), U16 (32767), U16 (65535), U16 (0), U16 (21845), U16 (32767), U16 (65535), U16 (0), U16 (21845), U16 (32767)];
+         Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U16x16 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "U16x16 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U16x16 := [1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last];
          Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
@@ -3969,6 +4145,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "U16x16 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.U16x16 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U16x16 := Native.Add_Saturate (R_A, R_B);
@@ -4180,6 +4378,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : I16) return I16 is
         (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
+
+
+      function Reference_Bitwise_And
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) and Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Or
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) or Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Xor
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) xor Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Not (Value : I16) return I16 is
+        (Bits_To_Value (not Value_To_Bits (Value)));
 
 
       function Reference_Add_Saturate
@@ -4710,6 +4924,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (0)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32768))];
+         Right_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (0)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (32767))];
+         Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I16x16 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "I16x16 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I16x16 := [I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First];
          Right_Lanes : constant Wide.Lane_Values_I16x16 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
@@ -5148,6 +5390,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_16x16 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "I16x16 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.I16x16 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I16x16 := Native.Add_Saturate (R_A, R_B);
@@ -5358,6 +5622,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : U32) return U32 is
         (Left * Right);
+
+
+      function Reference_Bitwise_And
+        (Left, Right : U32) return U32 is
+        (Left and Right);
+
+      function Reference_Bitwise_Or
+        (Left, Right : U32) return U32 is
+        (Left or Right);
+
+      function Reference_Bitwise_Xor
+        (Left, Right : U32) return U32 is
+        (Left xor Right);
+
+      function Reference_Bitwise_Not (Value : U32) return U32 is
+        (not Value);
 
 
       function Reference_Add_Saturate
@@ -5884,6 +6164,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (0), U32 (4294967295), U32 (2863311530), U32 (2147483648), U32 (0), U32 (4294967295), U32 (2863311530), U32 (2147483648)];
+         Right_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (4294967295), U32 (0), U32 (1431655765), U32 (2147483647), U32 (4294967295), U32 (0), U32 (1431655765), U32 (2147483647)];
+         Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U32x8 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "U32x8 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32'Last, 0, U32'Last, 0, U32'Last, 0, U32'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U32x8 := [1, 1, U32'Last, U32'Last, 1, 1, U32'Last, U32'Last];
          Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
@@ -6339,6 +6647,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "U32x8 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.U32x8 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U32x8 := Native.Add_Saturate (R_A, R_B);
@@ -6566,6 +6896,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : I32) return I32 is
         (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
+
+
+      function Reference_Bitwise_And
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) and Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Or
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) or Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Xor
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) xor Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Not (Value : I32) return I32 is
+        (Bits_To_Value (not Value_To_Bits (Value)));
 
 
       function Reference_Add_Saturate
@@ -7096,6 +7442,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (0)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530)), Bits_To_Value (U32 (2147483648)), Bits_To_Value (U32 (0)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530)), Bits_To_Value (U32 (2147483648))];
+         Right_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (0)), Bits_To_Value (U32 (1431655765)), Bits_To_Value (U32 (2147483647)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (0)), Bits_To_Value (U32 (1431655765)), Bits_To_Value (U32 (2147483647))];
+         Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I32x8 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "I32x8 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I32x8 := [I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First];
          Right_Lanes : constant Wide.Lane_Values_I32x8 := [1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
@@ -7550,6 +7924,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_32x8 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "I32x8 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.I32x8 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I32x8 := Native.Add_Saturate (R_A, R_B);
@@ -7776,6 +8172,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : U64) return U64 is
         (Left * Right);
+
+
+      function Reference_Bitwise_And
+        (Left, Right : U64) return U64 is
+        (Left and Right);
+
+      function Reference_Bitwise_Or
+        (Left, Right : U64) return U64 is
+        (Left or Right);
+
+      function Reference_Bitwise_Xor
+        (Left, Right : U64) return U64 is
+        (Left xor Right);
+
+      function Reference_Bitwise_Not (Value : U64) return U64 is
+        (not Value);
 
 
       function Reference_Add_Saturate
@@ -8302,6 +8714,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (0), U64 (18446744073709551615), U64 (12297829382473034410), U64 (9223372036854775808)];
+         Right_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (18446744073709551615), U64 (0), U64 (6148914691236517205), U64 (9223372036854775807)];
+         Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U64x4 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "U64x4 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64'Last, 0, U64'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U64x4 := [1, 1, U64'Last, U64'Last];
          Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
@@ -8757,6 +9197,28 @@ procedure Wide_Tests is
             end;
 
 
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "U64x4 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
+
+
             declare
                Root_Add : constant Wide.U64x4 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U64x4 := Native.Add_Saturate (R_A, R_B);
@@ -8984,6 +9446,22 @@ procedure Wide_Tests is
       function Reference_Multiply_Wrap
         (Left, Right : I64) return I64 is
         (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
+
+
+      function Reference_Bitwise_And
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) and Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Or
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) or Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Xor
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) xor Value_To_Bits (Right)));
+
+      function Reference_Bitwise_Not (Value : I64) return I64 is
+        (Bits_To_Value (not Value_To_Bits (Value)));
 
 
       function Reference_Add_Saturate
@@ -9514,6 +9992,34 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (0)), Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (12297829382473034410)), Bits_To_Value (U64 (9223372036854775808))];
+         Right_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (0)), Bits_To_Value (U64 (6148914691236517205)), Bits_To_Value (U64 (9223372036854775807))];
+         Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I64x4 := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "I64x4 directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I64x4 := [I64'Last, I64'First, I64'Last, I64'First];
          Right_Lanes : constant Wide.Lane_Values_I64x4 := [1, -1, -1, 1];
          Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
@@ -9966,6 +10472,28 @@ procedure Wide_Tests is
                       Iteration'Image & Lane'Image);
                end loop;
             end;
+
+
+            for Lane in Wide.Lane_Index_64x4 loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "I64x4 randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
 
 
             declare

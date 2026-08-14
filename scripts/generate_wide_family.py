@@ -310,6 +310,33 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "implementation. In a scalar build, this overload uses the same "
             "composition through the portable 128-bit implementation."
         )
+    elif operation in {"Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Bitwise_Not"}:
+        byte_shape = "U8x32" in declaration or "I8x32" in declaration
+        if byte_shape:
+            avx2 = {
+                "Bitwise_And": "an isolated 256-bit vpand leaf",
+                "Bitwise_Or": "an isolated 256-bit vpor leaf",
+                "Bitwise_Xor": "an isolated 256-bit vpxor leaf",
+                "Bitwise_Not": (
+                    "an isolated 256-bit leaf that constructs an all-one mask "
+                    "with vpcmpeqd and complements with vpxor"
+                ),
+            }[operation]
+            return (
+                "Cross-platform support: The AArch64 and composed x86-64 "
+                f"backends apply the selected 128-bit {operation} operation "
+                "to both private parts. The optional AVX2 backend calls "
+                f"{avx2} and then runs vzeroupper. In a scalar build, this "
+                "overload uses the same two-part composition through the "
+                "portable 128-bit implementation."
+            )
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends apply the selected 128-bit {operation} "
+            "operation to both private parts. In a scalar build, this overload "
+            "uses the same two-part composition through the portable 128-bit "
+            "implementation."
+        )
     elif operation in {"Add_Wrap", "Subtract_Wrap", "Multiply_Wrap"}:
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
         if byte_shape:
@@ -362,10 +389,9 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "128-bit implementation."
         )
     elif operation in {
-            "Bitwise_And", "Bitwise_Or", "Bitwise_Xor",
             "Min", "Max", "Equal", "Less_Than", "Less_Equal",
             "Greater_Than", "Greater_Equal",
-        } or operation in {"Bitwise_Not", "Select_Value"}:
+        } or operation == "Select_Value":
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
         predicate = operation in {
             "Equal", "Less_Than", "Less_Equal", "Greater_Than",

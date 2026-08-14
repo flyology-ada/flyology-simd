@@ -1150,6 +1150,46 @@ def invalid_support(path: Path) -> list[str]:
                     f"{signature_part} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        wide_bitwise_support = {
+            "Bitwise_And": "isolated 256-bit vpand leaf",
+            "Bitwise_Or": "isolated 256-bit vpor leaf",
+            "Bitwise_Xor": "isolated 256-bit vpxor leaf",
+            "Bitwise_Not": (
+                "isolated 256-bit leaf that constructs an all-one mask with "
+                "vpcmpeqd and complements with vpxor"
+            ),
+        }
+        for operation, byte_phrase in wide_bitwise_support.items():
+            blocks = declaration_blocks(text, operation)
+            selected_phrase = (
+                f"selected 128-bit {operation} operation to both private parts"
+            )
+            selected = sum(selected_phrase in block for block in blocks)
+            byte_avx2 = sum(byte_phrase in block for block in blocks)
+            byte_cleanup = sum(
+                byte_phrase in block and "and then runs vzeroupper" in block
+                for block in blocks
+            )
+            portable = sum(
+                "same two-part composition through the portable 128-bit "
+                "implementation" in block for block in blocks
+            )
+            if (len(blocks) != 8 or selected != 8 or byte_avx2 != 2
+                    or byte_cleanup != 2 or portable != 8):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    "Wide bitwise classifications"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block for block in blocks
+                )
+                if authority != 8:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected 8"
+                    )
         wide_wrapping_support = {
             "Add_Wrap": "isolated 256-bit vpaddb leaf",
             "Subtract_Wrap": "isolated 256-bit vpsubb leaf",

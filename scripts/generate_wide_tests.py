@@ -1653,6 +1653,22 @@ def integer_test(f: Family) -> str:
         (Left, Right : {f.scalar}) return {f.scalar} is
         ({'Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right))' if f.signed else 'Left * Right'});
 '''
+    bitwise_declarations = f'''
+      function Reference_Bitwise_And
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) and Value_To_Bits (Right))' if f.signed else 'Left and Right'});
+
+      function Reference_Bitwise_Or
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) or Value_To_Bits (Right))' if f.signed else 'Left or Right'});
+
+      function Reference_Bitwise_Xor
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) xor Value_To_Bits (Right))' if f.signed else 'Left xor Right'});
+
+      function Reference_Bitwise_Not (Value : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (not Value_To_Bits (Value))' if f.signed else 'not Value'});
+'''
     wrapping_left_bits = (
         (1 << (f.bits - 1)) - 1,
         1 << (f.bits - 1),
@@ -1733,6 +1749,76 @@ def integer_test(f: Family) -> str:
                       Iteration'Image & Lane'Image);
                end loop;
             end;
+'''
+    bitwise_left_bits = (
+        0,
+        (1 << f.bits) - 1,
+        int("AA" * (f.bits // 8), 16),
+        1 << (f.bits - 1),
+    )
+    bitwise_right_bits = (
+        (1 << f.bits) - 1,
+        0,
+        int("55" * (f.bits // 8), 16),
+        (1 << (f.bits - 1)) - 1,
+    )
+    bitwise_left = [
+        wrapping_value(bitwise_left_bits[lane % len(bitwise_left_bits)])
+        for lane in range(f.lanes)
+    ]
+    bitwise_right = [
+        wrapping_value(bitwise_right_bits[lane % len(bitwise_right_bits)])
+        for lane in range(f.lanes)
+    ]
+    bitwise_boundary_checks = f'''
+      declare
+         Left_Lanes : constant Wide.{f.values} := [{", ".join(bitwise_left)}];
+         Right_Lanes : constant Wide.{f.values} := [{", ".join(bitwise_right)}];
+         Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Lanes);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Wide.Extract (Wide.Bitwise_And (Left_Value, Right_Value), Lane) =
+              Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_And (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_And (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Or (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Or (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Xor (Left_Value, Right_Value), Lane) =
+                Reference_Bitwise_Xor (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Wide.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane))
+              and then Native.Extract (Native.Bitwise_Not (Left_Value), Lane) =
+                Reference_Bitwise_Not (Left_Lanes (Lane)),
+              "{f.vector} directed independent bitwise patterns" & Lane'Image);
+         end loop;
+      end;
+'''
+    bitwise_randomized = f'''
+            for Lane in Wide.{f.index} loop
+               Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
+                 Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_And (R_A, R_B), Lane) =
+                   Reference_Bitwise_And (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Or (R_A, R_B), Lane) =
+                   Reference_Bitwise_Or (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Xor (R_A, R_B), Lane) =
+                   Reference_Bitwise_Xor (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                 and then Wide.Extract (Wide.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane))
+                 and then Native.Extract (Native.Bitwise_Not (R_A), Lane) =
+                   Reference_Bitwise_Not (R_A_Lanes (Lane)),
+                 "{f.vector} randomized independent bitwise oracle" &
+                   Iteration'Image & Lane'Image);
+            end loop;
 '''
     if f.signed:
         saturation_declarations = f'''
@@ -2183,6 +2269,7 @@ def integer_test(f: Family) -> str:
       end Random_Lanes;
 {reduction_declarations}
 {wrapping_declarations}
+{bitwise_declarations}
 {saturation_declarations}
 {compaction_declarations(f)}
 {mask_position_declarations(f)}
@@ -2245,6 +2332,7 @@ def integer_test(f: Family) -> str:
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
 {wrapping_boundary_checks}
+{bitwise_boundary_checks}
 {saturation_boundary_checks}
 {byte_boundary_checks}
 {byte_predicate_checks}
@@ -2577,6 +2665,7 @@ def integer_test(f: Family) -> str:
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
 {wrapping_randomized}
+{bitwise_randomized}
 {saturation_randomized}
 {byte_predicate_randomized}
             Check_Predicates

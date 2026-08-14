@@ -30,6 +30,7 @@ wide_construction_probe_object="$probe_root/wide_construction_codegen_probe.o"
 wide_comparison_probe_object="$probe_root/wide_comparison_codegen_probe.o"
 wide_saturating_arithmetic_probe_object="$probe_root/wide_saturating_arithmetic_codegen_probe.o"
 wide_wrapping_arithmetic_probe_object="$probe_root/wide_wrapping_arithmetic_codegen_probe.o"
+wide_bitwise_probe_object="$probe_root/wide_bitwise_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -166,6 +167,12 @@ else
     objdump -dr "$wide_wrapping_arithmetic_probe_object" \
       >"$temporary/wide-wrapping-arithmetic-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_bitwise_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-bitwise-probe.txt"
+else
+    objdump -dr "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -256,6 +263,7 @@ nm -u "$wide_saturating_arithmetic_probe_object" \
   >"$temporary/wide-saturating-arithmetic-undefined.txt"
 nm -u "$wide_wrapping_arithmetic_probe_object" \
   >"$temporary/wide-wrapping-arithmetic-undefined.txt"
+nm -u "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -1194,6 +1202,88 @@ require_count 'flyology_simd__' 24 \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-wrapping-arithmetic-undefined.txt" \
   'portable, dispatcher, Scalar, or byte-mechanism route retained in Wide wrapping probe'
+
+wide_bitwise_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_bitwise_codegen_cases.txt | wc -l | tr -d ' ')
+wide_bitwise_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_bitwise_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_bitwise_case_count" -ne 32 ] || [ "$wide_bitwise_unique_count" -ne 32 ]; then
+    echo 'Wide bitwise manifest must contain 32 unique operations' >&2
+    exit 1
+fi
+case "$architecture" in
+    aarch64) wide_bitwise_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) wide_bitwise_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+while read -r lane_kind operation half_suffix route arity; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-bitwise-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_bitwise_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-bitwise-probe.txt" "$caller"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$wide_backend" = avx2 ] && [ "$route" = byte ]; then
+        leaf_suffix=
+        [ "$lane_kind" = i8 ] && leaf_suffix='__2'
+        require_count "wide__byte_avx2_leaf__${operation}${leaf_suffix}${symbol_end}" 1 \
+          "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
+        require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
+          "only one AVX2 byte leaf in ${lane_kind} ${operation}"
+        require_count "$wide_bitwise_branch" 1 "$caller" \
+          "one out-of-line AVX2 branch in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          "no composed selected operation in AVX2 ${lane_kind} ${operation}"
+    elif [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          'inline U8 conjunction has no selected call'
+        require_count "$wide_bitwise_branch" 0 "$caller" \
+          'inline U8 conjunction has no out-of-line branch'
+        case "$architecture" in
+            aarch64) require_count 'and.*16b' 2 "$caller" 'two inline AArch64 U8 conjunctions' ;;
+            x86_64) require_count 'pand' 2 "$caller" 'two inline SSE2 U8 conjunctions' ;;
+        esac
+    else
+        if [ "$route" = parts ]; then
+            selected_symbol="${operation}__${half_suffix}"
+        elif [ "$lane_kind" = u8 ]; then
+            case "$architecture" in
+                aarch64) selected_symbol="neon_${operation}" ;;
+                x86_64) selected_symbol="u8_${operation#bitwise_}" ;;
+            esac
+        else
+            case "$operation" in
+                bitwise_not) selected_symbol=native_not_i8x16 ;;
+                *) selected_symbol="native_${operation}_i8x16" ;;
+            esac
+        fi
+        require_count "backends__native__${selected_symbol}${symbol_end}" 2 "$caller" \
+          "two matching selected parts in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+          "only two selected operations in ${lane_kind} ${operation}"
+        require_count "$wide_bitwise_branch" 2 "$caller" \
+          "two out-of-line branches in ${lane_kind} ${operation}"
+    fi
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?bitwise_(and|or|xor|not)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
+      "$caller" "portable, dispatcher, Scalar, or byte-mechanism bitwise route"
+done <scripts/probes/wide_bitwise_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__bitwise_(and|or|xor|not)__(3|4|5|6|7|8)$' 24 \
+  "$temporary/wide-bitwise-undefined.txt" 'twenty-four selected non-byte Wide bitwise operations'
+if [ "$wide_backend" = avx2 ]; then
+    require_count 'flyology_simd__wide__byte_avx2_leaf__bitwise_(and|or|xor|not)(__2)?$' 8 \
+      "$temporary/wide-bitwise-undefined.txt" 'eight isolated AVX2 byte bitwise operations'
+    expected_wide_bitwise_symbols=32
+else
+    require_count 'flyology_simd__backends__native__native_(bitwise_(and|or|xor)|not)_i8x16$' 4 \
+      "$temporary/wide-bitwise-undefined.txt" 'four selected I8 Wide bitwise operations'
+    case "$architecture" in aarch64) u8_prefix=neon_bitwise ;; x86_64) u8_prefix=u8 ;; esac
+    require_count "flyology_simd__backends__native__${u8_prefix}_(or|xor|not)$" 3 \
+      "$temporary/wide-bitwise-undefined.txt" 'three out-of-line U8 Wide bitwise operations'
+    expected_wide_bitwise_symbols=31
+fi
+require_count 'flyology_simd__' "$expected_wide_bitwise_symbols" \
+  "$temporary/wide-bitwise-undefined.txt" 'only intended Wide bitwise operations remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?bitwise_(and|or|xor|not)(__[0-9]+)?$|wide__byte_mechanism__' \
+  "$temporary/wide-bitwise-undefined.txt" 'portable, dispatcher, Scalar, or byte-mechanism bitwise route retained'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')
@@ -4352,16 +4442,71 @@ EOF
             require_pattern 'vpaddsb' "$temporary/wide_byte_i8_add_sat.txt" 'AVX2 signed saturating byte addition'
             require_pattern 'vpsubusb' "$temporary/wide_byte_u8_sub_sat.txt" 'AVX2 unsigned saturating byte subtraction'
             require_pattern 'vpsubsb' "$temporary/wide_byte_i8_sub_sat.txt" 'AVX2 signed saturating byte subtraction'
-            require_pattern 'vpand' "$temporary/wide_byte_u8_and.txt" 'AVX2 unsigned byte bitwise conjunction'
-            require_pattern 'vpand' "$temporary/wide_byte_i8_and.txt" 'AVX2 signed byte bitwise conjunction'
-            require_pattern 'vpor' "$temporary/wide_byte_u8_or.txt" 'AVX2 unsigned byte bitwise disjunction'
-            require_pattern 'vpor' "$temporary/wide_byte_i8_or.txt" 'AVX2 signed byte bitwise disjunction'
-            require_pattern 'vpxor' "$temporary/wide_byte_u8_xor.txt" 'AVX2 unsigned byte bitwise exclusive disjunction'
-            require_pattern 'vpxor' "$temporary/wide_byte_i8_xor.txt" 'AVX2 signed byte bitwise exclusive disjunction'
-            require_pattern 'vpcmpeqd' "$temporary/wide_byte_u8_not.txt" 'AVX2 unsigned byte complement mask'
-            require_pattern 'vpxor' "$temporary/wide_byte_u8_not.txt" 'AVX2 unsigned byte complement'
-            require_pattern 'vpcmpeqd' "$temporary/wide_byte_i8_not.txt" 'AVX2 signed byte complement mask'
-            require_pattern 'vpxor' "$temporary/wide_byte_i8_not.txt" 'AVX2 signed byte complement'
+            for signedness in u8 i8; do
+                for operation in and or xor; do
+                    leaf="$temporary/wide_byte_${signedness}_${operation}.txt"
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                      "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} bitwise ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "one right-operand load in AVX2 ${signedness} bitwise ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                      "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} bitwise ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                      "$leaf" "left ABI operand in AVX2 ${signedness} bitwise ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "right ABI operand in AVX2 ${signedness} bitwise ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                      "$leaf" "assembly result destination in AVX2 ${signedness} bitwise ${operation} leaf"
+                    forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
+                      "$leaf" "branch or helper in AVX2 ${signedness} bitwise ${operation} leaf"
+                done
+                require_count 'vpand[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$temporary/wide_byte_${signedness}_and.txt" \
+                  "one exact AVX2 ${signedness} bitwise conjunction"
+                require_count '(^|[[:space:]])vpand[[:space:]]' 1 \
+                  "$temporary/wide_byte_${signedness}_and.txt" \
+                  "only one AVX2 ${signedness} conjunction instruction"
+                forbid_pattern 'vpandn|vpor|vpxor|vpcmpeqd' "$temporary/wide_byte_${signedness}_and.txt" \
+                  "unrelated bitwise operation in AVX2 ${signedness} conjunction leaf"
+                require_count 'vpor[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$temporary/wide_byte_${signedness}_or.txt" \
+                  "one exact AVX2 ${signedness} bitwise disjunction"
+                require_count '(^|[[:space:]])vpor[[:space:]]' 1 \
+                  "$temporary/wide_byte_${signedness}_or.txt" \
+                  "only one AVX2 ${signedness} disjunction instruction"
+                forbid_pattern 'vpand|vpxor|vpcmpeqd' "$temporary/wide_byte_${signedness}_or.txt" \
+                  "unrelated bitwise operation in AVX2 ${signedness} disjunction leaf"
+                require_count 'vpxor[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$temporary/wide_byte_${signedness}_xor.txt" \
+                  "one exact AVX2 ${signedness} bitwise exclusive disjunction"
+                require_count '(^|[[:space:]])vpxor[[:space:]]' 1 \
+                  "$temporary/wide_byte_${signedness}_xor.txt" \
+                  "only one AVX2 ${signedness} exclusive-disjunction instruction"
+                forbid_pattern 'vpand|vpor|vpcmpeqd' "$temporary/wide_byte_${signedness}_xor.txt" \
+                  "unrelated bitwise operation in AVX2 ${signedness} exclusive-disjunction leaf"
+
+                leaf="$temporary/wide_byte_${signedness}_not.txt"
+                require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                  "$leaf" "operand and return-copy loads in AVX2 ${signedness} complement leaf"
+                require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 0 \
+                  "$leaf" "no second memory operand in AVX2 ${signedness} complement leaf"
+                require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                  "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} complement leaf"
+                require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                  "$leaf" "ABI operand in AVX2 ${signedness} complement leaf"
+                require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                  "$leaf" "assembly result destination in AVX2 ${signedness} complement leaf"
+                require_count 'vpcmpeqd[[:space:]]+%ymm1,[[:space:]]*%ymm1,[[:space:]]*%ymm1' 1 \
+                  "$leaf" "one all-one mask construction in AVX2 ${signedness} complement leaf"
+                require_count 'vpxor[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$leaf" "one exact AVX2 ${signedness} bitwise complement"
+                require_count '(^|[[:space:]])vpcmpeqd[[:space:]]' 1 \
+                  "$leaf" "only one all-one mask construction in AVX2 ${signedness} complement leaf"
+                require_count '(^|[[:space:]])vpxor[[:space:]]' 1 \
+                  "$leaf" "only one AVX2 ${signedness} complement instruction"
+                forbid_pattern 'vpand|vpor|(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
+                  "$leaf" "unrelated bitwise operation, branch, or helper in AVX2 ${signedness} complement leaf"
+            done
             require_pattern 'vpminub' "$temporary/wide_byte_u8_min.txt" 'AVX2 unsigned byte minimum'
             require_pattern 'vpminsb' "$temporary/wide_byte_i8_min.txt" 'AVX2 signed byte minimum'
             require_pattern 'vpmaxub' "$temporary/wide_byte_u8_max.txt" 'AVX2 unsigned byte maximum'
