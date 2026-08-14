@@ -1,4 +1,50 @@
 package body Flyology_SIMD.Algorithms.Generic_Floating is
+   procedure Scale (Data : in out F32_Array; Factor : F32) is
+      Start         : Natural := Data'First;
+      Factor_Vector : constant F32x4 := Backend_F32_Splat (Factor);
+   begin
+      while Start <= Data'Last loop
+         declare
+            Remaining : constant Natural := Data'Last - Start + 1;
+            Count     : constant Lane_Count_32x4 :=
+              Lane_Count_32x4'Min (4, Remaining);
+         begin
+            Backend_F32_Store_Partial
+              (Data,
+               Start,
+               Count,
+               Backend_F32_Multiply
+                 (Backend_F32_Load_Partial (Data, Start, Count),
+                  Factor_Vector));
+            exit when Count = Remaining;
+            Start := Start + Count;
+         end;
+      end loop;
+   end Scale;
+
+   procedure Scale (Data : in out F64_Array; Factor : F64) is
+      Start         : Natural := Data'First;
+      Factor_Vector : constant F64x2 := Backend_F64_Splat (Factor);
+   begin
+      while Start <= Data'Last loop
+         declare
+            Remaining : constant Natural := Data'Last - Start + 1;
+            Count     : constant Lane_Count_64x2 :=
+              Lane_Count_64x2'Min (2, Remaining);
+         begin
+            Backend_F64_Store_Partial
+              (Data,
+               Start,
+               Count,
+               Backend_F64_Multiply
+                 (Backend_F64_Load_Partial (Data, Start, Count),
+                  Factor_Vector));
+            exit when Count = Remaining;
+            Start := Start + Count;
+         end;
+      end loop;
+   end Scale;
+
    function Sum (Data : F32_Array) return F32 is
       Start       : Natural := Data'First;
       Accumulator : F32x4 := Backend_F32_Zero;

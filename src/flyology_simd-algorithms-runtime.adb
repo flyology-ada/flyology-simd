@@ -5,6 +5,38 @@ with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.Runtime is
+   procedure Scale
+     (Data : in out F32_Array;
+      Factor : F32;
+      Backend : Features.Backend_Kind := Features.Best_Available) is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            Algorithms.Scalar_Floating.Scale (Data, Factor);
+         when Features.NEON | Features.SSE2 =>
+            Algorithms.Native_Floating.Scale (Data, Factor);
+         when Features.AVX2 =>
+            Algorithms.AVX2.Scale (Data, Factor);
+      end case;
+   end Scale;
+
+   procedure Scale
+     (Data : in out F64_Array;
+      Factor : F64;
+      Backend : Features.Backend_Kind := Features.Best_Available) is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            Algorithms.Scalar_Floating.Scale (Data, Factor);
+         when Features.NEON | Features.SSE2 =>
+            Algorithms.Native_Floating.Scale (Data, Factor);
+         when Features.AVX2 =>
+            Algorithms.AVX2.Scale (Data, Factor);
+      end case;
+   end Scale;
+
    function Sum
      (Data : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

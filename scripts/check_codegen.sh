@@ -454,6 +454,10 @@ extract_symbol() {
     ' "$file" >"$output"
 }
 
+extract_symbol 'flyology_simd__algorithms__native_floating__scale' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-scale.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__scale__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-scale.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-sum.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum__2' \
@@ -465,11 +469,23 @@ extract_symbol 'flyology_simd__algorithms__native_floating__dot_product__2' \
 
 for precision in f32 f64; do
     case "$precision" in
-        f32) zero=zero__9; load=load_partial__9; add=add; reduce=reduce_add ;;
-        f64) zero=zero__10; load=load_partial__10; add=add__2; reduce=reduce_add__2 ;;
+        f32) zero=zero__9; load=load_partial__9; store=store_partial__9; splat=splat__9; multiply=multiply; add=add; reduce=reduce_add ;;
+        f64) zero=zero__10; load=load_partial__10; store=store_partial__10; splat=splat__10; multiply=multiply__2; add=add__2; reduce=reduce_add__2 ;;
     esac
+    scale_file="$temporary/${precision}-scale.txt"
     sum_file="$temporary/${precision}-sum.txt"
     dot_file="$temporary/${precision}-dot-product.txt"
+    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
+      "$scale_file" "one selected splat route in the native ${precision} scale"
+    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+      "$scale_file" "one selected partial load in the native ${precision} scale"
+    require_count "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
+      "$scale_file" "one selected multiply route in the native ${precision} scale"
+    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+      "$scale_file" "one selected partial store in the native ${precision} scale"
+    forbid_pattern 'flyology_simd__backends__native__(add|reduce_add)' \
+      "$scale_file" "reduction operation in the native ${precision} scale"
+
     require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$sum_file" "one selected zero route in the native ${precision} sum"
     require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
@@ -497,7 +513,7 @@ require_count 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
   "$temporary/f64-dot-product.txt" \
   'one selected multiply route in the native binary64 dot loop'
 forbid_pattern \
-  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(sum|dot_product|multiply|add|reduce_add|load_partial)' \
+  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(scale|sum|dot_product|splat|multiply|add|reduce_add|load_partial|store_partial)' \
   "$temporary/floating-algorithm-undefined.txt" \
   'portable, scalar, or runtime route in the native floating loops'
 
@@ -4946,6 +4962,32 @@ EOF
               'ordered binary64 dot-product accumulation'
             require_pattern 'vextractf128' "$temporary/avx2.txt" \
               'ordered AVX2 dot-product half extraction'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__scale' \
+              "$temporary/avx2.txt" "$temporary/avx2-f32-scale.txt"
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__scale__2' \
+              "$temporary/avx2.txt" "$temporary/avx2-f64-scale.txt"
+            require_pattern 'vbroadcastss' "$temporary/avx2-f32-scale.txt" \
+              'AVX2-width binary32 scale-factor broadcast'
+            require_count 'vmovups' 2 "$temporary/avx2-f32-scale.txt" \
+              'one AVX2-width binary32 scale load and store'
+            require_pattern 'vmulps' "$temporary/avx2-f32-scale.txt" \
+              'AVX2-width binary32 scaling'
+            require_pattern 'vzeroupper' "$temporary/avx2-f32-scale.txt" \
+              'AVX-SSE transition cleanup in binary32 scaling'
+            forbid_pattern 'vaddps' "$temporary/avx2-f32-scale.txt" \
+              'addition in binary32 scaling'
+            require_pattern 'vbroadcastsd' "$temporary/avx2-f64-scale.txt" \
+              'AVX2-width binary64 scale-factor broadcast'
+            require_count 'vmovupd' 2 "$temporary/avx2-f64-scale.txt" \
+              'one AVX2-width binary64 scale load and store'
+            require_pattern 'vmulpd' "$temporary/avx2-f64-scale.txt" \
+              'AVX2-width binary64 scaling'
+            require_pattern 'vzeroupper' "$temporary/avx2-f64-scale.txt" \
+              'AVX-SSE transition cleanup in binary64 scaling'
+            forbid_pattern 'vaddpd' "$temporary/avx2-f64-scale.txt" \
+              'addition in binary64 scaling'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__sum' \
               "$temporary/avx2.txt" "$temporary/avx2-f32-sum.txt"

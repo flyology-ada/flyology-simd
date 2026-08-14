@@ -1614,6 +1614,107 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Dot_Product;
 
+   procedure Test_Scale_For_Length (Length : Natural) is
+      Original_F32 : F32_Array (37 .. 36 + Length);
+      Original_F64 : F64_Array (37 .. 36 + Length);
+      Expected_F32 : F32_Array (Original_F32'Range);
+      Expected_F64 : F64_Array (Original_F64'Range);
+      Scalar_F32   : F32_Array (Original_F32'Range);
+      Scalar_F64   : F64_Array (Original_F64'Range);
+      Native_F32   : F32_Array (Original_F32'Range);
+      Native_F64   : F64_Array (Original_F64'Range);
+      Runtime_F32  : F32_Array (Original_F32'Range);
+      Runtime_F64  : F64_Array (Original_F64'Range);
+      Factor_F32   : constant F32 := -1.5;
+      Factor_F64   : constant F64 := 0.25;
+   begin
+      for Index in Original_F32'Range loop
+         declare
+            Offset : constant Natural := Index - Original_F32'First;
+         begin
+            Original_F32 (Index) := F32 (Integer (Offset mod 17) - 8);
+            Original_F64 (Index) :=
+              F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+         end;
+      end loop;
+      Expected_F32 := Original_F32;
+      Expected_F64 := Original_F64;
+      for Index in Expected_F32'Range loop
+         Expected_F32 (Index) := Expected_F32 (Index) * Factor_F32;
+         Expected_F64 (Index) := Expected_F64 (Index) * Factor_F64;
+      end loop;
+
+      Scalar_F32 := Original_F32;
+      Algorithms.Scalar_Floating.Scale (Scalar_F32, Factor_F32);
+      Check (Scalar_F32 = Expected_F32,
+             "scalar F32 scale length" & Length'Image);
+      Native_F32 := Original_F32;
+      Algorithms.Native_Floating.Scale (Native_F32, Factor_F32);
+      Check (Native_F32 = Expected_F32,
+             "native F32 scale length" & Length'Image);
+      Runtime_F32 := Original_F32;
+      Algorithms.Runtime.Scale (Runtime_F32, Factor_F32);
+      Check (Runtime_F32 = Expected_F32,
+             "runtime F32 scale length" & Length'Image);
+
+      Scalar_F64 := Original_F64;
+      Algorithms.Scalar_Floating.Scale (Scalar_F64, Factor_F64);
+      Check (Scalar_F64 = Expected_F64,
+             "scalar F64 scale length" & Length'Image);
+      Native_F64 := Original_F64;
+      Algorithms.Native_Floating.Scale (Native_F64, Factor_F64);
+      Check (Native_F64 = Expected_F64,
+             "native F64 scale length" & Length'Image);
+      Runtime_F64 := Original_F64;
+      Algorithms.Runtime.Scale (Runtime_F64, Factor_F64);
+      Check (Runtime_F64 = Expected_F64,
+             "runtime F64 scale length" & Length'Image);
+
+      for Backend in Features.Backend_Kind loop
+         if Features.Available (Backend) then
+            declare
+               Selected_F32 : F32_Array := Original_F32;
+               Selected_F64 : F64_Array := Original_F64;
+            begin
+               Algorithms.Runtime.Scale
+                 (Selected_F32, Factor_F32, Backend);
+               Algorithms.Runtime.Scale
+                 (Selected_F64, Factor_F64, Backend);
+               Check
+                 (Selected_F32 = Expected_F32,
+                  "selected F32 scale " & Features.Name (Backend) &
+                    " length" & Length'Image);
+               Check
+                 (Selected_F64 = Expected_F64,
+                  "selected F64 scale " & Features.Name (Backend) &
+                    " length" & Length'Image);
+            end;
+         end if;
+      end loop;
+
+      if Features.Available (Features.AVX2) then
+         declare
+            AVX2_F32 : F32_Array := Original_F32;
+            AVX2_F64 : F64_Array := Original_F64;
+         begin
+            Algorithms.AVX2.Scale (AVX2_F32, Factor_F32);
+            Algorithms.AVX2.Scale (AVX2_F64, Factor_F64);
+            Check (AVX2_F32 = Expected_F32,
+                   "direct AVX2 F32 scale length" & Length'Image);
+            Check (AVX2_F64 = Expected_F64,
+                   "direct AVX2 F64 scale length" & Length'Image);
+         end;
+      end if;
+   end Test_Scale_For_Length;
+
+   procedure Test_Scale is
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_Scale_For_Length (Length);
+      end loop;
+      Test_Scale_For_Length (4_096);
+   end Test_Scale;
+
    function Reference_Sum (Data : F32_Array) return F32 is
       Partial : Lane_Values_F32x4 := [others => 0.0];
       Result  : F32 := 0.0;
@@ -1873,6 +1974,8 @@ procedure SIMD_Tests is
       Data : constant Byte_Array (1 .. 1) := [1 => 0];
       F32_Data : constant F32_Array (1 .. 1) := [1 => 1.0];
       F64_Data : constant F64_Array (1 .. 1) := [1 => 1.0];
+      F32_Work : F32_Array := F32_Data;
+      F64_Work : F64_Array := F64_Data;
       Result : Natural;
       Dot : F32;
       Dot_64 : F64;
@@ -1880,6 +1983,30 @@ procedure SIMD_Tests is
       Same : Boolean;
    begin
       if not Features.Available (Features.AVX2) then
+         begin
+            Algorithms.Runtime.Scale (F32_Work, 2.0, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F32 scale accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.Runtime.Scale (F64_Work, 2.0, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 scale accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.Scale (F32_Work, 2.0);
+            Check (False, "unavailable direct AVX2 F32 scale accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.Scale (F64_Work, 2.0);
+            Check (False, "unavailable direct AVX2 F64 scale accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
          begin
             Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
             Check (False, "unavailable AVX2 accepted" & Result'Image);
@@ -2018,6 +2145,7 @@ begin
    Test_Memory;
    Test_Native_Differential;
    Test_Algorithms;
+   Test_Scale;
    Test_Sum;
    Test_Dot_Product;
    Test_Unavailable_Rejection;

@@ -280,10 +280,11 @@ formals. This makes static selection visible to the compiler and permits
 inlining through complete-buffer and complete-array loops. Named scalar/native
 instantiations are supplied. Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation. The floating
-generic supplies binary32 and binary64 sums and dot products. AVX2 runtime
-selection uses isolated 256-bit complete-array loops that add each loaded
-vector's two halves in source order, so every runtime backend retains the same
-four-lane or two-lane accumulation order.
+generic supplies binary32 and binary64 scaling, sums, and dot products. AVX2
+runtime selection uses isolated 256-bit complete-array loops. Scaling
+broadcasts its factor once and stores each multiplied block in place. The
+reductions add each loaded vector's two halves in source order, so every
+runtime backend retains the same four-lane or two-lane accumulation order.
 
 `Find_First_Of` accepts an ordinary `Byte_Array` small set. Its static
 instances load each full vector once, compare all set members inside the

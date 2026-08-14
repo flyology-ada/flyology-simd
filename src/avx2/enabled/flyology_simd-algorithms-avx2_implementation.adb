@@ -7,6 +7,78 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    use type Interfaces.Unsigned_32;
    use System.Machine_Code;
 
+   procedure Scale (Data : in out F32_Array; Factor : F32) is
+      Factor_Copy  : aliased F32 := Factor;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Data'Length / 8;
+      Cursor       : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Cursor := Data (Data'First)'Address;
+         Asm
+           (Template =>
+              "vbroadcastss (%2), %%ymm1" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovups (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmulps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovups %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "subl $1, %1" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs =>
+              System.Address'Asm_Input ("r", Factor_Copy'Address),
+            Clobber => "ymm0,ymm1,cc,memory",
+            Volatile => True);
+         Offset := (Data'Length / 8) * 8;
+      end if;
+
+      while Offset < Data'Length loop
+         Data (Data'First + Offset) :=
+           Data (Data'First + Offset) * Factor;
+         Offset := Offset + 1;
+      end loop;
+   end Scale;
+
+   procedure Scale (Data : in out F64_Array; Factor : F64) is
+      Factor_Copy  : aliased F64 := Factor;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Data'Length / 4;
+      Cursor       : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Cursor := Data (Data'First)'Address;
+         Asm
+           (Template =>
+              "vbroadcastsd (%2), %%ymm1" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovupd (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmulpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovupd %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "subl $1, %1" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs =>
+              System.Address'Asm_Input ("r", Factor_Copy'Address),
+            Clobber => "ymm0,ymm1,cc,memory",
+            Volatile => True);
+         Offset := (Data'Length / 4) * 4;
+      end if;
+
+      while Offset < Data'Length loop
+         Data (Data'First + Offset) :=
+           Data (Data'First + Offset) * Factor;
+         Offset := Offset + 1;
+      end loop;
+   end Scale;
+
    function Sum (Data : F32_Array) return F32 is
       Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
       Result       : F32 := 0.0;

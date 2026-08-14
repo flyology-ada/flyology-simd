@@ -2,6 +2,14 @@ with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.AVX2_Implementation is
+   procedure Scale (Data : in out F32_Array; Factor : F32) is
+   begin
+      Algorithms.Scalar_Floating.Scale (Data, Factor);
+   end Scale;
+   procedure Scale (Data : in out F64_Array; Factor : F64) is
+   begin
+      Algorithms.Scalar_Floating.Scale (Data, Factor);
+   end Scale;
    function Sum (Data : F32_Array) return F32 is
      (Algorithms.Scalar_Floating.Sum (Data));
    function Sum (Data : F64_Array) return F64 is

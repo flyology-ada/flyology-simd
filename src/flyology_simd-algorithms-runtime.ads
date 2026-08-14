@@ -3,6 +3,25 @@ with Flyology_SIMD.Features;
 --  Complete-array and complete-buffer algorithms with one coarse runtime
 --  backend selection.
 package Flyology_SIMD.Algorithms.Runtime is
+   procedure Scale
+     (Data : in out F32_Array;
+      Factor : F32;
+      Backend : Features.Backend_Kind := Features.Best_Available);
+   --  Multiply every binary32 element by Factor after one runtime backend
+   --  selection.
+   --  @param Data The complete array to transform in place.
+   --  @param Factor The scalar multiplier applied once to every element.
+   --  @param Backend The compiled and available backend to use.
+   procedure Scale
+     (Data : in out F64_Array;
+      Factor : F64;
+      Backend : Features.Backend_Kind := Features.Best_Available);
+   --  Multiply every binary64 element by Factor after one runtime backend
+   --  selection.
+   --  @param Data The complete array to transform in place.
+   --  @param Factor The scalar multiplier applied once to every element.
+   --  @param Backend The compiled and available backend to use.
+
    function Sum
      (Data : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

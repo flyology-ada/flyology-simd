@@ -98,6 +98,12 @@ groups. The binary64 algorithm accumulates two lane groups. Each algorithm then
 applies `Reduce_Add` to those groups in ascending lane order. Empty inputs
 return positive zero.
 
+`Algorithms.Generic_Floating.Scale` and the matching static and runtime
+instances multiply every element of one complete array by one scalar factor in
+place. Each result is the corresponding input multiplied by `Factor` once.
+Array bounds do not change, empty arrays are unchanged, and a partial tail
+loads and stores only its declared elements.
+
 `Algorithms.Generic_Floating.Dot_Product` uses the same groups and reduction
 order after multiplying corresponding elements. Its two input arrays must have
 identical bounds. Runtime selection occurs once before either complete-array
@@ -207,8 +213,8 @@ Partial operations never perform a full vector access followed by masking.
 Protected-page tests put each valid byte tail directly before an inaccessible
 page. They exercise scalar and native partial operations for counts 0 through
 16. The same tests put binary32 and binary64 arrays before the protected page
-and run runtime-dispatched sums and dot products across full blocks and every
-tail shape.
+and run runtime-dispatched scaling, sums, and dot products across full blocks
+and every tail shape.
 
 Overlap is ordinary sequential Ada assignment: a store consumes its vector
 value before writing the destination.  v0.1 exposes no raw-address overload.

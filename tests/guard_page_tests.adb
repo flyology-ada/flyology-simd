@@ -308,6 +308,11 @@ begin
          pragma Import (Ada, Data);
       begin
          Data := [others => 1.0];
+         Algorithms.Runtime.Scale (Data, 2.0);
+         Check
+           (Data = [Data'Range => 2.0],
+            "runtime F32 scale protected tail length" & Length'Image);
+         Algorithms.Runtime.Scale (Data, 0.5);
          Check
            (Algorithms.Runtime.Sum (Data) = F32 (Length),
             "runtime F32 sum protected tail length" & Length'Image);
@@ -315,6 +320,11 @@ begin
            (Algorithms.Runtime.Dot_Product (Data, Data) = F32 (Length),
             "runtime F32 dot protected tail length" & Length'Image);
          if Features.Available (Features.AVX2) then
+            Algorithms.AVX2.Scale (Data, 2.0);
+            Check
+              (Data = [Data'Range => 2.0],
+               "AVX2 F32 scale protected tail length" & Length'Image);
+            Algorithms.AVX2.Scale (Data, 0.5);
             Check
               (Algorithms.AVX2.Sum (Data) = F32 (Length),
                "AVX2 F32 sum protected tail length" & Length'Image);
@@ -333,6 +343,11 @@ begin
          pragma Import (Ada, Data);
       begin
          Data := [others => 1.0];
+         Algorithms.Runtime.Scale (Data, 2.0);
+         Check
+           (Data = [Data'Range => 2.0],
+            "runtime F64 scale protected tail length" & Length'Image);
+         Algorithms.Runtime.Scale (Data, 0.5);
          Check
            (Algorithms.Runtime.Sum (Data) = F64 (Length),
             "runtime F64 sum protected tail length" & Length'Image);
@@ -340,6 +355,11 @@ begin
            (Algorithms.Runtime.Dot_Product (Data, Data) = F64 (Length),
             "runtime F64 dot protected tail length" & Length'Image);
          if Features.Available (Features.AVX2) then
+            Algorithms.AVX2.Scale (Data, 2.0);
+            Check
+              (Data = [Data'Range => 2.0],
+               "AVX2 F64 scale protected tail length" & Length'Image);
+            Algorithms.AVX2.Scale (Data, 0.5);
             Check
               (Algorithms.AVX2.Sum (Data) = F64 (Length),
                "AVX2 F64 sum protected tail length" & Length'Image);

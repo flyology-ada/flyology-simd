@@ -1,6 +1,16 @@
 --  Baseline-safe entry points for optional AVX2 complete-array and
 --  complete-buffer algorithms.
 package Flyology_SIMD.Algorithms.AVX2 is
+   procedure Scale (Data : in out F32_Array; Factor : F32);
+   --  Multiply every binary32 element by Factor with the optional AVX2
+   --  algorithm after checking CPU and OS support.
+   --  @param Data The complete array to transform in place.
+   --  @param Factor The scalar multiplier applied once to every element.
+   procedure Scale (Data : in out F64_Array; Factor : F64);
+   --  Multiply every binary64 element by Factor with the optional AVX2
+   --  algorithm after checking CPU and OS support.
+   --  @param Data The complete array to transform in place.
+   --  @param Factor The scalar multiplier applied once to every element.
    function Sum (Data : F32_Array) return F32;
    --  Return the four-group binary32 sum with the optional AVX2 algorithm
    --  after checking CPU and OS support.
