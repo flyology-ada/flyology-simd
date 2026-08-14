@@ -5021,7 +5021,8 @@ EOF
           'fused two-buffer SSE2 byte comparison'
         require_pattern 'pmovmskb' "$temporary/find-first-difference.txt" \
           'fused two-buffer SSE2 mask extraction'
-        require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+        require_pattern \
+          '(^|[[:space:]])(not(l|q)?[[:space:]]|xor(w|l|q)?[[:space:]]+\$(0x(ffff|ffffffff)|-1)(,|[[:space:]]))' \
           "$temporary/find-first-difference.txt" \
           'complemented SSE2 equality mask'
         forbid_pattern \
@@ -5218,7 +5219,8 @@ EOF
             require_pattern 'vpmovmskb' \
               "$temporary/avx2-find-first-difference.txt" \
               'two-buffer AVX2 mask extraction'
-            require_pattern '(^|[[:space:]])not(l|q)?[[:space:]]' \
+            require_pattern \
+              '(^|[[:space:]])(not(l|q)?[[:space:]]|xor(w|l|q)?[[:space:]]+\$(0x(ffff|ffffffff)|-1)(,|[[:space:]]))' \
               "$temporary/avx2-find-first-difference.txt" \
               'complemented AVX2 equality mask'
             require_pattern 'vzeroupper' \
