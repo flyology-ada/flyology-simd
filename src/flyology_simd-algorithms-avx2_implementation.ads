@@ -2,6 +2,14 @@ private package Flyology_SIMD.Algorithms.AVX2_Implementation
   with Preelaborate
 is
    --  Target-specific implementation used by the baseline-safe AVX2 facade.
+   function Sum (Data : F32_Array) return F32;
+   --  Return the four-group binary32 sum.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
+   function Sum (Data : F64_Array) return F64;
+   --  Return the two-group binary64 sum.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
    function Dot_Product (Left, Right : F32_Array) return F32
      with Pre => Left'First = Right'First and Left'Last = Right'Last;
    --  Return the four-group binary32 dot product.

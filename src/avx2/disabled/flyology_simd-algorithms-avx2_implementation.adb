@@ -2,6 +2,10 @@ with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.AVX2_Implementation is
+   function Sum (Data : F32_Array) return F32 is
+     (Algorithms.Scalar_Floating.Sum (Data));
+   function Sum (Data : F64_Array) return F64 is
+     (Algorithms.Scalar_Floating.Sum (Data));
    function Dot_Product (Left, Right : F32_Array) return F32 is
      (Algorithms.Scalar_Floating.Dot_Product (Left, Right));
    function Dot_Product (Left, Right : F64_Array) return F64 is

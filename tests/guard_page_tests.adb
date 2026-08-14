@@ -309,9 +309,15 @@ begin
       begin
          Data := [others => 1.0];
          Check
+           (Algorithms.Runtime.Sum (Data) = F32 (Length),
+            "runtime F32 sum protected tail length" & Length'Image);
+         Check
            (Algorithms.Runtime.Dot_Product (Data, Data) = F32 (Length),
             "runtime F32 dot protected tail length" & Length'Image);
          if Features.Available (Features.AVX2) then
+            Check
+              (Algorithms.AVX2.Sum (Data) = F32 (Length),
+               "AVX2 F32 sum protected tail length" & Length'Image);
             Check
               (Algorithms.AVX2.Dot_Product (Data, Data) = F32 (Length),
                "AVX2 F32 dot protected tail length" & Length'Image);
@@ -328,9 +334,15 @@ begin
       begin
          Data := [others => 1.0];
          Check
+           (Algorithms.Runtime.Sum (Data) = F64 (Length),
+            "runtime F64 sum protected tail length" & Length'Image);
+         Check
            (Algorithms.Runtime.Dot_Product (Data, Data) = F64 (Length),
             "runtime F64 dot protected tail length" & Length'Image);
          if Features.Available (Features.AVX2) then
+            Check
+              (Algorithms.AVX2.Sum (Data) = F64 (Length),
+               "AVX2 F64 sum protected tail length" & Length'Image);
             Check
               (Algorithms.AVX2.Dot_Product (Data, Data) = F64 (Length),
                "AVX2 F64 dot protected tail length" & Length'Image);

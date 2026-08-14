@@ -454,23 +454,52 @@ extract_symbol() {
     ' "$file" >"$output"
 }
 
-require_count 'flyology_simd__backends__native__load_partial__9' 2 \
-  "$temporary/floating-algorithm.txt" \
-  'two selected binary32 partial loads in the native dot loop'
-require_count 'flyology_simd__backends__native__load_partial__10' 2 \
-  "$temporary/floating-algorithm.txt" \
-  'two selected binary64 partial loads in the native dot loop'
-for selected in \
-  multiply add reduce_add zero__9 multiply__2 add__2 reduce_add__2 zero__10
-do
-    require_count "flyology_simd__backends__native__${selected}([^_]|$)" 1 \
-      "$temporary/floating-algorithm.txt" \
-      "one selected ${selected} route in the native dot loops"
+extract_symbol 'flyology_simd__algorithms__native_floating__sum' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-sum.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__sum__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-sum.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__dot_product' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-dot-product.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__dot_product__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-dot-product.txt"
+
+for precision in f32 f64; do
+    case "$precision" in
+        f32) zero=zero__9; load=load_partial__9; add=add; reduce=reduce_add ;;
+        f64) zero=zero__10; load=load_partial__10; add=add__2; reduce=reduce_add__2 ;;
+    esac
+    sum_file="$temporary/${precision}-sum.txt"
+    dot_file="$temporary/${precision}-dot-product.txt"
+    require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
+      "$sum_file" "one selected zero route in the native ${precision} sum"
+    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+      "$sum_file" "one selected partial load in the native ${precision} sum"
+    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+      "$sum_file" "one selected add route in the native ${precision} sum"
+    require_count "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
+      "$sum_file" "one selected reduction in the native ${precision} sum"
+    forbid_pattern 'flyology_simd__backends__native__multiply' "$sum_file" \
+      "multiplication in the native ${precision} sum"
+
+    require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
+      "$dot_file" "one selected zero route in the native ${precision} dot loop"
+    require_count "flyology_simd__backends__native__${load}([^_]|$)" 2 \
+      "$dot_file" "two selected partial loads in the native ${precision} dot loop"
+    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+      "$dot_file" "one selected add route in the native ${precision} dot loop"
+    require_count "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
+      "$dot_file" "one selected reduction in the native ${precision} dot loop"
 done
+require_count 'flyology_simd__backends__native__multiply([^_]|$)' 1 \
+  "$temporary/f32-dot-product.txt" \
+  'one selected multiply route in the native binary32 dot loop'
+require_count 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
+  "$temporary/f64-dot-product.txt" \
+  'one selected multiply route in the native binary64 dot loop'
 forbid_pattern \
-  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(dot_product|multiply|add|reduce_add|load_partial)' \
+  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(sum|dot_product|multiply|add|reduce_add|load_partial)' \
   "$temporary/floating-algorithm-undefined.txt" \
-  'portable, scalar, or runtime route in the native dot loops'
+  'portable, scalar, or runtime route in the native floating loops'
 
 u8_value_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/u8_value_codegen_cases.txt | wc -l | tr -d ' ')
@@ -4917,6 +4946,32 @@ EOF
               'ordered binary64 dot-product accumulation'
             require_pattern 'vextractf128' "$temporary/avx2.txt" \
               'ordered AVX2 dot-product half extraction'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__sum' \
+              "$temporary/avx2.txt" "$temporary/avx2-f32-sum.txt"
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__sum__2' \
+              "$temporary/avx2.txt" "$temporary/avx2-f64-sum.txt"
+            require_pattern 'vmovups' "$temporary/avx2-f32-sum.txt" \
+              'AVX2-width binary32 sum load'
+            require_pattern 'vaddps' "$temporary/avx2-f32-sum.txt" \
+              'ordered binary32 sum accumulation'
+            require_pattern 'vextractf128' "$temporary/avx2-f32-sum.txt" \
+              'ordered binary32 sum half extraction'
+            require_pattern 'vzeroupper' "$temporary/avx2-f32-sum.txt" \
+              'AVX-SSE transition cleanup in the binary32 sum'
+            forbid_pattern 'vmulps' "$temporary/avx2-f32-sum.txt" \
+              'multiplication in the binary32 sum'
+            require_pattern 'vmovupd' "$temporary/avx2-f64-sum.txt" \
+              'AVX2-width binary64 sum load'
+            require_pattern 'vaddpd' "$temporary/avx2-f64-sum.txt" \
+              'ordered binary64 sum accumulation'
+            require_pattern 'vextractf128' "$temporary/avx2-f64-sum.txt" \
+              'ordered binary64 sum half extraction'
+            require_pattern 'vzeroupper' "$temporary/avx2-f64-sum.txt" \
+              'AVX-SSE transition cleanup in the binary64 sum'
+            forbid_pattern 'vmulpd' "$temporary/avx2-f64-sum.txt" \
+              'multiplication in the binary64 sum'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__find_first_difference' \
               "$temporary/avx2.txt" "$temporary/avx2-find-first-difference.txt"

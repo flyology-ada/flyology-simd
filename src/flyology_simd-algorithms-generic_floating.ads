@@ -33,6 +33,26 @@ generic
 package Flyology_SIMD.Algorithms.Generic_Floating
   with Preelaborate
 is
+   function Sum (Data : F32_Array) return F32;
+   --  Add binary32 elements in four lane groups, then add the groups in
+   --  ascending lane order from positive zero. Empty arrays return positive
+   --  zero.
+   --  Cross-platform support: The generic binds the complete loop to the
+   --  supplied backend operations at compile time. It performs no runtime
+   --  feature check.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
+
+   function Sum (Data : F64_Array) return F64;
+   --  Add binary64 elements in two lane groups, then add the groups in
+   --  ascending lane order from positive zero. Empty arrays return positive
+   --  zero.
+   --  Cross-platform support: The generic binds the complete loop to the
+   --  supplied backend operations at compile time. It performs no runtime
+   --  feature check.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
+
    function Dot_Product (Left, Right : F32_Array) return F32
      with Pre => Left'First = Right'First and Left'Last = Right'Last;
    --  Multiply corresponding binary32 elements and add the products.

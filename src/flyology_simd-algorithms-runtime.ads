@@ -3,6 +3,25 @@ with Flyology_SIMD.Features;
 --  Complete-array and complete-buffer algorithms with one coarse runtime
 --  backend selection.
 package Flyology_SIMD.Algorithms.Runtime is
+   function Sum
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32;
+   --  Add all binary32 elements after one runtime backend selection.
+   --  Use the four-group accumulation order from Generic_Floating.Sum.
+   --  @param Data The complete array to sum.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The lane-grouped sum of all elements.
+   function Sum
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64;
+   --  Add all binary64 elements after one runtime backend selection.
+   --  Use the two-group accumulation order from Generic_Floating.Sum.
+   --  @param Data The complete array to sum.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The lane-grouped sum of all elements.
+
    function Dot_Product
      (Left, Right : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

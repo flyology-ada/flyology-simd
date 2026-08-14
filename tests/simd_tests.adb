@@ -1614,6 +1614,158 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Dot_Product;
 
+   function Reference_Sum (Data : F32_Array) return F32 is
+      Partial : Lane_Values_F32x4 := [others => 0.0];
+      Result  : F32 := 0.0;
+   begin
+      for Index in Data'Range loop
+         declare
+            Lane : constant Lane_Index_32x4 :=
+              Lane_Index_32x4 ((Index - Data'First) mod 4);
+         begin
+            Partial (Lane) := Partial (Lane) + Data (Index);
+         end;
+      end loop;
+      for Lane in Partial'Range loop
+         Result := Result + Partial (Lane);
+      end loop;
+      return Result;
+   end Reference_Sum;
+
+   function Reference_Sum (Data : F64_Array) return F64 is
+      Partial : Lane_Values_F64x2 := [others => 0.0];
+      Result  : F64 := 0.0;
+   begin
+      for Index in Data'Range loop
+         declare
+            Lane : constant Lane_Index_64x2 :=
+              Lane_Index_64x2 ((Index - Data'First) mod 2);
+         begin
+            Partial (Lane) := Partial (Lane) + Data (Index);
+         end;
+      end loop;
+      for Lane in Partial'Range loop
+         Result := Result + Partial (Lane);
+      end loop;
+      return Result;
+   end Reference_Sum;
+
+   procedure Test_Sum_For_Length (Length : Natural) is
+      F32_Data : F32_Array (37 .. 36 + Length);
+      F64_Data : F64_Array (37 .. 36 + Length);
+   begin
+      for Index in F32_Data'Range loop
+         declare
+            Offset : constant Natural := Index - F32_Data'First;
+         begin
+            F32_Data (Index) := F32 (Integer (Offset mod 17) - 8);
+            F64_Data (Index) := F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+         end;
+      end loop;
+
+      declare
+         Expected_F32 : constant F32 := Reference_Sum (F32_Data);
+         Expected_F64 : constant F64 := Reference_Sum (F64_Data);
+      begin
+         Check
+           (Algorithms.Scalar_Floating.Sum (F32_Data) = Expected_F32,
+            "scalar F32 sum length" & Length'Image);
+         Check
+           (Algorithms.Native_Floating.Sum (F32_Data) = Expected_F32,
+            "native F32 sum length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Sum (F32_Data) = Expected_F32,
+            "runtime F32 sum length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Sum (F32_Data, Features.Scalar) = Expected_F32,
+            "forced scalar F32 sum length" & Length'Image);
+         Check
+           (Algorithms.Scalar_Floating.Sum (F64_Data) = Expected_F64,
+            "scalar F64 sum length" & Length'Image);
+         Check
+           (Algorithms.Native_Floating.Sum (F64_Data) = Expected_F64,
+            "native F64 sum length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Sum (F64_Data) = Expected_F64,
+            "runtime F64 sum length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Sum (F64_Data, Features.Scalar) = Expected_F64,
+            "forced scalar F64 sum length" & Length'Image);
+
+         if Length = 0 then
+            Check
+              (F32_Bits (Algorithms.Runtime.Sum (F32_Data)) = 0,
+               "empty runtime F32 sum is positive zero");
+            Check
+              (F64_Bits (Algorithms.Runtime.Sum (F64_Data)) = 0,
+               "empty runtime F64 sum is positive zero");
+         end if;
+
+         if Features.Available (Features.AVX2) then
+            Check
+              (Algorithms.AVX2.Sum (F32_Data) = Expected_F32,
+               "direct AVX2 F32 sum length" & Length'Image);
+            Check
+              (Algorithms.AVX2.Sum (F64_Data) = Expected_F64,
+               "direct AVX2 F64 sum length" & Length'Image);
+         end if;
+
+         for Backend in Features.Backend_Kind loop
+            if Features.Available (Backend) then
+               Check
+                 (Algorithms.Runtime.Sum (F32_Data, Backend) = Expected_F32,
+                  "selected F32 sum " & Features.Name (Backend) &
+                    " length" & Length'Image);
+               Check
+                 (Algorithms.Runtime.Sum (F64_Data, Backend) = Expected_F64,
+                  "selected F64 sum " & Features.Name (Backend) &
+                    " length" & Length'Image);
+            end if;
+         end loop;
+      end;
+   end Test_Sum_For_Length;
+
+   procedure Test_Sum is
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_Sum_For_Length (Length);
+      end loop;
+      Test_Sum_For_Length (4_096);
+      declare
+         F32_Order : constant F32_Array :=
+           [1.0E+20, 1.0, -1.0E+20, 2.0, 3.0];
+         F64_Order : constant F64_Array :=
+           [1.0E+300, 1.0, -1.0E+300, 2.0, 3.0];
+         Expected_F32 : constant F32 := Reference_Sum (F32_Order);
+         Expected_F64 : constant F64 := Reference_Sum (F64_Order);
+      begin
+         Check
+           (Expected_F32 = 2.0
+            and then Algorithms.Scalar_Floating.Sum (F32_Order) =
+              Expected_F32
+            and then Algorithms.Native_Floating.Sum (F32_Order) =
+              Expected_F32
+            and then Algorithms.Runtime.Sum (F32_Order) = Expected_F32,
+            "F32 sum preserves four-group evaluation order");
+         Check
+           (Expected_F64 = 6.0
+            and then Algorithms.Scalar_Floating.Sum (F64_Order) =
+              Expected_F64
+            and then Algorithms.Native_Floating.Sum (F64_Order) =
+              Expected_F64
+            and then Algorithms.Runtime.Sum (F64_Order) = Expected_F64,
+            "F64 sum preserves two-group evaluation order");
+         if Features.Available (Features.AVX2) then
+            Check
+              (Algorithms.AVX2.Sum (F32_Order) = Expected_F32,
+               "AVX2 F32 sum preserves four-group evaluation order");
+            Check
+              (Algorithms.AVX2.Sum (F64_Order) = Expected_F64,
+               "AVX2 F64 sum preserves two-group evaluation order");
+         end if;
+      end;
+   end Test_Sum;
+
    procedure Test_Dot_Product_For_Length (Length : Natural) is
       F32_Left  : F32_Array (37 .. 36 + Length);
       F32_Right : F32_Array (37 .. 36 + Length);
@@ -1782,6 +1934,34 @@ procedure SIMD_Tests is
             when Features.Backend_Unavailable => null;
          end;
          begin
+            Dot := Algorithms.Runtime.Sum (F32_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F32 sum accepted" &
+                   Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.Runtime.Sum (F64_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 sum accepted" &
+                   Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot := Algorithms.AVX2.Sum (F32_Data);
+            Check (False, "unavailable direct AVX2 F32 sum accepted" &
+                   Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.AVX2.Sum (F64_Data);
+            Check (False, "unavailable direct AVX2 F64 sum accepted" &
+                   Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
             Dot := Algorithms.Runtime.Dot_Product
               (F32_Data, F32_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 dot accepted" & Dot'Image);
@@ -1838,6 +2018,7 @@ begin
    Test_Memory;
    Test_Native_Differential;
    Test_Algorithms;
+   Test_Sum;
    Test_Dot_Product;
    Test_Unavailable_Rejection;
    if Failures = 0 then

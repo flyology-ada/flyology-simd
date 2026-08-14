@@ -2,6 +2,18 @@ with Flyology_SIMD.Algorithms.AVX2_Implementation;
 with Flyology_SIMD.Features;
 
 package body Flyology_SIMD.Algorithms.AVX2 is
+   function Sum (Data : F32_Array) return F32 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Sum (Data);
+   end Sum;
+
+   function Sum (Data : F64_Array) return F64 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Sum (Data);
+   end Sum;
+
    function Dot_Product (Left, Right : F32_Array) return F32 is
    begin
       Features.Require (Features.AVX2);

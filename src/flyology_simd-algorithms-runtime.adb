@@ -5,6 +5,38 @@ with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.Runtime is
+   function Sum
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Sum (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Sum (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Sum (Data);
+      end case;
+   end Sum;
+
+   function Sum
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Sum (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Sum (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Sum (Data);
+      end case;
+   end Sum;
+
    function Dot_Product
      (Left, Right : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

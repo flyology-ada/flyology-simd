@@ -5,14 +5,14 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../journal/">Journal</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Backend composition and dispatch</li></ol><h1>Choose backends at an algorithm boundary</h1></div><p class="doc-hero-copy">Chapter 6 composes primitive operations statically and dispatches complete dot-product and byte algorithms at runtime.</p></header>
-    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#static">Static composition</a></li><li><a href="#dot">Dot-product instances</a></li><li><a href="#build">Build selection</a></li><li><a href="#runtime">Runtime boundary</a></li><li><a href="#features">Feature states</a></li><li><a href="#safety">Optional x86 instruction safety</a></li></ul></aside>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Backend composition and dispatch</li></ol><h1>Choose backends at an algorithm boundary</h1></div><p class="doc-hero-copy">Chapter 6 composes primitive operations statically and dispatches complete floating and byte algorithms at runtime.</p></header>
+    <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#static">Static composition</a></li><li><a href="#dot">Floating instances</a></li><li><a href="#build">Build selection</a></li><li><a href="#runtime">Runtime boundary</a></li><li><a href="#features">Feature states</a></li><li><a href="#safety">Optional x86 instruction safety</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">A primitive operation must not test CPU features on every call. Two composition choices avoid that cost:</p>
         <ul><li>Bind a complete loop to known operations.</li><li>Before a supported runtime algorithm processes an array or buffer, select one implementation.</li></ul>
         <section id="static">
           <h2>Pass operations to a generic algorithm</h2>
-          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Floating"><code>Algorithms.Generic_Floating</code></a> supplies binary32 and binary64 dot products. Its formal operations include zero, partial load, multiply, add, and add reduction.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Floating"><code>Algorithms.Generic_Floating</code></a> supplies binary32 and binary64 sums and dot products. Its formal operations include zero, partial load, multiply, add, and add reduction.</p>
           <p>The excerpt below shows the binary32 formals. They operate on <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> values and <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> inputs. A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> declares each partial extent, and the reduction returns <a data-api="Flyology_SIMD.F32"><code>F32</code></a>. The package has matching binary64 formals and an <code>F64_Array</code> overload.</p>
           <pre><code class="language-ada">generic
    with function Backend_F32_Zero return F32x4;
@@ -23,6 +23,7 @@
    with function Backend_F32_Add (Left, Right : F32x4) return F32x4;
    with function Backend_F32_Reduce_Add (Value : F32x4) return F32;
 package Flyology_SIMD.Algorithms.Generic_Floating is
+   function Sum (Data : F32_Array) return F32;
    function Dot_Product (Left, Right : F32_Array) return F32;
    --  Matching binary64 formals and the F64_Array overload follow.
 end Flyology_SIMD.Algorithms.Generic_Floating;</code></pre>
@@ -46,11 +47,11 @@ Native : constant F32 :=
         </section>
         <section id="runtime">
           <h2>Dispatch once at a complete-array boundary</h2>
-          <div class="semantic-callout"><strong>The library provides runtime dispatch for the dot product, not for primitive floating operations.</strong><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime.Dot_Product</code></a> selects one implementation before the complete-array loop. Primitive operations remain statically bound and perform no feature test.</p></div>
+          <div class="semantic-callout"><strong>The library provides runtime dispatch for complete sums and dot products, not for primitive floating operations.</strong><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> selects one implementation before a supported complete-array loop. Primitive operations remain statically bound and perform no feature test.</p></div>
           <pre><code class="language-ada">Result : constant F32 :=
   Flyology_SIMD.Algorithms.Runtime.Dot_Product (Left, Right);</code></pre>
-          <p>The binary32 and binary64 overloads require arrays with matching bounds. Binary32 uses four accumulator lane groups. Binary64 uses two groups. Both reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
-          <p>An AVX2 selection loads and multiplies eight binary32 or four binary64 elements at a time, then adds the two 128-bit halves to one accumulator in source order. This route retains the same four-lane or two-lane accumulation order as the other runtime backends.</p>
+          <p><code>Sum</code> has binary32 and binary64 overloads. <code>Dot_Product</code> adds the requirement that its arrays have matching bounds. Binary32 uses four accumulator lane groups. Binary64 uses two groups. Both algorithms reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
+          <p>An AVX2 selection loads eight binary32 or four binary64 elements at a time, then adds the two 128-bit halves to one accumulator in source order. <code>Dot_Product</code> multiplies corresponding elements first. These routes retain the same four-lane or two-lane accumulation order as the other runtime backends.</p>
           <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Difference"><code>Find_First_Difference</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Equal"><code>Equal</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
           <pre><code class="language-ada">Matches : constant Natural :=
   Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>

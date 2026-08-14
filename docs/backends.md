@@ -872,16 +872,17 @@ extraction, and no relocation to a per-vector comparison primitive. Tests cover
 every possible mismatch offset and put both operand orders against an
 inaccessible page.
 
-The binary32 and binary64 `Dot_Product` algorithms have scalar and Native
-generic instances. Runtime dispatch selects one implementation before the
-complete-array loop. The optional AVX2 object loads and multiplies eight
-binary32 or four binary64 elements at a time, then adds its two 128-bit halves
-to one accumulator in source order. This retains the public four-group or
-two-group accumulation order. Deterministic differential tests cover empty
-arrays, every length from zero through 96, a 4,096-element input, offset lower
-bounds, and every available forced backend. Protected-page tests cover
-binary32 lengths 1 through 33 and binary64 lengths 1 through 17. The primitive
-operations do not perform runtime dispatch.
+The binary32 and binary64 `Sum` and `Dot_Product` algorithms have scalar and
+Native generic instances. Runtime dispatch selects one implementation before
+the complete-array loop. The optional AVX2 object loads eight binary32 or four
+binary64 elements at a time, then adds its two 128-bit halves to one
+accumulator in source order. `Dot_Product` first multiplies corresponding
+elements. This retains the public four-group or two-group accumulation order.
+Deterministic differential tests cover empty arrays, every length from zero
+through 96, a 4,096-element input, offset lower bounds, and every available
+forced backend. Protected-page tests cover binary32 lengths 1 through 33 and
+binary64 lengths 1 through 17. The primitive operations do not perform runtime
+dispatch.
 
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native

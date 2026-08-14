@@ -1,5 +1,16 @@
---  Baseline-safe entry points for optional AVX2 complete-buffer algorithms.
+--  Baseline-safe entry points for optional AVX2 complete-array and
+--  complete-buffer algorithms.
 package Flyology_SIMD.Algorithms.AVX2 is
+   function Sum (Data : F32_Array) return F32;
+   --  Return the four-group binary32 sum with the optional AVX2 algorithm
+   --  after checking CPU and OS support.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
+   function Sum (Data : F64_Array) return F64;
+   --  Return the two-group binary64 sum with the optional AVX2 algorithm
+   --  after checking CPU and OS support.
+   --  @param Data The complete array to sum.
+   --  @return The lane-grouped sum of all elements.
    function Dot_Product (Left, Right : F32_Array) return F32
      with Pre => Left'First = Right'First and Left'Last = Right'Last;
    --  Return the four-group binary32 dot product with the optional AVX2

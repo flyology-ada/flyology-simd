@@ -92,13 +92,16 @@ signed-zero rules.
 initial value and fold order are identical at both public widths and on every
 backend.
 
-`Algorithms.Generic_Floating.Dot_Product` and the matching static and runtime
-instances multiply corresponding elements in blocks. The binary32 algorithm
-accumulates four lane groups. The binary64 algorithm accumulates two lane
-groups. Each algorithm then applies `Reduce_Add` to those groups in ascending
-lane order. Empty inputs return positive zero. The two input arrays must have
-identical bounds. Runtime selection occurs once before the complete-array loop.
-Primitive floating operations do not perform runtime selection.
+`Algorithms.Generic_Floating.Sum` and the matching static and runtime instances
+add complete arrays in blocks. The binary32 algorithm accumulates four lane
+groups. The binary64 algorithm accumulates two lane groups. Each algorithm then
+applies `Reduce_Add` to those groups in ascending lane order. Empty inputs
+return positive zero.
+
+`Algorithms.Generic_Floating.Dot_Product` uses the same groups and reduction
+order after multiplying corresponding elements. Its two input arrays must have
+identical bounds. Runtime selection occurs once before either complete-array
+loop. Primitive floating operations do not perform runtime selection.
 
 No implicit signed/unsigned, integer/floating, width-changing, or mask/value
 conversion exists. `Bit_Cast` preserves each lane's bits and position between
@@ -204,8 +207,8 @@ Partial operations never perform a full vector access followed by masking.
 Protected-page tests put each valid byte tail directly before an inaccessible
 page. They exercise scalar and native partial operations for counts 0 through
 16. The same tests put binary32 and binary64 arrays before the protected page
-and run runtime-dispatched dot products across full blocks and every tail
-shape.
+and run runtime-dispatched sums and dot products across full blocks and every
+tail shape.
 
 Overlap is ordinary sequential Ada assignment: a store consumes its vector
 value before writing the destination.  v0.1 exposes no raw-address overload.
