@@ -4,6 +4,8 @@ with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Native_Floating;
 
 package body Flyology_SIMD.Algorithms.AVX2_Implementation is
+   use type Interfaces.IEEE_Float_32;
+   use type Interfaces.IEEE_Float_64;
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
    use System.Machine_Code;
