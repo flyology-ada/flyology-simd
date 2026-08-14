@@ -1,9 +1,7 @@
 with Flyology_SIMD.Wide.Byte_AVX2_Leaf;
-with Interfaces;
 
 package body Flyology_SIMD.Wide.Byte_Mechanism is
    package Leaf renames Flyology_SIMD.Wide.Byte_AVX2_Leaf;
-   use type Interfaces.Unsigned_32;
 
    function Add_Wrap (Left, Right : U8x32) return U8x32 is
      (Leaf.Add_Wrap (Left, Right));

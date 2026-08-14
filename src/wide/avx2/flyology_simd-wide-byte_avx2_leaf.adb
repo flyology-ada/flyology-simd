@@ -1,7 +1,9 @@
+with Interfaces;
 with System.Machine_Code;
 
 package body Flyology_SIMD.Wide.Byte_AVX2_Leaf is
    use System.Machine_Code;
+   use type Interfaces.Unsigned_32;
 
    generic
       type Vector_Type is private;
@@ -275,17 +277,17 @@ package body Flyology_SIMD.Wide.Byte_AVX2_Leaf is
    function Greater_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
      (I8_Greater (Left, Right));
    function Less_Than (Left, Right : U8x32) return Mask_Bits_8x32 is
-     (U8_Greater (Right, Left));
+     (U8_Greater (Left => Right, Right => Left));
    function Less_Than (Left, Right : I8x32) return Mask_Bits_8x32 is
-     (I8_Greater (Right, Left));
+     (I8_Greater (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
      (not U8_Greater (Left, Right));
    function Less_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
      (not I8_Greater (Left, Right));
    function Greater_Equal (Left, Right : U8x32) return Mask_Bits_8x32 is
-     (not U8_Greater (Right, Left));
+     (not U8_Greater (Left => Right, Right => Left));
    function Greater_Equal (Left, Right : I8x32) return Mask_Bits_8x32 is
-     (not I8_Greater (Right, Left));
+     (not I8_Greater (Left => Right, Right => Left));
    function Select_Value
      (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32 is
      (U8_Select (Bits, If_True, If_False));

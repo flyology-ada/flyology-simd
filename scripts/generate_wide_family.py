@@ -17,7 +17,7 @@ from generate_full_family import (
     SIGNED_UNSIGNED_CONVERSIONS,
     WIDENINGS,
 )
-from generate_backends import x86_ada_instruction, x86_float_minmax_instruction
+from generate_backends import x86_float_minmax_instruction
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1864,13 +1864,20 @@ def float_reduce_leaf_x86_body_text() -> str:
                 for offset in range(step, lanes * step, step):
                     lines.append(f"mov{suffix} {offset}(%1), %%xmm1")
                     lines.extend(instruction.splitlines())
-            template = x86_ada_instruction("\n".join([*lines, store]))
+            template_lines = [*lines, store]
+            template = "\n".join(
+                f'           "{line}"'
+                + (" & ASCII.LF & ASCII.HT &" if index + 1 < len(template_lines)
+                   else ",")
+                for index, line in enumerate(template_lines)
+            )
             bodies.append(
                 f"   function {operation} (Value : {vector}) return {scalar} is\n"
                 f"      Result : {scalar};\n"
                 "   begin\n"
                 "      Asm\n"
-                f"        (Template => \"{template}\",\n"
+                "        (Template =>\n"
+                f"{template}\n"
                 "         Inputs =>\n"
                 "           [System.Address'Asm_Input (\"r\", Result'Address),\n"
                 "            System.Address'Asm_Input (\"r\", Value'Address)],\n"
@@ -3303,6 +3310,18 @@ end Flyology_SIMD.Wide.Compact_Mechanism;
 
 
 def write_or_check(path: Path, content: str, check: bool) -> None:
+    if path.suffix in {".adb", ".ads"}:
+        overlong = next(
+            ((number, len(line)) for number, line in enumerate(content.splitlines(), 1)
+             if len(line) > 32_766),
+            None,
+        )
+        if overlong is not None:
+            number, length = overlong
+            raise SystemExit(
+                f"generated Ada line exceeds GNAT's 32766-character limit: "
+                f"{path.relative_to(ROOT)}:{number} ({length} characters)"
+            )
     if check:
         if not path.exists() or path.read_text() != content:
             raise SystemExit(f"generated file is stale: {path.relative_to(ROOT)}")

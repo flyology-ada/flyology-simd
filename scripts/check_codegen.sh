@@ -967,12 +967,18 @@ while read -r lane_kind operation suffix half_lanes; do
     case "$operation" in
         extract|replace)
             half_hex=$(printf '%x' "$half_lanes")
-            require_pattern "sub.*(#(0x)?${half_hex}|\\\$(0x${half_hex}|${half_lanes}))([^[:xdigit:]]|$)" \
-              "$caller" "high-half lane adjustment in ${lane_kind} ${operation}"
             case "$architecture" in
-                aarch64) branch_pattern='(^|[[:space:]])b\.[a-z]+' ;;
-                x86_64) branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]' ;;
+                aarch64)
+                    adjustment_pattern="sub.*#(0x)?${half_hex}([^[:xdigit:]]|$)"
+                    branch_pattern='(^|[[:space:]])b\.[a-z]+'
+                    ;;
+                x86_64)
+                    adjustment_pattern="(sub.*\\\$(0x${half_hex}|${half_lanes})([^[:xdigit:]]|$)|lea[lq]?[[:space:]].*-(0x${half_hex}|${half_lanes})\\([^)]*\\),[[:space:]]*%[[:alnum:]]+)"
+                    branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]'
+                    ;;
             esac
+            require_pattern "$adjustment_pattern" "$caller" \
+              "high-half lane adjustment in ${lane_kind} ${operation}"
             require_pattern "$branch_pattern" "$caller" \
               "private-half conditional selection in ${lane_kind} ${operation}"
             forbid_pattern 'cmov' "$caller" \
@@ -998,8 +1004,8 @@ if [ "$wide_comparison_case_count" -ne 62 ] || \
 fi
 
 case "$architecture" in
-    aarch64) selected_function_reloc='ARM64_RELOC_BRANCH26.*flyology_simd__backends__native__' ;;
-    x86_64) selected_function_reloc='R_X86_64_(PLT32|PC32).*flyology_simd__backends__native__' ;;
+    aarch64) selected_function_reloc='(ARM64_RELOC_BRANCH26|R_AARCH64_(CALL26|JUMP26)).*flyology_simd__backends__native__' ;;
+    x86_64) selected_function_reloc='(X86_64_RELOC_BRANCH|R_X86_64_PLT32).*flyology_simd__backends__native__' ;;
 esac
 
 while read -r lane_kind operation suffix operation_class; do
@@ -1446,17 +1452,31 @@ while read -r lane_kind operation suffix route; do
         elif [ "$lane_kind" = u8 ]; then
             case "$architecture" in
                 aarch64) selected_symbol="neon_${operation}" ;;
-                x86_64) selected_symbol="u8_${operation}" ;;
+                x86_64) selected_symbol="${operation}" ;;
             esac
+        elif [ "$architecture" = x86_64 ]; then
+            require_count 'backends__native__compare_greater_i8x16' 2 "$caller" \
+              "two signed-byte comparisons in ${lane_kind} ${operation}"
+            require_count 'backends__native__native_select_i8x16' 2 "$caller" \
+              "two signed-byte selections in ${lane_kind} ${operation}"
+            require_count 'backends__native__sign_8' 2 "$caller" \
+              "two signed-byte comparison constants in ${lane_kind} ${operation}"
+            require_count 'backends__native__weights_x86_8' 2 "$caller" \
+              "two signed-byte selection constants in ${lane_kind} ${operation}"
+            require_count "$wide_minmax_branch" 4 "$caller" \
+              "four exact inlined selected branches in ${lane_kind} ${operation}"
+            selected_symbol=
         else
             selected_symbol="native_${operation}_i8x16"
         fi
-        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
-          "$caller" "two matching selected extrema in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 2 "$caller" \
-          "only two selected operations in ${lane_kind} ${operation}"
-        require_count "$wide_minmax_branch" 2 "$caller" \
-          "two out-of-line branches in ${lane_kind} ${operation}"
+        if [ -n "$selected_symbol" ]; then
+            require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+              "$caller" "two matching selected extrema in ${lane_kind} ${operation}"
+            require_count 'flyology_simd__backends__native__' 2 "$caller" \
+              "only two selected operations in ${lane_kind} ${operation}"
+            require_count "$wide_minmax_branch" 2 "$caller" \
+              "two out-of-line branches in ${lane_kind} ${operation}"
+        fi
     fi
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
       "$caller" "portable, dispatcher, Scalar, or byte-mechanism extrema route"
@@ -1470,14 +1490,31 @@ if [ "$wide_backend" = avx2 ]; then
       "$temporary/wide-minmax-undefined.txt" \
       'four isolated AVX2 byte extrema operations'
 else
-    case "$architecture" in aarch64) u8_prefix=neon ;; x86_64) u8_prefix=u8 ;; esac
-    require_count "flyology_simd__backends__native__${u8_prefix}_(min|max)$" 2 \
-      "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
-    require_count 'flyology_simd__backends__native__native_(min|max)_i8x16$' 2 \
-      "$temporary/wide-minmax-undefined.txt" 'two selected I8 Wide extrema operations'
+    case "$architecture" in
+        aarch64)
+            require_count 'flyology_simd__backends__native__neon_(min|max)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
+            require_count 'flyology_simd__backends__native__native_(min|max)_i8x16$' 2 \
+              "$temporary/wide-minmax-undefined.txt" 'two selected I8 Wide extrema operations'
+            expected_wide_minmax_symbols=16
+            ;;
+        x86_64)
+            require_count 'flyology_simd__backends__native__(min|max)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
+            require_count 'flyology_simd__backends__native__(compare_greater_i8x16|native_select_i8x16)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" 'two selected I8 extrema helpers'
+            require_count 'flyology_simd__backends__native__(sign_8|weights_x86_8)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" 'two selected I8 extrema constants'
+            expected_wide_minmax_symbols=18
+            ;;
+    esac
 fi
-require_count 'flyology_simd__' 16 "$temporary/wide-minmax-undefined.txt" \
-  'only the sixteen intended Wide extrema operations remain unresolved'
+if [ "$wide_backend" = avx2 ]; then
+    expected_wide_minmax_symbols=16
+fi
+require_count 'flyology_simd__' "$expected_wide_minmax_symbols" \
+  "$temporary/wide-minmax-undefined.txt" \
+  'only the intended Wide extrema routes remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-minmax-undefined.txt" \
   'portable, dispatcher, Scalar, or byte-mechanism extrema route retained'
@@ -1579,12 +1616,18 @@ while read -r mask_kind operation suffix half_lanes; do
 
     if [ "$operation" = test ]; then
         half_hex=$(printf '%x' "$half_lanes")
-        require_pattern "sub.*(#(0x)?${half_hex}|\$(0x${half_hex}|${half_lanes}))([^[:xdigit:]]|$)" \
-          "$caller" "high-half lane adjustment in ${mask_kind} Test"
         case "$architecture" in
-            aarch64) branch_pattern='(^|[[:space:]])b\.[a-z]+' ;;
-            x86_64) branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]' ;;
+            aarch64)
+                adjustment_pattern="sub.*#(0x)?${half_hex}([^[:xdigit:]]|$)"
+                branch_pattern='(^|[[:space:]])b\.[a-z]+'
+                ;;
+            x86_64)
+                adjustment_pattern="(sub.*\\\$(0x${half_hex}|${half_lanes})([^[:xdigit:]]|$)|lea[lq]?[[:space:]].*-(0x${half_hex}|${half_lanes})\\([^)]*\\),[[:space:]]*%[[:alnum:]]+)"
+                branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]'
+                ;;
         esac
+        require_pattern "$adjustment_pattern" "$caller" \
+          "high-half lane adjustment in ${mask_kind} Test"
         require_pattern "$branch_pattern" "$caller" \
           "private-half conditional selection in ${mask_kind} Test"
     fi
@@ -1997,11 +2040,20 @@ done <scripts/probes/comparison_codegen_cases.txt
 require_count 'flyology_simd__backends__native__(equal|less_than|less_equal|greater_than|greater_equal|select_value)(__([2-9]|10))?$|flyology_simd__backends__native__unordered(__2)?$' 61 \
   "$temporary/comparison-undefined.txt" \
   'the 61 out-of-line selected comparison and selection overloads'
-require_count 'flyology_simd__backends__native__weights_8x16$' 1 \
+case "$architecture" in
+    aarch64)
+        require_count 'flyology_simd__backends__native__weights_8x16$' 1 \
+          "$temporary/comparison-undefined.txt" \
+          'the inlined U8 equality compact-mask weight table'
+        expected_comparison_symbols=62
+        ;;
+    x86_64)
+        expected_comparison_symbols=61
+        ;;
+esac
+require_count 'flyology_simd__' "$expected_comparison_symbols" \
   "$temporary/comparison-undefined.txt" \
-  'the inlined U8 equality compact-mask weight table'
-require_count 'flyology_simd__' 62 "$temporary/comparison-undefined.txt" \
-  'only the 62 intended fixed-width comparison operations remain unresolved'
+  'only the intended fixed-width comparison routes remain unresolved'
 
 while read -r lane_kind operation suffix; do
     [ -n "$lane_kind" ] || continue
@@ -2020,8 +2072,8 @@ while read -r lane_kind operation suffix; do
         u16|i16) lane_shape=8h; x86_compare=pcmpgtw; x86_equal=pcmpeqw; compact_pattern='pmovmskb' ;;
         u32|i32) lane_shape=4s; x86_compare=pcmpgtd; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
         u64|i64) lane_shape=2d; x86_compare=pcmpgtd; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
-        f32) lane_shape=4s; x86_equal=pcmpeqd; compact_pattern='movmskps' ;;
-        f64) lane_shape=2d; x86_equal=pcmpeqd; compact_pattern='movmskpd' ;;
+        f32) lane_shape=4s; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
+        f64) lane_shape=2d; x86_equal=pcmpeqd; compact_pattern='pmovmskb' ;;
     esac
     case "$architecture:$lane_kind:$operation" in
         aarch64:*:select_value)
@@ -2073,7 +2125,13 @@ while read -r lane_kind operation suffix; do
                 u8|i8|u16|i16|u32|i32)
                     require_count "$x86_equal" 1 "$leaf" "SSE2 equality component in ${lane_kind} ${operation}"
                     require_count "$compact_pattern" 2 "$leaf" "SSE2 strict and equality mask extraction in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])orl?' 1 "$leaf" "strict/equality mask merge in ${lane_kind} ${operation}"
+                    case "$lane_kind" in
+                        u8|i8) inclusive_or_count=1 ;;
+                        u16|i16) inclusive_or_count=7 ;;
+                        u32|i32) inclusive_or_count=5 ;;
+                    esac
+                    require_count '(^|[[:space:]])orl?' "$inclusive_or_count" "$leaf" \
+                      "compact-mask construction and strict/equality merge in ${lane_kind} ${operation}"
                     ;;
             esac
             ;;
@@ -3407,8 +3465,8 @@ EOF
                       "x86 ${lane_kind} ${operation} unaligned-safe load into xmm0"
                     require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
                       "x86 ${lane_kind} ${operation} unaligned-safe store from xmm0"
-                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]' "$leaf" \
-                      "unexpected aligned transfer in x86 ${lane_kind} ${operation} leaf"
+                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]+([^,]*\([^)]*\),[[:space:]]*%xmm0|%xmm0,[[:space:]]*[^,]*\([^)]*\))' "$leaf" \
+                      "unexpected aligned array transfer through xmm0 in x86 ${lane_kind} ${operation} leaf"
                     ;;
             esac
             forbid_pattern 'flyology_simd__(backends__scalar__|wide__)?(load|store)(_unaligned|_aligned)?' \
@@ -3418,14 +3476,23 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/float-binary-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
             case "$operation" in
-                add) instruction="add${x86_shape}" ;;
-                subtract) instruction="sub${x86_shape}" ;;
-                multiply) instruction="mul${x86_shape}" ;;
-                divide) instruction="div${x86_shape}" ;;
-                min_number|max_number) instruction=pcmpgtd ;;
+                add|subtract|multiply|divide)
+                    extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                      "$temporary/native.txt" "$leaf"
+                    case "$operation" in
+                        add) instruction="add${x86_shape}" ;;
+                        subtract) instruction="sub${x86_shape}" ;;
+                        multiply) instruction="mul${x86_shape}" ;;
+                        divide) instruction="div${x86_shape}" ;;
+                    esac
+                    ;;
+                min_number|max_number)
+                    case "$lane_kind" in f32) lanes=4 ;; f64) lanes=2 ;; esac
+                    extract_symbol "flyology_simd__backends__native__native_${operation}_${lane_kind}x${lanes}" \
+                      "$temporary/native.txt" "$leaf"
+                    instruction=pcmpgtd
+                    ;;
             esac
             if [ "$operation" = min_number ] || [ "$operation" = max_number ]; then
                 if [ "$lane_kind" = f32 ]; then
@@ -3594,13 +3661,13 @@ native_reduce_max_number_f32x4   reduce-max-number-f32x4   f32 3
 native_reduce_min_number_f64x2   reduce-min-number-f64x2   f64 1
 native_reduce_max_number_f64x2   reduce-max-number-f64x2   f64 1
 EOF
-        while read -r symbol output; do
+        while read -r symbol output_name; do
             extract_symbol "$symbol" \
               "$temporary/wide-float-reduction-leaf.txt" \
-              "$temporary/$output.txt"
+              "$temporary/$output_name.txt"
             forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__wide__reduce_' \
-              "$temporary/$output.txt" \
-              "portable or out-of-line helper in $output"
+              "$temporary/$output_name.txt" \
+              "portable or out-of-line helper in $output_name"
         done <<'EOF'
 flyology_simd__wide__float_reduce_selected_leaf__reduce_add              wide-f32-reduce-add-leaf
 flyology_simd__wide__float_reduce_selected_leaf__reduce_min_number       wide-f32-reduce-min_number-leaf
@@ -3838,9 +3905,13 @@ EOF
                             require_count '(^|[[:space:]])pand[[:space:]]' "$stages" \
                               "$temporary/reduction_${lane_kind}_${operation}.txt" \
                               "complete SSE2 ${lane_kind} ${operation} true-value selection tree"
-                            require_count '(^|[[:space:]])por[[:space:]]' "$stages" \
+                            merge_count=$stages
+                            if [ "$lane_kind" = i8 ]; then
+                                merge_count=$((stages + 2))
+                            fi
+                            require_count '(^|[[:space:]])por[[:space:]]' "$merge_count" \
                               "$temporary/reduction_${lane_kind}_${operation}.txt" \
-                              "complete SSE2 ${lane_kind} ${operation} selected-value merge tree"
+                              "complete SSE2 ${lane_kind} ${operation} shuffle and selected-value merge tree"
                         fi
                     done
                     ;;
@@ -3852,7 +3923,7 @@ EOF
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} result extraction"
                         if [ "$lane_kind" = u8 ] || [ "$lane_kind" = i8 ]; then
-                            require_count '(^|[[:space:]])movb[[:space:]]' 1 \
+                            require_count '(^|[[:space:]])mov(b)?[[:space:]]+%(al|bl|cl|dl|sil|dil|r(8|9|10|11|12|13|14|15)b),' 1 \
                               "$temporary/reduction_${lane_kind}_${operation}.txt" \
                               "SSE2 ${lane_kind} ${operation} byte result store"
                         fi
@@ -3863,7 +3934,7 @@ EOF
                         require_pattern '(^|[[:space:]])pextrw[[:space:]]' \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} result extraction"
-                        require_count '(^|[[:space:]])movw[[:space:]]' 1 \
+                        require_count '(^|[[:space:]])mov(w)?[[:space:]]+%(ax|bx|cx|dx|si|di|r(8|9|10|11|12|13|14|15)w),' 1 \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} word result store"
                     done
@@ -4426,9 +4497,9 @@ EOF
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "no mismatched zero constructor in ${vector_kind} ${operation} caller"
                     else
-                        require_count '(^|[[:space:]])pxor[[:space:]]+%?xmm0,[[:space:]]*%?xmm0' 2 \
+                        require_count '(^|[[:space:]])pxor[[:space:]]+%?xmm0,[[:space:]]*%?xmm0' 3 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
-                          "exact selector and value zeroing in ${vector_kind} ${operation} caller"
+                          "exact map, selector, and value zeroing in ${vector_kind} ${operation} caller"
                         require_count 'backends__native__native_zero_' 0 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "no out-of-line zero constructor in ${vector_kind} ${operation} caller"
@@ -4682,15 +4753,31 @@ EOF
             require_count 'flyology_simd__backends__native__bitwise_or([+-]0x[[:xdigit:]]+)?$' 2 \
               "$temporary/wide-lookup-relocs.txt" \
               'two selected 128-bit result merges in the composed Wide lookup mechanism'
-            require_count 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' 1 \
-              "$temporary/wide-lookup-relocs.txt" \
-              'one selected 128-bit 16-filled vector construction in the composed Wide lookup mechanism'
-            require_count 'flyology_simd__backends__native__(table_lookup|subtract_wrap|bitwise_or)$|flyology_simd__(backends__native__)?splat$' 4 \
+            if grep -Eq 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' \
+              "$temporary/wide-lookup-relocs.txt"; then
+                require_count 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' 1 \
+                  "$temporary/wide-lookup-relocs.txt" \
+                  'one selected 128-bit 16-filled vector construction in the composed Wide lookup mechanism'
+                expected_wide_lookup_symbols=4
+            else
+                require_count '\$0x10101010|\$269488144' 1 \
+                  "$temporary/wide-lookup.txt" \
+                  'one inlined 16-byte repeated constant in the composed Wide lookup mechanism'
+                require_count '(^|[[:space:]])movd[[:space:]]+%?eax,[[:space:]]*%?xmm0' 1 \
+                  "$temporary/wide-lookup.txt" \
+                  'one inlined 16-filled vector scalar transfer in the composed Wide lookup mechanism'
+                require_count '(^|[[:space:]])pshufd[[:space:]]+\$(0x0*0|0),[[:space:]]*%?xmm0,[[:space:]]*%?xmm0' 1 \
+                  "$temporary/wide-lookup.txt" \
+                  'one inlined 16-filled vector broadcast in the composed Wide lookup mechanism'
+                expected_wide_lookup_symbols=3
+            fi
+            require_count 'flyology_simd__backends__native__(table_lookup|subtract_wrap|bitwise_or)$|flyology_simd__(backends__native__)?splat$' \
+              "$expected_wide_lookup_symbols" \
               "$temporary/wide-lookup-undefined.txt" \
-              'the four intended selected 128-bit operations remain unresolved from the composed Wide lookup mechanism'
-            require_count 'flyology_simd__' 4 \
+              'only the intended selected 128-bit operations remain unresolved from the composed Wide lookup mechanism'
+            require_count 'flyology_simd__' "$expected_wide_lookup_symbols" \
               "$temporary/wide-lookup-undefined.txt" \
-              'only the four intended library operations remain unresolved from the composed Wide lookup mechanism'
+              'only the intended library operations remain unresolved from the composed Wide lookup mechanism'
             forbid_pattern 'flyology_simd__(wide__)?table_lookup|flyology_simd__wide__native__table_lookup' \
               "$temporary/wide-lookup-undefined.txt" \
               'portable or public Wide table lookup call from the composed lookup mechanism'
@@ -4935,9 +5022,9 @@ EOF
                       "$leaf" "assembly result destination in AVX2 ${signedness} ${operation} leaf"
                     require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdi\)' 1 \
                       "$leaf" "hidden-result return store in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'movq[[:space:]]+%rdi,[[:space:]]*%rax' 1 \
+                    require_count 'movq?[[:space:]]+%rdi,[[:space:]]*%rax' 1 \
                       "$leaf" "hidden-result return address in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'movq[[:space:]]+%rdx,[[:space:]]*%rcx' 1 \
+                    require_count 'movq?[[:space:]]+%rdx,[[:space:]]*%rcx' 1 \
                       "$leaf" "right-operand ABI routing in AVX2 ${signedness} ${operation} leaf"
                     case "$signedness:$operation" in
                         u8:min) instruction=vpminub ;;

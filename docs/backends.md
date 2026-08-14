@@ -626,13 +626,14 @@ alternating `16#AA#` and `16#55#` byte patterns, and 128 deterministic
 full-width input pairs for each Wide integer type. Every case checks the scalar
 Wide implementation and `Wide.Native` results. A generated caller probe covers
 all 16 overloads in each target configuration. The AArch64, composed x86-64,
-and non-byte AVX2 gates require two relocations to the exact matching selected
-128-bit operation, exactly two selected Native routes, and exactly two
-out-of-line branches. Each byte AVX2 caller gate requires one matching isolated
-leaf, exactly one out-of-line branch, and no selected Native route. The byte
-leaf gates require the operation- and signedness-specific packed instruction
-and `vzeroupper`. The caller gates reject mismatched selected operations,
-portable calls, Scalar calls, Wide dispatchers, and the general byte mechanism.
+and non-byte AVX2 gates require two exact selected 128-bit routes and two
+out-of-line branches. On composed x86-64, each signed-byte route is verified
+after inlining as two signed comparisons and two value selections. Each byte
+AVX2 caller gate requires one matching isolated leaf, exactly one out-of-line
+branch, and no selected Native route. The byte leaf gates require the
+operation- and signedness-specific packed instruction and `vzeroupper`. The
+caller gates reject mismatched selected operations, portable calls, Scalar
+calls, Wide dispatchers, and the general byte mechanism.
 
 The Wide integer family has 20 shift overloads in total:
 `Shift_Left_Logical`, `Shift_Right_Logical`, and `Shift_Right_Arithmetic`.
