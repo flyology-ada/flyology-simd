@@ -7,6 +7,116 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    use type Interfaces.Unsigned_32;
    use System.Machine_Code;
 
+   function Dot_Product (Left, Right : F32_Array) return F32 is
+      Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
+      Result       : F32 := 0.0;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Left'Length / 8;
+      Left_Cursor  : System.Address;
+      Right_Cursor : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Left_Cursor := Left (Left'First)'Address;
+         Right_Cursor := Right (Right'First)'Address;
+         Asm
+           (Template =>
+              "vxorps %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovups (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovups (%1), %%ymm1" & ASCII.LF & ASCII.HT &
+              "vmulps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vaddps %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
+              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
+              "vaddps %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "addq $32, %1" & ASCII.LF & ASCII.HT &
+              "subl $1, %2" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vmovups %%xmm4, (%3)" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Left_Cursor),
+               System.Address'Asm_Output ("+&r", Right_Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs =>
+              System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+            Volatile => True);
+         Offset := (Left'Length / 8) * 8;
+      end if;
+
+      while Offset < Left'Length loop
+         declare
+            Lane : constant Lane_Index_32x4 :=
+              Lane_Index_32x4 (Offset mod 4);
+            Index : constant Natural := Left'First + Offset;
+         begin
+            Accumulator (Lane) :=
+              Accumulator (Lane) + Left (Index) * Right (Index);
+         end;
+         Offset := Offset + 1;
+      end loop;
+      for Lane in Accumulator'Range loop
+         Result := Result + Accumulator (Lane);
+      end loop;
+      return Result;
+   end Dot_Product;
+
+   function Dot_Product (Left, Right : F64_Array) return F64 is
+      Accumulator  : aliased Lane_Values_F64x2 := [others => 0.0];
+      Result       : F64 := 0.0;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Left'Length / 4;
+      Left_Cursor  : System.Address;
+      Right_Cursor : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Left_Cursor := Left (Left'First)'Address;
+         Right_Cursor := Right (Right'First)'Address;
+         Asm
+           (Template =>
+              "vxorpd %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovupd (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovupd (%1), %%ymm1" & ASCII.LF & ASCII.HT &
+              "vmulpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vaddpd %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
+              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
+              "vaddpd %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "addq $32, %1" & ASCII.LF & ASCII.HT &
+              "subl $1, %2" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vmovupd %%xmm4, (%3)" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Left_Cursor),
+               System.Address'Asm_Output ("+&r", Right_Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs =>
+              System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+            Volatile => True);
+         Offset := (Left'Length / 4) * 4;
+      end if;
+
+      while Offset < Left'Length loop
+         declare
+            Lane : constant Lane_Index_64x2 :=
+              Lane_Index_64x2 (Offset mod 2);
+            Index : constant Natural := Left'First + Offset;
+         begin
+            Accumulator (Lane) :=
+              Accumulator (Lane) + Left (Index) * Right (Index);
+         end;
+         Offset := Offset + 1;
+      end loop;
+      for Lane in Accumulator'Range loop
+         Result := Result + Accumulator (Lane);
+      end loop;
+      return Result;
+   end Dot_Product;
+
    function Equal_Mask_32
      (Data : Byte_Array; Start : Natural; Needle : U8)
       return Interfaces.Unsigned_32

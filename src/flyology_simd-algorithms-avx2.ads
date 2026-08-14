@@ -1,5 +1,19 @@
 --  Baseline-safe entry points for optional AVX2 complete-buffer algorithms.
 package Flyology_SIMD.Algorithms.AVX2 is
+   function Dot_Product (Left, Right : F32_Array) return F32
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the four-group binary32 dot product with the optional AVX2
+   --  algorithm after checking CPU and OS support.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @return The lane-grouped sum of corresponding products.
+   function Dot_Product (Left, Right : F64_Array) return F64
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the two-group binary64 dot product with the optional AVX2
+   --  algorithm after checking CPU and OS support.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @return The lane-grouped sum of corresponding products.
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result;
    --  Return the first matching Ada index with the optional AVX2 algorithm.
    --  @param Data The complete byte array to search.

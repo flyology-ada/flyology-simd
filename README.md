@@ -161,7 +161,8 @@ The complete artifact is written to the ignored `build/site/` directory.
   leaves because the installed GNAT crashes on the tested GCC-vector arithmetic
   representation.  The complete x86-64 family uses SSE2 leaves and documented
   scalar composition where SSE2 has no semantics-preserving instruction;
-  optional AVX2 whole-buffer algorithms remain in separately compiled objects.
+  optional AVX2 whole-buffer and floating-array algorithms remain in
+  separately compiled objects.
   For operations without a separate Wide mechanism,
   `Flyology_SIMD.Wide.Native` composes selected 128-bit operations or uses
   fixed-width Ada code. Wide `Table_Lookup` uses a target-selected lookup

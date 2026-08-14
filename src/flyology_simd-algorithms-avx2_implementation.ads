@@ -2,6 +2,18 @@ private package Flyology_SIMD.Algorithms.AVX2_Implementation
   with Preelaborate
 is
    --  Target-specific implementation used by the baseline-safe AVX2 facade.
+   function Dot_Product (Left, Right : F32_Array) return F32
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the four-group binary32 dot product.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @return The lane-grouped sum of corresponding products.
+   function Dot_Product (Left, Right : F64_Array) return F64
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Return the two-group binary64 dot product.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @return The lane-grouped sum of corresponding products.
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result;
    --  Return the first matching Ada index.
    --  @param Data The complete byte array to search.

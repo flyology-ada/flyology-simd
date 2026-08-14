@@ -38,6 +38,6 @@ Key constraints:
 - An x86-64 build can statically select isolated AVX2-specific 256-bit implementations for U8x32 and I8x32 wrapping, saturating, bitwise, minimum, and maximum operations, plus U8x32 Table_Lookup. Each byte comparison and Select_Value uses a relation-specific isolated leaf. The Less_Than leaf reverses the operands of its greater-than comparison. The Less_Equal leaf complements that comparison with the original operand order. The Greater_Equal leaf complements it with reversed operands.
 - The same static AVX2 selection uses isolated 256-bit Add, Subtract, Multiply, Divide, Min_Number, and Max_Number implementations for F32x8 and F64x4. Floating arithmetic uses one packed operation. Minimum and maximum use integer classification and bit selection to preserve the public NaN and signed-zero rules. The composed x86-64 and AArch64 backends use two selected 128-bit operations.
 - The Wide AVX2 backend requires FLYOLOGY_SIMD_ARCH=x86_64 and FLYOLOGY_SIMD_AVX2=enabled. It has no runtime feature gate. On each deployment target, CPUID must report the AVX, AVX2, and OSXSAVE bits, and XCR0 must enable XMM and YMM register state.
-- The optional whole-buffer AVX2 entry points check CPU and OS extended state before they call AVX2 objects.
+- The optional complete-array and whole-buffer AVX2 entry points check CPU and OS extended state before they call AVX2 objects.
 - No low-level operation allocates, performs I/O, locks, waits, or starts a task.
 - The project initially requires GCC-based GNAT and remains experimental.

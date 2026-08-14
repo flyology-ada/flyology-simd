@@ -14,8 +14,10 @@ package body Flyology_SIMD.Algorithms.Runtime is
       case Backend is
          when Features.Scalar =>
             return Algorithms.Scalar_Floating.Dot_Product (Left, Right);
-         when Features.NEON | Features.SSE2 | Features.AVX2 =>
+         when Features.NEON | Features.SSE2 =>
             return Algorithms.Native_Floating.Dot_Product (Left, Right);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Dot_Product (Left, Right);
       end case;
    end Dot_Product;
 
@@ -28,8 +30,10 @@ package body Flyology_SIMD.Algorithms.Runtime is
       case Backend is
          when Features.Scalar =>
             return Algorithms.Scalar_Floating.Dot_Product (Left, Right);
-         when Features.NEON | Features.SSE2 | Features.AVX2 =>
+         when Features.NEON | Features.SSE2 =>
             return Algorithms.Native_Floating.Dot_Product (Left, Right);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Dot_Product (Left, Right);
       end case;
    end Dot_Product;
 

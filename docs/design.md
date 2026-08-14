@@ -134,7 +134,7 @@ selected by the GPR external `FLYOLOGY_SIMD_ARCH`:
   differential tests and focused code-generation checks;
 - `x86_64`: full-family SSE2 lowering with explicit scalar composition for
   operations not expressible in SSE2 without changing semantics;
-- optional AVX2 whole-buffer objects and the optional Wide byte, floating,
+- optional AVX2 whole-buffer and floating-array objects and the optional Wide byte, floating,
   lookup, and permutation subprograms are compiled separately with `-mavx2`.
 
 `Flyology_SIMD.Wide` is the scalar authority for the initial 256-bit profile.

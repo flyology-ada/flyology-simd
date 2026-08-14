@@ -50,7 +50,7 @@ Native : constant F32 :=
           <pre><code class="language-ada">Result : constant F32 :=
   Flyology_SIMD.Algorithms.Runtime.Dot_Product (Left, Right);</code></pre>
           <p>The binary32 and binary64 overloads require arrays with matching bounds. Binary32 uses four accumulator lane groups. Binary64 uses two groups. Both reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
-          <p>An AVX2 selection uses the compiled 128-bit native instance. This route retains the same four-lane or two-lane accumulation order as the other runtime backends.</p>
+          <p>An AVX2 selection loads and multiplies eight binary32 or four binary64 elements at a time, then adds the two 128-bit halves to one accumulator in source order. This route retains the same four-lane or two-lane accumulation order as the other runtime backends.</p>
           <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
           <pre><code class="language-ada">Matches : constant Natural :=
   Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>

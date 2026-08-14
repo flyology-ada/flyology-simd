@@ -2,6 +2,18 @@ with Flyology_SIMD.Algorithms.AVX2_Implementation;
 with Flyology_SIMD.Features;
 
 package body Flyology_SIMD.Algorithms.AVX2 is
+   function Dot_Product (Left, Right : F32_Array) return F32 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Dot_Product (Left, Right);
+   end Dot_Product;
+
+   function Dot_Product (Left, Right : F64_Array) return F64 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Dot_Product (Left, Right);
+   end Dot_Product;
+
    function Find_First
      (Data : Byte_Array; Needle : U8) return Search_Result is
    begin

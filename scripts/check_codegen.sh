@@ -4844,6 +4844,16 @@ EOF
               'fused AVX2 small-set mask extraction'
             require_pattern 'vzeroupper' "$temporary/avx2.txt" \
               'AVX-SSE transition cleanup in the small-set algorithm'
+            require_pattern 'vmulps' "$temporary/avx2.txt" \
+              'AVX2-width binary32 dot-product multiplication'
+            require_pattern 'vaddps' "$temporary/avx2.txt" \
+              'ordered binary32 dot-product accumulation'
+            require_pattern 'vmulpd' "$temporary/avx2.txt" \
+              'AVX2-width binary64 dot-product multiplication'
+            require_pattern 'vaddpd' "$temporary/avx2.txt" \
+              'ordered binary64 dot-product accumulation'
+            require_pattern 'vextractf128' "$temporary/avx2.txt" \
+              'ordered AVX2 dot-product half extraction'
             forbid_pattern \
               'flyology_simd(__backends__native)?__(splat|load_unaligned|equal|bitwise_(and|or)|shift_right_logical|table_lookup|to_bit_mask|first_true)$' \
               "$temporary/avx2-undefined.txt" \

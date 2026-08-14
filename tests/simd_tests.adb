@@ -1613,6 +1613,17 @@ procedure SIMD_Tests is
                "empty runtime F64 dot is positive zero");
          end if;
 
+         if Features.Available (Features.AVX2) then
+            Check
+              (Algorithms.AVX2.Dot_Product (F32_Left, F32_Right) =
+                 Expected_F32,
+               "direct AVX2 F32 dot length" & Length'Image);
+            Check
+              (Algorithms.AVX2.Dot_Product (F64_Left, F64_Right) =
+                 Expected_F64,
+               "direct AVX2 F64 dot length" & Length'Image);
+         end if;
+
          for Backend in Features.Backend_Kind loop
             if Features.Available (Backend) then
                Check
@@ -1688,6 +1699,20 @@ procedure SIMD_Tests is
             Check
               (False,
                "unavailable runtime AVX2 F64 dot accepted" & Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot := Algorithms.AVX2.Dot_Product (F32_Data, F32_Data);
+            Check (False, "unavailable direct AVX2 dot accepted" & Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.AVX2.Dot_Product (F64_Data, F64_Data);
+            Check
+              (False,
+               "unavailable direct AVX2 F64 dot accepted" & Dot_64'Image);
          exception
             when Features.Backend_Unavailable => null;
          end;

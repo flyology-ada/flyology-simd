@@ -864,13 +864,15 @@ tail. Its gate requires `vpcmpeqb`, `vpor`, `vpmovmskb`, `bsf`, and
 before an inaccessible page and cover both no-match and final-match scans.
 
 The binary32 and binary64 `Dot_Product` algorithms have scalar and Native
-generic instances. Runtime dispatch selects one instance before the
-complete-array loop. Deterministic differential tests cover empty arrays,
-every length from zero through 96, a 4,096-element input, offset lower bounds,
-and every available forced backend. Protected-page tests cover binary32 lengths
-1 through 33 and binary64 lengths 1 through 17. An AVX2 runtime selection uses
-the 128-bit Native instance and retains the four-lane or two-lane accumulation
-order. The primitive operations do not perform runtime dispatch.
+generic instances. Runtime dispatch selects one implementation before the
+complete-array loop. The optional AVX2 object loads and multiplies eight
+binary32 or four binary64 elements at a time, then adds its two 128-bit halves
+to one accumulator in source order. This retains the public four-group or
+two-group accumulation order. Deterministic differential tests cover empty
+arrays, every length from zero through 96, a 4,096-element input, offset lower
+bounds, and every available forced backend. Protected-page tests cover
+binary32 lengths 1 through 33 and binary64 lengths 1 through 17. The primitive
+operations do not perform runtime dispatch.
 
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native
