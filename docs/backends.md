@@ -581,6 +581,28 @@ requires one matching isolated leaf and exactly one out-of-line branch. The
 caller gates reject mismatched selected operations, portable calls, Scalar
 calls, Wide dispatchers, and the general byte mechanism.
 
+The Wide integer family has 16 `Min` and `Max` overloads in total: eight of
+each operation. AArch64 and the composed x86-64 backend apply the exact
+matching selected 128-bit operation to both private parts. For the four byte
+overloads, the optional AVX2 backend uses isolated `vpminub`, `vpminsb`,
+`vpmaxub`, or `vpmaxsb` leaves. Each byte leaf runs `vzeroupper`. For the other
+12 overloads, the optional AVX2 backend retains the two-part selected
+composition. A scalar build uses the same composition through the portable
+128-bit implementation.
+
+Independent lane oracles check signedness boundaries, top-bit transitions,
+alternating `16#AA#` and `16#55#` byte patterns, and 128 deterministic
+full-width input pairs for each Wide integer type. Every case checks the scalar
+Wide implementation and `Wide.Native` results. A generated caller probe covers
+all 16 overloads in each target configuration. The AArch64, composed x86-64,
+and non-byte AVX2 gates require two relocations to the exact matching selected
+128-bit operation, exactly two selected Native routes, and exactly two
+out-of-line branches. Each byte AVX2 caller gate requires one matching isolated
+leaf, exactly one out-of-line branch, and no selected Native route. The byte
+leaf gates require the operation- and signedness-specific packed instruction
+and `vzeroupper`. The caller gates reject mismatched selected operations,
+portable calls, Scalar calls, Wide dispatchers, and the general byte mechanism.
+
 The Wide integer family has 20 shift overloads in total:
 `Shift_Left_Logical`, `Shift_Right_Logical`, and `Shift_Right_Arithmetic`.
 Each logical operation supports all eight integer types. The arithmetic

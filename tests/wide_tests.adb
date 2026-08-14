@@ -843,6 +843,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170)];
+         Right_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85)];
+         Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U8x32 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_U8x32 :=
+           [for Lane in Wide.Lane_Index_8x32 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_U8x32 :=
+           [for Lane in Wide.Lane_Index_8x32 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "U8x32 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U8x32 := [1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last];
          Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Lanes);
@@ -1496,6 +1518,25 @@ procedure Wide_Tests is
                  "U8x32 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_U8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "U8x32 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -2423,6 +2464,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170))];
+         Right_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85))];
+         Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I8x32 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_I8x32 :=
+           [for Lane in Wide.Lane_Index_8x32 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_I8x32 :=
+           [for Lane in Wide.Lane_Index_8x32 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "I8x32 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I8x32 := [I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First];
          Right_Lanes : constant Wide.Lane_Values_I8x32 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Lanes);
@@ -3051,6 +3114,25 @@ procedure Wide_Tests is
                  "I8x32 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_I8x32 :=
+                 [for Lane in Wide.Lane_Index_8x32 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "I8x32 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -3933,6 +4015,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690)];
+         Right_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845)];
+         Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U16x16 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_U16x16 :=
+           [for Lane in Wide.Lane_Index_16x16 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_U16x16 :=
+           [for Lane in Wide.Lane_Index_16x16 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "U16x16 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U16x16 := [1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last];
          Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
@@ -4392,6 +4496,25 @@ procedure Wide_Tests is
                  "U16x16 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_U16x16 :=
+                 [for Lane in Wide.Lane_Index_16x16 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_U16x16 :=
+                 [for Lane in Wide.Lane_Index_16x16 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "U16x16 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -5274,6 +5397,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690))];
+         Right_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845))];
+         Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I16x16 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_I16x16 :=
+           [for Lane in Wide.Lane_Index_16x16 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_I16x16 :=
+           [for Lane in Wide.Lane_Index_16x16 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "I16x16 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I16x16 := [I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First];
          Right_Lanes : constant Wide.Lane_Values_I16x16 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
@@ -5732,6 +5877,25 @@ procedure Wide_Tests is
                  "I16x16 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_I16x16 :=
+                 [for Lane in Wide.Lane_Index_16x16 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_I16x16 :=
+                 [for Lane in Wide.Lane_Index_16x16 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "I16x16 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -6580,6 +6744,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (2147483647), U32 (2147483648), U32 (4294967295), U32 (2863311530), U32 (2147483647), U32 (2147483648), U32 (4294967295), U32 (2863311530)];
+         Right_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (1), U32 (4294967295), U32 (4294967295), U32 (1431655765), U32 (1), U32 (4294967295), U32 (4294967295), U32 (1431655765)];
+         Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U32x8 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_U32x8 :=
+           [for Lane in Wide.Lane_Index_32x8 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_U32x8 :=
+           [for Lane in Wide.Lane_Index_32x8 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "U32x8 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32'Last, 0, U32'Last, 0, U32'Last, 0, U32'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U32x8 := [1, 1, U32'Last, U32'Last, 1, 1, U32'Last, U32'Last];
          Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
@@ -7055,6 +7241,25 @@ procedure Wide_Tests is
                  "U32x8 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_U32x8 :=
+                 [for Lane in Wide.Lane_Index_32x8 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_U32x8 :=
+                 [for Lane in Wide.Lane_Index_32x8 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "U32x8 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -7953,6 +8158,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (2147483647)), Bits_To_Value (U32 (2147483648)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530)), Bits_To_Value (U32 (2147483647)), Bits_To_Value (U32 (2147483648)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530))];
+         Right_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (1)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (1431655765)), Bits_To_Value (U32 (1)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (1431655765))];
+         Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I32x8 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_I32x8 :=
+           [for Lane in Wide.Lane_Index_32x8 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_I32x8 :=
+           [for Lane in Wide.Lane_Index_32x8 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "I32x8 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I32x8 := [I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First];
          Right_Lanes : constant Wide.Lane_Values_I32x8 := [1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
@@ -8427,6 +8654,25 @@ procedure Wide_Tests is
                  "I32x8 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_I32x8 :=
+                 [for Lane in Wide.Lane_Index_32x8 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_I32x8 :=
+                 [for Lane in Wide.Lane_Index_32x8 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "I32x8 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -9291,6 +9537,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (9223372036854775807), U64 (9223372036854775808), U64 (18446744073709551615), U64 (12297829382473034410)];
+         Right_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (1), U64 (18446744073709551615), U64 (8589934591), U64 (6148914691236517205)];
+         Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U64x4 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_U64x4 :=
+           [for Lane in Wide.Lane_Index_64x4 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_U64x4 :=
+           [for Lane in Wide.Lane_Index_64x4 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "U64x4 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64'Last, 0, U64'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U64x4 := [1, 1, U64'Last, U64'Last];
          Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
@@ -9766,6 +10034,25 @@ procedure Wide_Tests is
                  "U64x4 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_U64x4 :=
+                 [for Lane in Wide.Lane_Index_64x4 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_U64x4 :=
+                 [for Lane in Wide.Lane_Index_64x4 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "U64x4 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare
@@ -10664,6 +10951,28 @@ procedure Wide_Tests is
 
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (9223372036854775807)), Bits_To_Value (U64 (9223372036854775808)), Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (12297829382473034410))];
+         Right_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (1)), Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (8589934591)), Bits_To_Value (U64 (6148914691236517205))];
+         Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I64x4 := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.Lane_Values_I64x4 :=
+           [for Lane in Wide.Lane_Index_64x4 =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.Lane_Values_I64x4 :=
+           [for Lane in Wide.Lane_Index_64x4 =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "I64x4 directed independent integer extrema");
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I64x4 := [I64'Last, I64'First, I64'Last, I64'First];
          Right_Lanes : constant Wide.Lane_Values_I64x4 := [1, -1, -1, 1];
          Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
@@ -11138,6 +11447,25 @@ procedure Wide_Tests is
                  "I64x4 randomized independent bitwise oracle" &
                    Iteration'Image & Lane'Image);
             end loop;
+
+
+            declare
+               Min_Expected : constant Wide.Lane_Values_I64x4 :=
+                 [for Lane in Wide.Lane_Index_64x4 =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.Lane_Values_I64x4 :=
+                 [for Lane in Wide.Lane_Index_64x4 =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "I64x4 randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
 
 
             declare

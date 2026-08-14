@@ -1150,6 +1150,61 @@ def invalid_support(path: Path) -> list[str]:
                     f"{signature_part} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        wide_minmax_support = {
+            "Min": {"U8x32": "vpminub", "I8x32": "vpminsb"},
+            "Max": {"U8x32": "vpmaxub", "I8x32": "vpmaxsb"},
+        }
+        for operation, byte_instructions in wide_minmax_support.items():
+            blocks = declaration_blocks(text, operation)
+            selected_phrase = (
+                f"selected 128-bit {operation} operation for both private parts"
+            )
+            selected = sum(selected_phrase in block for block in blocks)
+            exact_byte = True
+            all_instructions = {
+                instruction
+                for instructions in wide_minmax_support.values()
+                for instruction in instructions.values()
+            }
+            for block in blocks:
+                expected_instruction = next(
+                    (instruction for vector, instruction in byte_instructions.items()
+                     if vector in block),
+                    None,
+                )
+                present = {
+                    instruction
+                    for instruction in all_instructions
+                    if f"isolated 256-bit {instruction} leaf" in block
+                }
+                if expected_instruction is None:
+                    exact_byte = exact_byte and not present
+                else:
+                    exact_byte = (
+                        exact_byte
+                        and present == {expected_instruction}
+                        and "and then runs vzeroupper" in block
+                    )
+            portable = sum(
+                "same two-part composition through the portable 128-bit "
+                "implementation" in block for block in blocks
+            )
+            if (len(blocks) != 8 or selected != 8 or not exact_byte
+                    or portable != 8):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    "Wide integer Min/Max classifications"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block for block in blocks
+                )
+                if authority != 8:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected 8"
+                    )
         wide_shift_counts = {
             "Shift_Left_Logical": 8,
             "Shift_Right_Logical": 8,

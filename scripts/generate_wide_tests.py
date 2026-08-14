@@ -1898,6 +1898,47 @@ def integer_test(f: Family) -> str:
             "{f.vector} Natural'Last independent shifts B");
       end;
 '''
+    extrema_boundary_checks = f'''
+      declare
+         Left_Lanes : constant Wide.{f.values} := [{", ".join(wrapping_left)}];
+         Right_Lanes : constant Wide.{f.values} := [{", ".join(wrapping_right)}];
+         Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Lanes);
+         Min_Expected : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              (if Left_Lanes (Lane) < Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+         Max_Expected : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              (if Left_Lanes (Lane) > Right_Lanes (Lane)
+               then Left_Lanes (Lane) else Right_Lanes (Lane))];
+      begin
+         Check (Wide.To_Lanes (Wide.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Native.To_Lanes (Native.Min (Left_Value, Right_Value)) = Min_Expected
+           and then Wide.To_Lanes (Wide.Max (Left_Value, Right_Value)) = Max_Expected
+           and then Native.To_Lanes (Native.Max (Left_Value, Right_Value)) = Max_Expected,
+           "{f.vector} directed independent integer extrema");
+      end;
+'''
+    extrema_randomized = f'''
+            declare
+               Min_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} =>
+                    (if R_A_Lanes (Lane) < R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+               Max_Expected : constant Wide.{f.values} :=
+                 [for Lane in Wide.{f.index} =>
+                    (if R_A_Lanes (Lane) > R_B_Lanes (Lane)
+                     then R_A_Lanes (Lane) else R_B_Lanes (Lane))];
+            begin
+               Check (Wide.To_Lanes (Wide.Min (R_A, R_B)) = Min_Expected
+                 and then Native.To_Lanes (Native.Min (R_A, R_B)) = Min_Expected
+                 and then Wide.To_Lanes (Wide.Max (R_A, R_B)) = Max_Expected
+                 and then Native.To_Lanes (Native.Max (R_A, R_B)) = Max_Expected,
+                 "{f.vector} randomized independent integer extrema" &
+                   Iteration'Image);
+            end;
+'''
     bitwise_randomized = f'''
             for Lane in Wide.{f.index} loop
                Check (Wide.Extract (Wide.Bitwise_And (R_A, R_B), Lane) =
@@ -2435,6 +2476,7 @@ def integer_test(f: Family) -> str:
 {wrapping_boundary_checks}
 {bitwise_boundary_checks}
 {shift_boundary_checks}
+{extrema_boundary_checks}
 {saturation_boundary_checks}
 {byte_boundary_checks}
 {byte_predicate_checks}
@@ -2768,6 +2810,7 @@ def integer_test(f: Family) -> str:
 {byte_oracle_checks}
 {wrapping_randomized}
 {bitwise_randomized}
+{extrema_randomized}
 {saturation_randomized}
 {byte_predicate_randomized}
             Check_Predicates

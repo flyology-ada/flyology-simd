@@ -32,6 +32,7 @@ wide_saturating_arithmetic_probe_object="$probe_root/wide_saturating_arithmetic_
 wide_wrapping_arithmetic_probe_object="$probe_root/wide_wrapping_arithmetic_codegen_probe.o"
 wide_bitwise_probe_object="$probe_root/wide_bitwise_codegen_probe.o"
 wide_shift_probe_object="$probe_root/wide_shift_codegen_probe.o"
+wide_minmax_probe_object="$probe_root/wide_minmax_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -180,6 +181,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_shift_probe_object" >"$temporary/wide-shift-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_minmax_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-minmax-probe.txt"
+else
+    objdump -dr "$wide_minmax_probe_object" >"$temporary/wide-minmax-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -272,6 +279,7 @@ nm -u "$wide_wrapping_arithmetic_probe_object" \
   >"$temporary/wide-wrapping-arithmetic-undefined.txt"
 nm -u "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-undefined.txt"
 nm -u "$wide_shift_probe_object" >"$temporary/wide-shift-undefined.txt"
+nm -u "$wide_minmax_probe_object" >"$temporary/wide-minmax-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -1331,6 +1339,77 @@ require_count 'flyology_simd__' 20 "$temporary/wide-shift-undefined.txt" \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' \
   "$temporary/wide-shift-undefined.txt" \
   'portable, dispatcher, Scalar, or mismatched Wide shift route retained'
+
+wide_minmax_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_minmax_codegen_cases.txt | wc -l | tr -d ' ')
+wide_minmax_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_minmax_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_minmax_case_count" -ne 16 ] || [ "$wide_minmax_unique_count" -ne 16 ]; then
+    echo 'Wide integer Min/Max manifest must contain 16 unique operations' >&2
+    exit 1
+fi
+case "$architecture" in
+    aarch64) wide_minmax_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) wide_minmax_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+while read -r lane_kind operation suffix route; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-minmax-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_minmax_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-minmax-probe.txt" "$caller"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$wide_backend" = avx2 ] && [ "$route" = byte ]; then
+        leaf_suffix=
+        [ "$lane_kind" = i8 ] && leaf_suffix='__2'
+        require_count "wide__byte_avx2_leaf__${operation}${leaf_suffix}${symbol_end}" 1 \
+          "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
+        require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
+          "only one AVX2 byte leaf in ${lane_kind} ${operation}"
+        require_count "$wide_minmax_branch" 1 "$caller" \
+          "one out-of-line AVX2 branch in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          "no composed selected operation in AVX2 ${lane_kind} ${operation}"
+    else
+        if [ "$route" = parts ]; then
+            selected_symbol="${operation}__${suffix}"
+        elif [ "$lane_kind" = u8 ]; then
+            case "$architecture" in
+                aarch64) selected_symbol="neon_${operation}" ;;
+                x86_64) selected_symbol="u8_${operation}" ;;
+            esac
+        else
+            selected_symbol="native_${operation}_i8x16"
+        fi
+        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+          "$caller" "two matching selected extrema in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+          "only two selected operations in ${lane_kind} ${operation}"
+        require_count "$wide_minmax_branch" 2 "$caller" \
+          "two out-of-line branches in ${lane_kind} ${operation}"
+    fi
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
+      "$caller" "portable, dispatcher, Scalar, or byte-mechanism extrema route"
+done <scripts/probes/wide_minmax_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(min|max)__(3|4|5|6|7|8)$' 12 \
+  "$temporary/wide-minmax-undefined.txt" \
+  'twelve selected non-byte Wide integer extrema operations'
+if [ "$wide_backend" = avx2 ]; then
+    require_count 'flyology_simd__wide__byte_avx2_leaf__(min|max)(__2)?$' 4 \
+      "$temporary/wide-minmax-undefined.txt" \
+      'four isolated AVX2 byte extrema operations'
+else
+    case "$architecture" in aarch64) u8_prefix=neon ;; x86_64) u8_prefix=u8 ;; esac
+    require_count "flyology_simd__backends__native__${u8_prefix}_(min|max)$" 2 \
+      "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
+    require_count 'flyology_simd__backends__native__native_(min|max)_i8x16$' 2 \
+      "$temporary/wide-minmax-undefined.txt" 'two selected I8 Wide extrema operations'
+fi
+require_count 'flyology_simd__' 16 "$temporary/wide-minmax-undefined.txt" \
+  'only the sixteen intended Wide extrema operations remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?$|wide__byte_mechanism__' \
+  "$temporary/wide-minmax-undefined.txt" \
+  'portable, dispatcher, Scalar, or byte-mechanism extrema route retained'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')
@@ -4554,10 +4633,49 @@ EOF
                 forbid_pattern 'vpand|vpor|(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
                   "$leaf" "unrelated bitwise operation, branch, or helper in AVX2 ${signedness} complement leaf"
             done
-            require_pattern 'vpminub' "$temporary/wide_byte_u8_min.txt" 'AVX2 unsigned byte minimum'
-            require_pattern 'vpminsb' "$temporary/wide_byte_i8_min.txt" 'AVX2 signed byte minimum'
-            require_pattern 'vpmaxub' "$temporary/wide_byte_u8_max.txt" 'AVX2 unsigned byte maximum'
-            require_pattern 'vpmaxsb' "$temporary/wide_byte_i8_max.txt" 'AVX2 signed byte maximum'
+            for signedness in u8 i8; do
+                for operation in min max; do
+                    leaf="$temporary/wide_byte_${signedness}_${operation}.txt"
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                      "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "one right-operand load in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                      "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                      "$leaf" "left ABI operand in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "right ABI operand in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                      "$leaf" "assembly result destination in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdi\)' 1 \
+                      "$leaf" "hidden-result return store in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'movq[[:space:]]+%rdi,[[:space:]]*%rax' 1 \
+                      "$leaf" "hidden-result return address in AVX2 ${signedness} ${operation} leaf"
+                    require_count 'movq[[:space:]]+%rdx,[[:space:]]*%rcx' 1 \
+                      "$leaf" "right-operand ABI routing in AVX2 ${signedness} ${operation} leaf"
+                    case "$signedness:$operation" in
+                        u8:min) instruction=vpminub ;;
+                        i8:min) instruction=vpminsb ;;
+                        u8:max) instruction=vpmaxub ;;
+                        i8:max) instruction=vpmaxsb ;;
+                    esac
+                    require_count "${instruction}[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0" 1 \
+                      "$leaf" "one exact AVX2 ${signedness} ${operation}"
+                    require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 \
+                      "$leaf" "only one AVX2 ${signedness} ${operation} instruction"
+                    require_count 'vzeroupper' 2 "$leaf" \
+                      "two AVX-SSE transition cleanups in AVX2 ${signedness} ${operation} leaf"
+                    case "$instruction" in
+                        vpminub) unrelated='vpminsb|vpmaxub|vpmaxsb' ;;
+                        vpminsb) unrelated='vpminub|vpmaxub|vpmaxsb' ;;
+                        vpmaxub) unrelated='vpminub|vpminsb|vpmaxsb' ;;
+                        vpmaxsb) unrelated='vpminub|vpminsb|vpmaxub' ;;
+                    esac
+                    forbid_pattern "$unrelated|(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]" \
+                      "$leaf" "unrelated extrema operation, branch, or helper in AVX2 ${signedness} ${operation} leaf"
+                done
+            done
             require_pattern 'vpcmpeqb' "$temporary/wide_byte_u8_equal.txt" 'AVX2 unsigned byte equality'
             require_pattern 'vpcmpeqb' "$temporary/wide_byte_i8_equal.txt" 'AVX2 signed byte equality'
             require_pattern 'vpmovmskb' "$temporary/wide_byte_u8_equal.txt" 'AVX2 unsigned compact equality mask'

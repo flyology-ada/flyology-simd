@@ -51,6 +51,8 @@ The generated Wide integer-bitwise probe and its 32-operation manifest are
 reproduced by `scripts/generate_wide_bitwise_probe.py`.
 The generated Wide integer-shift probe and its 20-operation manifest are
 reproduced by `scripts/generate_wide_shift_probe.py`.
+The generated Wide integer-Min/Max probe and its 16-operation manifest are
+reproduced by `scripts/generate_wide_minmax_probe.py`.
 The generated fixed-width lane-arrangement caller probe and its 50-operation
 manifest are reproduced by `scripts/generate_lane_arrangement_probe.py`.
 The generated fixed-width bitwise caller probe and its 32-operation manifest

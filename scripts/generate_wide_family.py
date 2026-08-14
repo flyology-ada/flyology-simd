@@ -398,8 +398,33 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "overload uses the same two-part composition through the portable "
             "128-bit implementation."
         )
+    elif operation in {"Min", "Max"}:
+        byte_shape = "U8x32" in declaration or "I8x32" in declaration
+        if byte_shape:
+            instruction = {
+                ("Min", True): "vpminub",
+                ("Max", True): "vpmaxub",
+                ("Min", False): "vpminsb",
+                ("Max", False): "vpmaxsb",
+            }[(operation, "U8x32" in declaration)]
+            return (
+                "Cross-platform support: The AArch64 and composed x86-64 "
+                f"backends call the selected 128-bit {operation} operation "
+                "for both private parts. The optional AVX2 backend calls an "
+                f"isolated 256-bit {instruction} leaf and then runs "
+                "vzeroupper. In a scalar build, this overload uses the same "
+                "two-part composition through the portable 128-bit "
+                "implementation."
+            )
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends call the selected 128-bit {operation} "
+            "operation for both private parts. In a scalar build, this "
+            "overload uses the same two-part composition through the portable "
+            "128-bit implementation."
+        )
     elif operation in {
-            "Min", "Max", "Equal", "Less_Than", "Less_Equal",
+            "Equal", "Less_Than", "Less_Equal",
             "Greater_Than", "Greater_Equal",
         } or operation == "Select_Value":
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
