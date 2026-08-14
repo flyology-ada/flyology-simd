@@ -1640,6 +1640,100 @@ def integer_test(f: Family) -> str:
          return Result;
       end Reference_Reduce_Max;
 '''
+    wrapping_declarations = f'''
+      function Reference_Add_Wrap
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) + Value_To_Bits (Right))' if f.signed else 'Left + Right'});
+
+      function Reference_Subtract_Wrap
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) - Value_To_Bits (Right))' if f.signed else 'Left - Right'});
+
+      function Reference_Multiply_Wrap
+        (Left, Right : {f.scalar}) return {f.scalar} is
+        ({'Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right))' if f.signed else 'Left * Right'});
+'''
+    wrapping_left_bits = (
+        (1 << (f.bits - 1)) - 1,
+        1 << (f.bits - 1),
+        (1 << f.bits) - 1,
+        int("AA" * (f.bits // 8), 16),
+    )
+    wrapping_right_bits = (
+        1,
+        (1 << f.bits) - 1,
+        int("00000001FFFFFFFF", 16) & ((1 << f.bits) - 1),
+        int("55" * (f.bits // 8), 16),
+    )
+    def wrapping_value(bits: int) -> str:
+        encoded = f"{unsigned} ({bits})"
+        return f"Bits_To_Value ({encoded})" if f.signed else encoded
+
+    wrapping_left = [
+        wrapping_value(wrapping_left_bits[lane % len(wrapping_left_bits)])
+        for lane in range(f.lanes)
+    ]
+    wrapping_right = [
+        wrapping_value(wrapping_right_bits[lane % len(wrapping_right_bits)])
+        for lane in range(f.lanes)
+    ]
+    wrapping_boundary_checks = f'''
+      declare
+         Left_Lanes : constant Wide.{f.values} := [{", ".join(wrapping_left)}];
+         Right_Lanes : constant Wide.{f.values} := [{", ".join(wrapping_right)}];
+         Left_Value : constant Wide.{f.vector} := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.{f.vector} := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.{f.vector} := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.{f.vector} := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.{f.vector} := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.{f.vector} := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.{f.vector} := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.{f.vector} := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.{f.index} loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "{f.vector} directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+'''
+    wrapping_randomized = f'''
+            declare
+               Root_Add : constant Wide.{f.vector} := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.{f.vector} := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.{f.vector} := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.{f.vector} := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.{f.vector} := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.{f.vector} := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.{f.index} loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "{f.vector} randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+'''
     if f.signed:
         saturation_declarations = f'''
       function Reference_Add_Saturate
@@ -2088,6 +2182,7 @@ def integer_test(f: Family) -> str:
          return Result;
       end Random_Lanes;
 {reduction_declarations}
+{wrapping_declarations}
 {saturation_declarations}
 {compaction_declarations(f)}
 {mask_position_declarations(f)}
@@ -2149,6 +2244,7 @@ def integer_test(f: Family) -> str:
         "{f.vector} complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "{f.vector} double complement");
+{wrapping_boundary_checks}
 {saturation_boundary_checks}
 {byte_boundary_checks}
 {byte_predicate_checks}
@@ -2480,6 +2576,7 @@ def integer_test(f: Family) -> str:
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "{f.vector} randomized bitwise extrema" & Iteration'Image);
 {byte_oracle_checks}
+{wrapping_randomized}
 {saturation_randomized}
 {byte_predicate_randomized}
             Check_Predicates

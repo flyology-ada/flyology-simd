@@ -47,6 +47,7 @@ jobs:
           python3 scripts/generate_integer_minmax_probe.py
           python3 scripts/generate_saturating_arithmetic_probe.py
           python3 scripts/generate_wide_saturating_arithmetic_probe.py
+          python3 scripts/generate_wide_wrapping_arithmetic_probe.py
           python3 scripts/generate_wide_reduction_probe.py
           python3 scripts/generate_wide_construction_probe.py
           python3 scripts/generate_wide_comparison_probe.py

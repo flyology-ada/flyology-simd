@@ -310,6 +310,32 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "implementation. In a scalar build, this overload uses the same "
             "composition through the portable 128-bit implementation."
         )
+    elif operation in {"Add_Wrap", "Subtract_Wrap", "Multiply_Wrap"}:
+        byte_shape = "U8x32" in declaration or "I8x32" in declaration
+        if byte_shape:
+            if operation == "Multiply_Wrap":
+                avx2 = (
+                    "an isolated 256-bit byte-multiplication leaf that uses "
+                    "vpmullw, vpand, vpsrlw, vpsllw, and vpor"
+                )
+            else:
+                instruction = "vpaddb" if operation == "Add_Wrap" else "vpsubb"
+                avx2 = f"an isolated 256-bit {instruction} leaf"
+            return (
+                "Cross-platform support: The AArch64 and composed x86-64 "
+                f"backends call the selected 128-bit {operation} operation "
+                "for both private parts. The optional AVX2 backend calls "
+                f"{avx2} and then runs vzeroupper. In a scalar build, this "
+                "overload uses the same two-part composition through the "
+                "portable 128-bit implementation."
+            )
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends call the selected 128-bit {operation} "
+            "operation for both private parts. In a scalar build, this "
+            "overload uses the same two-part composition through the portable "
+            "128-bit implementation."
+        )
     elif operation in {"Add_Saturate", "Subtract_Saturate"}:
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
         if byte_shape:
@@ -336,7 +362,6 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "128-bit implementation."
         )
     elif operation in {
-            "Add_Wrap", "Subtract_Wrap", "Multiply_Wrap",
             "Bitwise_And", "Bitwise_Or", "Bitwise_Xor",
             "Min", "Max", "Equal", "Less_Than", "Less_Equal",
             "Greater_Than", "Greater_Equal",

@@ -1150,6 +1150,51 @@ def invalid_support(path: Path) -> list[str]:
                     f"{signature_part} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        wide_wrapping_support = {
+            "Add_Wrap": "isolated 256-bit vpaddb leaf",
+            "Subtract_Wrap": "isolated 256-bit vpsubb leaf",
+            "Multiply_Wrap": (
+                "isolated 256-bit byte-multiplication leaf that uses vpmullw, "
+                "vpand, vpsrlw, vpsllw, and vpor"
+            ),
+        }
+        for operation, byte_phrase in wide_wrapping_support.items():
+            blocks = declaration_blocks(text, operation)
+            selected_phrase = (
+                f"selected 128-bit {operation} operation for both private parts"
+            )
+            selected = sum(selected_phrase in block for block in blocks)
+            byte_avx2 = sum(byte_phrase in block for block in blocks)
+            byte_cleanup = sum(
+                byte_phrase in block and "and then runs vzeroupper" in block
+                for block in blocks
+            )
+            portable = sum(
+                "same two-part composition through the portable 128-bit "
+                "implementation" in block
+                for block in blocks
+            )
+            if (len(blocks) != 8 or selected != 8 or byte_avx2 != 2
+                    or byte_cleanup != 2
+                    or portable != 8):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    "Wide wrapping classifications "
+                    f"({len(blocks)} declarations, {selected} selected-part "
+                    f"notes, {byte_avx2} byte-AVX2 notes, {byte_cleanup} byte "
+                    f"cleanup notes, {portable} portable composition notes)"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block
+                    for block in blocks
+                )
+                if authority != 8:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected 8"
+                    )
         wide_saturating_support = {
             "Add_Saturate": ("vpaddusb", "vpaddsb"),
             "Subtract_Saturate": ("vpsubusb", "vpsubsb"),

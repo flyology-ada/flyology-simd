@@ -67,19 +67,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Add_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpaddb leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Subtract_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpsubb leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U8x32) return U8x32 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Multiply_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit byte-multiplication leaf that uses vpmullw, vpand, vpsrlw, vpsllw, and vpor and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -429,19 +429,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Add_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpaddb leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Subtract_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit vpsubb leaf and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I8x32) return I8x32 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 backend runs the selected 128-bit operation on both private parts. The x86-64 backend does the same by default, and the optional AVX2 build uses a dedicated 256-bit implementation. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64 and composed x86-64 backends call the selected 128-bit Multiply_Wrap operation for both private parts. The optional AVX2 backend calls an isolated 256-bit byte-multiplication leaf that uses vpmullw, vpand, vpsrlw, vpsllw, and vpor and then runs vzeroupper. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -743,19 +743,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U16x16) return U16x16 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1100,19 +1100,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I16x16) return I16x16 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1419,19 +1419,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U32x8) return U32x8 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1781,19 +1781,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I32x8) return I32x8 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2100,19 +2100,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : U64x4) return U64x4 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2462,19 +2462,19 @@ is
    --  @return The operation result.
    function Add_Wrap (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Add_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Add_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Subtract_Wrap (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Subtract_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Subtract_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Multiply_Wrap (Left, Right : I64x4) return I64x4 with Inline_Always;
    --  Apply Multiply_Wrap independently to corresponding lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends call the selected 128-bit Multiply_Wrap operation for both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

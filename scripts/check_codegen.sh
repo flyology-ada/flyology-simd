@@ -29,6 +29,7 @@ wide_reduction_probe_object="$probe_root/wide_reduction_codegen_probe.o"
 wide_construction_probe_object="$probe_root/wide_construction_codegen_probe.o"
 wide_comparison_probe_object="$probe_root/wide_comparison_codegen_probe.o"
 wide_saturating_arithmetic_probe_object="$probe_root/wide_saturating_arithmetic_codegen_probe.o"
+wide_wrapping_arithmetic_probe_object="$probe_root/wide_wrapping_arithmetic_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -157,6 +158,14 @@ else
     objdump -dr "$wide_saturating_arithmetic_probe_object" \
       >"$temporary/wide-saturating-arithmetic-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_wrapping_arithmetic_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' \
+      >"$temporary/wide-wrapping-arithmetic-probe.txt"
+else
+    objdump -dr "$wide_wrapping_arithmetic_probe_object" \
+      >"$temporary/wide-wrapping-arithmetic-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -245,6 +254,8 @@ nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt
 nm -u "$comparison_probe_object" >"$temporary/comparison-undefined.txt"
 nm -u "$wide_saturating_arithmetic_probe_object" \
   >"$temporary/wide-saturating-arithmetic-undefined.txt"
+nm -u "$wide_wrapping_arithmetic_probe_object" \
+  >"$temporary/wide-wrapping-arithmetic-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -1102,6 +1113,87 @@ require_count 'flyology_simd__' 16 \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-saturating-arithmetic-undefined.txt" \
   'portable, dispatcher, Scalar, or byte-mechanism route retained in Wide saturation probe'
+
+wide_wrapping_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_wrapping_arithmetic_codegen_cases.txt | wc -l | tr -d ' ')
+wide_wrapping_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_wrapping_arithmetic_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_wrapping_case_count" -ne 24 ] || \
+   [ "$wide_wrapping_unique_count" -ne 24 ]; then
+    echo 'Wide wrapping-arithmetic manifest must contain 24 unique operations' >&2
+    exit 1
+fi
+
+case "$architecture" in
+    aarch64) wide_wrapping_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) wide_wrapping_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+
+while read -r lane_kind operation wide_suffix half_suffix route; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-wrapping-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_wrapping_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-wrapping-arithmetic-probe.txt" "$caller"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    if [ "$wide_backend" = avx2 ] && [ "$route" = byte ]; then
+        leaf_suffix=
+        [ "$lane_kind" = i8 ] && leaf_suffix='__2'
+        require_count "wide__byte_avx2_leaf__${operation}${leaf_suffix}${symbol_end}" 1 \
+          "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
+        require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
+          "only one AVX2 byte leaf in ${lane_kind} ${operation}"
+        require_count "$wide_wrapping_branch" 1 "$caller" \
+          "only one out-of-line branch in AVX2 ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+          "no composed selected operation in AVX2 ${lane_kind} ${operation}"
+    else
+        if [ "$route" = parts ]; then
+            selected_symbol="${operation}__${half_suffix}"
+        elif [ "$lane_kind" = u8 ]; then
+            case "$architecture" in
+                aarch64) selected_symbol="neon_${operation}" ;;
+                x86_64) selected_symbol="u8_${operation}" ;;
+            esac
+        else
+            selected_symbol="native_${operation}_i8x16"
+        fi
+        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+          "$caller" "two matching selected parts in ${lane_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+          "only two matching selected operations in ${lane_kind} ${operation}"
+        require_count "$wide_wrapping_branch" 2 "$caller" \
+          "only two out-of-line branches in ${lane_kind} ${operation}"
+    fi
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
+      "$caller" \
+      "portable, dispatcher, Scalar, or byte-mechanism route in ${lane_kind} ${operation}"
+done <scripts/probes/wide_wrapping_arithmetic_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)__(3|4|5|6|7|8)$' 18 \
+  "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+  'eighteen selected non-byte Wide wrapping operations'
+if [ "$wide_backend" = avx2 ]; then
+    require_count 'flyology_simd__wide__byte_avx2_leaf__(add_wrap|subtract_wrap|multiply_wrap)(__2)?$' 6 \
+      "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+      'six isolated AVX2 byte wrapping operations'
+else
+    case "$architecture" in
+        aarch64) u8_prefix=neon ;;
+        x86_64) u8_prefix=u8 ;;
+    esac
+    require_count "flyology_simd__backends__native__${u8_prefix}_(add_wrap|subtract_wrap|multiply_wrap)$" 3 \
+      "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+      'three selected U8 Wide wrapping operations'
+    require_count 'flyology_simd__backends__native__native_(add_wrap|subtract_wrap|multiply_wrap)_i8x16$' 3 \
+      "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+      'three selected I8 Wide wrapping operations'
+fi
+require_count 'flyology_simd__' 24 \
+  "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+  'only the 24 intended Wide wrapping operations remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)(__[0-9]+)?$|wide__byte_mechanism__' \
+  "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+  'portable, dispatcher, Scalar, or byte-mechanism route retained in Wide wrapping probe'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')
@@ -4213,18 +4305,49 @@ EOF
             extract_symbol 'byte_avx2_leaf__greater_equal__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_greater_equal.txt"
             extract_symbol 'byte_avx2_leaf__select_value' "$temporary/wide-byte.txt" "$temporary/wide_byte_u8_select.txt"
             extract_symbol 'byte_avx2_leaf__select_value__2' "$temporary/wide-byte.txt" "$temporary/wide_byte_i8_select.txt"
-            require_pattern 'vpaddb' "$temporary/wide_byte_u8_add.txt" 'AVX2 unsigned wrapping byte addition'
-            require_pattern 'vpaddb' "$temporary/wide_byte_i8_add.txt" 'AVX2 signed wrapping byte addition'
-            require_pattern 'vpsubb' "$temporary/wide_byte_u8_subtract.txt" 'AVX2 unsigned wrapping byte subtraction'
-            require_pattern 'vpsubb' "$temporary/wide_byte_i8_subtract.txt" 'AVX2 signed wrapping byte subtraction'
-            require_pattern 'vpmullw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned wrapping byte multiplication composition'
-            require_pattern 'vpmullw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed wrapping byte multiplication composition'
-            require_pattern 'vpand' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned wrapping byte product truncation'
-            require_pattern 'vpand' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed wrapping byte product truncation'
-            require_pattern 'vpsrlw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned odd-byte extraction'
-            require_pattern 'vpsrlw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed odd-byte extraction'
-            require_pattern 'vpsllw' "$temporary/wide_byte_u8_multiply.txt" 'AVX2 unsigned odd-byte placement'
-            require_pattern 'vpsllw' "$temporary/wide_byte_i8_multiply.txt" 'AVX2 signed odd-byte placement'
+            for signedness in u8 i8; do
+                add_leaf="$temporary/wide_byte_${signedness}_add.txt"
+                subtract_leaf="$temporary/wide_byte_${signedness}_subtract.txt"
+                multiply_leaf="$temporary/wide_byte_${signedness}_multiply.txt"
+                for leaf in "$add_leaf" "$subtract_leaf" "$multiply_leaf"; do
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                      "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} wrapping leaf"
+                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "one right-operand load in AVX2 ${signedness} wrapping leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                      "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} wrapping leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                      "$leaf" "left ABI operand in AVX2 ${signedness} wrapping leaf"
+                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                      "$leaf" "right ABI operand in AVX2 ${signedness} wrapping leaf"
+                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                      "$leaf" "assembly result destination in AVX2 ${signedness} wrapping leaf"
+                    forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
+                      "$leaf" "branch or helper in AVX2 ${signedness} wrapping leaf"
+                done
+                require_count 'vpaddb[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$add_leaf" "one exact AVX2 ${signedness} wrapping byte addition"
+                forbid_pattern 'vpsubb|vpmullw' "$add_leaf" \
+                  "unrelated wrapping operation in AVX2 ${signedness} addition leaf"
+                require_count 'vpsubb[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                  "$subtract_leaf" "one exact AVX2 ${signedness} wrapping byte subtraction"
+                forbid_pattern 'vpaddb|vpmullw' "$subtract_leaf" \
+                  "unrelated wrapping operation in AVX2 ${signedness} subtraction leaf"
+                require_count 'vpcmpeqd' 1 "$multiply_leaf" \
+                  "one AVX2 ${signedness} low-byte mask source"
+                require_count 'vpsrlw[[:space:]]+\$(0x0*8|8),' 3 "$multiply_leaf" \
+                  "three shift-by-eight extractions in AVX2 ${signedness} multiplication"
+                require_count 'vpand' 3 "$multiply_leaf" \
+                  "three low-byte masks in AVX2 ${signedness} multiplication"
+                require_count 'vpmullw' 2 "$multiply_leaf" \
+                  "two even/odd word products in AVX2 ${signedness} multiplication"
+                require_count 'vpsllw[[:space:]]+\$(0x0*8|8),' 1 "$multiply_leaf" \
+                  "one shift-by-eight placement in AVX2 ${signedness} multiplication"
+                require_count 'vpor' 1 "$multiply_leaf" \
+                  "one even/odd product merge in AVX2 ${signedness} multiplication"
+                forbid_pattern 'vpaddb|vpsubb' "$multiply_leaf" \
+                  "unrelated wrapping operation in AVX2 ${signedness} multiplication leaf"
+            done
             require_pattern 'vpaddusb' "$temporary/wide_byte_u8_add_sat.txt" 'AVX2 unsigned saturating byte addition'
             require_pattern 'vpaddsb' "$temporary/wide_byte_i8_add_sat.txt" 'AVX2 signed saturating byte addition'
             require_pattern 'vpsubusb' "$temporary/wide_byte_u8_sub_sat.txt" 'AVX2 unsigned saturating byte subtraction'

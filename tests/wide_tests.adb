@@ -163,6 +163,19 @@ procedure Wide_Tests is
       end Reference_Reduce_Max;
 
 
+      function Reference_Add_Wrap
+        (Left, Right : U8) return U8 is
+        (Left + Right);
+
+      function Reference_Subtract_Wrap
+        (Left, Right : U8) return U8 is
+        (Left - Right);
+
+      function Reference_Multiply_Wrap
+        (Left, Right : U8) return U8 is
+        (Left * Right);
+
+
       function Reference_Add_Saturate
         (Left, Right : U8) return U8 is
         (if Left > U8'Last - Right then U8'Last else Left + Right);
@@ -688,6 +701,36 @@ procedure Wide_Tests is
         "U8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "U8x32 double complement");
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170), U8 (127), U8 (128), U8 (255), U8 (170)];
+         Right_Lanes : constant Wide.Lane_Values_U8x32 := [U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85), U8 (1), U8 (255), U8 (255), U8 (85)];
+         Left_Value : constant Wide.U8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U8x32 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U8x32 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.U8x32 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U8x32 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U8x32 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.U8x32 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.U8x32 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U8x32 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
 
       declare
          Left_Lanes : constant Wide.Lane_Values_U8x32 := [U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0];
@@ -1297,6 +1340,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.U8x32 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.U8x32 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.U8x32 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.U8x32 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.U8x32 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.U8x32 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_8x32 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U8x32 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.U8x32 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U8x32 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.U8x32 := Wide.Subtract_Saturate (R_A, R_B);
@@ -1539,6 +1609,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) + Value_To_Bits (Right)));
+
+      function Reference_Subtract_Wrap
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) - Value_To_Bits (Right)));
+
+      function Reference_Multiply_Wrap
+        (Left, Right : I8) return I8 is
+        (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
 
 
       function Reference_Add_Saturate
@@ -2037,6 +2120,36 @@ procedure Wide_Tests is
         "I8x32 complement");
       Check (Wide.To_Lanes (Wide.Bitwise_Not (Wide.Bitwise_Not (A))) = A_Lanes,
         "I8x32 double complement");
+
+      declare
+         Left_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170)), Bits_To_Value (U8 (127)), Bits_To_Value (U8 (128)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (170))];
+         Right_Lanes : constant Wide.Lane_Values_I8x32 := [Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85)), Bits_To_Value (U8 (1)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (255)), Bits_To_Value (U8 (85))];
+         Left_Value : constant Wide.I8x32 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I8x32 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I8x32 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.I8x32 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I8x32 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I8x32 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.I8x32 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.I8x32 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_8x32 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I8x32 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
 
       declare
          Left_Lanes : constant Wide.Lane_Values_I8x32 := [I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First, I8'Last, I8'First];
@@ -2621,6 +2734,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.I8x32 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.I8x32 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.I8x32 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.I8x32 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.I8x32 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.I8x32 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_8x32 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I8x32 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.I8x32 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I8x32 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.I8x32 := Wide.Subtract_Saturate (R_A, R_B);
@@ -2851,6 +2991,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : U16) return U16 is
+        (Left + Right);
+
+      function Reference_Subtract_Wrap
+        (Left, Right : U16) return U16 is
+        (Left - Right);
+
+      function Reference_Multiply_Wrap
+        (Left, Right : U16) return U16 is
+        (Left * Right);
 
 
       function Reference_Add_Saturate
@@ -3347,6 +3500,36 @@ procedure Wide_Tests is
         "U16x16 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690), U16 (32767), U16 (32768), U16 (65535), U16 (43690)];
+         Right_Lanes : constant Wide.Lane_Values_U16x16 := [U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845), U16 (1), U16 (65535), U16 (65535), U16 (21845)];
+         Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U16x16 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U16x16 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.U16x16 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U16x16 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U16x16 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.U16x16 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.U16x16 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U16x16 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U16x16 := [U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0, U16'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U16x16 := [1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last, 1, 1, U16'Last, U16'Last];
          Left_Value : constant Wide.U16x16 := Wide.From_Lanes (Left_Lanes);
@@ -3760,6 +3943,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.U16x16 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.U16x16 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.U16x16 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.U16x16 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.U16x16 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.U16x16 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_16x16 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U16x16 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.U16x16 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U16x16 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.U16x16 := Wide.Subtract_Saturate (R_A, R_B);
@@ -3957,6 +4167,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) + Value_To_Bits (Right)));
+
+      function Reference_Subtract_Wrap
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) - Value_To_Bits (Right)));
+
+      function Reference_Multiply_Wrap
+        (Left, Right : I16) return I16 is
+        (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
 
 
       function Reference_Add_Saturate
@@ -4457,6 +4680,36 @@ procedure Wide_Tests is
         "I16x16 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690)), Bits_To_Value (U16 (32767)), Bits_To_Value (U16 (32768)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (43690))];
+         Right_Lanes : constant Wide.Lane_Values_I16x16 := [Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845)), Bits_To_Value (U16 (1)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (65535)), Bits_To_Value (U16 (21845))];
+         Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I16x16 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I16x16 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.I16x16 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I16x16 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I16x16 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.I16x16 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.I16x16 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_16x16 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I16x16 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I16x16 := [I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First, I16'Last, I16'First];
          Right_Lanes : constant Wide.Lane_Values_I16x16 := [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I16x16 := Wide.From_Lanes (Left_Lanes);
@@ -4869,6 +5122,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.I16x16 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.I16x16 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.I16x16 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.I16x16 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.I16x16 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.I16x16 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_16x16 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I16x16 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.I16x16 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I16x16 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.I16x16 := Wide.Subtract_Saturate (R_A, R_B);
@@ -5065,6 +5345,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : U32) return U32 is
+        (Left + Right);
+
+      function Reference_Subtract_Wrap
+        (Left, Right : U32) return U32 is
+        (Left - Right);
+
+      function Reference_Multiply_Wrap
+        (Left, Right : U32) return U32 is
+        (Left * Right);
 
 
       function Reference_Add_Saturate
@@ -5561,6 +5854,36 @@ procedure Wide_Tests is
         "U32x8 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (2147483647), U32 (2147483648), U32 (4294967295), U32 (2863311530), U32 (2147483647), U32 (2147483648), U32 (4294967295), U32 (2863311530)];
+         Right_Lanes : constant Wide.Lane_Values_U32x8 := [U32 (1), U32 (4294967295), U32 (4294967295), U32 (1431655765), U32 (1), U32 (4294967295), U32 (4294967295), U32 (1431655765)];
+         Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U32x8 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U32x8 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.U32x8 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U32x8 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U32x8 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.U32x8 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.U32x8 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U32x8 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U32x8 := [U32'Last, 0, U32'Last, 0, U32'Last, 0, U32'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U32x8 := [1, 1, U32'Last, U32'Last, 1, 1, U32'Last, U32'Last];
          Left_Value : constant Wide.U32x8 := Wide.From_Lanes (Left_Lanes);
@@ -5990,6 +6313,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.U32x8 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.U32x8 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.U32x8 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.U32x8 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.U32x8 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.U32x8 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_32x8 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U32x8 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.U32x8 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U32x8 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.U32x8 := Wide.Subtract_Saturate (R_A, R_B);
@@ -6203,6 +6553,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) + Value_To_Bits (Right)));
+
+      function Reference_Subtract_Wrap
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) - Value_To_Bits (Right)));
+
+      function Reference_Multiply_Wrap
+        (Left, Right : I32) return I32 is
+        (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
 
 
       function Reference_Add_Saturate
@@ -6703,6 +7066,36 @@ procedure Wide_Tests is
         "I32x8 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (2147483647)), Bits_To_Value (U32 (2147483648)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530)), Bits_To_Value (U32 (2147483647)), Bits_To_Value (U32 (2147483648)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (2863311530))];
+         Right_Lanes : constant Wide.Lane_Values_I32x8 := [Bits_To_Value (U32 (1)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (1431655765)), Bits_To_Value (U32 (1)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (4294967295)), Bits_To_Value (U32 (1431655765))];
+         Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I32x8 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I32x8 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.I32x8 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I32x8 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I32x8 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.I32x8 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.I32x8 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_32x8 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I32x8 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I32x8 := [I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First, I32'Last, I32'First];
          Right_Lanes : constant Wide.Lane_Values_I32x8 := [1, -1, -1, 1, 1, -1, -1, 1];
          Left_Value : constant Wide.I32x8 := Wide.From_Lanes (Left_Lanes);
@@ -7131,6 +7524,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.I32x8 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.I32x8 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.I32x8 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.I32x8 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.I32x8 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.I32x8 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_32x8 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I32x8 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.I32x8 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.I32x8 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.I32x8 := Wide.Subtract_Saturate (R_A, R_B);
@@ -7343,6 +7763,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : U64) return U64 is
+        (Left + Right);
+
+      function Reference_Subtract_Wrap
+        (Left, Right : U64) return U64 is
+        (Left - Right);
+
+      function Reference_Multiply_Wrap
+        (Left, Right : U64) return U64 is
+        (Left * Right);
 
 
       function Reference_Add_Saturate
@@ -7839,6 +8272,36 @@ procedure Wide_Tests is
         "U64x4 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (9223372036854775807), U64 (9223372036854775808), U64 (18446744073709551615), U64 (12297829382473034410)];
+         Right_Lanes : constant Wide.Lane_Values_U64x4 := [U64 (1), U64 (18446744073709551615), U64 (8589934591), U64 (6148914691236517205)];
+         Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.U64x4 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.U64x4 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.U64x4 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.U64x4 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.U64x4 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.U64x4 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.U64x4 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "U64x4 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_U64x4 := [U64'Last, 0, U64'Last, 0];
          Right_Lanes : constant Wide.Lane_Values_U64x4 := [1, 1, U64'Last, U64'Last];
          Left_Value : constant Wide.U64x4 := Wide.From_Lanes (Left_Lanes);
@@ -8268,6 +8731,33 @@ procedure Wide_Tests is
 
 
             declare
+               Root_Add : constant Wide.U64x4 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.U64x4 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.U64x4 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.U64x4 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.U64x4 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.U64x4 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_64x4 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "U64x4 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
+
+
+            declare
                Root_Add : constant Wide.U64x4 := Wide.Add_Saturate (R_A, R_B);
                Native_Add : constant Wide.U64x4 := Native.Add_Saturate (R_A, R_B);
                Root_Subtract : constant Wide.U64x4 := Wide.Subtract_Saturate (R_A, R_B);
@@ -8481,6 +8971,19 @@ procedure Wide_Tests is
          end loop;
          return Result;
       end Reference_Reduce_Max;
+
+
+      function Reference_Add_Wrap
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) + Value_To_Bits (Right)));
+
+      function Reference_Subtract_Wrap
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) - Value_To_Bits (Right)));
+
+      function Reference_Multiply_Wrap
+        (Left, Right : I64) return I64 is
+        (Bits_To_Value (Value_To_Bits (Left) * Value_To_Bits (Right)));
 
 
       function Reference_Add_Saturate
@@ -8981,6 +9484,36 @@ procedure Wide_Tests is
         "I64x4 double complement");
 
       declare
+         Left_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (9223372036854775807)), Bits_To_Value (U64 (9223372036854775808)), Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (12297829382473034410))];
+         Right_Lanes : constant Wide.Lane_Values_I64x4 := [Bits_To_Value (U64 (1)), Bits_To_Value (U64 (18446744073709551615)), Bits_To_Value (U64 (8589934591)), Bits_To_Value (U64 (6148914691236517205))];
+         Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
+         Right_Value : constant Wide.I64x4 := Wide.From_Lanes (Right_Lanes);
+         Root_Add : constant Wide.I64x4 := Wide.Add_Wrap (Left_Value, Right_Value);
+         Native_Add : constant Wide.I64x4 := Native.Add_Wrap (Left_Value, Right_Value);
+         Root_Subtract : constant Wide.I64x4 := Wide.Subtract_Wrap (Left_Value, Right_Value);
+         Native_Subtract : constant Wide.I64x4 := Native.Subtract_Wrap (Left_Value, Right_Value);
+         Root_Multiply : constant Wide.I64x4 := Wide.Multiply_Wrap (Left_Value, Right_Value);
+         Native_Multiply : constant Wide.I64x4 := Native.Multiply_Wrap (Left_Value, Right_Value);
+      begin
+         for Lane in Wide.Lane_Index_64x4 loop
+            Check (Wide.Extract (Root_Add, Lane) =
+              Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Add, Lane) =
+                Reference_Add_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Subtract, Lane) =
+                Reference_Subtract_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Wide.Extract (Root_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane))
+              and then Native.Extract (Native_Multiply, Lane) =
+                Reference_Multiply_Wrap (Left_Lanes (Lane), Right_Lanes (Lane)),
+              "I64x4 directed independent wrapping boundaries" & Lane'Image);
+         end loop;
+      end;
+
+
+      declare
          Left_Lanes : constant Wide.Lane_Values_I64x4 := [I64'Last, I64'First, I64'Last, I64'First];
          Right_Lanes : constant Wide.Lane_Values_I64x4 := [1, -1, -1, 1];
          Left_Value : constant Wide.I64x4 := Wide.From_Lanes (Left_Lanes);
@@ -9406,6 +9939,33 @@ procedure Wide_Tests is
               and then Native.To_Lanes (Native.Min (R_A, R_B)) = Wide.To_Lanes (Wide.Min (R_A, R_B))
               and then Native.To_Lanes (Native.Max (R_A, R_B)) = Wide.To_Lanes (Wide.Max (R_A, R_B)),
               "I64x4 randomized bitwise extrema" & Iteration'Image);
+
+
+            declare
+               Root_Add : constant Wide.I64x4 := Wide.Add_Wrap (R_A, R_B);
+               Native_Add : constant Wide.I64x4 := Native.Add_Wrap (R_A, R_B);
+               Root_Subtract : constant Wide.I64x4 := Wide.Subtract_Wrap (R_A, R_B);
+               Native_Subtract : constant Wide.I64x4 := Native.Subtract_Wrap (R_A, R_B);
+               Root_Multiply : constant Wide.I64x4 := Wide.Multiply_Wrap (R_A, R_B);
+               Native_Multiply : constant Wide.I64x4 := Native.Multiply_Wrap (R_A, R_B);
+            begin
+               for Lane in Wide.Lane_Index_64x4 loop
+                  Check (Wide.Extract (Root_Add, Lane) =
+                    Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Add, Lane) =
+                      Reference_Add_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Subtract, Lane) =
+                      Reference_Subtract_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Wide.Extract (Root_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane))
+                    and then Native.Extract (Native_Multiply, Lane) =
+                      Reference_Multiply_Wrap (R_A_Lanes (Lane), R_B_Lanes (Lane)),
+                    "I64x4 randomized independent wrapping oracle" &
+                      Iteration'Image & Lane'Image);
+               end loop;
+            end;
 
 
             declare
