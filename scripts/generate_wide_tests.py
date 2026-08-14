@@ -1669,6 +1669,83 @@ def integer_test(f: Family) -> str:
       function Reference_Bitwise_Not (Value : {f.scalar}) return {f.scalar} is
         ({'Bits_To_Value (not Value_To_Bits (Value))' if f.signed else 'not Value'});
 '''
+    shift_value_bits = "Value_To_Bits (Value)" if f.signed else "Value"
+    shift_from_bits = "Bits_To_Value (Result)" if f.signed else "Result"
+    arithmetic_declaration = f'''
+
+      function Reference_Shift_Right_Arithmetic
+        (Value : {f.scalar}; Count : Natural) return {f.scalar}
+      is
+         Raw : constant {unsigned} := Value_To_Bits (Value);
+         Result : {unsigned};
+      begin
+         if Count >= {f.bits} then
+            Result := (if Value < 0 then {unsigned}'Last else 0);
+         elsif Count = 0 then
+            Result := Raw;
+         elsif Value < 0 then
+            Result := Interfaces.Shift_Right (Raw, Count)
+              or Interfaces.Shift_Left ({unsigned}'Last, {f.bits} - Count);
+         else
+            Result := Interfaces.Shift_Right (Raw, Count);
+         end if;
+         return Bits_To_Value (Result);
+      end Reference_Shift_Right_Arithmetic;
+''' if f.signed else ""
+    arithmetic_check = f'''
+         Arithmetic_Expected : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              Reference_Shift_Right_Arithmetic (Lanes (Lane), Count)];
+''' if f.signed else ""
+    arithmetic_assertion = f'''
+           and then Wide.To_Lanes
+             (Wide.Shift_Right_Arithmetic (Value, Count)) = Arithmetic_Expected
+           and then Native.To_Lanes
+             (Native.Shift_Right_Arithmetic (Value, Count)) = Arithmetic_Expected
+''' if f.signed else ""
+    shift_declarations = f'''
+      function Reference_Shift_Left_Logical
+        (Value : {f.scalar}; Count : Natural) return {f.scalar}
+      is
+         Result : constant {unsigned} :=
+           (if Count >= {f.bits} then 0
+            else Interfaces.Shift_Left ({shift_value_bits}, Count));
+      begin
+         return {shift_from_bits};
+      end Reference_Shift_Left_Logical;
+
+      function Reference_Shift_Right_Logical
+        (Value : {f.scalar}; Count : Natural) return {f.scalar}
+      is
+         Result : constant {unsigned} :=
+           (if Count >= {f.bits} then 0
+            else Interfaces.Shift_Right ({shift_value_bits}, Count));
+      begin
+         return {shift_from_bits};
+      end Reference_Shift_Right_Logical;
+{arithmetic_declaration}
+      procedure Check_Shifts
+        (Value : Wide.{f.vector}; Lanes : Wide.{f.values};
+         Count : Natural; Label_Text : String)
+      is
+         Left_Expected : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              Reference_Shift_Left_Logical (Lanes (Lane), Count)];
+         Right_Expected : constant Wide.{f.values} :=
+           [for Lane in Wide.{f.index} =>
+              Reference_Shift_Right_Logical (Lanes (Lane), Count)];
+{arithmetic_check}      begin
+         Check
+           (Wide.To_Lanes (Wide.Shift_Left_Logical (Value, Count)) = Left_Expected
+           and then Native.To_Lanes
+             (Native.Shift_Left_Logical (Value, Count)) = Left_Expected
+           and then Wide.To_Lanes
+             (Wide.Shift_Right_Logical (Value, Count)) = Right_Expected
+           and then Native.To_Lanes
+             (Native.Shift_Right_Logical (Value, Count)) = Right_Expected
+{arithmetic_assertion}           , Label_Text & Count'Image);
+      end Check_Shifts;
+'''
     wrapping_left_bits = (
         (1 << (f.bits - 1)) - 1,
         1 << (f.bits - 1),
@@ -1796,6 +1873,29 @@ def integer_test(f: Family) -> str:
                 Reference_Bitwise_Not (Left_Lanes (Lane)),
               "{f.vector} directed independent bitwise patterns" & Lane'Image);
          end loop;
+      end;
+'''
+    shift_boundary_checks = f'''
+      declare
+         Shift_Lanes : constant Wide.{f.values} := [{", ".join(bitwise_left)}];
+         Shift_Value : constant Wide.{f.vector} := Wide.From_Lanes (Shift_Lanes);
+         Shift_Lanes_2 : constant Wide.{f.values} := [{", ".join(bitwise_right)}];
+         Shift_Value_2 : constant Wide.{f.vector} := Wide.From_Lanes (Shift_Lanes_2);
+      begin
+         for Count in Natural range 0 .. {f.bits + 2} loop
+            Check_Shifts
+              (Shift_Value, Shift_Lanes, Count,
+               "{f.vector} directed independent shifts A");
+            Check_Shifts
+              (Shift_Value_2, Shift_Lanes_2, Count,
+               "{f.vector} directed independent shifts B");
+         end loop;
+         Check_Shifts
+           (Shift_Value, Shift_Lanes, Natural'Last,
+            "{f.vector} Natural'Last independent shifts A");
+         Check_Shifts
+           (Shift_Value_2, Shift_Lanes_2, Natural'Last,
+            "{f.vector} Natural'Last independent shifts B");
       end;
 '''
     bitwise_randomized = f'''
@@ -2270,6 +2370,7 @@ def integer_test(f: Family) -> str:
 {reduction_declarations}
 {wrapping_declarations}
 {bitwise_declarations}
+{shift_declarations}
 {saturation_declarations}
 {compaction_declarations(f)}
 {mask_position_declarations(f)}
@@ -2333,6 +2434,7 @@ def integer_test(f: Family) -> str:
         "{f.vector} double complement");
 {wrapping_boundary_checks}
 {bitwise_boundary_checks}
+{shift_boundary_checks}
 {saturation_boundary_checks}
 {byte_boundary_checks}
 {byte_predicate_checks}
@@ -2674,9 +2776,9 @@ def integer_test(f: Family) -> str:
             Check_Compaction
               (Wide.To_Lanes (R_A), Wide.To_Bit_Mask (R_Mask),
                "randomized" & Iteration'Image);
-            Check (Native.To_Lanes (Native.Shift_Left_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Left_Logical (R_A, Shift))
-              and then Native.To_Lanes (Native.Shift_Right_Logical (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Logical (R_A, Shift)){' and then Native.To_Lanes (Native.Shift_Right_Arithmetic (R_A, Shift)) = Wide.To_Lanes (Wide.Shift_Right_Arithmetic (R_A, Shift))' if f.signed else ''},
-              "{f.vector} randomized shifts" & Iteration'Image);
+            Check_Shifts
+              (R_A, R_A_Lanes, Shift,
+               "{f.vector} randomized independent shifts" & Iteration'Image);
             Check (Native.To_Lanes (Native.Select_Value (R_Mask, R_A, R_B)) = Wide.To_Lanes (Wide.Select_Value (R_Mask, R_A, R_B))
               and then Native.To_Lanes (Native.Compress (R_A, R_Mask)) = Wide.To_Lanes (Wide.Compress (R_A, R_Mask))
               and then Native.To_Lanes (Native.Expand (R_A, R_Mask)) = Wide.To_Lanes (Wide.Expand (R_A, R_Mask))

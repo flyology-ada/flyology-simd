@@ -132,13 +132,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U8x32; Count : Natural) return U8x32 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U8x32; Count : Natural) return U8x32 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -494,19 +494,19 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I8x32; Count : Natural) return I8x32 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Arithmetic operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -808,13 +808,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U16x16; Count : Natural) return U16x16 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U16x16; Count : Natural) return U16x16 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1165,19 +1165,19 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I16x16; Count : Natural) return I16x16 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Arithmetic operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1484,13 +1484,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U32x8; Count : Natural) return U32x8 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U32x8; Count : Natural) return U32x8 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -1846,19 +1846,19 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I32x8; Count : Natural) return I32x8 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Arithmetic operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -2165,13 +2165,13 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : U64x4; Count : Natural) return U64x4 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : U64x4; Count : Natural) return U64x4 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
@@ -2527,19 +2527,19 @@ is
    --  @return The operation result.
    function Shift_Left_Logical (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Left_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Logical (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Logical operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.
    function Shift_Right_Arithmetic (Value : I64x4; Count : Natural) return I64x4 with Inline_Always;
    --  Shift every lane with the documented oversized-count result.
-   --  Cross-platform support: The AArch64 and x86-64 backends run the selected 128-bit operation on both private parts. A scalar build uses the portable Wide implementation.
+   --  Cross-platform support: The AArch64, composed x86-64, and optional AVX2 backends apply the selected 128-bit Shift_Right_Arithmetic operation to both private parts. In a scalar build, this overload uses the same two-part composition through the portable 128-bit implementation.
    --  @param Value The value input.
    --  @param Count The count input.
    --  @return The operation result.

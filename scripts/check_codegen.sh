@@ -31,6 +31,7 @@ wide_comparison_probe_object="$probe_root/wide_comparison_codegen_probe.o"
 wide_saturating_arithmetic_probe_object="$probe_root/wide_saturating_arithmetic_codegen_probe.o"
 wide_wrapping_arithmetic_probe_object="$probe_root/wide_wrapping_arithmetic_codegen_probe.o"
 wide_bitwise_probe_object="$probe_root/wide_bitwise_codegen_probe.o"
+wide_shift_probe_object="$probe_root/wide_shift_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -173,6 +174,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_shift_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-shift-probe.txt"
+else
+    objdump -dr "$wide_shift_probe_object" >"$temporary/wide-shift-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -264,6 +271,7 @@ nm -u "$wide_saturating_arithmetic_probe_object" \
 nm -u "$wide_wrapping_arithmetic_probe_object" \
   >"$temporary/wide-wrapping-arithmetic-undefined.txt"
 nm -u "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-undefined.txt"
+nm -u "$wide_shift_probe_object" >"$temporary/wide-shift-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -1284,6 +1292,45 @@ require_count 'flyology_simd__' "$expected_wide_bitwise_symbols" \
   "$temporary/wide-bitwise-undefined.txt" 'only intended Wide bitwise operations remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?bitwise_(and|or|xor|not)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-bitwise-undefined.txt" 'portable, dispatcher, Scalar, or byte-mechanism bitwise route retained'
+
+wide_shift_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_shift_codegen_cases.txt | wc -l | tr -d ' ')
+wide_shift_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_shift_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_shift_case_count" -ne 20 ] || [ "$wide_shift_unique_count" -ne 20 ]; then
+    echo 'Wide shift manifest must contain 20 unique operations' >&2
+    exit 1
+fi
+case "$architecture" in
+    aarch64) wide_shift_branch='(^|[[:space:]])(b|bl)[[:space:]]' ;;
+    x86_64) wide_shift_branch='(^|[[:space:]])(callq?|jmpq?)[[:space:]]' ;;
+esac
+while read -r lane_kind operation suffix; do
+    [ -n "$lane_kind" ] || continue
+    caller="$temporary/wide-shift-${lane_kind}-${operation}.txt"
+    extract_symbol "wide_shift_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/wide-shift-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" != none ] && symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
+      "$caller" "two matching selected shifts in ${lane_kind} ${operation}"
+    require_count 'flyology_simd__backends__native__' 2 "$caller" \
+      "only two selected operations in ${lane_kind} ${operation}"
+    require_count "$wide_shift_branch" 2 "$caller" \
+      "two out-of-line branches in ${lane_kind} ${operation}"
+    forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
+      "$caller" "portable, dispatcher, Scalar, or mismatched Wide shift route"
+done <scripts/probes/wide_shift_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' 20 \
+  "$temporary/wide-shift-undefined.txt" \
+  'twenty selected Wide shift operations remain unresolved'
+require_count 'flyology_simd__' 20 "$temporary/wide-shift-undefined.txt" \
+  'only the twenty intended Wide shift operations remain unresolved'
+forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' \
+  "$temporary/wide-shift-undefined.txt" \
+  'portable, dispatcher, Scalar, or mismatched Wide shift route retained'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')

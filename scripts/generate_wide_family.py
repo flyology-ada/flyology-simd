@@ -310,6 +310,16 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "implementation. In a scalar build, this overload uses the same "
             "composition through the portable 128-bit implementation."
         )
+    elif operation in {
+            "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
+    }:
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends apply the selected 128-bit {operation} "
+            "operation to both private parts. In a scalar build, this "
+            "overload uses the same two-part composition through the portable "
+            "128-bit implementation."
+        )
     elif operation in {"Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Bitwise_Not"}:
         byte_shape = "U8x32" in declaration or "I8x32" in declaration
         if byte_shape:
@@ -428,7 +438,6 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
                 "private parts"
             )
     elif operation in {
-        "Shift_Left_Logical", "Shift_Right_Logical", "Shift_Right_Arithmetic",
         "Unordered", "Bit_Cast",
         "Horizontal_Sum", "Narrow_Truncate",
         "Narrow_Saturate", "Narrow_Round", "Convert_Round",

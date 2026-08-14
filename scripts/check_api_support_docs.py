@@ -1150,6 +1150,37 @@ def invalid_support(path: Path) -> list[str]:
                     f"{signature_part} SSE2 classification"
                 )
     if path.name in {"flyology_simd-wide.ads", "flyology_simd-wide-native.ads"}:
+        wide_shift_counts = {
+            "Shift_Left_Logical": 8,
+            "Shift_Right_Logical": 8,
+            "Shift_Right_Arithmetic": 4,
+        }
+        for operation, expected in wide_shift_counts.items():
+            blocks = declaration_blocks(text, operation)
+            selected_phrase = (
+                f"selected 128-bit {operation} operation to both private parts"
+            )
+            selected = sum(selected_phrase in block for block in blocks)
+            portable = sum(
+                "same two-part composition through the portable 128-bit "
+                "implementation" in block for block in blocks
+            )
+            if (len(blocks) != expected or selected != expected
+                    or portable != expected):
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    "Wide shift classifications"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block for block in blocks
+                )
+                if authority != expected:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected {expected}"
+                    )
         wide_bitwise_support = {
             "Bitwise_And": "isolated 256-bit vpand leaf",
             "Bitwise_Or": "isolated 256-bit vpor leaf",

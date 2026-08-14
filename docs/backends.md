@@ -581,6 +581,27 @@ requires one matching isolated leaf and exactly one out-of-line branch. The
 caller gates reject mismatched selected operations, portable calls, Scalar
 calls, Wide dispatchers, and the general byte mechanism.
 
+The Wide integer family has 20 shift overloads in total:
+`Shift_Left_Logical`, `Shift_Right_Logical`, and `Shift_Right_Arithmetic`.
+Each logical operation supports all eight integer types. The arithmetic
+operation supports the four signed integer types. The AArch64, composed
+x86-64, and optional AVX2 configurations apply the exact matching selected
+128-bit operation to both private parts. A scalar build uses the same two-part
+composition through the portable 128-bit implementation.
+
+Independent bit-level lane oracles check zero, all-one, alternating `16#AA#`
+and `16#55#` byte patterns, and sign-bit patterns. They check every count from
+zero through two positions beyond the applicable lane width and `Natural'Last`.
+The oracles require zero from oversized logical shifts and full sign fill from
+oversized arithmetic right shifts. They also check 128 deterministic full-width
+vectors for each Wide integer type. Every case checks the scalar Wide
+implementation and `Wide.Native` results. A generated caller probe covers all
+20 overloads in each target configuration. Each caller gate requires two
+relocations to the exact matching selected 128-bit operation, exactly two
+selected Native routes, and exactly two out-of-line branches. The gates reject
+mismatched selected operations, portable calls, Scalar calls, and Wide
+dispatchers.
+
 All 60 Wide construction and lane-access overloads compose selected 128-bit
 operations. `Zero` and `Splat` apply the matching selected operation to both
 private parts. `From_Lanes` splits the lane array at the private-part boundary.
