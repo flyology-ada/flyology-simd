@@ -51,6 +51,7 @@ jobs:
           python3 scripts/generate_wide_bitwise_probe.py
           python3 scripts/generate_wide_shift_probe.py
           python3 scripts/generate_wide_minmax_probe.py
+          python3 scripts/generate_wide_mask_probe.py
           python3 scripts/generate_wide_reduction_probe.py
           python3 scripts/generate_wide_construction_probe.py
           python3 scripts/generate_wide_comparison_probe.py

@@ -33,6 +33,7 @@ wide_wrapping_arithmetic_probe_object="$probe_root/wide_wrapping_arithmetic_code
 wide_bitwise_probe_object="$probe_root/wide_bitwise_codegen_probe.o"
 wide_shift_probe_object="$probe_root/wide_shift_codegen_probe.o"
 wide_minmax_probe_object="$probe_root/wide_minmax_codegen_probe.o"
+wide_mask_probe_object="$probe_root/wide_mask_codegen_probe.o"
 wide_float_reduction_probe_object="$probe_root/wide_float_reduction_codegen_probe.o"
 wide_compact_probe_object="$probe_root/wide_compact_codegen_probe.o"
 wide_movement_probe_object="$probe_root/wide_movement_codegen_probe.o"
@@ -187,6 +188,12 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_minmax_probe_object" >"$temporary/wide-minmax-probe.txt"
 fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$wide_mask_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/wide-mask-probe.txt"
+else
+    objdump -dr "$wide_mask_probe_object" >"$temporary/wide-mask-probe.txt"
+fi
 disassemble "$wide_float_reduction_probe_object" >"$temporary/wide-float-reduction-probe.txt"
 disassemble "$wide_compact_probe_object" >"$temporary/wide-compact-probe.txt"
 disassemble "$wide_movement_probe_object" >"$temporary/wide-movement-probe.txt"
@@ -280,6 +287,7 @@ nm -u "$wide_wrapping_arithmetic_probe_object" \
 nm -u "$wide_bitwise_probe_object" >"$temporary/wide-bitwise-undefined.txt"
 nm -u "$wide_shift_probe_object" >"$temporary/wide-shift-undefined.txt"
 nm -u "$wide_minmax_probe_object" >"$temporary/wide-minmax-undefined.txt"
+nm -u "$wide_mask_probe_object" >"$temporary/wide-mask-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
 nm -u "$lane_arrangement_probe_object" \
@@ -1410,6 +1418,75 @@ require_count 'flyology_simd__' 16 "$temporary/wide-minmax-undefined.txt" \
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-minmax-undefined.txt" \
   'portable, dispatcher, Scalar, or byte-mechanism extrema route retained'
+
+wide_mask_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_mask_codegen_cases.txt | wc -l | tr -d ' ')
+wide_mask_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/wide_mask_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$wide_mask_case_count" -ne 52 ] || [ "$wide_mask_unique_count" -ne 52 ]; then
+    echo 'Wide compact-mask manifest must contain 52 unique operations' >&2
+    exit 1
+fi
+
+wide_mask_operations='(mask_from_bit_mask|to_bit_mask|mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true|population_count|first_true|last_true)'
+while read -r mask_kind operation suffix half_lanes; do
+    [ -n "$mask_kind" ] || continue
+    caller="$temporary/wide-mask-${mask_kind}-${operation}.txt"
+    extract_symbol "wide_mask_codegen_probe__${mask_kind}_${operation}" \
+      "$temporary/wide-mask-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" != none ] && symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+
+    if [ "$mask_kind" = m8 ] && \
+       { [ "$operation" = mask_from_bit_mask ] || [ "$operation" = to_bit_mask ]; }; then
+        require_count 'flyology_simd__' 0 "$caller" \
+          "inline identity ${operation} has no out-of-line operation"
+        require_pattern '(^|[[:space:]])ret(q)?([[:space:]]|$)' "$caller" \
+          "inline identity ${operation} returns directly"
+    elif [ "$operation" = test ]; then
+        selected_count=$(grep -Eic \
+          "backends__native__${operation}${symbol_suffix}${symbol_end}" "$caller" || true)
+        if [ "$selected_count" -ne 1 ] && [ "$selected_count" -ne 2 ]; then
+            echo "code-generation count mismatch: one merged or two branch Test calls in ${mask_kind} ($selected_count)" >&2
+            exit 1
+        fi
+        require_count 'flyology_simd__backends__native__' "$selected_count" "$caller" \
+          "only matching selected Test operations in ${mask_kind}"
+    else
+        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
+          "$caller" "two matching selected mask operations in ${mask_kind} ${operation}"
+        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+          "only two selected mask operations in ${mask_kind} ${operation}"
+    fi
+
+    if [ "$operation" = test ]; then
+        half_hex=$(printf '%x' "$half_lanes")
+        require_pattern "sub.*(#(0x)?${half_hex}|\$(0x${half_hex}|${half_lanes}))([^[:xdigit:]]|$)" \
+          "$caller" "high-half lane adjustment in ${mask_kind} Test"
+        case "$architecture" in
+            aarch64) branch_pattern='(^|[[:space:]])b\.[a-z]+' ;;
+            x86_64) branch_pattern='(^|[[:space:]])j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z)[[:space:]]' ;;
+        esac
+        require_pattern "$branch_pattern" "$caller" \
+          "private-half conditional selection in ${mask_kind} Test"
+    fi
+
+    forbid_pattern "flyology_simd__(wide__(native__)?|backends__scalar__)?${wide_mask_operations}(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)" \
+      "$caller" "portable, dispatcher, Scalar, or mismatched compact-mask route"
+done <scripts/probes/wide_mask_codegen_cases.txt
+
+require_count 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
+  "$temporary/wide-mask-undefined.txt" \
+  'six out-of-line Wide mask bit-conversion operations remain unresolved'
+require_count 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true|population_count|first_true|last_true)(__[234])?$' 44 \
+  "$temporary/wide-mask-undefined.txt" \
+  'forty-four selected Wide mask algebra and query operations remain unresolved'
+require_count 'flyology_simd__' 50 "$temporary/wide-mask-undefined.txt" \
+  'only the fifty intended out-of-line Wide mask operations remain unresolved'
+forbid_pattern "flyology_simd__(wide__(native__)?|backends__scalar__)?${wide_mask_operations}(__[0-9]+)?$" \
+  "$temporary/wide-mask-undefined.txt" \
+  'portable, dispatcher, Scalar, or mismatched compact-mask route retained'
 
 wide_reduction_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/wide_reduction_codegen_cases.txt | wc -l | tr -d ' ')

@@ -207,7 +207,7 @@ package body Flyology_SIMD.Wide.Native is
 
    function All_True (Mask : Mask_8x32) return Boolean is (Flyology_SIMD.Backends.Native.All_True (Mask.Low) and then Flyology_SIMD.Backends.Native.All_True (Mask.High));
 
-   function None_True (Mask : Mask_8x32) return Boolean is (not Any_True (Mask));
+   function None_True (Mask : Mask_8x32) return Boolean is (Flyology_SIMD.Backends.Native.None_True (Mask.Low) and then Flyology_SIMD.Backends.Native.None_True (Mask.High));
 
    function Population_Count (Mask : Mask_8x32) return Lane_Count_8x32 is (Lane_Count_8x32 (Flyology_SIMD.Backends.Native.Population_Count (Mask.Low) + Flyology_SIMD.Backends.Native.Population_Count (Mask.High)));
 
@@ -633,7 +633,7 @@ package body Flyology_SIMD.Wide.Native is
 
    function All_True (Mask : Mask_16x16) return Boolean is (Flyology_SIMD.Backends.Native.All_True (Mask.Low) and then Flyology_SIMD.Backends.Native.All_True (Mask.High));
 
-   function None_True (Mask : Mask_16x16) return Boolean is (not Any_True (Mask));
+   function None_True (Mask : Mask_16x16) return Boolean is (Flyology_SIMD.Backends.Native.None_True (Mask.Low) and then Flyology_SIMD.Backends.Native.None_True (Mask.High));
 
    function Population_Count (Mask : Mask_16x16) return Lane_Count_16x16 is (Lane_Count_16x16 (Flyology_SIMD.Backends.Native.Population_Count (Mask.Low) + Flyology_SIMD.Backends.Native.Population_Count (Mask.High)));
 
@@ -1078,7 +1078,7 @@ package body Flyology_SIMD.Wide.Native is
 
    function All_True (Mask : Mask_32x8) return Boolean is (Flyology_SIMD.Backends.Native.All_True (Mask.Low) and then Flyology_SIMD.Backends.Native.All_True (Mask.High));
 
-   function None_True (Mask : Mask_32x8) return Boolean is (not Any_True (Mask));
+   function None_True (Mask : Mask_32x8) return Boolean is (Flyology_SIMD.Backends.Native.None_True (Mask.Low) and then Flyology_SIMD.Backends.Native.None_True (Mask.High));
 
    function Population_Count (Mask : Mask_32x8) return Lane_Count_32x8 is (Lane_Count_32x8 (Flyology_SIMD.Backends.Native.Population_Count (Mask.Low) + Flyology_SIMD.Backends.Native.Population_Count (Mask.High)));
 
@@ -1526,7 +1526,7 @@ package body Flyology_SIMD.Wide.Native is
 
    function All_True (Mask : Mask_64x4) return Boolean is (Flyology_SIMD.Backends.Native.All_True (Mask.Low) and then Flyology_SIMD.Backends.Native.All_True (Mask.High));
 
-   function None_True (Mask : Mask_64x4) return Boolean is (not Any_True (Mask));
+   function None_True (Mask : Mask_64x4) return Boolean is (Flyology_SIMD.Backends.Native.None_True (Mask.Low) and then Flyology_SIMD.Backends.Native.None_True (Mask.High));
 
    function Population_Count (Mask : Mask_64x4) return Lane_Count_64x4 is (Lane_Count_64x4 (Flyology_SIMD.Backends.Native.Population_Count (Mask.Low) + Flyology_SIMD.Backends.Native.Population_Count (Mask.High)));
 

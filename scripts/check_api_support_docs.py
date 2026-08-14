@@ -1435,6 +1435,76 @@ def invalid_support(path: Path) -> list[str]:
                         f"{path.relative_to(ROOT)}: {operation} portable "
                         f"authority appears {authority} times, expected 10"
                     )
+        mask_support = {
+            "Mask_From_Bit_Mask": (
+                "selected 128-bit Mask_From_Bit_Mask operation to the low and high compact-bit halves",
+            ),
+            "To_Bit_Mask": (
+                "selected 128-bit To_Bit_Mask operation to both private parts",
+                "shift the high-part bits by the private lane count",
+            ),
+            "Mask_And": ("selected 128-bit Mask_And operation to the corresponding private parts",),
+            "Mask_Or": ("selected 128-bit Mask_Or operation to the corresponding private parts",),
+            "Mask_Xor": ("selected 128-bit Mask_Xor operation to the corresponding private parts",),
+            "Mask_Not": ("selected 128-bit Mask_Not operation to the corresponding private parts",),
+            "Test": (
+                "selected 128-bit Test operation only to the private part",
+                "subtract the private lane count for a lane in the high part",
+            ),
+            "Any_True": (
+                "selected 128-bit Any_True operation to both private parts",
+                "combine the results with or else",
+            ),
+            "All_True": (
+                "selected 128-bit All_True operation to both private parts",
+                "combine the results with and then",
+            ),
+            "None_True": (
+                "selected 128-bit None_True operation to both private parts",
+                "combine the results with and then",
+            ),
+            "Population_Count": (
+                "selected 128-bit Population_Count operation to both private parts",
+                "add the two counts",
+            ),
+            "First_True": (
+                "selected 128-bit First_True operation to both private parts",
+                "return a valid low-part result first",
+            ),
+            "Last_True": (
+                "selected 128-bit Last_True operation to both private parts",
+                "return a valid high-part result plus the private lane count first",
+            ),
+        }
+        for operation, phrases in mask_support.items():
+            blocks = declaration_blocks(text, operation)
+            scalar_phrase = (
+                "same selected-part composition through the portable 128-bit implementation"
+                if operation == "Test"
+                else "same composition through the portable 128-bit implementation"
+            )
+            classified = sum(
+                all(phrase in block for phrase in phrases)
+                and scalar_phrase in block
+                for block in blocks
+            )
+            if len(blocks) != 4 or classified != 4:
+                invalid.append(
+                    f"{path.relative_to(ROOT)}: incorrect exact {operation} "
+                    f"Wide mask classifications ({len(blocks)} declarations, "
+                    f"{classified} complete mechanism notes)"
+                )
+            if path.name == "flyology_simd-wide.ads":
+                authority = sum(
+                    "This overload uses the portable scalar Wide implementation "
+                    "on every supported GNAT target" in block
+                    for block in blocks
+                )
+                if authority != 4:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: {operation} portable "
+                        f"authority appears {authority} times, expected 4"
+                    )
         reduction_support = {
             "function Reduce_Add_Wrap": (
                 "reduce each private part with the selected 128-bit "
@@ -1493,19 +1563,6 @@ def invalid_support(path: Path) -> list[str]:
             "function Divide (": "optional AVX2 backend uses one isolated 256-bit vdiv",
             "function Min_Number": "isolated 256-bit integer-classification and bit-selection sequence",
             "function Max_Number": "isolated 256-bit integer-classification and bit-selection sequence",
-            "function Mask_From_Bit_Mask": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function To_Bit_Mask": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Mask_And": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Mask_Or": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Mask_Xor": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Mask_Not": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Any_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function All_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function None_True": "call the selected 128-bit operation on each private part and combine the results in Ada",
-            "function Population_Count": "selected 128-bit population-count operation on both private parts and add the two counts",
-            "function First_True": "return a valid low-part result first",
-            "function Last_True": "return a valid high-part result plus the private lane count first",
-            "function Test": "only on the private part that contains the requested lane",
             "function Reduce_Add (": "dedicated SSE2 sequence with the same start value and lane order",
             "function Reduce_Min_Number": "integer-only SSE2 classification and bit-selection sequence that applies minimum-number in the same order",
             "function Reduce_Max_Number": "integer-only SSE2 classification and bit-selection sequence that applies maximum-number in the same order",
@@ -1534,18 +1591,6 @@ def invalid_support(path: Path) -> list[str]:
                 "function Divide (": 2,
                 "function Min_Number": 2,
                 "function Max_Number": 2,
-                "function Mask_From_Bit_Mask": 4,
-                "function To_Bit_Mask": 4,
-                "function Mask_And": 4,
-                "function Mask_Or": 4,
-                "function Mask_Xor": 4,
-                "function Mask_Not": 4,
-                "function Any_True": 4,
-                "function All_True": 4,
-                "function None_True": 4,
-                "function Population_Count": 4,
-                "function First_True": 4,
-                "function Last_True": 4,
                 "function Table_Lookup": 1,
                 "function Permute_Lanes": 20,
                 "function Reverse_Lanes": 10,
@@ -1557,7 +1602,6 @@ def invalid_support(path: Path) -> list[str]:
                 "function Slide_Lanes_Toward_High": 10,
                 "function Compress": 10,
                 "function Expand": 10,
-                "function Test": 4,
                 "function Reduce_Add_Wrap": 8,
                 "function Reduce_Min": 8,
                 "function Reduce_Max": 8,

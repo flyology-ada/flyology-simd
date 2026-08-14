@@ -644,6 +644,34 @@ They also require the private-half boundary and a high-half lane adjustment for
 `Extract` and `Replace`. The gates reject mismatched selected operations,
 portable calls, and Wide dispatchers.
 
+The Wide compact-mask family has 52 overloads: 13 operations for each of the
+four mask shapes. `Mask_From_Bit_Mask` splits the compact bits and applies the
+matching selected 128-bit construction to both halves. `To_Bit_Mask` extracts
+both halves, shifts the high result by the private lane count, and combines the
+bits. `Mask_And`, `Mask_Or`, `Mask_Xor`, and `Mask_Not` apply the matching
+selected operation to corresponding private parts. `Test` selects only the
+part that contains the requested lane. `Any_True` combines the two matching
+selected results with `or else`; `All_True` and `None_True` combine them with
+`and then`. `Population_Count` adds the two selected counts. `First_True` gives
+priority to the low part, and `Last_True` gives priority to the high part. The
+AArch64, composed x86-64, optional AVX2, and scalar configurations all use this
+composition; the scalar configuration selects the portable 128-bit
+operations.
+
+Independent bit oracles exhaust all masks for the 4-, 8-, and 16-lane shapes
+and use 1,024 deterministic masks for the 32-lane shape. Every mask is paired
+with another deterministic compact bit pattern. The tests compare scalar Wide
+and `Wide.Native` AND, OR, XOR, complement, lane tests, Boolean queries,
+population counts, and first and last positions directly with integer results.
+Fixed cases cover zero, all, alternating, first and last lanes, and both
+private-half boundaries. A generated caller probe covers all 52 overloads in
+each target configuration. The 32-lane `Mask_From_Bit_Mask` and
+`To_Bit_Mask` callers are verified inline identities. Each other non-`Test`
+caller requires two exact matching selected operations. A `Test` caller allows
+two part-specific calls or one compiler-merged selected call while requiring
+the private-half condition and high-half lane adjustment. The gates reject
+portable, Scalar, Wide dispatcher, and mismatched mask-operation routes.
+
 The 62 Wide comparison and selection overloads are `Equal`, the four ordered
 comparisons, and `Select_Value` for all ten value types, plus `Unordered` for
 both floating types. AArch64 and the composed x86-64 backend apply the matching

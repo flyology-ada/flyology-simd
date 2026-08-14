@@ -227,6 +227,78 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             "build, the overload uses the same composition through the "
             "portable 128-bit implementation."
         )
+    if operation == "Mask_From_Bit_Mask":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit "
+            "Mask_From_Bit_Mask operation to the low and high compact-bit "
+            "halves and build the two-part mask result. In a scalar build, "
+            "this overload uses the same composition through the portable "
+            "128-bit implementation."
+        )
+    if operation == "To_Bit_Mask":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit To_Bit_Mask "
+            "operation to both private parts. They place the low-part bits "
+            "first and shift the high-part bits by the private lane count. "
+            "In a scalar build, this overload uses the same composition "
+            "through the portable 128-bit implementation."
+        )
+    if operation in {"Mask_And", "Mask_Or", "Mask_Xor", "Mask_Not"}:
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends apply the selected 128-bit {operation} "
+            "operation to the corresponding private parts and build the "
+            "two-part mask result. In a scalar build, this overload uses the "
+            "same composition through the portable 128-bit implementation."
+        )
+    if operation == "Test":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit Test operation "
+            "only to the private part that contains the requested lane. They "
+            "subtract the private lane count for a lane in the high part. In "
+            "a scalar build, this overload uses the same selected-part "
+            "composition through the portable 128-bit implementation."
+        )
+    if operation in {"Any_True", "All_True", "None_True"}:
+        combination = "or else" if operation == "Any_True" else "and then"
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            f"optional AVX2 backends apply the selected 128-bit {operation} "
+            f"operation to both private parts and combine the results with "
+            f"{combination}. In a scalar build, this overload uses the same "
+            "composition through the portable 128-bit implementation."
+        )
+    if operation == "Population_Count":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit "
+            "Population_Count operation to both private parts and add the two "
+            "counts. In a scalar build, this overload uses the same "
+            "composition through the portable 128-bit implementation."
+        )
+    if operation == "First_True":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit First_True "
+            "operation to both private parts. They return a valid low-part "
+            "result first, otherwise a valid high-part result plus the "
+            "private lane count, or the Wide lane count when neither part is "
+            "true. In a scalar build, this overload uses the same composition "
+            "through the portable 128-bit implementation."
+        )
+    if operation == "Last_True":
+        return (
+            "Cross-platform support: The AArch64, composed x86-64, and "
+            "optional AVX2 backends apply the selected 128-bit Last_True "
+            "operation to both private parts. They return a valid high-part "
+            "result plus the private lane count first, otherwise a valid "
+            "low-part result, or the Wide lane count when neither part is "
+            "true. In a scalar build, this overload uses the same composition "
+            "through the portable 128-bit implementation."
+        )
     if operation in {
         "Reverse_Lanes", "Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High",
     }:
@@ -474,42 +546,6 @@ def wide_native_support(summary: str, declaration: str = "") -> str:
             if operation == "Unordered" else
             "AArch64 and x86-64 run the selected 128-bit operation on both "
             "private parts"
-        )
-    elif operation in {
-        "Mask_From_Bit_Mask", "To_Bit_Mask", "Mask_And", "Mask_Or",
-        "Mask_Xor", "Mask_Not", "Any_True", "All_True",
-        "None_True",
-    }:
-        mechanism = (
-            "AArch64 and x86-64 call the selected 128-bit operation on each "
-            "private part and combine the results in Ada"
-        )
-    elif operation in {"First_True", "Last_True"}:
-        if operation == "First_True":
-            mechanism = (
-                "AArch64 and x86-64 query both private parts with the selected "
-                "128-bit mask-position operation. They return a valid low-part "
-                "result first. Otherwise, they return a valid high-part result "
-                "plus the private lane count. If neither part contains a true "
-                "lane, they return the Wide lane-count value"
-            )
-        else:
-            mechanism = (
-                "AArch64 and x86-64 query both private parts with the selected "
-                "128-bit mask-position operation. They return a valid high-part "
-                "result plus the private lane count first. Otherwise, they "
-                "return a valid low-part result. If neither part contains a "
-                "true lane, they return the Wide lane-count value"
-            )
-    elif operation == "Population_Count":
-        mechanism = (
-            "AArch64 and x86-64 call the selected 128-bit population-count "
-            "operation on both private parts and add the two counts"
-        )
-    elif operation == "Test":
-        mechanism = (
-            "AArch64 and x86-64 call the selected 128-bit operation only on "
-            "the private part that contains the requested lane"
         )
     elif operation in {"Add", "Subtract", "Multiply", "Divide"}:
         precision = "ps" if "F32x8" in declaration else "pd"
@@ -1308,7 +1344,7 @@ def mask_body(f: Family, p: str) -> list[str]:
         f"   function Test (Mask : {f.mask}; Lane : {f.index}) return Boolean is\n     (if Lane < {f.half_lanes} then {p}.Test (Mask.Low, Lane) else {p}.Test (Mask.High, Lane - {f.half_lanes}));",
         f"   function Any_True (Mask : {f.mask}) return Boolean is ({p}.Any_True (Mask.Low) or else {p}.Any_True (Mask.High));",
         f"   function All_True (Mask : {f.mask}) return Boolean is ({p}.All_True (Mask.Low) and then {p}.All_True (Mask.High));",
-        f"   function None_True (Mask : {f.mask}) return Boolean is (not Any_True (Mask));",
+        f"   function None_True (Mask : {f.mask}) return Boolean is ({p}.None_True (Mask.Low) and then {p}.None_True (Mask.High));",
         f"   function Population_Count (Mask : {f.mask}) return {f.count} is ({f.count} ({p}.Population_Count (Mask.Low) + {p}.Population_Count (Mask.High)));",
         f"   function First_True (Mask : {f.mask}) return {f.count} is\n      Low : constant Natural := {p}.First_True (Mask.Low);\n      High : constant Natural := {p}.First_True (Mask.High);\n   begin\n      return (if Low < {f.half_lanes} then Low elsif High < {f.half_lanes} then {f.half_lanes} + High else {f.lanes});\n   end First_True;",
         f"   function Last_True (Mask : {f.mask}) return {f.count} is\n      Low : constant Natural := {p}.Last_True (Mask.Low);\n      High : constant Natural := {p}.Last_True (Mask.High);\n   begin\n      return (if High < {f.half_lanes} then {f.half_lanes} + High elsif Low < {f.half_lanes} then Low else {f.lanes});\n   end Last_True;",

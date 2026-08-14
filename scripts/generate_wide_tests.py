@@ -2682,8 +2682,12 @@ def integer_test(f: Family) -> str:
             Bits : constant Wide.{f.mask_bits} :=
               (if {str(f.lanes <= 16)} then Wide.{f.mask_bits} (Pattern)
                else Wide.{f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
+            Other_Bits : constant Wide.{f.mask_bits} :=
+              Wide.{f.mask_bits} (Next_U64 mod 2 ** {f.lanes});
             Scalar_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.{f.mask} := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.{f.mask} := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -2691,9 +2695,9 @@ def integer_test(f: Family) -> str:
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = {all_bits})
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = {all_bits}),
               "{f.vector} mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = {all_bits}
@@ -2703,9 +2707,18 @@ def integer_test(f: Family) -> str:
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = {all_bits},
               "{f.vector} mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor {all_bits})
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor {all_bits}),
+              "{f.vector} independent mask algebra" & Pattern'Image);
             for Lane in Wide.{f.index} loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "{f.vector} mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -3406,14 +3419,21 @@ def float_test(f: Family) -> str:
             Bits : constant Wide.{f.mask_bits} :=
               (if {str(f.lanes <= 16)} then Wide.{f.mask_bits} (Pattern)
                else Wide.{f.mask_bits} (Next_U64 mod 2 ** {f.lanes}));
+            Other_Bits : constant Wide.{f.mask_bits} :=
+              Wide.{f.mask_bits} (Next_U64 mod 2 ** {f.lanes});
             Scalar_Mask : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.{f.mask} := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.{f.mask} := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.{f.mask} := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask),
+              and then Wide.Any_True (Scalar_Mask) = (Bits /= 0)
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Wide.All_True (Scalar_Mask) = (Bits = {f.mask_bits}'Last)
+              and then Native.All_True (Native_Mask) = (Bits = {f.mask_bits}'Last)
+              and then Wide.None_True (Scalar_Mask) = (Bits = 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0),
               "{f.vector} mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = {f.mask_bits}'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = {f.mask_bits}'Last
@@ -3422,10 +3442,19 @@ def float_test(f: Family) -> str:
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = {f.mask_bits}'Last,
               "{f.vector} mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor {f.mask_bits}'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor {f.mask_bits}'Last),
+              "{f.vector} independent mask algebra" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.{f.index} loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "{f.vector} mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;

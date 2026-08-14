@@ -1286,8 +1286,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_8x32 :=
               (if False then Wide.Mask_Bits_8x32 (Pattern)
                else Wide.Mask_Bits_8x32 (Next_U64 mod 2 ** 32));
+            Other_Bits : constant Wide.Mask_Bits_8x32 :=
+              Wide.Mask_Bits_8x32 (Next_U64 mod 2 ** 32);
             Scalar_Mask : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_8x32 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_8x32 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -1295,9 +1299,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_8x32'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_8x32'Last),
               "U8x32 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
@@ -1307,9 +1311,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last,
               "U8x32 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_8x32'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_8x32'Last),
+              "U8x32 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "U8x32 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -2882,8 +2895,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_8x32 :=
               (if False then Wide.Mask_Bits_8x32 (Pattern)
                else Wide.Mask_Bits_8x32 (Next_U64 mod 2 ** 32));
+            Other_Bits : constant Wide.Mask_Bits_8x32 :=
+              Wide.Mask_Bits_8x32 (Next_U64 mod 2 ** 32);
             Scalar_Mask : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_8x32 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_8x32 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_8x32 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -2891,9 +2908,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_8x32'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_8x32'Last),
               "I8x32 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last
@@ -2903,9 +2920,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_8x32'Last,
               "I8x32 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_8x32'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_8x32'Last),
+              "I8x32 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_8x32 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "I8x32 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -4322,8 +4348,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_16x16 :=
               (if True then Wide.Mask_Bits_16x16 (Pattern)
                else Wide.Mask_Bits_16x16 (Next_U64 mod 2 ** 16));
+            Other_Bits : constant Wide.Mask_Bits_16x16 :=
+              Wide.Mask_Bits_16x16 (Next_U64 mod 2 ** 16);
             Scalar_Mask : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_16x16 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_16x16 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -4331,9 +4361,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_16x16'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_16x16'Last),
               "U16x16 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
@@ -4343,9 +4373,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last,
               "U16x16 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_16x16'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_16x16'Last),
+              "U16x16 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "U16x16 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -5703,8 +5742,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_16x16 :=
               (if True then Wide.Mask_Bits_16x16 (Pattern)
                else Wide.Mask_Bits_16x16 (Next_U64 mod 2 ** 16));
+            Other_Bits : constant Wide.Mask_Bits_16x16 :=
+              Wide.Mask_Bits_16x16 (Next_U64 mod 2 ** 16);
             Scalar_Mask : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_16x16 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_16x16 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_16x16 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -5712,9 +5755,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_16x16'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_16x16'Last),
               "I16x16 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last
@@ -5724,9 +5767,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_16x16'Last,
               "I16x16 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_16x16'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_16x16'Last),
+              "I16x16 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_16x16 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "I16x16 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -7067,8 +7119,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_32x8 :=
               (if True then Wide.Mask_Bits_32x8 (Pattern)
                else Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
+            Other_Bits : constant Wide.Mask_Bits_32x8 :=
+              Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8);
             Scalar_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -7076,9 +7132,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_32x8'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_32x8'Last),
               "U32x8 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
@@ -7088,9 +7144,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "U32x8 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_32x8'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_32x8'Last),
+              "U32x8 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "U32x8 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -8480,8 +8545,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_32x8 :=
               (if True then Wide.Mask_Bits_32x8 (Pattern)
                else Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
+            Other_Bits : constant Wide.Mask_Bits_32x8 :=
+              Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8);
             Scalar_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -8489,9 +8558,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_32x8'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_32x8'Last),
               "I32x8 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
@@ -8501,9 +8570,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "I32x8 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_32x8'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_32x8'Last),
+              "I32x8 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "I32x8 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -9860,8 +9938,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_64x4 :=
               (if True then Wide.Mask_Bits_64x4 (Pattern)
                else Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
+            Other_Bits : constant Wide.Mask_Bits_64x4 :=
+              Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4);
             Scalar_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -9869,9 +9951,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_64x4'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_64x4'Last),
               "U64x4 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
@@ -9881,9 +9963,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "U64x4 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_64x4'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_64x4'Last),
+              "U64x4 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "U64x4 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -11273,8 +11364,12 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_64x4 :=
               (if True then Wide.Mask_Bits_64x4 (Pattern)
                else Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
+            Other_Bits : constant Wide.Mask_Bits_64x4 :=
+              Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4);
             Scalar_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits,
@@ -11282,9 +11377,9 @@ procedure Wide_Tests is
             Check (Wide.Any_True (Scalar_Mask) = (Bits /= 0)
               and then Wide.None_True (Scalar_Mask) = (Bits = 0)
               and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_64x4'Last)
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask),
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_64x4'Last),
               "I64x4 mask predicates" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             Check (Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
@@ -11294,9 +11389,18 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "I64x4 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_64x4'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_64x4'Last),
+              "I64x4 independent mask algebra" & Pattern'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "I64x4 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -12756,14 +12860,21 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_32x8 :=
               (if True then Wide.Mask_Bits_32x8 (Pattern)
                else Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8));
+            Other_Bits : constant Wide.Mask_Bits_32x8 :=
+              Wide.Mask_Bits_32x8 (Next_U64 mod 2 ** 8);
             Scalar_Mask : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_32x8 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_32x8 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask),
+              and then Wide.Any_True (Scalar_Mask) = (Bits /= 0)
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_32x8'Last)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_32x8'Last)
+              and then Wide.None_True (Scalar_Mask) = (Bits = 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0),
               "F32x8 mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_32x8'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last
@@ -12772,10 +12883,19 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_32x8'Last,
               "F32x8 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_32x8'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_32x8'Last),
+              "F32x8 independent mask algebra" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.Lane_Index_32x8 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "F32x8 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
@@ -14150,14 +14270,21 @@ procedure Wide_Tests is
             Bits : constant Wide.Mask_Bits_64x4 :=
               (if True then Wide.Mask_Bits_64x4 (Pattern)
                else Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4));
+            Other_Bits : constant Wide.Mask_Bits_64x4 :=
+              Wide.Mask_Bits_64x4 (Next_U64 mod 2 ** 4);
             Scalar_Mask : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Bits);
             Native_Mask : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Bits);
+            Scalar_Other : constant Wide.Mask_64x4 := Wide.Mask_From_Bit_Mask (Other_Bits);
+            Native_Other : constant Wide.Mask_64x4 := Native.Mask_From_Bit_Mask (Other_Bits);
          begin
             Check (Wide.To_Bit_Mask (Scalar_Mask) = Bits
               and then Native.To_Bit_Mask (Native_Mask) = Bits
-              and then Native.Any_True (Native_Mask) = Wide.Any_True (Scalar_Mask)
-              and then Native.All_True (Native_Mask) = Wide.All_True (Scalar_Mask)
-              and then Native.None_True (Native_Mask) = Wide.None_True (Scalar_Mask),
+              and then Wide.Any_True (Scalar_Mask) = (Bits /= 0)
+              and then Native.Any_True (Native_Mask) = (Bits /= 0)
+              and then Wide.All_True (Scalar_Mask) = (Bits = Mask_Bits_64x4'Last)
+              and then Native.All_True (Native_Mask) = (Bits = Mask_Bits_64x4'Last)
+              and then Wide.None_True (Scalar_Mask) = (Bits = 0)
+              and then Native.None_True (Native_Mask) = (Bits = 0),
               "F64x4 mask predicates" & Pattern'Image);
             Check (Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Wide.Mask_Not (Scalar_Mask))) = Mask_Bits_64x4'Last
               and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last
@@ -14166,10 +14293,19 @@ procedure Wide_Tests is
               and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native.Mask_Not (Native_Mask))) = 0
               and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native.Mask_Not (Native_Mask))) = Mask_Bits_64x4'Last,
               "F64x4 mask algebra" & Pattern'Image);
+            Check (Wide.To_Bit_Mask (Wide.Mask_And (Scalar_Mask, Scalar_Other)) = (Bits and Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_And (Native_Mask, Native_Other)) = (Bits and Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Or (Scalar_Mask, Scalar_Other)) = (Bits or Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Or (Native_Mask, Native_Other)) = (Bits or Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Xor (Scalar_Mask, Scalar_Other)) = (Bits xor Other_Bits)
+              and then Native.To_Bit_Mask (Native.Mask_Xor (Native_Mask, Native_Other)) = (Bits xor Other_Bits)
+              and then Wide.To_Bit_Mask (Wide.Mask_Not (Scalar_Mask)) = (Bits xor Mask_Bits_64x4'Last)
+              and then Native.To_Bit_Mask (Native.Mask_Not (Native_Mask)) = (Bits xor Mask_Bits_64x4'Last),
+              "F64x4 independent mask algebra" & Pattern'Image);
             Check_Mask_Positions (Bits, "pattern" & Pattern'Image);
             for Lane in Wide.Lane_Index_64x4 loop
                Check (Wide.Test (Scalar_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1)
-                 and then Native.Test (Native_Mask, Lane) = Wide.Test (Scalar_Mask, Lane),
+                 and then Native.Test (Native_Mask, Lane) = (((Bits / 2 ** Lane) mod 2) = 1),
                  "F64x4 mask lane" & Pattern'Image & Lane'Image);
             end loop;
          end;
