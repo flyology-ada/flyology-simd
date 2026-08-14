@@ -18,6 +18,14 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    begin
       Algorithms.Scalar_Floating.Clamp (Data, Low, High);
    end Clamp;
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array) is
+   begin
+      Algorithms.Scalar_Floating.AXPY (Y, A, X);
+   end AXPY;
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array) is
+   begin
+      Algorithms.Scalar_Floating.AXPY (Y, A, X);
+   end AXPY;
    function Sum (Data : F32_Array) return F32 is
      (Algorithms.Scalar_Floating.Sum (Data));
    function Sum (Data : F64_Array) return F64 is

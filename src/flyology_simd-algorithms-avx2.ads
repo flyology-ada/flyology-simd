@@ -23,6 +23,20 @@ package Flyology_SIMD.Algorithms.AVX2 is
    --  @param Data The complete array to transform in place.
    --  @param Low The lower operand supplied to Max_Number.
    --  @param High The upper operand supplied to Min_Number.
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Apply Y := A * X + Y with the optional AVX2 algorithm after checking
+   --  CPU and OS support. Multiplication and addition are separate.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Apply Y := A * X + Y with the optional AVX2 algorithm after checking
+   --  CPU and OS support. Multiplication and addition are separate.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
    function Sum (Data : F32_Array) return F32;
    --  Return the four-group binary32 sum with the optional AVX2 algorithm
    --  after checking CPU and OS support.

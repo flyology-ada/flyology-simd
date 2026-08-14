@@ -95,6 +95,22 @@ is
    --  @param Low The lower operand supplied to Max_Number.
    --  @param High The upper operand supplied to Min_Number.
 
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Replace each binary32 Y element with A * X + Y. Multiplication occurs
+   --  before addition and is not fused. Empty arrays are unchanged.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
+
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Replace each binary64 Y element with A * X + Y. Multiplication occurs
+   --  before addition and is not fused. Empty arrays are unchanged.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
+
    function Sum (Data : F32_Array) return F32;
    --  Add binary32 elements in four lane groups, then add the groups in
    --  ascending lane order from positive zero. Empty arrays return positive

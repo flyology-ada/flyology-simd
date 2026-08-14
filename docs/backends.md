@@ -879,7 +879,8 @@ The AVX2 loop uses `vpmaxub`, `vpminub`, equality classification, `vpand`, and
 interval endpoints over a buffer containing every byte value, including every
 inverted interval. Protected-page tests cover every tail length.
 
-The binary32 and binary64 `Scale`, `Clamp`, `Sum`, and `Dot_Product` algorithms have
+The binary32 and binary64 `Scale`, `Clamp`, `AXPY`, `Sum`, and `Dot_Product`
+algorithms have
 scalar and Native generic instances. Runtime dispatch selects one
 implementation before the complete-array loop. The optional AVX2 scaling
 object broadcasts the factor, multiplies eight binary32 or four binary64
@@ -893,6 +894,8 @@ cover binary32 lengths 1 through 33 and binary64 lengths 1 through 17. The
 primitive operations do not perform runtime dispatch.
 `Clamp` applies selected 128-bit `Max_Number` followed by `Min_Number`, including
 through the AVX2 facade, and bitwise tests cover NaNs and both signed zeros.
+`AXPY` has an isolated AVX2 loop with one broadcast, two vector loads, a
+separate multiply and add, and one vector store per full block.
 
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native

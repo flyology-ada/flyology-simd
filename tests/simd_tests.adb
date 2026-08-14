@@ -1954,6 +1954,104 @@ procedure SIMD_Tests is
       end;
    end Test_Clamp;
 
+   procedure Test_AXPY_For_Length (Length : Natural) is
+      X_F32        : F32_Array (37 .. 36 + Length);
+      X_F64        : F64_Array (37 .. 36 + Length);
+      Original_F32 : F32_Array (X_F32'Range);
+      Original_F64 : F64_Array (X_F64'Range);
+      Expected_F32 : F32_Array (X_F32'Range);
+      Expected_F64 : F64_Array (X_F64'Range);
+      A_F32        : constant F32 := 1.5;
+      A_F64        : constant F64 := -0.25;
+   begin
+      for Index in X_F32'Range loop
+         declare
+            Offset : constant Natural := Index - X_F32'First;
+         begin
+            X_F32 (Index) := F32 (Integer (Offset mod 13) - 6) / 4.0;
+            X_F64 (Index) := F64 (Integer (Offset mod 17) - 8) / 8.0;
+            Original_F32 (Index) :=
+              F32 (Integer ((3 * Offset + 2) mod 19) - 9) / 2.0;
+            Original_F64 (Index) :=
+              F64 (Integer ((5 * Offset + 1) mod 23) - 11) / 4.0;
+         end;
+      end loop;
+      Expected_F32 := Original_F32;
+      Expected_F64 := Original_F64;
+      for Index in X_F32'Range loop
+         Expected_F32 (Index) := A_F32 * X_F32 (Index) + Expected_F32 (Index);
+         Expected_F64 (Index) := A_F64 * X_F64 (Index) + Expected_F64 (Index);
+      end loop;
+
+      declare
+         Scalar_F32  : F32_Array := Original_F32;
+         Scalar_F64  : F64_Array := Original_F64;
+         Native_F32  : F32_Array := Original_F32;
+         Native_F64  : F64_Array := Original_F64;
+         Runtime_F32 : F32_Array := Original_F32;
+         Runtime_F64 : F64_Array := Original_F64;
+      begin
+         Algorithms.Scalar_Floating.AXPY (Scalar_F32, A_F32, X_F32);
+         Algorithms.Scalar_Floating.AXPY (Scalar_F64, A_F64, X_F64);
+         Algorithms.Native_Floating.AXPY (Native_F32, A_F32, X_F32);
+         Algorithms.Native_Floating.AXPY (Native_F64, A_F64, X_F64);
+         Algorithms.Runtime.AXPY (Runtime_F32, A_F32, X_F32);
+         Algorithms.Runtime.AXPY (Runtime_F64, A_F64, X_F64);
+         Check (Same_Bits (Scalar_F32, Expected_F32),
+                "scalar F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Scalar_F64, Expected_F64),
+                "scalar F64 AXPY length" & Length'Image);
+         Check (Same_Bits (Native_F32, Expected_F32),
+                "native F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Native_F64, Expected_F64),
+                "native F64 AXPY length" & Length'Image);
+         Check (Same_Bits (Runtime_F32, Expected_F32),
+                "runtime F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Runtime_F64, Expected_F64),
+                "runtime F64 AXPY length" & Length'Image);
+      end;
+
+      for Backend in Features.Backend_Kind loop
+         if Features.Available (Backend) then
+            declare
+               Selected_F32 : F32_Array := Original_F32;
+               Selected_F64 : F64_Array := Original_F64;
+            begin
+               Algorithms.Runtime.AXPY (Selected_F32, A_F32, X_F32, Backend);
+               Algorithms.Runtime.AXPY (Selected_F64, A_F64, X_F64, Backend);
+               Check (Same_Bits (Selected_F32, Expected_F32),
+                      "selected F32 AXPY " & Features.Name (Backend) &
+                        " length" & Length'Image);
+               Check (Same_Bits (Selected_F64, Expected_F64),
+                      "selected F64 AXPY " & Features.Name (Backend) &
+                        " length" & Length'Image);
+            end;
+         end if;
+      end loop;
+
+      if Features.Available (Features.AVX2) then
+         declare
+            AVX2_F32 : F32_Array := Original_F32;
+            AVX2_F64 : F64_Array := Original_F64;
+         begin
+            Algorithms.AVX2.AXPY (AVX2_F32, A_F32, X_F32);
+            Algorithms.AVX2.AXPY (AVX2_F64, A_F64, X_F64);
+            Check (Same_Bits (AVX2_F32, Expected_F32),
+                   "direct AVX2 F32 AXPY length" & Length'Image);
+            Check (Same_Bits (AVX2_F64, Expected_F64),
+                   "direct AVX2 F64 AXPY length" & Length'Image);
+         end;
+      end if;
+   end Test_AXPY_For_Length;
+
+   procedure Test_AXPY is
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_AXPY_For_Length (Length);
+      end loop;
+      Test_AXPY_For_Length (4_096);
+   end Test_AXPY;
+
    function Reference_Sum (Data : F32_Array) return F32 is
       Partial : Lane_Values_F32x4 := [others => 0.0];
       Result  : F32 := 0.0;
@@ -2273,6 +2371,32 @@ procedure SIMD_Tests is
             when Features.Backend_Unavailable => null;
          end;
          begin
+            Algorithms.Runtime.AXPY
+              (F32_Work, 2.0, F32_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F32 AXPY accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.Runtime.AXPY
+              (F64_Work, 2.0, F64_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 AXPY accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.AXPY (F32_Work, 2.0, F32_Data);
+            Check (False, "unavailable direct AVX2 F32 AXPY accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.AXPY (F64_Work, 2.0, F64_Data);
+            Check (False, "unavailable direct AVX2 F64 AXPY accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
             Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
             Check (False, "unavailable AVX2 accepted" & Result'Image);
          exception
@@ -2431,6 +2555,7 @@ begin
    Test_Algorithms;
    Test_Scale;
    Test_Clamp;
+   Test_AXPY;
    Test_Sum;
    Test_Dot_Product;
    Test_Unavailable_Rejection;

@@ -12,7 +12,7 @@
         <ul><li>Bind a complete loop to known operations.</li><li>Before a supported runtime algorithm processes an array or buffer, select one implementation.</li></ul>
         <section id="static">
           <h2>Pass operations to a generic algorithm</h2>
-          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Floating"><code>Algorithms.Generic_Floating</code></a> supplies binary32 and binary64 scaling, clamping, sums, and dot products. Its formal operations include zero, splat, partial load and store, multiply, add, minimum-number, maximum-number, and add reduction.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Floating"><code>Algorithms.Generic_Floating</code></a> supplies binary32 and binary64 scaling, clamping, AXPY, sums, and dot products. Its formal operations include zero, splat, partial load and store, multiply, add, minimum-number, maximum-number, and add reduction.</p>
           <p>The excerpt below shows the binary32 formals. They operate on <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> values and <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> inputs. A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> declares each partial extent, and the reduction returns <a data-api="Flyology_SIMD.F32"><code>F32</code></a>. The package has matching binary64 formals and an <code>F64_Array</code> overload.</p>
           <pre><code class="language-ada">generic
    with function Backend_F32_Zero return F32x4;
@@ -31,6 +31,7 @@
 package Flyology_SIMD.Algorithms.Generic_Floating is
    procedure Scale (Data : in out F32_Array; Factor : F32);
    procedure Clamp (Data : in out F32_Array; Low, High : F32);
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array);
    function Sum (Data : F32_Array) return F32;
    function Dot_Product (Left, Right : F32_Array) return F32;
    --  Matching binary64 formals and the F64_Array overload follow.
@@ -55,15 +56,17 @@ Native : constant F32 :=
         </section>
         <section id="runtime">
           <h2>Dispatch once at a complete-array boundary</h2>
-          <div class="semantic-callout"><strong>The library provides runtime dispatch for complete scaling, clamping, sums, and dot products, not for primitive floating operations.</strong><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> selects one implementation before a supported complete-array loop. Primitive operations remain statically bound and perform no feature test.</p></div>
+          <div class="semantic-callout"><strong>The library provides runtime dispatch for complete scaling, clamping, AXPY, sums, and dot products, not for primitive floating operations.</strong><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime</code></a> selects one implementation before a supported complete-array loop. Primitive operations remain statically bound and perform no feature test.</p></div>
           <pre><code class="language-ada">Result : constant F32 :=
   Flyology_SIMD.Algorithms.Runtime.Dot_Product (Left, Right);</code></pre>
-          <p><code>Scale</code>, <code>Clamp</code>, <code>Sum</code>, and <code>Dot_Product</code> have binary32 and binary64 overloads. <code>Scale</code> multiplies every element in place. <code>Clamp</code> applies <code>Min_Number (Max_Number (Element, Low), High)</code>, so NaNs, signed zeros, and inverted bounds follow those exact primitive semantics. <code>Dot_Product</code> requires its arrays to have matching bounds. Binary32 reductions use four accumulator lane groups; binary64 reductions use two. They reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
+          <p><code>Scale</code>, <code>Clamp</code>, <code>AXPY</code>, <code>Sum</code>, and <code>Dot_Product</code> have binary32 and binary64 overloads. <code>Scale</code> multiplies every element in place. <code>Clamp</code> applies <code>Min_Number (Max_Number (Element, Low), High)</code>, so NaNs, signed zeros, and inverted bounds follow those exact primitive semantics. <code>AXPY</code> applies <code>Y := A * X + Y</code> with separate multiplication and addition and requires matching array bounds. <code>Dot_Product</code> also requires its arrays to have matching bounds. Binary32 reductions use four accumulator lane groups; binary64 reductions use two. They reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
           <pre><code class="language-ada">Flyology_SIMD.Algorithms.Runtime.Scale
   (Measurements, Factor =&gt; 1.5);</code></pre>
           <pre><code class="language-ada">Flyology_SIMD.Algorithms.Runtime.Clamp
   (Measurements, Low =&gt; 0.0, High =&gt; 100.0);</code></pre>
-          <p>An AVX2 scaling selection broadcasts the factor once, then loads, multiplies, and stores eight binary32 or four binary64 elements at a time. AVX2 reductions add the two 128-bit halves to one accumulator in source order; <code>Dot_Product</code> multiplies corresponding elements first. The AVX2 clamp facade reuses the exact selected 128-bit minimum-number and maximum-number loop. These routes preserve the public semantics of the other runtime backends.</p>
+          <pre><code class="language-ada">Flyology_SIMD.Algorithms.Runtime.AXPY
+  (Y =&gt; Measurements, A =&gt; 0.5, X =&gt; Corrections);</code></pre>
+          <p>An AVX2 scaling selection broadcasts the factor once, then loads, multiplies, and stores eight binary32 or four binary64 elements at a time. The AVX2 AXPY loop broadcasts <code>A</code>, performs separate vector multiply and add operations, and stores <code>Y</code>. AVX2 reductions add the two 128-bit halves to one accumulator in source order; <code>Dot_Product</code> multiplies corresponding elements first. The AVX2 clamp facade reuses the exact selected 128-bit minimum-number and maximum-number loop. These routes preserve the public semantics of the other runtime backends.</p>
           <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Difference"><code>Find_First_Difference</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Equal"><code>Equal</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count_In_Range"><code>Count_In_Range</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
           <pre><code class="language-ada">Matches : constant Natural :=
   Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>

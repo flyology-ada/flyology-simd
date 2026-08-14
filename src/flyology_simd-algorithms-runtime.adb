@@ -69,6 +69,40 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Clamp;
 
+   procedure AXPY
+     (Y : in out F32_Array;
+      A : F32;
+      X : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available) is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            Algorithms.Scalar_Floating.AXPY (Y, A, X);
+         when Features.NEON | Features.SSE2 =>
+            Algorithms.Native_Floating.AXPY (Y, A, X);
+         when Features.AVX2 =>
+            Algorithms.AVX2.AXPY (Y, A, X);
+      end case;
+   end AXPY;
+
+   procedure AXPY
+     (Y : in out F64_Array;
+      A : F64;
+      X : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available) is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            Algorithms.Scalar_Floating.AXPY (Y, A, X);
+         when Features.NEON | Features.SSE2 =>
+            Algorithms.Native_Floating.AXPY (Y, A, X);
+         when Features.AVX2 =>
+            Algorithms.AVX2.AXPY (Y, A, X);
+      end case;
+   end AXPY;
+
    function Sum
      (Data : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

@@ -111,6 +111,12 @@ NaN quieting and selection, signed-zero results, and the behavior of inverted
 or NaN bounds. Empty arrays are unchanged; partial tails access only their
 declared elements.
 
+`Algorithms.Generic_Floating.AXPY` and the matching static and runtime
+instances replace each `Y` element with `A * X + Y`. `X` and `Y` must have
+identical bounds. Multiplication is evaluated before addition; the two
+operations are not contracted into a fused multiply-add. Empty arrays are
+unchanged and partial tails access only their declared elements.
+
 `Algorithms.Generic_Floating.Dot_Product` uses the same groups and reduction
 order after multiplying corresponding elements. Its two input arrays must have
 identical bounds. Runtime selection occurs once before each complete-array
@@ -225,7 +231,7 @@ Partial operations never perform a full vector access followed by masking.
 Protected-page tests put each valid byte tail directly before an inaccessible
 page. They exercise scalar and native partial operations for counts 0 through
 16. The same tests put binary32 and binary64 arrays before the protected page
-and run runtime-dispatched scaling, clamping, sums, and dot products across full blocks
+and run runtime-dispatched scaling, clamping, AXPY, sums, and dot products across full blocks
 and every tail shape.
 
 Overlap is ordinary sequential Ada assignment: a store consumes its vector

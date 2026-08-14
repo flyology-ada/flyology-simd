@@ -467,6 +467,10 @@ extract_symbol 'flyology_simd__algorithms__native_floating__clamp' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-clamp.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__clamp__2' \
   "$temporary/floating-algorithm.txt" "$temporary/f64-clamp.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__axpy' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-axpy.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__axpy__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-axpy.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-sum.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum__2' \
@@ -483,6 +487,7 @@ for precision in f32 f64; do
     esac
     scale_file="$temporary/${precision}-scale.txt"
     clamp_file="$temporary/${precision}-clamp.txt"
+    axpy_file="$temporary/${precision}-axpy.txt"
     sum_file="$temporary/${precision}-sum.txt"
     dot_file="$temporary/${precision}-dot-product.txt"
     require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
@@ -508,6 +513,19 @@ for precision in f32 f64; do
       "$clamp_file" "one selected partial store in native ${precision} clamp"
     forbid_pattern 'flyology_simd__backends__native__(multiply|add|reduce_add)' \
       "$clamp_file" "arithmetic or reduction operation in native ${precision} clamp"
+
+    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
+      "$axpy_file" "one selected factor splat in native ${precision} AXPY"
+    require_count "flyology_simd__backends__native__${load}([^_]|$)" 2 \
+      "$axpy_file" "two selected partial loads in native ${precision} AXPY"
+    require_count "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
+      "$axpy_file" "one selected multiply in native ${precision} AXPY"
+    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+      "$axpy_file" "one selected add in native ${precision} AXPY"
+    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+      "$axpy_file" "one selected partial store in native ${precision} AXPY"
+    forbid_pattern 'flyology_simd__backends__native__(min_number|max_number|reduce_add)' \
+      "$axpy_file" "minimum or reduction operation in native ${precision} AXPY"
 
     require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$sum_file" "one selected zero route in the native ${precision} sum"
@@ -536,7 +554,7 @@ require_count 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
   "$temporary/f64-dot-product.txt" \
   'one selected multiply route in the native binary64 dot loop'
 forbid_pattern \
-  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(scale|clamp|sum|dot_product|splat|multiply|add|min_number|max_number|reduce_add|load_partial|store_partial)' \
+  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(scale|clamp|axpy|sum|dot_product|splat|multiply|add|min_number|max_number|reduce_add|load_partial|store_partial)' \
   "$temporary/floating-algorithm-undefined.txt" \
   'portable, scalar, or runtime route in the native floating loops'
 
@@ -5048,6 +5066,36 @@ EOF
               'flyology_simd__algorithms__native_floating__clamp__2$' 1 \
               "$temporary/avx2-undefined.txt" \
               'one exact selected binary64 clamp route in the AVX2 object'
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__axpy' \
+              "$temporary/avx2.txt" "$temporary/avx2-f32-axpy.txt"
+            extract_symbol \
+              'flyology_simd__algorithms__avx2_implementation__axpy__2' \
+              "$temporary/avx2.txt" "$temporary/avx2-f64-axpy.txt"
+            require_pattern 'vbroadcastss' "$temporary/avx2-f32-axpy.txt" \
+              'AVX2-width binary32 AXPY factor broadcast'
+            require_count 'vmovups' 3 "$temporary/avx2-f32-axpy.txt" \
+              'two AVX2-width binary32 AXPY loads and one store'
+            require_pattern 'vmulps' "$temporary/avx2-f32-axpy.txt" \
+              'separate AVX2-width binary32 AXPY multiplication'
+            require_pattern 'vaddps' "$temporary/avx2-f32-axpy.txt" \
+              'separate AVX2-width binary32 AXPY addition'
+            require_pattern 'vzeroupper' "$temporary/avx2-f32-axpy.txt" \
+              'AVX-SSE transition cleanup in binary32 AXPY'
+            forbid_pattern 'vfmadd' "$temporary/avx2-f32-axpy.txt" \
+              'fused multiply-add in exact binary32 AXPY'
+            require_pattern 'vbroadcastsd' "$temporary/avx2-f64-axpy.txt" \
+              'AVX2-width binary64 AXPY factor broadcast'
+            require_count 'vmovupd' 3 "$temporary/avx2-f64-axpy.txt" \
+              'two AVX2-width binary64 AXPY loads and one store'
+            require_pattern 'vmulpd' "$temporary/avx2-f64-axpy.txt" \
+              'separate AVX2-width binary64 AXPY multiplication'
+            require_pattern 'vaddpd' "$temporary/avx2-f64-axpy.txt" \
+              'separate AVX2-width binary64 AXPY addition'
+            require_pattern 'vzeroupper' "$temporary/avx2-f64-axpy.txt" \
+              'AVX-SSE transition cleanup in binary64 AXPY'
+            forbid_pattern 'vfmadd' "$temporary/avx2-f64-axpy.txt" \
+              'fused multiply-add in exact binary64 AXPY'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__count_in_range' \
               "$temporary/avx2.txt" "$temporary/avx2-count-in-range.txt"

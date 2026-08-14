@@ -26,6 +26,18 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       AVX2_Implementation.Clamp (Data, Low, High);
    end Clamp;
 
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array) is
+   begin
+      Features.Require (Features.AVX2);
+      AVX2_Implementation.AXPY (Y, A, X);
+   end AXPY;
+
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array) is
+   begin
+      Features.Require (Features.AVX2);
+      AVX2_Implementation.AXPY (Y, A, X);
+   end AXPY;
+
    function Sum (Data : F32_Array) return F32 is
    begin
       Features.Require (Features.AVX2);

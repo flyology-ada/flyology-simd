@@ -323,6 +323,7 @@ begin
          for Data'Address use
            Add (Allocation, Page_Size - Length * (F32'Size / 8));
          pragma Import (Ada, Data);
+         Source : constant F32_Array (Data'Range) := [others => 1.0];
       begin
          Data := [others => 1.0];
          Algorithms.Runtime.Scale (Data, 2.0);
@@ -334,6 +335,11 @@ begin
          Check
            (Data = [Data'Range => 1.0],
             "runtime F32 clamp protected tail length" & Length'Image);
+         Algorithms.Runtime.AXPY (Data, 2.0, Source);
+         Check
+           (Data = [Data'Range => 3.0],
+            "runtime F32 AXPY protected tail length" & Length'Image);
+         Algorithms.Runtime.Scale (Data, 1.0 / 3.0);
          Check
            (Algorithms.Runtime.Sum (Data) = F32 (Length),
             "runtime F32 sum protected tail length" & Length'Image);
@@ -350,6 +356,11 @@ begin
             Check
               (Data = [Data'Range => 1.0],
                "AVX2 F32 clamp protected tail length" & Length'Image);
+            Algorithms.AVX2.AXPY (Data, 2.0, Source);
+            Check
+              (Data = [Data'Range => 3.0],
+               "AVX2 F32 AXPY protected tail length" & Length'Image);
+            Algorithms.AVX2.Scale (Data, 1.0 / 3.0);
             Check
               (Algorithms.AVX2.Sum (Data) = F32 (Length),
                "AVX2 F32 sum protected tail length" & Length'Image);
@@ -366,6 +377,7 @@ begin
          for Data'Address use
            Add (Allocation, Page_Size - Length * (F64'Size / 8));
          pragma Import (Ada, Data);
+         Source : constant F64_Array (Data'Range) := [others => 1.0];
       begin
          Data := [others => 1.0];
          Algorithms.Runtime.Scale (Data, 2.0);
@@ -377,6 +389,11 @@ begin
          Check
            (Data = [Data'Range => 1.0],
             "runtime F64 clamp protected tail length" & Length'Image);
+         Algorithms.Runtime.AXPY (Data, 2.0, Source);
+         Check
+           (Data = [Data'Range => 3.0],
+            "runtime F64 AXPY protected tail length" & Length'Image);
+         Algorithms.Runtime.Scale (Data, 1.0 / 3.0);
          Check
            (Algorithms.Runtime.Sum (Data) = F64 (Length),
             "runtime F64 sum protected tail length" & Length'Image);
@@ -393,6 +410,11 @@ begin
             Check
               (Data = [Data'Range => 1.0],
                "AVX2 F64 clamp protected tail length" & Length'Image);
+            Algorithms.AVX2.AXPY (Data, 2.0, Source);
+            Check
+              (Data = [Data'Range => 3.0],
+               "AVX2 F64 AXPY protected tail length" & Length'Image);
+            Algorithms.AVX2.Scale (Data, 1.0 / 3.0);
             Check
               (Algorithms.AVX2.Sum (Data) = F64 (Length),
                "AVX2 F64 sum protected tail length" & Length'Image);

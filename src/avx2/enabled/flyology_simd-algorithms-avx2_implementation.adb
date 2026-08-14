@@ -90,6 +90,94 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       Algorithms.Native_Floating.Clamp (Data, Low, High);
    end Clamp;
 
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array) is
+      A_Copy       : aliased F32 := A;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Y'Length / 8;
+      Y_Cursor     : System.Address;
+      X_Cursor     : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Y_Cursor := Y (Y'First)'Address;
+         X_Cursor := X (X'First)'Address;
+         Asm
+           (Template =>
+              "vbroadcastss (%3), %%ymm2" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovups (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovups (%0), %%ymm1" & ASCII.LF & ASCII.HT &
+              "vmulps %%ymm2, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vaddps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovups %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "addq $32, %1" & ASCII.LF & ASCII.HT &
+              "subl $1, %2" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Y_Cursor),
+               System.Address'Asm_Output ("+&r", X_Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs => System.Address'Asm_Input ("r", A_Copy'Address),
+            Clobber => "ymm0,ymm1,ymm2,cc,memory",
+            Volatile => True);
+         Offset := (Y'Length / 8) * 8;
+      end if;
+
+      while Offset < Y'Length loop
+         declare
+            Index : constant Natural := Y'First + Offset;
+         begin
+            Y (Index) := A * X (Index) + Y (Index);
+         end;
+         Offset := Offset + 1;
+      end loop;
+   end AXPY;
+
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array) is
+      A_Copy       : aliased F64 := A;
+      Offset       : Natural := 0;
+      Vector_Count : Natural := Y'Length / 4;
+      Y_Cursor     : System.Address;
+      X_Cursor     : System.Address;
+   begin
+      if Vector_Count > 0 then
+         Y_Cursor := Y (Y'First)'Address;
+         X_Cursor := X (X'First)'Address;
+         Asm
+           (Template =>
+              "vbroadcastsd (%3), %%ymm2" & ASCII.LF &
+              "0:" & ASCII.LF & ASCII.HT &
+              "vmovupd (%1), %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovupd (%0), %%ymm1" & ASCII.LF & ASCII.HT &
+              "vmulpd %%ymm2, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vaddpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
+              "vmovupd %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
+              "addq $32, %0" & ASCII.LF & ASCII.HT &
+              "addq $32, %1" & ASCII.LF & ASCII.HT &
+              "subl $1, %2" & ASCII.LF & ASCII.HT &
+              "jnz 0b" & ASCII.LF & ASCII.HT &
+              "vzeroupper",
+            Outputs =>
+              [System.Address'Asm_Output ("+&r", Y_Cursor),
+               System.Address'Asm_Output ("+&r", X_Cursor),
+               Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs => System.Address'Asm_Input ("r", A_Copy'Address),
+            Clobber => "ymm0,ymm1,ymm2,cc,memory",
+            Volatile => True);
+         Offset := (Y'Length / 4) * 4;
+      end if;
+
+      while Offset < Y'Length loop
+         declare
+            Index : constant Natural := Y'First + Offset;
+         begin
+            Y (Index) := A * X (Index) + Y (Index);
+         end;
+         Offset := Offset + 1;
+      end loop;
+   end AXPY;
+
    function Sum (Data : F32_Array) return F32 is
       Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
       Result       : F32 := 0.0;

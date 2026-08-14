@@ -43,6 +43,31 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param High The upper operand supplied to Min_Number.
    --  @param Backend The compiled and available backend to use.
 
+   procedure AXPY
+     (Y : in out F32_Array;
+      A : F32;
+      X : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Replace each Y element with A * X + Y after one runtime backend
+   --  selection. Multiplication and addition are separate operations.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
+   --  @param Backend The compiled and available backend to use.
+   procedure AXPY
+     (Y : in out F64_Array;
+      A : F64;
+      X : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+     with Pre => Y'First = X'First and Y'Last = X'Last;
+   --  Replace each Y element with A * X + Y after one runtime backend
+   --  selection. Multiplication and addition are separate operations.
+   --  @param Y The complete destination and addend array.
+   --  @param A The scalar multiplier applied to X.
+   --  @param X The complete source array with bounds matching Y.
+   --  @param Backend The compiled and available backend to use.
+
    function Sum
      (Data : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)
