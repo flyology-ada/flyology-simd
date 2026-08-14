@@ -969,7 +969,9 @@ while read -r lane_kind operation suffix half_lanes; do
             half_hex=$(printf '%x' "$half_lanes")
             case "$architecture" in
                 aarch64)
-                    adjustment_pattern="sub.*#(0x)?${half_hex}([^[:xdigit:]]|$)"
+                    #  Apple objdump prints this immediate in decimal on the
+                    #  macOS 14 runner and in hexadecimal on newer macOS.
+                    adjustment_pattern="sub.*#(0x${half_hex}|${half_lanes})([^[:xdigit:]]|$)"
                     branch_pattern='(^|[[:space:]])b\.[a-z]+'
                     ;;
                 x86_64)

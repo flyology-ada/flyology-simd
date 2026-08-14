@@ -8,7 +8,9 @@ from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 import re
+import subprocess
 import sys
+import textwrap
 import tomllib
 
 
@@ -133,7 +135,7 @@ def coverage_entry(family: dict, dimension: str) -> dict:
 
 def load_inventory() -> tuple[dict, list[dict]]:
     data = tomllib.loads(INVENTORY.read_text())
-    if data.get("schema") != 1:
+    if data.get("schema") != 2:
         raise ValueError("unsupported SIMD coverage inventory schema")
     families = data.get("family")
     if not isinstance(families, list) or not families:
@@ -228,6 +230,145 @@ def validate(data: dict, families: list[dict]) -> dict:
                 f"{layer} expected_overloads is {expected!r}, parsed public total is {actual}"
             )
 
+    checks = data.get("static_check", [])
+    check_ids: set[str] = set()
+    if not checks:
+        errors.append("static check registry is empty")
+    for check in checks:
+        check_id = check.get("id")
+        command = check.get("command")
+        dimensions = check.get("dimensions")
+        if not isinstance(check_id, str) or not check_id:
+            errors.append("static check without a nonempty id")
+            continue
+        if check_id in check_ids:
+            errors.append(f"duplicate static check id: {check_id}")
+        check_ids.add(check_id)
+        if not isinstance(command, list) or not command or not all(
+            isinstance(item, str) and item for item in command
+        ):
+            errors.append(f"{check_id}: command must be a nonempty string array")
+        elif (
+            len(command) > 1
+            and command[0] == "python3"
+            and not relative(command[1]).exists()
+        ):
+            errors.append(f"{check_id}: checker does not exist: {command[1]}")
+        if not isinstance(dimensions, list) or not dimensions or any(
+            dimension not in DIMENSIONS for dimension in dimensions
+        ):
+            errors.append(
+                f"{check_id}: dimensions must name one or more coverage dimensions"
+            )
+
+    for family in families:
+        docs = family.get("docs", {})
+        if docs.get("status") != "complete":
+            continue
+        classification = docs.get("classification")
+        checker = docs.get("checker")
+        if not isinstance(classification, str) or not classification:
+            errors.append(f"{family['id']}: complete docs lack a classification")
+        if checker not in check_ids:
+            errors.append(
+                f"{family['id']}: docs checker {checker!r} is not registered"
+            )
+
+    probes = data.get("probe", [])
+    probe_ids: set[str] = set()
+    registered_manifests: set[Path] = set()
+    registered_probe_generators: set[Path] = set()
+    for probe in probes:
+        probe_id = probe.get("id")
+        generator_name = probe.get("generator")
+        manifest_name = probe.get("manifest")
+        outputs = probe.get("outputs")
+        expected_rows = probe.get("expected_rows")
+        family_refs = probe.get("families")
+        if not isinstance(probe_id, str) or not probe_id:
+            errors.append("probe without a nonempty id")
+            continue
+        if probe_id in probe_ids:
+            errors.append(f"duplicate probe id: {probe_id}")
+        probe_ids.add(probe_id)
+        if not isinstance(generator_name, str) or not generator_name:
+            errors.append(f"{probe_id}: generator must be a path")
+            continue
+        generator = relative(generator_name)
+        if not generator.exists():
+            errors.append(f"{probe_id}: generator does not exist: {generator_name}")
+        if generator.name.startswith("generate_") and generator.name.endswith("_probe.py"):
+            registered_probe_generators.add(generator)
+        if not isinstance(manifest_name, str) or not manifest_name:
+            errors.append(f"{probe_id}: manifest must be a path")
+            continue
+        manifest = relative(manifest_name)
+        if manifest in registered_manifests:
+            errors.append(f"{probe_id}: duplicate manifest ownership: {manifest_name}")
+        registered_manifests.add(manifest)
+        if not isinstance(expected_rows, int) or expected_rows <= 0:
+            errors.append(f"{probe_id}: expected_rows must be a positive integer")
+        elif not manifest.exists():
+            errors.append(f"{probe_id}: manifest does not exist: {manifest_name}")
+        else:
+            rows = [line for line in manifest.read_text().splitlines() if line.strip()]
+            if len(rows) != expected_rows:
+                errors.append(
+                    f"{probe_id}: manifest has {len(rows)} rows, expected {expected_rows}"
+                )
+            if len(set(rows)) != len(rows):
+                errors.append(f"{probe_id}: manifest contains duplicate rows")
+        if not isinstance(outputs, list) or any(
+            not isinstance(item, str) or not relative(item).exists() for item in outputs
+        ):
+            errors.append(f"{probe_id}: every generated output must exist")
+        if not isinstance(family_refs, list) or not family_refs:
+            errors.append(f"{probe_id}: families must be a nonempty array")
+        else:
+            for family_id in family_refs:
+                if family_id not in ids:
+                    errors.append(f"{probe_id}: unknown family {family_id!r}")
+
+    discovered_manifests = set(
+        (ROOT / "scripts" / "probes").glob("*_codegen_cases.txt")
+    )
+    if registered_manifests != discovered_manifests:
+        missing = sorted(
+            str(path.relative_to(ROOT))
+            for path in discovered_manifests - registered_manifests
+        )
+        extra = sorted(
+            str(path.relative_to(ROOT))
+            for path in registered_manifests - discovered_manifests
+        )
+        errors.append(
+            "probe manifest registry is not closed: "
+            f"unregistered={missing}, nonexistent={extra}"
+        )
+    discovered_generators = set((ROOT / "scripts").glob("generate_*_probe.py"))
+    if registered_probe_generators != discovered_generators:
+        missing = sorted(
+            str(path.relative_to(ROOT))
+            for path in discovered_generators - registered_probe_generators
+        )
+        extra = sorted(
+            str(path.relative_to(ROOT))
+            for path in registered_probe_generators - discovered_generators
+        )
+        errors.append(
+            "probe generator registry is not closed: "
+            f"unregistered={missing}, nonexistent={extra}"
+        )
+
+    completion = data.get("completion", {})
+    if not isinstance(completion.get("definition"), str) or not completion["definition"]:
+        errors.append("completion.definition must state the finite completion rule")
+    for requirement in (
+        "require_zero_gaps", "require_closed_probe_registry", "require_static_checks"
+    ):
+        if completion.get(requirement) is not True:
+            errors.append(f"completion.{requirement} must be true")
+
     declared_gaps = sorted(
         (family["id"], dimension)
         for family in families
@@ -243,6 +384,8 @@ def validate(data: dict, families: list[dict]) -> dict:
             "declared gaps differ from expected_gap ledger: "
             f"declared={declared_gaps}, expected={expected_gaps}"
         )
+    if data.get("completion", {}).get("require_zero_gaps") and declared_gaps:
+        errors.append("the completion contract requires a zero-gap inventory")
 
     if errors:
         raise ValueError("\n".join(errors))
@@ -272,6 +415,9 @@ def validate(data: dict, families: list[dict]) -> dict:
         "incomplete": incomplete,
         "total": total,
         "incomplete_overloads": incomplete_overloads,
+        "probes": probes,
+        "checks": checks,
+        "completion_definition": completion["definition"],
     }
 
 
@@ -304,6 +450,10 @@ def render_report(families: list[dict], state: dict) -> str:
         "the family. A required executable example must exercise an operation from that family.",
         "When a family does not introduce a distinct user workflow, the inventory must record",
         "why a maintained Guide explanation is more useful than a duplicate example.",
+        *textwrap.wrap(
+            "The definition of done is finite: " + state["completion_definition"],
+            width=88,
+        ),
         "",
         "## Declared gaps",
         "",
@@ -336,9 +486,36 @@ def render_report(families: list[dict], state: dict) -> str:
     ])
     for family in families:
         statuses = [family[dimension]["status"] for dimension in DIMENSIONS]
+        statuses[2] += f" ({family['docs'].get('classification', 'unclassified')})"
         lines.append(
             f"| {family['layer']} | `{family['id']}` | "
             f"{state['family_counts'][family['id']]} | " + " | ".join(statuses) + " |"
+        )
+    lines.extend([
+        "",
+        "## Generated probe ledger",
+        "",
+        "| Probe | Generator | Manifest rows | Families |",
+        "| --- | --- | ---: | --- |",
+    ])
+    for probe in state["probes"]:
+        lines.append(
+            f"| `{probe['id']}` | `{probe['generator']}` | "
+            f"{probe['expected_rows']} | "
+            + ", ".join(f"`{family}`" for family in probe["families"])
+            + " |"
+        )
+    lines.extend([
+        "",
+        "## Static check ledger",
+        "",
+        "| Check | Dimensions | Command |",
+        "| --- | --- | --- |",
+    ])
+    for check in state["checks"]:
+        lines.append(
+            f"| `{check['id']}` | {', '.join(check['dimensions'])} | "
+            f"`{' '.join(check['command'])}` |"
         )
     lines.extend([
         "",
@@ -349,22 +526,50 @@ def render_report(families: list[dict], state: dict) -> str:
         "or an undeclared status change. Run the zero-gap completion gate with:",
         "",
         "```sh",
-        "python3 scripts/check_simd_coverage.py --require-complete",
+        "python3 scripts/check_simd_coverage.py --check-probes --check-static --require-complete",
         "```",
         "",
     ])
     return "\n".join(lines)
 
 
+def run_commands(
+    data: dict,
+    check_probes: bool,
+    generate_probes: bool,
+    check_static: bool,
+) -> None:
+    """Run the generator and static-check registries in deterministic order."""
+    if check_probes or generate_probes:
+        seen: set[str] = set()
+        for probe in data.get("probe", []):
+            generator = probe["generator"]
+            if generator in seen:
+                continue
+            seen.add(generator)
+            command = ["python3", generator]
+            if check_probes:
+                command.append("--check")
+            subprocess.run(command, cwd=ROOT, check=True)
+    if check_static:
+        for check in data.get("static_check", []):
+            subprocess.run(check["command"], cwd=ROOT, check=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write-report", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    probe_mode = parser.add_mutually_exclusive_group()
+    probe_mode.add_argument("--generate-probes", action="store_true")
+    probe_mode.add_argument("--check-probes", action="store_true")
+    parser.add_argument("--check-static", action="store_true")
     args = parser.parse_args()
     try:
         data, families = load_inventory()
         state = validate(data, families)
-    except (OSError, ValueError, tomllib.TOMLDecodeError) as exc:
+        run_commands(data, args.check_probes, args.generate_probes, args.check_static)
+    except (OSError, ValueError, subprocess.CalledProcessError, tomllib.TOMLDecodeError) as exc:
         print(f"SIMD coverage inventory error:\n{exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 

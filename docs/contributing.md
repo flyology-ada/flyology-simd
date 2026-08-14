@@ -6,17 +6,23 @@ fixed random seed; preserve reproducibility or print any replacement seed.
 
 Every public fixed-width and Wide overload is assigned to one family in
 `scripts/simd_coverage.toml`. The inventory records semantic, generated-code,
-exact API-documentation, and teaching evidence, and it names every accepted
-gap together with its deterministic closure. Reproduce `docs/coverage.md` and
-validate the public declaration totals and gap ledger with:
+API-documentation, and teaching evidence. It also owns every generated caller
+probe, manifest row count, static checker, documentation classification, and
+accepted gap together with its deterministic closure. Reproduce every probe and
+`docs/coverage.md`, run the registered static checks, and enforce the finite
+zero-gap definition of done with:
 
 ```sh
-python3 scripts/check_simd_coverage.py --write-report --require-complete
+python3 scripts/check_simd_coverage.py \
+  --generate-probes --check-static --write-report --require-complete
 ```
 
-CI runs that zero-gap command before its clean-tree check. It fails when the
-declared gap set is nonempty, when teaching evidence omits an operation, or
-when a family that requires an executable example does not name one.
+Use `--check-probes` instead of `--generate-probes` for a read-only freshness
+check. CI runs the generating zero-gap command before its clean-tree check. It
+fails when a probe generator or manifest is not registered, a manifest has the
+wrong number of unique rows, the declared gap set is nonempty, documentation
+classification lacks its registered checker, teaching evidence omits an
+operation, or a family that requires an executable example does not name one.
 
 ## Adding a backend
 
@@ -42,47 +48,6 @@ both `simd_tests` and `family_tests`; generated family files are reproduced by
 `scripts/generate_full_family.py`, `scripts/generate_backends.py`, and
 `scripts/generate_conversion_tests.py`, in that order.
 
-The generated `U8x16` value-operation caller probe and its 26-operation
-manifest are reproduced by `scripts/generate_u8_value_probe.py`.
-The generated 128-bit integer-reduction caller probe and its 24-operation
-manifest are reproduced by `scripts/generate_integer_reduction_probe.py`.
-The generated fixed-width floating binary-operation caller probe and its
-12-operation manifest are reproduced by `scripts/generate_float_binary_probe.py`.
-The generated complete 128-bit memory caller probe and its 60-operation
-manifest are reproduced by `scripts/generate_complete_memory_probe.py`.
-The generated fixed-width comparison and selection caller probe and its
-62-operation manifest are reproduced by `scripts/generate_comparison_probe.py`.
-The generated fixed-width wrapping-arithmetic caller probe and its
-24-operation manifest are reproduced by
-`scripts/generate_wrapping_arithmetic_probe.py`.
-The generated fixed-width saturating-arithmetic probe and its 16-operation
-manifest are reproduced by `scripts/generate_saturating_arithmetic_probe.py`.
-The generated fixed-width integer-conversion probe and its 35-operation
-manifest are reproduced by `scripts/generate_integer_conversion_probe.py`.
-The generated Wide saturating-arithmetic probe and its 16-operation manifest
-are reproduced by `scripts/generate_wide_saturating_arithmetic_probe.py`.
-The generated Wide wrapping-arithmetic probe and its 24-operation manifest are
-reproduced by `scripts/generate_wide_wrapping_arithmetic_probe.py`.
-The generated Wide integer-bitwise probe and its 32-operation manifest are
-reproduced by `scripts/generate_wide_bitwise_probe.py`.
-The generated Wide integer-shift probe and its 20-operation manifest are
-reproduced by `scripts/generate_wide_shift_probe.py`.
-The generated Wide integer-Min/Max probe and its 16-operation manifest are
-reproduced by `scripts/generate_wide_minmax_probe.py`.
-The generated Wide compact-mask probe and its 52-operation manifest are
-reproduced by `scripts/generate_wide_mask_probe.py`.
-The generated fixed-width compact-mask core probe and its 40-operation
-manifest are reproduced by `scripts/generate_mask_core_probe.py`.
-The generated fixed-width lane-arrangement caller probe and its 50-operation
-manifest are reproduced by `scripts/generate_lane_arrangement_probe.py`.
-The generated fixed-width bitwise caller probe and its 32-operation manifest
-are reproduced by `scripts/generate_bitwise_probe.py`.
-The generated fixed-width integer `Min`/`Max` probe and its 16-operation
-manifest are reproduced by `scripts/generate_integer_minmax_probe.py`.
-The generated Wide integer-reduction caller probe and its 24-operation
-manifest are reproduced by `scripts/generate_wide_reduction_probe.py`.
-The generated Wide construction and lane-access caller probe and its
-60-operation manifest are reproduced by
-`scripts/generate_wide_construction_probe.py`.
-The generated Wide comparison and selection caller probe and its 62-operation
-manifest are reproduced by `scripts/generate_wide_comparison_probe.py`.
+Generated caller-probe ownership is declared only in the `[[probe]]` entries of
+`scripts/simd_coverage.toml`; do not maintain a second handwritten list here.
+The generated probe ledger in `docs/coverage.md` is the human-readable index.

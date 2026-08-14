@@ -1,7 +1,212 @@
-schema = 1
+schema = 2
 expected_overloads = { fixed = 606, wide = 604 }
 split_operations = ["Widen_Low", "Widen_High"]
 expected_gap = []
+
+[completion]
+definition = "Every public overload is assigned exactly once and every semantic, code-generation, API-documentation, and teaching dimension is complete or explicitly not applicable. Every generated probe manifest and static checker is owned by this file. No declared gap is accepted."
+require_zero_gaps = true
+require_closed_probe_registry = true
+require_static_checks = true
+
+[[static_check]]
+id = "backend-contracts"
+command = ["python3", "scripts/check_backend_contracts.py"]
+dimensions = ["codegen"]
+
+[[static_check]]
+id = "api-support"
+command = ["python3", "scripts/check_api_support_docs.py"]
+dimensions = ["docs"]
+
+[[static_check]]
+id = "coverage-contract"
+command = ["python3", "scripts/test_simd_coverage.py"]
+dimensions = ["semantic", "codegen", "docs", "teaching"]
+
+[[probe]]
+id = "u8-value"
+generator = "scripts/generate_u8_value_probe.py"
+manifest = "scripts/probes/u8_value_codegen_cases.txt"
+outputs = ["scripts/probes/u8_value_codegen_probe.ads", "scripts/probes/u8_value_codegen_probe.adb"]
+expected_rows = 26
+families = ["fixed-wrapping-arithmetic", "fixed-saturating-arithmetic", "fixed-bitwise", "fixed-integer-minmax", "fixed-comparison-selection", "fixed-lane-arrangement", "fixed-integer-reductions"]
+
+[[probe]]
+id = "integer-reduction"
+generator = "scripts/generate_integer_reduction_probe.py"
+manifest = "scripts/probes/integer_reduction_codegen_cases.txt"
+outputs = ["scripts/probes/integer_reduction_codegen_probe.ads", "scripts/probes/integer_reduction_codegen_probe.adb"]
+expected_rows = 24
+families = ["fixed-integer-reductions"]
+
+[[probe]]
+id = "float-binary"
+generator = "scripts/generate_float_binary_probe.py"
+manifest = "scripts/probes/float_binary_codegen_cases.txt"
+outputs = ["scripts/probes/float_binary_codegen_probe.ads", "scripts/probes/float_binary_codegen_probe.adb"]
+expected_rows = 12
+families = ["fixed-float-binary"]
+
+[[probe]]
+id = "complete-memory"
+generator = "scripts/generate_complete_memory_probe.py"
+manifest = "scripts/probes/complete_memory_codegen_cases.txt"
+outputs = ["scripts/probes/complete_memory_codegen_probe.ads", "scripts/probes/complete_memory_codegen_probe.adb"]
+expected_rows = 60
+families = ["fixed-memory"]
+
+[[probe]]
+id = "comparison"
+generator = "scripts/generate_comparison_probe.py"
+manifest = "scripts/probes/comparison_codegen_cases.txt"
+outputs = ["scripts/probes/comparison_codegen_probe.ads", "scripts/probes/comparison_codegen_probe.adb"]
+expected_rows = 62
+families = ["fixed-comparison-selection"]
+
+[[probe]]
+id = "wrapping-arithmetic"
+generator = "scripts/generate_wrapping_arithmetic_probe.py"
+manifest = "scripts/probes/wrapping_arithmetic_codegen_cases.txt"
+outputs = ["scripts/probes/wrapping_arithmetic_codegen_probe.ads", "scripts/probes/wrapping_arithmetic_codegen_probe.adb"]
+expected_rows = 24
+families = ["fixed-wrapping-arithmetic"]
+
+[[probe]]
+id = "lane-arrangement"
+generator = "scripts/generate_lane_arrangement_probe.py"
+manifest = "scripts/probes/lane_arrangement_codegen_cases.txt"
+outputs = ["scripts/probes/lane_arrangement_codegen_probe.ads", "scripts/probes/lane_arrangement_codegen_probe.adb"]
+expected_rows = 50
+families = ["fixed-lane-arrangement"]
+
+[[probe]]
+id = "bitwise"
+generator = "scripts/generate_bitwise_probe.py"
+manifest = "scripts/probes/bitwise_codegen_cases.txt"
+outputs = ["scripts/probes/bitwise_codegen_probe.ads", "scripts/probes/bitwise_codegen_probe.adb"]
+expected_rows = 32
+families = ["fixed-bitwise"]
+
+[[probe]]
+id = "integer-minmax"
+generator = "scripts/generate_integer_minmax_probe.py"
+manifest = "scripts/probes/integer_minmax_codegen_cases.txt"
+outputs = ["scripts/probes/integer_minmax_codegen_probe.ads", "scripts/probes/integer_minmax_codegen_probe.adb"]
+expected_rows = 16
+families = ["fixed-integer-minmax"]
+
+[[probe]]
+id = "saturating-arithmetic"
+generator = "scripts/generate_saturating_arithmetic_probe.py"
+manifest = "scripts/probes/saturating_arithmetic_codegen_cases.txt"
+outputs = ["scripts/probes/saturating_arithmetic_codegen_probe.ads", "scripts/probes/saturating_arithmetic_codegen_probe.adb"]
+expected_rows = 16
+families = ["fixed-saturating-arithmetic"]
+
+[[probe]]
+id = "integer-conversion"
+generator = "scripts/generate_integer_conversion_probe.py"
+manifest = "scripts/probes/integer_conversion_codegen_cases.txt"
+outputs = ["scripts/probes/integer_conversion_codegen_probe.ads", "scripts/probes/integer_conversion_codegen_probe.adb"]
+expected_rows = 35
+families = ["fixed-integer-width-conversions", "fixed-signedness-conversions"]
+
+[[probe]]
+id = "wide-saturating-arithmetic"
+generator = "scripts/generate_wide_saturating_arithmetic_probe.py"
+manifest = "scripts/probes/wide_saturating_arithmetic_codegen_cases.txt"
+outputs = ["scripts/probes/wide_saturating_arithmetic_codegen_probe.ads", "scripts/probes/wide_saturating_arithmetic_codegen_probe.adb"]
+expected_rows = 16
+families = ["wide-saturating-arithmetic"]
+
+[[probe]]
+id = "wide-wrapping-arithmetic"
+generator = "scripts/generate_wide_wrapping_arithmetic_probe.py"
+manifest = "scripts/probes/wide_wrapping_arithmetic_codegen_cases.txt"
+outputs = ["scripts/probes/wide_wrapping_arithmetic_codegen_probe.ads", "scripts/probes/wide_wrapping_arithmetic_codegen_probe.adb"]
+expected_rows = 24
+families = ["wide-wrapping-arithmetic"]
+
+[[probe]]
+id = "wide-bitwise"
+generator = "scripts/generate_wide_bitwise_probe.py"
+manifest = "scripts/probes/wide_bitwise_codegen_cases.txt"
+outputs = ["scripts/probes/wide_bitwise_codegen_probe.ads", "scripts/probes/wide_bitwise_codegen_probe.adb"]
+expected_rows = 32
+families = ["wide-bitwise"]
+
+[[probe]]
+id = "wide-shift"
+generator = "scripts/generate_wide_shift_probe.py"
+manifest = "scripts/probes/wide_shift_codegen_cases.txt"
+outputs = ["scripts/probes/wide_shift_codegen_probe.ads", "scripts/probes/wide_shift_codegen_probe.adb"]
+expected_rows = 20
+families = ["wide-shifts"]
+
+[[probe]]
+id = "wide-minmax"
+generator = "scripts/generate_wide_minmax_probe.py"
+manifest = "scripts/probes/wide_minmax_codegen_cases.txt"
+outputs = ["scripts/probes/wide_minmax_codegen_probe.ads", "scripts/probes/wide_minmax_codegen_probe.adb"]
+expected_rows = 16
+families = ["wide-integer-minmax"]
+
+[[probe]]
+id = "wide-mask"
+generator = "scripts/generate_wide_mask_probe.py"
+manifest = "scripts/probes/wide_mask_codegen_cases.txt"
+outputs = ["scripts/probes/wide_mask_codegen_probe.ads", "scripts/probes/wide_mask_codegen_probe.adb"]
+expected_rows = 52
+families = ["wide-masks"]
+
+[[probe]]
+id = "mask-core"
+generator = "scripts/generate_mask_core_probe.py"
+manifest = "scripts/probes/mask_core_codegen_cases.txt"
+outputs = ["scripts/probes/mask_core_codegen_probe.ads", "scripts/probes/mask_core_codegen_probe.adb"]
+expected_rows = 40
+families = ["fixed-mask-core"]
+
+[[probe]]
+id = "wide-reduction"
+generator = "scripts/generate_wide_reduction_probe.py"
+manifest = "scripts/probes/wide_reduction_codegen_cases.txt"
+outputs = ["scripts/probes/wide_reduction_codegen_probe.ads", "scripts/probes/wide_reduction_codegen_probe.adb"]
+expected_rows = 24
+families = ["wide-integer-reductions"]
+
+[[probe]]
+id = "wide-construction"
+generator = "scripts/generate_wide_construction_probe.py"
+manifest = "scripts/probes/wide_construction_codegen_cases.txt"
+outputs = ["scripts/probes/wide_construction_codegen_probe.ads", "scripts/probes/wide_construction_codegen_probe.adb"]
+expected_rows = 60
+families = ["wide-construction-access"]
+
+[[probe]]
+id = "wide-comparison"
+generator = "scripts/generate_wide_comparison_probe.py"
+manifest = "scripts/probes/wide_comparison_codegen_cases.txt"
+outputs = ["scripts/probes/wide_comparison_codegen_probe.ads", "scripts/probes/wide_comparison_codegen_probe.adb"]
+expected_rows = 62
+families = ["wide-comparison-selection"]
+
+[[probe]]
+id = "wide-memory"
+generator = "scripts/generate_wide_family.py"
+manifest = "scripts/probes/wide_memory_codegen_cases.txt"
+outputs = ["scripts/probes/wide_memory_codegen_probe.ads", "scripts/probes/wide_memory_codegen_probe.adb"]
+expected_rows = 80
+families = ["wide-memory"]
+
+[[probe]]
+id = "wide-non-numeric-conversion"
+generator = "scripts/generate_wide_family.py"
+manifest = "scripts/probes/wide_non_numeric_conversion_codegen_cases.txt"
+outputs = []
+expected_rows = 38
+families = ["wide-integer-width-conversions", "wide-float-width-conversions", "wide-signedness-conversions"]
 
 [profile.fixed_semantic]
 status = "complete"
@@ -46,6 +251,8 @@ reason = "The operation is portable Ada policy or map construction and has no se
 [profile.api_docs]
 status = "complete"
 evidence = ["scripts/check_api_support_docs.py"]
+classification = "cross-platform-support-checked"
+checker = "api-support"
 
 [profile.teaching_operations]
 status = "complete"

@@ -36,33 +36,11 @@ jobs:
         run: |
           python3 scripts/generate_full_family.py
           python3 scripts/generate_backends.py
-          python3 scripts/generate_u8_value_probe.py
-          python3 scripts/generate_integer_reduction_probe.py
-          python3 scripts/generate_float_binary_probe.py
-          python3 scripts/generate_complete_memory_probe.py
-          python3 scripts/generate_comparison_probe.py
-          python3 scripts/generate_wrapping_arithmetic_probe.py
-          python3 scripts/generate_lane_arrangement_probe.py
-          python3 scripts/generate_bitwise_probe.py
-          python3 scripts/generate_integer_minmax_probe.py
-          python3 scripts/generate_saturating_arithmetic_probe.py
-          python3 scripts/generate_integer_conversion_probe.py
-          python3 scripts/generate_wide_saturating_arithmetic_probe.py
-          python3 scripts/generate_wide_wrapping_arithmetic_probe.py
-          python3 scripts/generate_wide_bitwise_probe.py
-          python3 scripts/generate_wide_shift_probe.py
-          python3 scripts/generate_wide_minmax_probe.py
-          python3 scripts/generate_wide_mask_probe.py
-          python3 scripts/generate_mask_core_probe.py
-          python3 scripts/generate_wide_reduction_probe.py
-          python3 scripts/generate_wide_construction_probe.py
-          python3 scripts/generate_wide_comparison_probe.py
           python3 scripts/generate_conversion_tests.py
           python3 scripts/generate_wide_family.py
           python3 scripts/generate_wide_tests.py
-          python3 scripts/check_backend_contracts.py
-          python3 scripts/check_api_support_docs.py
-          python3 scripts/check_simd_coverage.py --write-report --require-complete
+          python3 scripts/check_simd_coverage.py \
+            --generate-probes --check-static --write-report --require-complete
           git diff --exit-code
       - name: Reject Wide AVX2 without AVX2 objects
         if: ${{ matrix.architecture == 'x86_64' && matrix.avx2 == 'disabled' }}

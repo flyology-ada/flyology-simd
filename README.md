@@ -127,7 +127,9 @@ alr exec -- gprbuild -p -P examples/examples.gpr
 
 See
 [benchmarking](docs/benchmarking.md) for benchmark commands and
-[backend support](docs/backends.md) for the exact status matrix.
+[backend support](docs/backends.md) for the exact status matrix. The generated
+[SIMD coverage ledger](docs/coverage.md) records the finite definition of done,
+all 1,210 public overload assignments, generated probes, and registered checks.
 
 ## Documentation site
 

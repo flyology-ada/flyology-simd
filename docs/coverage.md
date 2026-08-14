@@ -19,6 +19,10 @@ Teaching coverage requires the maintained Guide evidence to name every operation
 the family. A required executable example must exercise an operation from that family.
 When a family does not introduce a distinct user workflow, the inventory must record
 why a maintained Guide explanation is more useful than a duplicate example.
+The definition of done is finite: Every public overload is assigned exactly once and
+every semantic, code-generation, API-documentation, and teaching dimension is complete
+or explicitly not applicable. Every generated probe manifest and static checker is owned
+by this file. No declared gap is accepted.
 
 ## Declared gaps
 
@@ -28,56 +32,92 @@ None.
 
 | Layer | Family | Overloads | Semantic | Codegen | Docs | Teaching |
 | --- | --- | ---: | --- | --- | --- | --- |
-| fixed | `fixed-contracts` | 1 | complete | not_applicable | complete | complete |
-| fixed | `fixed-alignment` | 10 | complete | complete | complete | complete |
-| fixed | `fixed-map-construction` | 16 | complete | not_applicable | complete | complete |
-| fixed | `fixed-construction-access` | 60 | complete | complete | complete | complete |
-| fixed | `fixed-memory` | 80 | complete | complete | complete | complete |
-| fixed | `fixed-wrapping-arithmetic` | 24 | complete | complete | complete | complete |
-| fixed | `fixed-saturating-arithmetic` | 16 | complete | complete | complete | complete |
-| fixed | `fixed-bitwise` | 32 | complete | complete | complete | complete |
-| fixed | `fixed-integer-minmax` | 16 | complete | complete | complete | complete |
-| fixed | `fixed-shifts` | 20 | complete | complete | complete | complete |
-| fixed | `fixed-comparison-selection` | 62 | complete | complete | complete | complete |
-| fixed | `fixed-lane-arrangement` | 51 | complete | complete | complete | complete |
-| fixed | `fixed-permute-slides` | 40 | complete | complete | complete | complete |
-| fixed | `fixed-compress-expand` | 20 | complete | complete | complete | complete |
-| fixed | `fixed-integer-reductions` | 24 | complete | complete | complete | complete |
-| fixed | `fixed-float-binary` | 12 | complete | complete | complete | complete |
-| fixed | `fixed-float-reductions` | 6 | complete | complete | complete | complete |
-| fixed | `fixed-mask-core` | 40 | complete | complete | complete | complete |
-| fixed | `fixed-mask-positions` | 12 | complete | complete | complete | complete |
-| fixed | `fixed-bitcasts` | 16 | complete | complete | complete | complete |
-| fixed | `fixed-integer-width-conversions` | 27 | complete | complete | complete | complete |
-| fixed | `fixed-float-width-conversions` | 3 | complete | complete | complete | complete |
-| fixed | `fixed-signedness-conversions` | 8 | complete | complete | complete | complete |
-| fixed | `fixed-numeric-conversions` | 8 | complete | complete | complete | complete |
-| fixed | `fixed-table-lookup` | 1 | complete | complete | complete | complete |
-| fixed | `fixed-horizontal-sum` | 1 | complete | complete | complete | complete |
-| wide | `wide-alignment` | 10 | complete | complete | complete | complete |
-| wide | `wide-map-construction` | 16 | complete | not_applicable | complete | complete |
-| wide | `wide-construction-access` | 60 | complete | complete | complete | complete |
-| wide | `wide-memory` | 80 | complete | complete | complete | complete |
-| wide | `wide-wrapping-arithmetic` | 24 | complete | complete | complete | complete |
-| wide | `wide-saturating-arithmetic` | 16 | complete | complete | complete | complete |
-| wide | `wide-bitwise` | 32 | complete | complete | complete | complete |
-| wide | `wide-integer-minmax` | 16 | complete | complete | complete | complete |
-| wide | `wide-shifts` | 20 | complete | complete | complete | complete |
-| wide | `wide-comparison-selection` | 62 | complete | complete | complete | complete |
-| wide | `wide-lane-arrangement` | 50 | complete | complete | complete | complete |
-| wide | `wide-permute-slides` | 40 | complete | complete | complete | complete |
-| wide | `wide-compress-expand` | 20 | complete | complete | complete | complete |
-| wide | `wide-integer-reductions` | 24 | complete | complete | complete | complete |
-| wide | `wide-float-binary` | 12 | complete | complete | complete | complete |
-| wide | `wide-float-reductions` | 6 | complete | complete | complete | complete |
-| wide | `wide-masks` | 52 | complete | complete | complete | complete |
-| wide | `wide-bitcasts` | 16 | complete | complete | complete | complete |
-| wide | `wide-integer-width-conversions` | 27 | complete | complete | complete | complete |
-| wide | `wide-float-width-conversions` | 3 | complete | complete | complete | complete |
-| wide | `wide-signedness-conversions` | 8 | complete | complete | complete | complete |
-| wide | `wide-numeric-conversions` | 8 | complete | complete | complete | complete |
-| wide | `wide-table-lookup` | 1 | complete | complete | complete | complete |
-| wide | `wide-horizontal-sum` | 1 | complete | complete | complete | complete |
+| fixed | `fixed-contracts` | 1 | complete | not_applicable | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-alignment` | 10 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-map-construction` | 16 | complete | not_applicable | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-construction-access` | 60 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-memory` | 80 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-wrapping-arithmetic` | 24 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-saturating-arithmetic` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-bitwise` | 32 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-integer-minmax` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-shifts` | 20 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-comparison-selection` | 62 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-lane-arrangement` | 51 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-permute-slides` | 40 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-compress-expand` | 20 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-integer-reductions` | 24 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-float-binary` | 12 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-float-reductions` | 6 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-mask-core` | 40 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-mask-positions` | 12 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-bitcasts` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-integer-width-conversions` | 27 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-float-width-conversions` | 3 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-signedness-conversions` | 8 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-numeric-conversions` | 8 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-table-lookup` | 1 | complete | complete | complete (cross-platform-support-checked) | complete |
+| fixed | `fixed-horizontal-sum` | 1 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-alignment` | 10 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-map-construction` | 16 | complete | not_applicable | complete (cross-platform-support-checked) | complete |
+| wide | `wide-construction-access` | 60 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-memory` | 80 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-wrapping-arithmetic` | 24 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-saturating-arithmetic` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-bitwise` | 32 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-integer-minmax` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-shifts` | 20 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-comparison-selection` | 62 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-lane-arrangement` | 50 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-permute-slides` | 40 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-compress-expand` | 20 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-integer-reductions` | 24 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-float-binary` | 12 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-float-reductions` | 6 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-masks` | 52 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-bitcasts` | 16 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-integer-width-conversions` | 27 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-float-width-conversions` | 3 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-signedness-conversions` | 8 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-numeric-conversions` | 8 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-table-lookup` | 1 | complete | complete | complete (cross-platform-support-checked) | complete |
+| wide | `wide-horizontal-sum` | 1 | complete | complete | complete (cross-platform-support-checked) | complete |
+
+## Generated probe ledger
+
+| Probe | Generator | Manifest rows | Families |
+| --- | --- | ---: | --- |
+| `u8-value` | `scripts/generate_u8_value_probe.py` | 26 | `fixed-wrapping-arithmetic`, `fixed-saturating-arithmetic`, `fixed-bitwise`, `fixed-integer-minmax`, `fixed-comparison-selection`, `fixed-lane-arrangement`, `fixed-integer-reductions` |
+| `integer-reduction` | `scripts/generate_integer_reduction_probe.py` | 24 | `fixed-integer-reductions` |
+| `float-binary` | `scripts/generate_float_binary_probe.py` | 12 | `fixed-float-binary` |
+| `complete-memory` | `scripts/generate_complete_memory_probe.py` | 60 | `fixed-memory` |
+| `comparison` | `scripts/generate_comparison_probe.py` | 62 | `fixed-comparison-selection` |
+| `wrapping-arithmetic` | `scripts/generate_wrapping_arithmetic_probe.py` | 24 | `fixed-wrapping-arithmetic` |
+| `lane-arrangement` | `scripts/generate_lane_arrangement_probe.py` | 50 | `fixed-lane-arrangement` |
+| `bitwise` | `scripts/generate_bitwise_probe.py` | 32 | `fixed-bitwise` |
+| `integer-minmax` | `scripts/generate_integer_minmax_probe.py` | 16 | `fixed-integer-minmax` |
+| `saturating-arithmetic` | `scripts/generate_saturating_arithmetic_probe.py` | 16 | `fixed-saturating-arithmetic` |
+| `integer-conversion` | `scripts/generate_integer_conversion_probe.py` | 35 | `fixed-integer-width-conversions`, `fixed-signedness-conversions` |
+| `wide-saturating-arithmetic` | `scripts/generate_wide_saturating_arithmetic_probe.py` | 16 | `wide-saturating-arithmetic` |
+| `wide-wrapping-arithmetic` | `scripts/generate_wide_wrapping_arithmetic_probe.py` | 24 | `wide-wrapping-arithmetic` |
+| `wide-bitwise` | `scripts/generate_wide_bitwise_probe.py` | 32 | `wide-bitwise` |
+| `wide-shift` | `scripts/generate_wide_shift_probe.py` | 20 | `wide-shifts` |
+| `wide-minmax` | `scripts/generate_wide_minmax_probe.py` | 16 | `wide-integer-minmax` |
+| `wide-mask` | `scripts/generate_wide_mask_probe.py` | 52 | `wide-masks` |
+| `mask-core` | `scripts/generate_mask_core_probe.py` | 40 | `fixed-mask-core` |
+| `wide-reduction` | `scripts/generate_wide_reduction_probe.py` | 24 | `wide-integer-reductions` |
+| `wide-construction` | `scripts/generate_wide_construction_probe.py` | 60 | `wide-construction-access` |
+| `wide-comparison` | `scripts/generate_wide_comparison_probe.py` | 62 | `wide-comparison-selection` |
+| `wide-memory` | `scripts/generate_wide_family.py` | 80 | `wide-memory` |
+| `wide-non-numeric-conversion` | `scripts/generate_wide_family.py` | 38 | `wide-integer-width-conversions`, `wide-float-width-conversions`, `wide-signedness-conversions` |
+
+## Static check ledger
+
+| Check | Dimensions | Command |
+| --- | --- | --- |
+| `backend-contracts` | codegen | `python3 scripts/check_backend_contracts.py` |
+| `api-support` | docs | `python3 scripts/check_api_support_docs.py` |
+| `coverage-contract` | semantic, codegen, docs, teaching | `python3 scripts/test_simd_coverage.py` |
 
 ## Enforcement
 
@@ -86,5 +126,5 @@ an added, removed, duplicated, or miscounted public overload; missing evidence f
 or an undeclared status change. Run the zero-gap completion gate with:
 
 ```sh
-python3 scripts/check_simd_coverage.py --require-complete
+python3 scripts/check_simd_coverage.py --check-probes --check-static --require-complete
 ```
