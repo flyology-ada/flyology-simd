@@ -2929,6 +2929,16 @@ def test_program() -> str:
                 "      Reduction_Order : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), Bits_To_I64x2 (16#0000_0001_0000_0000#)]);",
             ],
         }.get(vector, [])
+        minmax_edges = {
+            "U64x2": [
+                "      Minmax_Left : constant U64x2 := From_Lanes ([16#0000_0001_FFFF_FFFF#, 16#8000_0000_0000_0000#]);",
+                "      Minmax_Right : constant U64x2 := From_Lanes ([16#0000_0001_0000_0000#, 16#7FFF_FFFF_FFFF_FFFF#]);",
+            ],
+            "I64x2": [
+                "      Minmax_Left : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), I64'First]);",
+                "      Minmax_Right : constant I64x2 := From_Lanes ([Bits_To_I64x2 (16#0000_0001_0000_0000#), I64'Last]);",
+            ],
+        }.get(vector, [])
         lines += [
             *helpers,
             f"   function Reference_Add_Saturate_{vector} (Left, Right : {scalar}) return {scalar} is",
@@ -3066,6 +3076,7 @@ def test_program() -> str:
             f"      Aligned_Data : {arr} (0 .. {lanes - 1}) := [others => 0] with Alignment => 16;",
             f"      Maximum_Index_Data : {arr} (Natural'Last .. Natural'Last) := [others => {scalar} (1)];",
             *saturation_edges,
+            *minmax_edges,
             *reduction_edges,
             *(
                 [
@@ -3109,6 +3120,7 @@ def test_program() -> str:
             f"         Check (Extract (Bitwise_Or (A, B), Lane) = {fixed_or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (A, B), Lane) = {fixed_or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (A, B), Lane) = {fixed_or_oracle}, \"{vector} independent fixed root, Scalar, and Native OR oracle\" & Lane'Image);",
             f"         Check (Extract (Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (A, B), Lane) = {fixed_xor_oracle}, \"{vector} independent fixed root, Scalar, and Native XOR oracle\" & Lane'Image);",
             f"         Check (Extract (Bitwise_Not (A), Lane) = {fixed_not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (A), Lane) = {fixed_not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (A), Lane) = {fixed_not_oracle}, \"{vector} independent fixed root, Scalar, and Native NOT oracle\" & Lane'Image);",
+            f"         Check (Extract (Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Extract (Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)), \"{vector} independent fixed root, Scalar, and Native min/max oracle\" & Lane'Image);",
             "      end loop;",
             f"      for Lane in {lane_index(bits, lanes)} loop",
             f"         Check (Extract (Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = {edge_and_oracle}, \"{vector} directed zero, one, alternating, and sign-bit AND\" & Lane'Image);",
@@ -3145,6 +3157,10 @@ def test_program() -> str:
         if vector == "I64x2":
             lines.append(
                 "      Check (Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Scalar.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Backends.Native.Reduce_Min (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_0000_0000#) and then Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Scalar.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#) and then Backends.Native.Reduce_Max (Reduction_Order) = Bits_To_I64x2 (16#0000_0001_FFFF_FFFF#), \"I64x2 independent equal-high-word reduction boundary\");"
+            )
+        if bits == 64:
+            lines.append(
+                f"      for Lane in {lane_index(bits, lanes)} loop Check (Extract (Min (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) < Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Min (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) < Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)) and then Backends.Native.Extract (Backends.Native.Min (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) < Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)) and then Extract (Max (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) > Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Max (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) > Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)) and then Backends.Native.Extract (Backends.Native.Max (Minmax_Left, Minmax_Right), Lane) = (if Extract (Minmax_Left, Lane) > Extract (Minmax_Right, Lane) then Extract (Minmax_Left, Lane) else Extract (Minmax_Right, Lane)), \"{vector} directed top-bit and equal-high-word root, Scalar, and Native min/max\" & Lane'Image); end loop;"
             )
         lines += [
             f"      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), \"{vector} not\");",
@@ -3296,7 +3312,7 @@ def test_program() -> str:
             f"               Check (Extract (Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (R_A, R_B), Lane) = {or_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Or (R_A, R_B), Lane) = {or_oracle}, \"{vector} randomized independent root, Scalar, and Native OR oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (R_A, R_B), Lane) = {xor_oracle}, \"{vector} randomized independent root, Scalar, and Native XOR oracle\" & Lane'Image);",
             f"               Check (Extract (Bitwise_Not (R_A), Lane) = {not_oracle} and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (R_A), Lane) = {not_oracle} and then Backends.Native.Extract (Backends.Native.Bitwise_Not (R_A), Lane) = {not_oracle}, \"{vector} randomized independent root, Scalar, and Native NOT oracle\" & Lane'Image);",
-            f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} independent min/max oracle\" & Lane'Image);",
+            f"               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), \"{vector} randomized independent root, Scalar, and Native min/max oracle\" & Lane'Image);",
             f"               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), \"{vector} independent comparison oracle\" & Lane'Image);",
             "            end loop;",
             "         end;",

@@ -51,6 +51,7 @@ comparison_probe_object="$probe_root/comparison_codegen_probe.o"
 wrapping_arithmetic_probe_object="$probe_root/wrapping_arithmetic_codegen_probe.o"
 lane_arrangement_probe_object="$probe_root/lane_arrangement_codegen_probe.o"
 bitwise_probe_object="$probe_root/bitwise_codegen_probe.o"
+integer_minmax_probe_object="$probe_root/integer_minmax_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -91,6 +92,13 @@ if command -v otool >/dev/null 2>&1; then
       grep -Ev '<ltmp[0-9]+>:$' >"$temporary/bitwise-probe.txt"
 else
     objdump -dr "$bitwise_probe_object" >"$temporary/bitwise-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$integer_minmax_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/integer-minmax-probe.txt"
+else
+    objdump -dr "$integer_minmax_probe_object" \
+      >"$temporary/integer-minmax-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$float_binary_probe_object" |
@@ -223,6 +231,8 @@ nm -u "$wrapping_arithmetic_probe_object" \
 nm -u "$lane_arrangement_probe_object" \
   >"$temporary/lane-arrangement-undefined.txt"
 nm -u "$bitwise_probe_object" >"$temporary/bitwise-undefined.txt"
+nm -u "$integer_minmax_probe_object" \
+  >"$temporary/integer-minmax-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1169,6 +1179,40 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?bitwise_(and|or|xor|not)|fly
   "$temporary/bitwise-undefined.txt" \
   'portable, Scalar, or Wide bitwise route retained in the caller probe'
 
+integer_minmax_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_minmax_codegen_cases.txt | wc -l | tr -d ' ')
+integer_minmax_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/integer_minmax_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$integer_minmax_case_count" -ne 16 ] || \
+   [ "$integer_minmax_unique_count" -ne 16 ]; then
+    echo 'fixed-width integer Min/Max manifest must contain 16 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix bits lanes signedness; do
+    caller="$temporary/integer-minmax-${lane_kind}-${operation}.txt"
+    extract_symbol "integer_minmax_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/integer-minmax-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected integer Min/Max operation in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(min|max)(__[0-9]+)?|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, Wide, or mismatched Min/Max route in ${lane_kind} ${operation} caller"
+done <scripts/probes/integer_minmax_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(min|max)(__[2-8])?$' 16 \
+  "$temporary/integer-minmax-undefined.txt" \
+  'all 16 selected fixed-width integer Min/Max operations'
+require_count 'flyology_simd__' 16 "$temporary/integer-minmax-undefined.txt" \
+  'only the 16 intended integer Min/Max operations remain unresolved'
+forbid_pattern 'flyology_simd__(backends__scalar__)?(min|max)(__[0-9]+)?|flyology_simd__wide__' \
+  "$temporary/integer-minmax-undefined.txt" \
+  'portable, Scalar, Wide, or mismatched Min/Max route retained in the caller probe'
+
 lane_arrangement_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/lane_arrangement_codegen_cases.txt | wc -l | tr -d ' ')
 lane_arrangement_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -1524,6 +1568,34 @@ case "$architecture" in
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/bitwise_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes signedness; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/integer-minmax-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
+            if [ "$bits" -lt 64 ]; then
+                if [ "$signedness" = signed ]; then prefix=s; else prefix=u; fi
+                require_count "(^|[[:space:]])(${prefix}${operation}\.${shape}[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${prefix}${operation}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape},[[:space:]]*v1\.${shape})" 1 "$leaf" \
+                  "exact NEON ${shape} ${lane_kind} ${operation}"
+            else
+                if [ "$signedness" = signed ]; then compare=cmgt; else compare=cmhi; fi
+                if [ "$operation" = min ]; then select=bit; else select=bif; fi
+                require_count "(^|[[:space:]])(${compare}\.2d[[:space:]]+v2,[[:space:]]*v0,[[:space:]]*v1|${compare}[[:space:]]+v2\.2d,[[:space:]]*v0\.2d,[[:space:]]*v1\.2d)" 1 "$leaf" \
+                  "exact NEON 64-bit comparison in ${lane_kind} ${operation}"
+                require_count "(^|[[:space:]])(${select}\.16b[[:space:]]+v0,[[:space:]]*v1,[[:space:]]*v2|${select}[[:space:]]+v0\.16b,[[:space:]]*v1\.16b,[[:space:]]*v2\.16b)" 1 "$leaf" \
+                  "exact NEON 64-bit selection in ${lane_kind} ${operation}"
+            fi
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/integer_minmax_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -2350,6 +2422,77 @@ EOF
             forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/bitwise_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes signedness; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/integer-minmax-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+              "right operand transfer in ${lane_kind} ${operation} leaf"
+            case "$lane_kind" in u8|i16) result_register=xmm0 ;; *) result_register=xmm2 ;; esac
+            require_count "(^|[[:space:]])movdqu[[:space:]]+%${result_register},[[:space:]]*[^,]*\([^)]*\)" 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "${lane_kind}:${operation}" in
+                u8:min) require_count '(^|[[:space:]])pminub[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 U8x16 Min" ;;
+                u8:max) require_count '(^|[[:space:]])pmaxub[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 U8x16 Max" ;;
+                i16:min) require_count '(^|[[:space:]])pminsw[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 I16x8 Min" ;;
+                i16:max) require_count '(^|[[:space:]])pmaxsw[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 I16x8 Max" ;;
+                *)
+                    case "$bits" in 8) compare=pcmpgtb ;; 16) compare=pcmpgtw ;; 32|64) compare=pcmpgtd ;; esac
+                    if [ "$bits" -eq 64 ]; then compare_count=2; else compare_count=1; fi
+                    require_count "(^|[[:space:]])${compare}[[:space:]]" "$compare_count" "$leaf" \
+                      "exact SSE2 comparison in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])pmovmskb[[:space:]]' 1 "$leaf" \
+                      "compact comparison mask in ${lane_kind} ${operation}"
+                    require_count '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" \
+                      "false selection arm in ${lane_kind} ${operation}"
+                    if [ "$bits" -eq 64 ]; then
+                        require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 3 "$leaf" \
+                          "equality-gated dword comparison in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pshufd[[:space:]]' 4 "$leaf" \
+                          "adjacent-dword broadcasts in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
+                          "64-bit comparison and selection masks in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
+                          "64-bit comparison and selection merges in ${lane_kind} ${operation}"
+                        if [ "$signedness" = unsigned ]; then expected_xor=6; else expected_xor=4; fi
+                        require_count '(^|[[:space:]])pxor[[:space:]]' "$expected_xor" "$leaf" \
+                          "signedness and mask transforms in ${lane_kind} ${operation}"
+                    else
+                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" \
+                          "comparison and true selection masks in ${lane_kind} ${operation}"
+                        require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" \
+                          "selection merge in ${lane_kind} ${operation}"
+                        if [ "$signedness" = unsigned ]; then expected_xor=4; else expected_xor=2; fi
+                        require_count '(^|[[:space:]])pxor[[:space:]]' "$expected_xor" "$leaf" \
+                          "signedness and mask transforms in ${lane_kind} ${operation}"
+                        case "$bits" in
+                            8)
+                                require_count '(^|[[:space:]])punpcklbw[[:space:]]' 1 "$leaf" "byte mask expansion in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])punpcklwd[[:space:]]' 1 "$leaf" "word mask expansion in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword mask expansion in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 1 "$leaf" "byte mask materialization in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "byte mask inversion in ${lane_kind} ${operation}"
+                                ;;
+                            16)
+                                require_count '(^|[[:space:]])pcmpeqw[[:space:]]' 1 "$leaf" "word mask materialization in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "word mask inversion in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "word mask broadcast in ${lane_kind} ${operation}"
+                                ;;
+                            32)
+                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 2 "$leaf" "dword mask materialization in ${lane_kind} ${operation}"
+                                require_count '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "dword mask broadcast in ${lane_kind} ${operation}"
+                                ;;
+                        esac
+                    fi
+                    ;;
+            esac
+            forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/integer_minmax_codegen_cases.txt
         while read -r lane_kind operation suffix bits lanes; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"

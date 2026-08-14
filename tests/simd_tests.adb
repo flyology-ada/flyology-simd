@@ -275,12 +275,22 @@ procedure SIMD_Tests is
    end Reference_Expand;
 
    procedure Test_Core_Semantics is
-      A : constant U8x16 := From_Lanes
-        ([0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
-          16#AA#, 16#55#, 10, 20, 30, 40, 50, 60]);
-      B : constant U8x16 := From_Lanes
-        ([0, 2, 1, 3, 1, 16#80#, 2, 1,
-          16#55#, 16#AA#, 250, 240, 230, 220, 210, 200]);
+      A_Lanes : constant Lane_Values_8x16 :=
+        [0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
+         16#AA#, 16#55#, 10, 20, 30, 40, 50, 60];
+      B_Lanes : constant Lane_Values_8x16 :=
+        [0, 2, 1, 3, 1, 16#80#, 2, 1,
+         16#55#, 16#AA#, 250, 240, 230, 220, 210, 200];
+      A : constant U8x16 := From_Lanes (A_Lanes);
+      B : constant U8x16 := From_Lanes (B_Lanes);
+      Min_Expected : constant Lane_Values_8x16 :=
+        [for Lane in Lane_Index_8x16 =>
+           (if A_Lanes (Lane) < B_Lanes (Lane)
+            then A_Lanes (Lane) else B_Lanes (Lane))];
+      Max_Expected : constant Lane_Values_8x16 :=
+        [for Lane in Lane_Index_8x16 =>
+           (if A_Lanes (Lane) > B_Lanes (Lane)
+            then A_Lanes (Lane) else B_Lanes (Lane))];
       Added : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
       Saturated : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
       Lookup_Table : constant U8x16 := From_Lanes
@@ -355,8 +365,18 @@ procedure SIMD_Tests is
              and Test (Greater_Equal (A, B), 3),
              "all ordered comparisons");
       Check (Same (Select_Value (Equal (A, B), A, B), B), "select semantics");
-      Check (Extract (Min (A, B), 6) = 2 and Extract (Max (A, B), 6) = 254,
-             "unsigned min/max");
+      Check_Value_Oracle
+        (Min (A, B),
+         Flyology_SIMD.Backends.Scalar.Min (A, B),
+         Flyology_SIMD.Backends.Native.Min (A, B),
+         Min_Expected,
+         "fixed independent unsigned minimum");
+      Check_Value_Oracle
+        (Max (A, B),
+         Flyology_SIMD.Backends.Scalar.Max (A, B),
+         Flyology_SIMD.Backends.Native.Max (A, B),
+         Max_Expected,
+         "fixed independent unsigned maximum");
       Check
         (Horizontal_Sum (Splat (255)) =
            Reference_Horizontal_Sum ([others => 255])

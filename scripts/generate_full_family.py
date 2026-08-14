@@ -188,6 +188,51 @@ def bitwise_support(name: str) -> str:
         f"backend uses {x86}. A scalar build uses the portable scalar implementation."
     )
 
+
+def integer_minmax_support(name: str, declaration: str) -> str:
+    """Describe one exact fixed-width integer pairwise minimum or maximum."""
+    vector = next(
+        candidate for candidate in (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        ) if candidate in declaration
+    )
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    signed = vector.startswith("I")
+    maximum = name == "Max"
+    if bits < 64:
+        shape = {8: "16b", 16: "8h", 32: "4s"}[bits]
+        aarch = (
+            f"one NEON {'s' if signed else 'u'}{'max' if maximum else 'min'} "
+            f"instruction over {shape} lanes"
+        )
+    else:
+        aarch = (
+            f"a NEON {'cmgt' if signed else 'cmhi'} comparison followed by "
+            f"{'bif' if maximum else 'bit'} selection over 2d lanes"
+        )
+    if vector == "U8x16":
+        x86 = f"one SSE2 p{'max' if maximum else 'min'}ub instruction"
+    elif vector == "I16x8":
+        x86 = f"one SSE2 p{'max' if maximum else 'min'}sw instruction"
+    elif bits == 64:
+        order = "signed" if signed else "unsigned"
+        x86 = (
+            f"an SSE2 equality-gated two-dword {order} lexicographic comparison "
+            "followed by compact-mask expansion and pand, pandn, and por selection"
+        )
+    else:
+        compare = {8: "pcmpgtb", 16: "pcmpgtw", 32: "pcmpgtd"}[bits]
+        bias = " with unsigned sign-bit bias" if not signed else ""
+        x86 = (
+            f"an SSE2 {compare} comparison{bias} followed by compact-mask "
+            "expansion and pand, pandn, and por selection"
+        )
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
 SIGNED_UNSIGNED_CONVERSIONS = [
     ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
     ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
@@ -822,6 +867,13 @@ def native_support_doc(name: str, declaration: str) -> str:
         return lane_arrangement_support(name, declaration)
     elif name in {"Bitwise_And", "Bitwise_Or", "Bitwise_Xor", "Bitwise_Not"}:
         return bitwise_support(name)
+    elif name in {"Min", "Max"} and any(
+        vector in declaration for vector in (
+            "U8x16", "I8x16", "U16x8", "I16x8",
+            "U32x4", "I32x4", "U64x2", "I64x2",
+        )
+    ):
+        return integer_minmax_support(name, declaration)
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"

@@ -147,13 +147,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : U8x16) return U8x16;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umin instruction over 16b lanes. The x86-64 backend uses one SSE2 pminub instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : U8x16) return U8x16;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umax instruction over 16b lanes. The x86-64 backend uses one SSE2 pmaxub instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -898,13 +898,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : I8x16) return I8x16;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smin instruction over 16b lanes. The x86-64 backend uses an SSE2 pcmpgtb comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : I8x16) return I8x16;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smax instruction over 16b lanes. The x86-64 backend uses an SSE2 pcmpgtb comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1191,13 +1191,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : U16x8) return U16x8;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umin instruction over 8h lanes. The x86-64 backend uses an SSE2 pcmpgtw comparison with unsigned sign-bit bias followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : U16x8) return U16x8;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umax instruction over 8h lanes. The x86-64 backend uses an SSE2 pcmpgtw comparison with unsigned sign-bit bias followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1490,13 +1490,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : I16x8) return I16x8;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smin instruction over 8h lanes. The x86-64 backend uses one SSE2 pminsw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : I16x8) return I16x8;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smax instruction over 8h lanes. The x86-64 backend uses one SSE2 pmaxsw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1783,13 +1783,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : U32x4) return U32x4;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umin instruction over 4s lanes. The x86-64 backend uses an SSE2 pcmpgtd comparison with unsigned sign-bit bias followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : U32x4) return U32x4;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON umax instruction over 4s lanes. The x86-64 backend uses an SSE2 pcmpgtd comparison with unsigned sign-bit bias followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2082,13 +2082,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : I32x4) return I32x4;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smin instruction over 4s lanes. The x86-64 backend uses an SSE2 pcmpgtd comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : I32x4) return I32x4;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses one NEON smax instruction over 4s lanes. The x86-64 backend uses an SSE2 pcmpgtd comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2375,13 +2375,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : U64x2) return U64x2;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON cmhi comparison followed by bit selection over 2d lanes. The x86-64 backend uses an SSE2 equality-gated two-dword unsigned lexicographic comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : U64x2) return U64x2;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON cmhi comparison followed by bif selection over 2d lanes. The x86-64 backend uses an SSE2 equality-gated two-dword unsigned lexicographic comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2674,13 +2674,13 @@ is
    --  @return The operation result.
    function Min (Left, Right : I64x2) return I64x2;
    --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON cmgt comparison followed by bit selection over 2d lanes. The x86-64 backend uses an SSE2 equality-gated two-dword signed lexicographic comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Max (Left, Right : I64x2) return I64x2;
    --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses a NEON cmgt comparison followed by bif selection over 2d lanes. The x86-64 backend uses an SSE2 equality-gated two-dword signed lexicographic comparison followed by compact-mask expansion and pand, pandn, and por selection. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

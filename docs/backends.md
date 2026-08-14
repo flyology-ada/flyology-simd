@@ -88,6 +88,29 @@ gates reject root, Scalar, Wide, and mismatched Native routes. Exact-leaf gates
 bind operand and result transfers, require the operation-specific Advanced
 SIMD or SSE2 sequence, and reject out-of-line helpers.
 
+The fixed-width integer family has 16 overloads in total: eight `Min` and eight
+`Max`. All use target leaves. For 8-, 16-, and 32-bit lanes, AArch64 uses one
+`umin`, `umax`, `smin`, or `smax` instruction according to the operation and
+signedness. For 64-bit lanes, it
+uses `cmgt` for signed inputs or `cmhi` for unsigned inputs, followed by `bit`
+for `Min` or `bif` for `Max`. x86-64 uses `pminub` or `pmaxub` for `U8x16` and
+`pminsw` or `pmaxsw` for `I16x8`. The other SSE2 leaves expand the result of a
+comparison and select lanes with `pand`, `pandn`, and `por`. Unsigned 16- and
+32-bit comparisons use a sign-bit bias. The 64-bit leaves use equality-gated
+two-dword signed or unsigned lexicographic comparisons.
+
+For each non-U8 integer type, tests use fixed inputs and 250 deterministic
+full-width input pairs. Independent lane oracles check the root,
+`Backends.Scalar`, and `Backends.Native` results. Directed U64x2 and I64x2
+cases cover top-bit boundaries and values with equal high words but different
+low words. The focused U8x16 suite supplies fixed inputs and 2,000
+deterministic full-width input pairs. A generated public caller probe covers
+all 16 overloads. Each caller gate requires exactly one call to the matching
+`Backends.Native` overload. It rejects root, Scalar, Wide, and mismatched
+routes. Exact-leaf gates bind
+operand and result transfers, require the operation- and type-specific
+Advanced SIMD or SSE2 sequence, and reject branches to out-of-line helpers.
+
 All 50 canonical fixed-width lane arrangements use target leaves.
 `Reverse_Lanes` uses width-specific NEON `rev64` and `ext` sequences on
 AArch64 and SSE2 shifts and shuffles on x86-64. `Interleave_Low` and

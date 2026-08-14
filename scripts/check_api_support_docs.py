@@ -199,6 +199,29 @@ def bitwise_phrases(operation: str) -> tuple[str, str]:
     }[operation]
 
 
+def integer_minmax_phrases(operation: str, vector: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for pairwise integer Min/Max."""
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    signed = vector.startswith("I")
+    maximum = operation == "Max"
+    if bits < 64:
+        shape = {8: "16b", 16: "8h", 32: "4s"}[bits]
+        aarch = f"one NEON {'s' if signed else 'u'}{'max' if maximum else 'min'} instruction over {shape} lanes"
+    else:
+        aarch = f"NEON {'cmgt' if signed else 'cmhi'} comparison followed by {'bif' if maximum else 'bit'} selection over 2d lanes"
+    if vector == "U8x16":
+        x86 = f"one SSE2 p{'max' if maximum else 'min'}ub instruction"
+    elif vector == "I16x8":
+        x86 = f"one SSE2 p{'max' if maximum else 'min'}sw instruction"
+    elif bits == 64:
+        x86 = f"SSE2 equality-gated two-dword {'signed' if signed else 'unsigned'} lexicographic comparison followed by compact-mask expansion and pand, pandn, and por selection"
+    else:
+        compare = {8: "pcmpgtb", 16: "pcmpgtw", 32: "pcmpgtd"}[bits]
+        bias = " with unsigned sign-bit bias" if not signed else ""
+        x86 = f"SSE2 {compare} comparison{bias} followed by compact-mask expansion and pand, pandn, and por selection"
+    return aarch, x86
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -474,6 +497,23 @@ def invalid_support(path: Path) -> list[str]:
                 marker = f"Value : {vector}" if operation == "Bitwise_Not" else f"Left, Right : {vector}"
                 matching = [block for block in blocks if marker in block]
                 aarch, x86 = bitwise_phrases(operation)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} classification, found {len(exact)}"
+                    )
+        for operation in ("Min", "Max"):
+            blocks = declaration_blocks(text, operation)
+            for vector in wrapping_vectors:
+                matching = [
+                    block for block in blocks if f"Left, Right : {vector}" in block
+                ]
+                aarch, x86 = integer_minmax_phrases(operation, vector)
                 exact = [
                     block for block in matching
                     if aarch in block and x86 in block

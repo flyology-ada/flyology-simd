@@ -1,0 +1,16 @@
+u8 min none 8 16 unsigned
+u8 max none 8 16 unsigned
+i8 min 2 8 16 signed
+i8 max 2 8 16 signed
+u16 min 3 16 8 unsigned
+u16 max 3 16 8 unsigned
+i16 min 4 16 8 signed
+i16 max 4 16 8 signed
+u32 min 5 32 4 unsigned
+u32 max 5 32 4 unsigned
+i32 min 6 32 4 signed
+i32 max 6 32 4 signed
+u64 min 7 64 2 unsigned
+u64 max 7 64 2 unsigned
+i64 min 8 64 2 signed
+i64 max 8 64 2 signed
