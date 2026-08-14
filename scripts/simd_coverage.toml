@@ -49,23 +49,72 @@ evidence = ["scripts/check_api_support_docs.py"]
 
 [profile.teaching_operations]
 status = "complete"
+example_required = true
+evidence = [
+  "website/guide/operations/index.html",
+  "examples/lane_slides.adb",
+  "examples/permute_points.adb",
+  "examples/table_lookup.adb",
+  "examples/wide_table_lookup.adb",
+  "examples/cross_block_differences.adb",
+  "examples/compact_measurements.adb",
+]
+
+[profile.teaching_operations_reference]
+status = "complete"
+example_required = false
+example_reason = "The Guide's exact lane/result table is clearer than a duplicate executable workflow."
 evidence = ["website/guide/operations/index.html"]
 
 [profile.teaching_memory]
 status = "complete"
-evidence = ["website/guide/memory/index.html"]
+example_required = true
+evidence = [
+  "website/guide/memory/index.html",
+  "website/guide/operations/index.html",
+  "examples/dot_product.adb",
+  "examples/partial_tail.adb",
+  "examples/wide_dot_product.adb",
+]
+
+[profile.teaching_memory_reference]
+status = "complete"
+example_required = false
+example_reason = "The operation is a memory contract or alignment predicate; the Guide states the precondition directly without example setup noise."
+evidence = ["website/guide/memory/index.html", "website/guide/operations/index.html"]
 
 [profile.teaching_masks]
 status = "complete"
-evidence = ["website/guide/masks/index.html"]
+example_required = true
+evidence = [
+  "website/guide/masks/index.html",
+  "website/guide/operations/index.html",
+  "examples/count_digits.adb",
+  "examples/wide_digit_classifier.adb",
+  "examples/compact_measurements.adb",
+]
 
 [profile.teaching_conversions]
 status = "complete"
+example_required = true
 evidence = ["website/guide/conversions/index.html", "examples/conversions.adb"]
 
 [profile.teaching_practical]
 status = "complete"
-evidence = ["website/guide/practical/index.html"]
+example_required = true
+evidence = [
+  "website/guide/practical/index.html",
+  "website/guide/operations/index.html",
+  "examples/integer_vectors.adb",
+  "examples/dot_product.adb",
+  "examples/scale_measurements.adb",
+]
+
+[profile.teaching_practical_reference]
+status = "complete"
+example_required = false
+example_reason = "The Practical Guide's focused code and boundary explanation teach the count rule without duplicating a maintained workflow."
+evidence = ["website/guide/practical/index.html", "website/guide/operations/index.html"]
 
 [[family]]
 id = "fixed-contracts"
@@ -74,7 +123,7 @@ operations = { Has_Extent = 1 }
 semantic = "fixed_memory_semantic"
 codegen = "codegen_not_applicable"
 docs = "api_docs"
-teaching = "teaching_memory"
+teaching = "teaching_memory_reference"
 
 [[family]]
 id = "fixed-alignment"
@@ -83,7 +132,7 @@ operations = { Is_Aligned_16 = 10 }
 semantic = "fixed_memory_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_memory"
+teaching = "teaching_memory_reference"
 
 [[family]]
 id = "fixed-map-construction"
@@ -146,7 +195,7 @@ operations = { Min = 8, Max = 8 }
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "fixed-shifts"
@@ -155,7 +204,7 @@ operations = { Shift_Left_Logical = 8, Shift_Right_Logical = 8, Shift_Right_Arit
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_practical"
+teaching = "teaching_practical_reference"
 
 [[family]]
 id = "fixed-comparison-selection"
@@ -173,7 +222,7 @@ operations = { Reverse_Lanes = 10, Reverse_Bytes = 1, Interleave_Low = 10, Inter
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "fixed-permute-slides"
@@ -200,7 +249,7 @@ operations = { Reduce_Add_Wrap = 8, Reduce_Min = 8, Reduce_Max = 8 }
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "fixed-float-binary"
@@ -218,7 +267,7 @@ operations = { Reduce_Add = 2, Reduce_Min_Number = 2, Reduce_Max_Number = 2 }
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "fixed-mask-core"
@@ -299,7 +348,7 @@ operations = { Horizontal_Sum = 1 }
 semantic = "fixed_semantic"
 codegen = "fixed_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "wide-alignment"
@@ -308,7 +357,7 @@ operations = { Is_Aligned_32 = 10 }
 semantic = "wide_memory_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_memory"
+teaching = "teaching_memory_reference"
 
 [[family]]
 id = "wide-map-construction"
@@ -371,7 +420,7 @@ operations = { Min = 8, Max = 8 }
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "wide-shifts"
@@ -380,7 +429,7 @@ operations = { Shift_Left_Logical = 8, Shift_Right_Logical = 8, Shift_Right_Arit
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_practical"
+teaching = "teaching_practical_reference"
 
 [[family]]
 id = "wide-comparison-selection"
@@ -398,7 +447,7 @@ operations = { Reverse_Lanes = 10, Interleave_Low = 10, Interleave_High = 10, De
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "wide-permute-slides"
@@ -425,7 +474,7 @@ operations = { Reduce_Add_Wrap = 8, Reduce_Min = 8, Reduce_Max = 8 }
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "wide-float-binary"
@@ -443,7 +492,7 @@ operations = { Reduce_Add = 2, Reduce_Min_Number = 2, Reduce_Max_Number = 2 }
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"
 
 [[family]]
 id = "wide-masks"
@@ -515,4 +564,4 @@ operations = { Horizontal_Sum = 1 }
 semantic = "wide_semantic"
 codegen = "wide_codegen"
 docs = "api_docs"
-teaching = "teaching_operations"
+teaching = "teaching_operations_reference"

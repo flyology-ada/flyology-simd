@@ -62,7 +62,7 @@ jobs:
           python3 scripts/generate_wide_tests.py
           python3 scripts/check_backend_contracts.py
           python3 scripts/check_api_support_docs.py
-          python3 scripts/check_simd_coverage.py --write-report
+          python3 scripts/check_simd_coverage.py --write-report --require-complete
           git diff --exit-code
       - name: Reject Wide AVX2 without AVX2 objects
         if: ${{ matrix.architecture == 'x86_64' && matrix.avx2 == 'disabled' }}

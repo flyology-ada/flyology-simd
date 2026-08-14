@@ -11,12 +11,12 @@ gap together with its deterministic closure. Reproduce `docs/coverage.md` and
 validate the public declaration totals and gap ledger with:
 
 ```sh
-python3 scripts/check_simd_coverage.py --write-report
+python3 scripts/check_simd_coverage.py --write-report --require-complete
 ```
 
-CI runs that command before its clean-tree check. During final closure, use
-`python3 scripts/check_simd_coverage.py --require-complete`; it fails until the
-declared gap set is empty.
+CI runs that zero-gap command before its clean-tree check. It fails when the
+declared gap set is nonempty, when teaching evidence omits an operation, or
+when a family that requires an executable example does not name one.
 
 ## Adding a backend
 

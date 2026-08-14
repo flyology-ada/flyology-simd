@@ -21,7 +21,9 @@ LAYERS = {
 }
 DIMENSIONS = ("semantic", "codegen", "docs", "teaching")
 STATUSES = {"complete", "gap", "not_applicable"}
-TEXT_EVIDENCE_SUFFIXES = {".adb", ".ads", ".py", ".sh", ".txt"}
+TEXT_EVIDENCE_SUFFIXES = {
+    ".adb", ".ads", ".html", ".md", ".py", ".sh", ".txt"
+}
 EVIDENCE_ALIASES = {
     "Slide_Lanes_Toward_Low": ("slide_lanes_toward_low", "slide_low"),
     "Slide_Lanes_Toward_High": ("slide_lanes_toward_high", "slide_high"),
@@ -94,6 +96,38 @@ def coverage_entry(family: dict, dimension: str) -> dict:
             raise ValueError(
                 f"{family['id']}: {dimension} evidence does not exist: {item}"
             )
+    if dimension == "teaching" and status == "complete":
+        example_required = entry.get("example_required")
+        if not isinstance(example_required, bool):
+            raise ValueError(
+                f"{family['id']}: complete teaching must decide example_required"
+            )
+        has_example = any(relative(item).suffix == ".adb" for item in evidence)
+        if example_required and not has_example:
+            raise ValueError(
+                f"{family['id']}: teaching requires an executable Ada example"
+            )
+        if example_required:
+            example_text = "\n".join(
+                relative(item).read_text().lower()
+                for item in evidence
+                if relative(item).suffix == ".adb"
+            )
+            if not any(
+                token in example_text
+                for operation in family["operations"]
+                for token in EVIDENCE_ALIASES.get(
+                    operation, (operation.lower(),)
+                )
+            ):
+                raise ValueError(
+                    f"{family['id']}: executable examples do not exercise "
+                    "an operation from the family"
+                )
+        if not example_required and not entry.get("example_reason"):
+            raise ValueError(
+                f"{family['id']}: omitted teaching example lacks a reason"
+            )
     return entry
 
 
@@ -163,7 +197,7 @@ def validate(data: dict, families: list[dict]) -> dict:
             except ValueError as exc:
                 errors.append(str(exc))
 
-        for dimension in ("semantic", "codegen"):
+        for dimension in ("semantic", "codegen", "teaching"):
             entry = family.get(dimension)
             if not isinstance(entry, dict) or entry.get("status") != "complete":
                 continue
@@ -266,6 +300,10 @@ def render_report(families: list[dict], state: dict) -> str:
         "",
         "A family is fully evidenced only when semantic, code-generation, API-documentation,",
         "and teaching coverage are all complete or explicitly not applicable.",
+        "Teaching coverage requires the maintained Guide evidence to name every operation in",
+        "the family. A required executable example must exercise an operation from that family.",
+        "When a family does not introduce a distinct user workflow, the inventory must record",
+        "why a maintained Guide explanation is more useful than a duplicate example.",
         "",
         "## Declared gaps",
         "",

@@ -15,6 +15,10 @@ from `scripts/simd_coverage.toml`. Do not edit it by hand.
 
 A family is fully evidenced only when semantic, code-generation, API-documentation,
 and teaching coverage are all complete or explicitly not applicable.
+Teaching coverage requires the maintained Guide evidence to name every operation in
+the family. A required executable example must exercise an operation from that family.
+When a family does not introduce a distinct user workflow, the inventory must record
+why a maintained Guide explanation is more useful than a duplicate example.
 
 ## Declared gaps
 
