@@ -20,8 +20,9 @@ applicable table range produces zero in that lane. Each value family at both
 widths supports reusable, strongly typed lane maps that reorder or broadcast
 lanes from one source vector, or select lanes from two source vectors. Every family
 has zero-filled lane slides in both index directions. Every family also has
-stable mask compression and expansion. `Scale`, `Sum`, and `Dot_Product`
-provide runtime-dispatched binary32 and binary64 complete-array algorithms.
+stable mask compression and expansion. `Scale`, `Clamp`, `Sum`, and
+`Dot_Product` provide runtime-dispatched binary32 and binary64 complete-array
+algorithms.
 `Find_First`, `Find_First_Of`,
 `Find_First_Difference`, `Equal`, `Count`, `Count_In_Range`, and `Is_ASCII`
 provide whole-buffer byte algorithms. `Find_First_Of` keeps loading, small-set classification, mask
@@ -209,7 +210,7 @@ The complete artifact is written to the ignored `build/site/` directory.
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend.
 - `Algorithms.Generic_Floating` provides the same static composition boundary
-  for binary32 and binary64 scaling, sums, and dot products. The supplied
+  for binary32 and binary64 scaling, clamping, sums, and dot products. The supplied
   `Algorithms.Scalar_Floating` and `Algorithms.Native_Floating` instantiations
   bind the complete loops to one primitive backend.
 - `Algorithms.Runtime` performs **runtime algorithm dispatch** once per complete

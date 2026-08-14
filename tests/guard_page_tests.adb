@@ -330,6 +330,10 @@ begin
            (Data = [Data'Range => 2.0],
             "runtime F32 scale protected tail length" & Length'Image);
          Algorithms.Runtime.Scale (Data, 0.5);
+         Algorithms.Runtime.Clamp (Data, 0.0, 1.0);
+         Check
+           (Data = [Data'Range => 1.0],
+            "runtime F32 clamp protected tail length" & Length'Image);
          Check
            (Algorithms.Runtime.Sum (Data) = F32 (Length),
             "runtime F32 sum protected tail length" & Length'Image);
@@ -342,6 +346,10 @@ begin
               (Data = [Data'Range => 2.0],
                "AVX2 F32 scale protected tail length" & Length'Image);
             Algorithms.AVX2.Scale (Data, 0.5);
+            Algorithms.AVX2.Clamp (Data, 0.0, 1.0);
+            Check
+              (Data = [Data'Range => 1.0],
+               "AVX2 F32 clamp protected tail length" & Length'Image);
             Check
               (Algorithms.AVX2.Sum (Data) = F32 (Length),
                "AVX2 F32 sum protected tail length" & Length'Image);
@@ -365,6 +373,10 @@ begin
            (Data = [Data'Range => 2.0],
             "runtime F64 scale protected tail length" & Length'Image);
          Algorithms.Runtime.Scale (Data, 0.5);
+         Algorithms.Runtime.Clamp (Data, 0.0, 1.0);
+         Check
+           (Data = [Data'Range => 1.0],
+            "runtime F64 clamp protected tail length" & Length'Image);
          Check
            (Algorithms.Runtime.Sum (Data) = F64 (Length),
             "runtime F64 sum protected tail length" & Length'Image);
@@ -377,6 +389,10 @@ begin
               (Data = [Data'Range => 2.0],
                "AVX2 F64 scale protected tail length" & Length'Image);
             Algorithms.AVX2.Scale (Data, 0.5);
+            Algorithms.AVX2.Clamp (Data, 0.0, 1.0);
+            Check
+              (Data = [Data'Range => 1.0],
+               "AVX2 F64 clamp protected tail length" & Length'Image);
             Check
               (Algorithms.AVX2.Sum (Data) = F64 (Length),
                "AVX2 F64 sum protected tail length" & Length'Image);

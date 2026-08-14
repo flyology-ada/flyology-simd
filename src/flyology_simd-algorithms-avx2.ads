@@ -11,6 +11,18 @@ package Flyology_SIMD.Algorithms.AVX2 is
    --  algorithm after checking CPU and OS support.
    --  @param Data The complete array to transform in place.
    --  @param Factor The scalar multiplier applied once to every element.
+   procedure Clamp (Data : in out F32_Array; Low, High : F32);
+   --  Clamp every binary32 element in place with the optional AVX2 route,
+   --  after checking CPU and OS support.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
+   procedure Clamp (Data : in out F64_Array; Low, High : F64);
+   --  Clamp every binary64 element in place with the optional AVX2 route,
+   --  after checking CPU and OS support.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
    function Sum (Data : F32_Array) return F32;
    --  Return the four-group binary32 sum with the optional AVX2 algorithm
    --  after checking CPU and OS support.

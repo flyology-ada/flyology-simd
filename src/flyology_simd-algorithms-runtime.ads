@@ -22,6 +22,27 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Factor The scalar multiplier applied once to every element.
    --  @param Backend The compiled and available backend to use.
 
+   procedure Clamp
+     (Data : in out F32_Array;
+      Low, High : F32;
+      Backend : Features.Backend_Kind := Features.Best_Available);
+   --  Replace each element with Min_Number (Max_Number (Element, Low), High)
+   --  after one runtime backend selection.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
+   --  @param Backend The compiled and available backend to use.
+   procedure Clamp
+     (Data : in out F64_Array;
+      Low, High : F64;
+      Backend : Features.Backend_Kind := Features.Best_Available);
+   --  Replace each element with Min_Number (Max_Number (Element, Low), High)
+   --  after one runtime backend selection.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
+   --  @param Backend The compiled and available backend to use.
+
    function Sum
      (Data : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

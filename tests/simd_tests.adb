@@ -41,6 +41,36 @@ procedure SIMD_Tests is
      (F32, Interfaces.Unsigned_32);
    function F64_Bits is new Ada.Unchecked_Conversion
      (F64, Interfaces.Unsigned_64);
+   function F32_Of_Bits is new Ada.Unchecked_Conversion
+     (Interfaces.Unsigned_32, F32);
+   function F64_Of_Bits is new Ada.Unchecked_Conversion
+     (Interfaces.Unsigned_64, F64);
+
+   function Same_Bits (Left, Right : F32_Array) return Boolean is
+   begin
+      if Left'First /= Right'First or else Left'Last /= Right'Last then
+         return False;
+      end if;
+      for Index in Left'Range loop
+         if F32_Bits (Left (Index)) /= F32_Bits (Right (Index)) then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Same_Bits;
+
+   function Same_Bits (Left, Right : F64_Array) return Boolean is
+   begin
+      if Left'First /= Right'First or else Left'Last /= Right'Last then
+         return False;
+      end if;
+      for Index in Left'Range loop
+         if F64_Bits (Left (Index)) /= F64_Bits (Right (Index)) then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Same_Bits;
 
    function Next_U8 return U8 is
    begin
@@ -1775,6 +1805,155 @@ procedure SIMD_Tests is
       Test_Scale_For_Length (4_096);
    end Test_Scale;
 
+   function Reference_Clamp (Value, Low, High : F32) return F32 is
+     (Extract
+        (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)),
+         0));
+
+   function Reference_Clamp (Value, Low, High : F64) return F64 is
+     (Extract
+        (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)),
+         0));
+
+   procedure Test_Clamp_For_Length (Length : Natural) is
+      Original_F32 : F32_Array (37 .. 36 + Length);
+      Original_F64 : F64_Array (37 .. 36 + Length);
+      Expected_F32 : F32_Array (Original_F32'Range);
+      Expected_F64 : F64_Array (Original_F64'Range);
+      Low_F32      : constant F32 := -3.0;
+      High_F32     : constant F32 := 4.0;
+      Low_F64      : constant F64 := -5.0;
+      High_F64     : constant F64 := 2.0;
+   begin
+      for Index in Original_F32'Range loop
+         declare
+            Offset : constant Natural := Index - Original_F32'First;
+         begin
+            Original_F32 (Index) := F32 (Integer (Offset mod 17) - 8);
+            Original_F64 (Index) :=
+              F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+         end;
+      end loop;
+      for Index in Original_F32'Range loop
+         Expected_F32 (Index) :=
+           Reference_Clamp (Original_F32 (Index), Low_F32, High_F32);
+         Expected_F64 (Index) :=
+           Reference_Clamp (Original_F64 (Index), Low_F64, High_F64);
+      end loop;
+
+      declare
+         Scalar_F32  : F32_Array := Original_F32;
+         Scalar_F64  : F64_Array := Original_F64;
+         Native_F32  : F32_Array := Original_F32;
+         Native_F64  : F64_Array := Original_F64;
+         Runtime_F32 : F32_Array := Original_F32;
+         Runtime_F64 : F64_Array := Original_F64;
+      begin
+         Algorithms.Scalar_Floating.Clamp (Scalar_F32, Low_F32, High_F32);
+         Algorithms.Scalar_Floating.Clamp (Scalar_F64, Low_F64, High_F64);
+         Algorithms.Native_Floating.Clamp (Native_F32, Low_F32, High_F32);
+         Algorithms.Native_Floating.Clamp (Native_F64, Low_F64, High_F64);
+         Algorithms.Runtime.Clamp (Runtime_F32, Low_F32, High_F32);
+         Algorithms.Runtime.Clamp (Runtime_F64, Low_F64, High_F64);
+         Check (Same_Bits (Scalar_F32, Expected_F32),
+                "scalar F32 clamp length" & Length'Image);
+         Check (Same_Bits (Scalar_F64, Expected_F64),
+                "scalar F64 clamp length" & Length'Image);
+         Check (Same_Bits (Native_F32, Expected_F32),
+                "native F32 clamp length" & Length'Image);
+         Check (Same_Bits (Native_F64, Expected_F64),
+                "native F64 clamp length" & Length'Image);
+         Check (Same_Bits (Runtime_F32, Expected_F32),
+                "runtime F32 clamp length" & Length'Image);
+         Check (Same_Bits (Runtime_F64, Expected_F64),
+                "runtime F64 clamp length" & Length'Image);
+      end;
+
+      for Backend in Features.Backend_Kind loop
+         if Features.Available (Backend) then
+            declare
+               Selected_F32 : F32_Array := Original_F32;
+               Selected_F64 : F64_Array := Original_F64;
+            begin
+               Algorithms.Runtime.Clamp
+                 (Selected_F32, Low_F32, High_F32, Backend);
+               Algorithms.Runtime.Clamp
+                 (Selected_F64, Low_F64, High_F64, Backend);
+               Check (Same_Bits (Selected_F32, Expected_F32),
+                      "selected F32 clamp " & Features.Name (Backend) &
+                        " length" & Length'Image);
+               Check (Same_Bits (Selected_F64, Expected_F64),
+                      "selected F64 clamp " & Features.Name (Backend) &
+                        " length" & Length'Image);
+            end;
+         end if;
+      end loop;
+
+      if Features.Available (Features.AVX2) then
+         declare
+            AVX2_F32 : F32_Array := Original_F32;
+            AVX2_F64 : F64_Array := Original_F64;
+         begin
+            Algorithms.AVX2.Clamp (AVX2_F32, Low_F32, High_F32);
+            Algorithms.AVX2.Clamp (AVX2_F64, Low_F64, High_F64);
+            Check (Same_Bits (AVX2_F32, Expected_F32),
+                   "direct AVX2 F32 clamp length" & Length'Image);
+            Check (Same_Bits (AVX2_F64, Expected_F64),
+                   "direct AVX2 F64 clamp length" & Length'Image);
+         end;
+      end if;
+   end Test_Clamp_For_Length;
+
+   procedure Test_Clamp is
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_Clamp_For_Length (Length);
+      end loop;
+      Test_Clamp_For_Length (4_096);
+
+      declare
+         Original_F32 : constant F32_Array :=
+           [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#),
+            F32_Of_Bits (16#7FC1_2345#), F32_Of_Bits (16#7F81_2345#),
+            F32_Of_Bits (16#FFC5_4321#), -2.0, 2.0];
+         Original_F64 : constant F64_Array :=
+           [F64_Of_Bits (16#0000_0000_0000_0000#),
+            F64_Of_Bits (16#8000_0000_0000_0000#),
+            F64_Of_Bits (16#7FF8_0000_0001_2345#),
+            F64_Of_Bits (16#7FF0_0000_0001_2345#),
+            F64_Of_Bits (16#FFF8_0000_0005_4321#), -2.0, 2.0];
+         Expected_F32 : F32_Array (Original_F32'Range);
+         Expected_F64 : F64_Array (Original_F64'Range);
+      begin
+         for Index in Original_F32'Range loop
+            Expected_F32 (Index) :=
+              Reference_Clamp
+                (Original_F32 (Index), F32_Of_Bits (16#8000_0000#),
+                 F32_Of_Bits (16#0000_0000#));
+            Expected_F64 (Index) :=
+              Reference_Clamp
+                (Original_F64 (Index),
+                 F64_Of_Bits (16#8000_0000_0000_0000#),
+                 F64_Of_Bits (16#0000_0000_0000_0000#));
+         end loop;
+         declare
+            Actual_F32 : F32_Array := Original_F32;
+            Actual_F64 : F64_Array := Original_F64;
+         begin
+            Algorithms.Runtime.Clamp
+              (Actual_F32, F32_Of_Bits (16#8000_0000#),
+               F32_Of_Bits (16#0000_0000#));
+            Algorithms.Runtime.Clamp
+              (Actual_F64, F64_Of_Bits (16#8000_0000_0000_0000#),
+               F64_Of_Bits (16#0000_0000_0000_0000#));
+            Check (Same_Bits (Actual_F32, Expected_F32),
+                   "runtime F32 clamp special bit semantics");
+            Check (Same_Bits (Actual_F64, Expected_F64),
+                   "runtime F64 clamp special bit semantics");
+         end;
+      end;
+   end Test_Clamp;
+
    function Reference_Sum (Data : F32_Array) return F32 is
       Partial : Lane_Values_F32x4 := [others => 0.0];
       Result  : F32 := 0.0;
@@ -2068,6 +2247,32 @@ procedure SIMD_Tests is
             when Features.Backend_Unavailable => null;
          end;
          begin
+            Algorithms.Runtime.Clamp
+              (F32_Work, 0.0, 1.0, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F32 clamp accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.Runtime.Clamp
+              (F64_Work, 0.0, 1.0, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 clamp accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.Clamp (F32_Work, 0.0, 1.0);
+            Check (False, "unavailable direct AVX2 F32 clamp accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Algorithms.AVX2.Clamp (F64_Work, 0.0, 1.0);
+            Check (False, "unavailable direct AVX2 F64 clamp accepted");
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
             Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
             Check (False, "unavailable AVX2 accepted" & Result'Image);
          exception
@@ -2225,6 +2430,7 @@ begin
    Test_Native_Differential;
    Test_Algorithms;
    Test_Scale;
+   Test_Clamp;
    Test_Sum;
    Test_Dot_Product;
    Test_Unavailable_Rejection;

@@ -5,6 +5,8 @@
 --  @formal Backend_F32_Splat Broadcast one binary32 value.
 --  @formal Backend_F32_Multiply Multiply corresponding binary32 lanes.
 --  @formal Backend_F32_Add Add corresponding binary32 lanes.
+--  @formal Backend_F32_Min_Number Select the binary32 number minimum.
+--  @formal Backend_F32_Max_Number Select the binary32 number maximum.
 --  @formal Backend_F32_Reduce_Add Add binary32 lanes in ascending order.
 --  @formal Backend_F64_Zero Construct a zero binary64 vector.
 --  @formal Backend_F64_Load_Partial Load and zero-fill up to two elements.
@@ -12,6 +14,8 @@
 --  @formal Backend_F64_Splat Broadcast one binary64 value.
 --  @formal Backend_F64_Multiply Multiply corresponding binary64 lanes.
 --  @formal Backend_F64_Add Add corresponding binary64 lanes.
+--  @formal Backend_F64_Min_Number Select the binary64 number minimum.
+--  @formal Backend_F64_Max_Number Select the binary64 number maximum.
 --  @formal Backend_F64_Reduce_Add Add binary64 lanes in ascending order.
 generic
    with function Backend_F32_Zero return F32x4;
@@ -29,6 +33,10 @@ generic
      (Left, Right : F32x4) return F32x4;
    with function Backend_F32_Add
      (Left, Right : F32x4) return F32x4;
+   with function Backend_F32_Min_Number
+     (Left, Right : F32x4) return F32x4;
+   with function Backend_F32_Max_Number
+     (Left, Right : F32x4) return F32x4;
    with function Backend_F32_Reduce_Add (Value : F32x4) return F32;
    with function Backend_F64_Zero return F64x2;
    with function Backend_F64_Load_Partial
@@ -44,6 +52,10 @@ generic
    with function Backend_F64_Multiply
      (Left, Right : F64x2) return F64x2;
    with function Backend_F64_Add
+     (Left, Right : F64x2) return F64x2;
+   with function Backend_F64_Min_Number
+     (Left, Right : F64x2) return F64x2;
+   with function Backend_F64_Max_Number
      (Left, Right : F64x2) return F64x2;
    with function Backend_F64_Reduce_Add (Value : F64x2) return F64;
 package Flyology_SIMD.Algorithms.Generic_Floating
@@ -66,6 +78,22 @@ is
    --  feature check.
    --  @param Data The complete array to transform in place.
    --  @param Factor The scalar multiplier applied once to every element.
+
+   procedure Clamp (Data : in out F32_Array; Low, High : F32);
+   --  Replace each element with Min_Number (Max_Number (Element, Low), High).
+   --  Empty arrays are unchanged. NaNs, signed zeros, and inverted bounds
+   --  follow that exact two-operation composition.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
+
+   procedure Clamp (Data : in out F64_Array; Low, High : F64);
+   --  Replace each element with Min_Number (Max_Number (Element, Low), High).
+   --  Empty arrays are unchanged. NaNs, signed zeros, and inverted bounds
+   --  follow that exact two-operation composition.
+   --  @param Data The complete array to transform in place.
+   --  @param Low The lower operand supplied to Max_Number.
+   --  @param High The upper operand supplied to Min_Number.
 
    function Sum (Data : F32_Array) return F32;
    --  Add binary32 elements in four lane groups, then add the groups in

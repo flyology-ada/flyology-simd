@@ -463,6 +463,10 @@ extract_symbol 'flyology_simd__algorithms__native_floating__scale' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-scale.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__scale__2' \
   "$temporary/floating-algorithm.txt" "$temporary/f64-scale.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__clamp' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-clamp.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__clamp__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-clamp.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-sum.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum__2' \
@@ -474,10 +478,11 @@ extract_symbol 'flyology_simd__algorithms__native_floating__dot_product__2' \
 
 for precision in f32 f64; do
     case "$precision" in
-        f32) zero=zero__9; load=load_partial__9; store=store_partial__9; splat=splat__9; multiply=multiply; add=add; reduce=reduce_add ;;
-        f64) zero=zero__10; load=load_partial__10; store=store_partial__10; splat=splat__10; multiply=multiply__2; add=add__2; reduce=reduce_add__2 ;;
+        f32) zero=zero__9; load=load_partial__9; store=store_partial__9; splat=splat__9; multiply=multiply; add=add; minimum=min_number; maximum=max_number; reduce=reduce_add ;;
+        f64) zero=zero__10; load=load_partial__10; store=store_partial__10; splat=splat__10; multiply=multiply__2; add=add__2; minimum=min_number__2; maximum=max_number__2; reduce=reduce_add__2 ;;
     esac
     scale_file="$temporary/${precision}-scale.txt"
+    clamp_file="$temporary/${precision}-clamp.txt"
     sum_file="$temporary/${precision}-sum.txt"
     dot_file="$temporary/${precision}-dot-product.txt"
     require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
@@ -490,6 +495,19 @@ for precision in f32 f64; do
       "$scale_file" "one selected partial store in the native ${precision} scale"
     forbid_pattern 'flyology_simd__backends__native__(add|reduce_add)' \
       "$scale_file" "reduction operation in the native ${precision} scale"
+
+    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 2 \
+      "$clamp_file" "two selected bound splats in native ${precision} clamp"
+    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+      "$clamp_file" "one selected partial load in native ${precision} clamp"
+    require_count "flyology_simd__backends__native__${maximum}([^_]|$)" 1 \
+      "$clamp_file" "one selected Max_Number in native ${precision} clamp"
+    require_count "flyology_simd__backends__native__${minimum}([^_]|$)" 1 \
+      "$clamp_file" "one selected Min_Number in native ${precision} clamp"
+    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+      "$clamp_file" "one selected partial store in native ${precision} clamp"
+    forbid_pattern 'flyology_simd__backends__native__(multiply|add|reduce_add)' \
+      "$clamp_file" "arithmetic or reduction operation in native ${precision} clamp"
 
     require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$sum_file" "one selected zero route in the native ${precision} sum"
@@ -518,7 +536,7 @@ require_count 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
   "$temporary/f64-dot-product.txt" \
   'one selected multiply route in the native binary64 dot loop'
 forbid_pattern \
-  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(scale|sum|dot_product|splat|multiply|add|reduce_add|load_partial|store_partial)' \
+  'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__(__algorithms)?__(scale|clamp|sum|dot_product|splat|multiply|add|min_number|max_number|reduce_add|load_partial|store_partial)' \
   "$temporary/floating-algorithm-undefined.txt" \
   'portable, scalar, or runtime route in the native floating loops'
 
@@ -5022,6 +5040,14 @@ EOF
               'AVX-SSE transition cleanup in binary64 scaling'
             forbid_pattern 'vaddpd' "$temporary/avx2-f64-scale.txt" \
               'addition in binary64 scaling'
+            require_count \
+              'flyology_simd__algorithms__native_floating__clamp$' 1 \
+              "$temporary/avx2-undefined.txt" \
+              'one exact selected binary32 clamp route in the AVX2 object'
+            require_count \
+              'flyology_simd__algorithms__native_floating__clamp__2$' 1 \
+              "$temporary/avx2-undefined.txt" \
+              'one exact selected binary64 clamp route in the AVX2 object'
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__count_in_range' \
               "$temporary/avx2.txt" "$temporary/avx2-count-in-range.txt"

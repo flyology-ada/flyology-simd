@@ -1,6 +1,7 @@
 with Interfaces;
 with System.Machine_Code;
 with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Algorithms.Native_Floating;
 
 package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    use type Interfaces.Unsigned_8;
@@ -78,6 +79,16 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Offset := Offset + 1;
       end loop;
    end Scale;
+
+   procedure Clamp (Data : in out F32_Array; Low, High : F32) is
+   begin
+      Algorithms.Native_Floating.Clamp (Data, Low, High);
+   end Clamp;
+
+   procedure Clamp (Data : in out F64_Array; Low, High : F64) is
+   begin
+      Algorithms.Native_Floating.Clamp (Data, Low, High);
+   end Clamp;
 
    function Sum (Data : F32_Array) return F32 is
       Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
