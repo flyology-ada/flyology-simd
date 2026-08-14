@@ -70,6 +70,25 @@ Exact-leaf gates require the operation- and type-specific Advanced SIMD or
 SSE2 sequence. They reject root, Scalar, Wide, mismatched Native, and
 out-of-line helper routes.
 
+All 50 canonical fixed-width lane arrangements use target leaves.
+`Reverse_Lanes` uses width-specific NEON `rev64` and `ext` sequences on
+AArch64 and SSE2 shifts and shuffles on x86-64. `Interleave_Low` and
+`Interleave_High` use NEON `zip1` and `zip2` or the matching SSE2 integer or
+floating unpack instruction. `Deinterleave_Even` and `Deinterleave_Odd` use
+NEON `uzp1` and `uzp2`; their SSE2 leaves use lane-width-specific masking,
+packing, shuffling, or quadword unpacking sequences.
+
+Fixed inputs and 250 deterministic full-width inputs per non-U8 type check
+all five arrangements against independent lane expectations in the root,
+`Backends.Scalar`, and `Backends.Native` implementations. The floating cases
+use raw binary32 and binary64 encodings and compare every moved bit. The
+focused U8x16 suite supplies fixed and 2,000 deterministic cases. A generated
+public caller probe covers all 50 overloads. Each caller gate requires one
+matching `Backends.Native` call and rejects root, Scalar, Wide, and mismatched
+Native calls. Each exact-leaf gate binds the operand and result transfers,
+requires the operation- and type-specific Advanced SIMD or SSE2 sequence and
+any applicable immediate, and rejects branches to out-of-line helpers.
+
 For each of the ten 128-bit value types, the tests check every mask pattern
 against an independent per-lane `Select_Value` oracle. The floating checks
 compare selected lane bits.

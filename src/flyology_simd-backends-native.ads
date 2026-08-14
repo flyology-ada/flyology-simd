@@ -186,30 +186,30 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U8x16) return U8x16;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 16b lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Interleave_Low (Left, Right : U8x16) return U8x16;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpcklbw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U8x16) return U8x16;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpckhbw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U8x16) return U8x16;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 16b lanes. The x86-64 backend uses SSE2 low-byte masking and packuswb. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U8x16) return U8x16;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 16b lanes. The x86-64 backend uses SSE2 word shifts and packuswb. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -925,7 +925,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I8x16) return I8x16;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 16b lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : I8x16; Map : Lane_Map_8x16) return I8x16 with Inline_Always;
@@ -943,25 +943,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : I8x16) return I8x16;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpcklbw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I8x16) return I8x16;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpckhbw instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I8x16) return I8x16;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 16b lanes. The x86-64 backend uses SSE2 low-byte masking and packuswb. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I8x16) return I8x16;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 16b lanes. The x86-64 backend uses SSE2 word shifts and packuswb. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1218,7 +1218,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U16x8) return U16x8;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 8h lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : U16x8; Map : Lane_Map_16x8) return U16x8 with Inline_Always;
@@ -1236,25 +1236,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : U16x8) return U16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 8h lanes. The x86-64 backend uses the SSE2 punpcklwd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U16x8) return U16x8;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 8h lanes. The x86-64 backend uses the SSE2 punpckhwd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U16x8) return U16x8;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 8h lanes. The x86-64 backend uses SSE2 pshuflw and pshufhw with control 0x88, followed by pshufd and punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U16x8) return U16x8;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 8h lanes. The x86-64 backend uses SSE2 pshuflw and pshufhw with control 0xDD, followed by pshufd and punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1517,7 +1517,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I16x8) return I16x8;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 8h lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : I16x8; Map : Lane_Map_16x8) return I16x8 with Inline_Always;
@@ -1535,25 +1535,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : I16x8) return I16x8;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 8h lanes. The x86-64 backend uses the SSE2 punpcklwd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I16x8) return I16x8;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 8h lanes. The x86-64 backend uses the SSE2 punpckhwd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I16x8) return I16x8;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 8h lanes. The x86-64 backend uses SSE2 pshuflw and pshufhw with control 0x88, followed by pshufd and punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I16x8) return I16x8;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 8h lanes. The x86-64 backend uses SSE2 pshuflw and pshufhw with control 0xDD, followed by pshufd and punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -1810,7 +1810,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U32x4) return U32x4;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 4s lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x1B. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : U32x4; Map : Lane_Map_32x4) return U32x4 with Inline_Always;
@@ -1828,25 +1828,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : U32x4) return U32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 4s lanes. The x86-64 backend uses the SSE2 punpckldq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U32x4) return U32x4;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 4s lanes. The x86-64 backend uses the SSE2 punpckhdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U32x4) return U32x4;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0x88, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U32x4) return U32x4;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0xDD, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2109,7 +2109,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I32x4) return I32x4;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 4s lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x1B. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : I32x4; Map : Lane_Map_32x4) return I32x4 with Inline_Always;
@@ -2127,25 +2127,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : I32x4) return I32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 4s lanes. The x86-64 backend uses the SSE2 punpckldq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I32x4) return I32x4;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 4s lanes. The x86-64 backend uses the SSE2 punpckhdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I32x4) return I32x4;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0x88, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I32x4) return I32x4;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0xDD, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2402,7 +2402,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : U64x2) return U64x2;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON ext instruction with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x4E. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : U64x2; Map : Lane_Map_64x2) return U64x2 with Inline_Always;
@@ -2420,25 +2420,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : U64x2) return U64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : U64x2) return U64x2;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpckhqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : U64x2) return U64x2;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : U64x2) return U64x2;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpckhqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2701,7 +2701,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : I64x2) return I64x2;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON ext instruction with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x4E. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : I64x2; Map : Lane_Map_64x2) return I64x2 with Inline_Always;
@@ -2719,25 +2719,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : I64x2) return I64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : I64x2) return I64x2;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpckhqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : I64x2) return I64x2;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : I64x2) return I64x2;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpckhqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -2959,7 +2959,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : F32x4) return F32x4;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 4s lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x1B. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : F32x4; Map : Lane_Map_32x4) return F32x4 with Inline_Always;
@@ -2977,25 +2977,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : F32x4) return F32x4;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 4s lanes. The x86-64 backend uses the SSE2 unpcklps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : F32x4) return F32x4;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 4s lanes. The x86-64 backend uses the SSE2 unpckhps instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : F32x4) return F32x4;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0x88, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : F32x4) return F32x4;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 4s lanes. The x86-64 backend uses SSE2 pshufd with control 0xDD, followed by punpcklqdq. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
@@ -3218,7 +3218,7 @@ is
    --  @return The operation result.
    function Reverse_Lanes (Value : F64x2) return F64x2;
    --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON ext instruction with an eight-byte offset. The x86-64 backend uses SSE2 pshufd with control 0x4E. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : F64x2; Map : Lane_Map_64x2) return F64x2 with Inline_Always;
@@ -3236,25 +3236,25 @@ is
    --  @return The operation result.
    function Interleave_Low (Left, Right : F64x2) return F64x2;
    --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 2d lanes. The x86-64 backend uses the SSE2 unpcklpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Interleave_High (Left, Right : F64x2) return F64x2;
    --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 2d lanes. The x86-64 backend uses the SSE2 unpckhpd instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Even (Left, Right : F64x2) return F64x2;
    --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpcklqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.
    function Deinterleave_Odd (Left, Right : F64x2) return F64x2;
    --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 2d lanes. The x86-64 backend uses the SSE2 punpckhqdq instruction. A scalar build uses the portable scalar implementation.
    --  @param Left The left input.
    --  @param Right The right input.
    --  @return The operation result.

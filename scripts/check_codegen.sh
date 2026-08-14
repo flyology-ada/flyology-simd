@@ -49,6 +49,7 @@ float_binary_probe_object="$probe_root/float_binary_codegen_probe.o"
 complete_memory_probe_object="$probe_root/complete_memory_codegen_probe.o"
 comparison_probe_object="$probe_root/comparison_codegen_probe.o"
 wrapping_arithmetic_probe_object="$probe_root/wrapping_arithmetic_codegen_probe.o"
+lane_arrangement_probe_object="$probe_root/lane_arrangement_codegen_probe.o"
 wide_byte_object="$object_root/flyology_simd-wide-byte_avx2_leaf.o"
 wide_float_object="$object_root/flyology_simd-wide-float_avx2_leaf.o"
 wide_lookup_object="$object_root/flyology_simd-wide-lookup_mechanism.o"
@@ -76,6 +77,13 @@ if command -v otool >/dev/null 2>&1; then
 else
     objdump -dr "$wide_reduction_probe_object" \
       >"$temporary/wide-reduction-probe.txt"
+fi
+if command -v otool >/dev/null 2>&1; then
+    objdump -dr --show-all-symbols "$lane_arrangement_probe_object" |
+      grep -Ev '<ltmp[0-9]+>:$' >"$temporary/lane-arrangement-probe.txt"
+else
+    objdump -dr "$lane_arrangement_probe_object" \
+      >"$temporary/lane-arrangement-probe.txt"
 fi
 if command -v otool >/dev/null 2>&1; then
     objdump -dr --show-all-symbols "$float_binary_probe_object" |
@@ -205,6 +213,8 @@ nm -u "$complete_memory_probe_object" >"$temporary/complete-memory-undefined.txt
 nm -u "$comparison_probe_object" >"$temporary/comparison-undefined.txt"
 nm -u "$wrapping_arithmetic_probe_object" \
   >"$temporary/wrapping-arithmetic-undefined.txt"
+nm -u "$lane_arrangement_probe_object" \
+  >"$temporary/lane-arrangement-undefined.txt"
 nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
@@ -1112,6 +1122,40 @@ forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|mult
   "$temporary/wrapping-arithmetic-undefined.txt" \
   'portable, Scalar, or Wide arithmetic retained in the caller probe'
 
+lane_arrangement_case_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/lane_arrangement_codegen_cases.txt | wc -l | tr -d ' ')
+lane_arrangement_unique_count=$(sed '/^[[:space:]]*$/d' \
+  scripts/probes/lane_arrangement_codegen_cases.txt | sort -u | wc -l | tr -d ' ')
+if [ "$lane_arrangement_case_count" -ne 50 ] || \
+   [ "$lane_arrangement_unique_count" -ne 50 ]; then
+    echo 'fixed-width lane-arrangement manifest must contain 50 unique operations' >&2
+    exit 1
+fi
+while read -r lane_kind operation suffix bits lanes; do
+    caller="$temporary/lane-arrangement-${lane_kind}-${operation}.txt"
+    extract_symbol "lane_arrangement_codegen_probe__${lane_kind}_${operation}" \
+      "$temporary/lane-arrangement-probe.txt" "$caller"
+    symbol_suffix=
+    [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+    symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
+    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+      "$caller" "matching selected ${lane_kind} ${operation} caller"
+    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+      "only one selected arrangement in ${lane_kind} ${operation} caller"
+    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+      "only one out-of-line branch in ${lane_kind} ${operation} caller"
+    forbid_pattern 'flyology_simd__(backends__scalar__)?(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))|flyology_simd__wide__' \
+      "$caller" "portable, Scalar, or Wide arrangement in ${lane_kind} ${operation} caller"
+done <scripts/probes/lane_arrangement_codegen_cases.txt
+require_count 'flyology_simd__backends__native__(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))(__([2-9]|10))?$' 50 \
+  "$temporary/lane-arrangement-undefined.txt" \
+  'all 50 selected fixed-width lane arrangements'
+require_count 'flyology_simd__' 50 "$temporary/lane-arrangement-undefined.txt" \
+  'only the 50 intended lane arrangements remain unresolved'
+forbid_pattern 'flyology_simd__(backends__scalar__)?(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))|flyology_simd__wide__' \
+  "$temporary/lane-arrangement-undefined.txt" \
+  'portable, Scalar, or Wide arrangement retained in the caller probe'
+
 float_binary_case_count=$(sed '/^[[:space:]]*$/d' \
   scripts/probes/float_binary_codegen_cases.txt | wc -l | tr -d ' ')
 float_binary_unique_count=$(sed '/^[[:space:]]*$/d' \
@@ -1395,6 +1439,39 @@ case "$architecture" in
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/lane-arrangement-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
+            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            if [ "$operation" != reverse_lanes ]; then
+                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+                  "right operand transfer in ${lane_kind} ${operation} leaf"
+            fi
+            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$operation" in
+                reverse_lanes)
+                    if [ "$bits" -lt 64 ]; then
+                        require_count "(^|[[:space:]])rev64(\.${shape}[[:space:]]|[[:space:]].*\.${shape})" 1 "$leaf" "NEON ${shape} lane reversal in ${lane_kind}"
+                    fi
+                    require_count '(^|[[:space:]])ext(\.16b[[:space:]]|[[:space:]].*\.16b).*#(0x)?8([^[:xdigit:]]|$)' 1 "$leaf" "eight-byte half exchange in ${lane_kind} reverse"
+                    ;;
+                interleave_low) instruction=zip1 ;;
+                interleave_high) instruction=zip2 ;;
+                deinterleave_even) instruction=uzp1 ;;
+                deinterleave_odd) instruction=uzp2 ;;
+            esac
+            if [ "$operation" != reverse_lanes ]; then
+                require_count "(^|[[:space:]])${instruction}(\.${shape}[[:space:]]|[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
+            fi
+            forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/lane_arrangement_codegen_cases.txt
         while read -r lane_kind operation suffix shape x86_shape; do
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
@@ -2154,6 +2231,81 @@ EOF
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
+        while read -r lane_kind operation suffix bits lanes; do
+            symbol_suffix=
+            [ "$suffix" = none ] || symbol_suffix="__${suffix}"
+            leaf="$temporary/lane-arrangement-leaf-${lane_kind}-${operation}.txt"
+            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+              "left operand transfer in ${lane_kind} ${operation} leaf"
+            if [ "$operation" != reverse_lanes ]; then
+                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+                  "right operand transfer in ${lane_kind} ${operation} leaf"
+            fi
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+              "result transfer in ${lane_kind} ${operation} leaf"
+            case "$operation:$bits" in
+                interleave_low:8) instruction=punpcklbw ;; interleave_high:8) instruction=punpckhbw ;;
+                interleave_low:16) instruction=punpcklwd ;; interleave_high:16) instruction=punpckhwd ;;
+                interleave_low:32) if [ "$lane_kind" = f32 ]; then instruction=unpcklps; else instruction=punpckldq; fi ;;
+                interleave_high:32) if [ "$lane_kind" = f32 ]; then instruction=unpckhps; else instruction=punpckhdq; fi ;;
+                interleave_low:64) if [ "$lane_kind" = f64 ]; then instruction=unpcklpd; else instruction=punpcklqdq; fi ;;
+                interleave_high:64) if [ "$lane_kind" = f64 ]; then instruction=unpckhpd; else instruction=punpckhqdq; fi ;;
+                deinterleave_even:64) instruction=punpcklqdq ;; deinterleave_odd:64) instruction=punpckhqdq ;;
+                *) instruction= ;;
+            esac
+            [ -z "$instruction" ] || require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" "exact SSE2 ${lane_kind} ${operation} leaf"
+            case "$operation:$bits" in
+                reverse_lanes:8)
+                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal right shift"
+                    require_count '(^|[[:space:]])psllw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal left shift"
+                    require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "byte reversal merge"
+                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
+                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
+                    ;;
+                reverse_lanes:16)
+                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
+                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
+                    ;;
+                reverse_lanes:32) require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "dword reversal" ;;
+                reverse_lanes:64) require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "qword reversal" ;;
+                deinterleave_even:8)
+                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "even-byte all-ones mask construction"
+                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "even-byte low mask derivation"
+                    require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two even-byte masks"
+                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "even-byte packing"
+                    ;;
+                deinterleave_odd:8)
+                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 2 "$leaf" "two odd-byte shifts"
+                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "odd-byte packing"
+                    ;;
+                deinterleave_even:16)
+                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even low-word selections"
+                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even high-word selections"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
+                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
+                    ;;
+                deinterleave_odd:16)
+                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd low-word selections"
+                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd high-word selections"
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
+                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
+                    ;;
+                deinterleave_even:32)
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even-dword selections"
+                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
+                    ;;
+                deinterleave_odd:32)
+                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd-dword selections"
+                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
+                    ;;
+            esac
+            forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
+              "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
+        done <scripts/probes/lane_arrangement_codegen_cases.txt
         while read -r lane_kind operation suffix; do
             if [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
                 continue

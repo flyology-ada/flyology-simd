@@ -146,6 +146,46 @@ def wrapping_arithmetic_phrases(operation: str, vector: str) -> tuple[str, str]:
     )
 
 
+def lane_arrangement_phrases(operation: str, vector: str) -> tuple[str, str]:
+    """Return exact AArch64/x86 phrases for one canonical arrangement."""
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[bits]
+    if operation == "Reverse_Lanes":
+        aarch = (
+            "NEON ext instruction with an eight-byte offset"
+            if bits == 64 else
+            f"NEON rev64 over {shape} lanes followed by ext with an eight-byte offset"
+        )
+        x86 = {
+            8: "SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd",
+            16: "SSE2 pshuflw, pshufhw, and pshufd",
+            32: "SSE2 pshufd with control 0x1B",
+            64: "SSE2 pshufd with control 0x4E",
+        }[bits]
+    elif operation in {"Interleave_Low", "Interleave_High"}:
+        high = operation.endswith("High")
+        aarch = f"NEON {'zip2' if high else 'zip1'} instruction over {shape} lanes"
+        if vector.startswith("F"):
+            x86 = f"SSE2 unpck{'h' if high else 'l'}{'ps' if bits == 32 else 'pd'} instruction"
+        else:
+            suffix = {8: "bw", 16: "wd", 32: "dq", 64: "qdq"}[bits]
+            x86 = f"SSE2 punpck{'h' if high else 'l'}{suffix} instruction"
+    else:
+        odd = operation.endswith("Odd")
+        aarch = f"NEON {'uzp2' if odd else 'uzp1'} instruction over {shape} lanes"
+        if bits == 8:
+            x86 = "SSE2 word shifts and packuswb" if odd else "SSE2 low-byte masking and packuswb"
+        elif bits == 16:
+            control = "0xDD" if odd else "0x88"
+            x86 = f"SSE2 pshuflw and pshufhw with control {control}, followed by pshufd and punpcklqdq"
+        elif bits == 32:
+            control = "0xDD" if odd else "0x88"
+            x86 = f"SSE2 pshufd with control {control}, followed by punpcklqdq"
+        else:
+            x86 = f"SSE2 punpck{'h' if odd else 'l'}qdq instruction"
+    return aarch, x86
+
+
 def integer_reduction_aarch_phrase(operation: str, vector: str) -> str:
     """Return the exact operation/type-specific AArch64 reduction phrase."""
     if operation == "Reduce_Add_Wrap":
@@ -382,6 +422,29 @@ def invalid_support(path: Path) -> list[str]:
                     block for block in blocks if f"Left, Right : {vector}" in block
                 ]
                 aarch, x86 = wrapping_arithmetic_phrases(operation, vector)
+                exact = [
+                    block for block in matching
+                    if aarch in block and x86 in block
+                    and "A scalar build uses the portable scalar implementation" in block
+                ]
+                if len(matching) != 1 or len(exact) != 1:
+                    invalid.append(
+                        f"{path.relative_to(ROOT)}: expected one exact {vector} "
+                        f"{operation} classification, found {len(exact)}"
+                    )
+        arrangement_vectors = (
+            "U8x16", "I8x16", "U16x8", "I16x8", "U32x4", "I32x4",
+            "U64x2", "I64x2", "F32x4", "F64x2",
+        )
+        for operation in (
+            "Reverse_Lanes", "Interleave_Low", "Interleave_High",
+            "Deinterleave_Even", "Deinterleave_Odd",
+        ):
+            blocks = declaration_blocks(text, operation)
+            for vector in arrangement_vectors:
+                marker = f"Value : {vector}" if operation == "Reverse_Lanes" else f"Left, Right : {vector}"
+                matching = [block for block in blocks if marker in block]
+                aarch, x86 = lane_arrangement_phrases(operation, vector)
                 exact = [
                     block for block in matching
                     if aarch in block and x86 in block

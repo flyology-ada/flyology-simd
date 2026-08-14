@@ -111,6 +111,60 @@ def wrapping_arithmetic_support(name: str, declaration: str) -> str:
         "scalar implementation."
     )
 
+
+def lane_arrangement_support(name: str, declaration: str) -> str:
+    """Describe one exact fixed-width canonical lane arrangement."""
+    vector = next(
+        candidate for candidate in (
+            "U8x16", "I8x16", "U16x8", "I16x8", "U32x4", "I32x4",
+            "U64x2", "I64x2", "F32x4", "F64x2",
+        ) if candidate in declaration
+    )
+    bits = int(re.search(r"(8|16|32|64)x", vector).group(1))
+    shape = {8: "16b", 16: "8h", 32: "4s", 64: "2d"}[bits]
+    if name == "Reverse_Lanes":
+        if bits == 64:
+            aarch = "the NEON ext instruction with an eight-byte offset"
+        else:
+            aarch = (
+                f"NEON rev64 over {shape} lanes followed by ext with an "
+                "eight-byte offset"
+            )
+        x86 = {
+            8: "SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd",
+            16: "SSE2 pshuflw, pshufhw, and pshufd",
+            32: "SSE2 pshufd with control 0x1B",
+            64: "SSE2 pshufd with control 0x4E",
+        }[bits]
+    elif name in {"Interleave_Low", "Interleave_High"}:
+        high = name.endswith("High")
+        aarch = f"the NEON {'zip2' if high else 'zip1'} instruction over {shape} lanes"
+        if vector.startswith("F"):
+            x86 = f"the SSE2 unpck{'h' if high else 'l'}{'ps' if bits == 32 else 'pd'} instruction"
+        else:
+            suffix = {8: "bw", 16: "wd", 32: "dq", 64: "qdq"}[bits]
+            x86 = f"the SSE2 punpck{'h' if high else 'l'}{suffix} instruction"
+    else:
+        odd = name.endswith("Odd")
+        aarch = f"the NEON {'uzp2' if odd else 'uzp1'} instruction over {shape} lanes"
+        if bits == 8:
+            x86 = "SSE2 word shifts and packuswb" if odd else "SSE2 low-byte masking and packuswb"
+        elif bits == 16:
+            control = "0xDD" if odd else "0x88"
+            x86 = (
+                f"SSE2 pshuflw and pshufhw with control {control}, followed "
+                "by pshufd and punpcklqdq"
+            )
+        elif bits == 32:
+            control = "0xDD" if odd else "0x88"
+            x86 = f"SSE2 pshufd with control {control}, followed by punpcklqdq"
+        else:
+            x86 = f"the SSE2 punpck{'h' if odd else 'l'}qdq instruction"
+    return (
+        f"Cross-platform support: The AArch64 backend uses {aarch}. The x86-64 "
+        f"backend uses {x86}. A scalar build uses the portable scalar implementation."
+    )
+
 SIGNED_UNSIGNED_CONVERSIONS = [
     ("I8x16", "I8", "U8x16", "U8", 8, 16, True),
     ("U8x16", "U8", "I8x16", "I8", 8, 16, False),
@@ -738,6 +792,11 @@ def native_support_doc(name: str, declaration: str) -> str:
         )
     if name in {"Add_Wrap", "Subtract_Wrap", "Multiply_Wrap"}:
         return wrapping_arithmetic_support(name, declaration)
+    elif name in {
+        "Reverse_Lanes", "Interleave_Low", "Interleave_High",
+        "Deinterleave_Even", "Deinterleave_Odd",
+    }:
+        return lane_arrangement_support(name, declaration)
     elif name == "Select_Value":
         aarch = "a dedicated NEON compact-mask expansion and bit-selection sequence"
         x86 = "a dedicated SSE2 compact-mask expansion and bit-selection sequence"
