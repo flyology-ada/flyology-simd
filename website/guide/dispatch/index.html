@@ -1,67 +1,43 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Compose backends at compile time and dispatch complete byte algorithms at runtime in Flyology SIMD."><title>Backend composition and dispatch · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/dispatch/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Compose primitive backends at compile time and dispatch complete floating and byte algorithms at runtime in Flyology SIMD."><title>Backend composition and dispatch · Flyology SIMD</title><link rel="canonical" href="https://simd.flyology.org/guide/dispatch/"><link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="../../assets/styles/site.css"><link rel="stylesheet" href="../../assets/styles/simd.css"><script src="../../assets/scripts/ada-highlight.js"></script><script src="../../assets/scripts/site.js"></script></head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="site-nav" aria-label="Primary navigation"><a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a><ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../" aria-current="page">Guide</a></li><li><a href="../operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../../journal/">Journal</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul><div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div></nav></header>
   <main id="main" class="page-shell">
-    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Backend composition and dispatch</li></ol><h1>Choose primitive backends at compile time</h1></div><p class="doc-hero-copy">Chapter 6 composes the dot product statically and limits runtime feature selection to complete byte algorithms.</p></header>
+    <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>6. Backend composition and dispatch</li></ol><h1>Choose backends at an algorithm boundary</h1></div><p class="doc-hero-copy">Chapter 6 composes primitive operations statically and dispatches complete dot-product and byte algorithms at runtime.</p></header>
     <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#static">Static composition</a></li><li><a href="#dot">Dot-product instances</a></li><li><a href="#build">Build selection</a></li><li><a href="#runtime">Runtime boundary</a></li><li><a href="#features">Feature states</a></li><li><a href="#safety">Optional x86 instruction safety</a></li></ul></aside>
       <article class="prose">
         <p class="chapter-lead">A primitive operation must not test CPU features on every call. Two composition choices avoid that cost:</p>
-        <ul><li>Bind a complete loop to known operations.</li><li>Before a supported runtime algorithm processes the buffer, select one implementation.</li></ul>
+        <ul><li>Bind a complete loop to known operations.</li><li>Before a supported runtime algorithm processes an array or buffer, select one implementation.</li></ul>
         <section id="static">
           <h2>Pass operations to a generic algorithm</h2>
-          <p>The maintained dot product is a local generic function. Its formal operations include zero, partial load, multiply, add, and add reduction.</p>
-          <p>The formals operate on <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> values and <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> inputs. A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> declares each partial extent, and the reduction returns <a data-api="Flyology_SIMD.F32"><code>F32</code></a>.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Generic_Floating"><code>Algorithms.Generic_Floating</code></a> supplies binary32 and binary64 dot products. Its formal operations include zero, partial load, multiply, add, and add reduction.</p>
+          <p>The excerpt below shows the binary32 formals. They operate on <a data-api="Flyology_SIMD.F32x4"><code>F32x4</code></a> values and <a data-api="Flyology_SIMD.F32_Array"><code>F32_Array</code></a> inputs. A <a data-api="Flyology_SIMD.Lane_Count_32x4"><code>Lane_Count_32x4</code></a> declares each partial extent, and the reduction returns <a data-api="Flyology_SIMD.F32"><code>F32</code></a>. The package has matching binary64 formals and an <code>F64_Array</code> overload.</p>
           <pre><code class="language-ada">generic
-   with function Vector_Zero return F32x4;
-   with function Vector_Load_Partial
+   with function Backend_F32_Zero return F32x4;
+   with function Backend_F32_Load_Partial
      (Data : F32_Array; Start : Natural;
       Count : Lane_Count_32x4) return F32x4;
-   with function Vector_Multiply (Left, Right : F32x4) return F32x4;
-   with function Vector_Add (Left, Right : F32x4) return F32x4;
-   with function Vector_Reduce_Add (Value : F32x4) return F32;
-function Generic_Dot_Product (Left, Right : F32_Array) return F32;</code></pre>
+   with function Backend_F32_Multiply (Left, Right : F32x4) return F32x4;
+   with function Backend_F32_Add (Left, Right : F32x4) return F32x4;
+   with function Backend_F32_Reduce_Add (Value : F32x4) return F32;
+package Flyology_SIMD.Algorithms.Generic_Floating is
+   function Dot_Product (Left, Right : F32_Array) return F32;
+   --  Matching binary64 formals and the F64_Array overload follow.
+end Flyology_SIMD.Algorithms.Generic_Floating;</code></pre>
           <p>The generic body contains no feature test or indirect call for each vector. The compiler resolves each formal operation during instantiation.</p>
         </section>
         <section id="dot">
-          <h2>Instantiate scalar and native dot products</h2>
-          <p>The root <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> primitive bodies are the scalar reference. <a data-api="Flyology_SIMD.Backends.Scalar"><code>Backends.Scalar</code></a> exposes that complete primitive contract for generic composition. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> exposes the matching contract with the body selected for the build target.</p>
-          <p>The example renames <code>Backends.Scalar</code> as <code>Scalar_Backend</code> and <code>Backends.Native</code> as <code>Native</code>. The scalar instance passes these <code>F32x4</code> overloads:</p>
-          <ul>
-            <li><a data-api="Flyology_SIMD.Backends.Scalar.Zero" data-api-signature="return F32x4"><code>Scalar_Backend.Zero</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Scalar.Load_Partial" data-api-signature="F32_Array"><code>Scalar_Backend.Load_Partial</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Scalar.Multiply" data-api-signature="F32x4"><code>Scalar_Backend.Multiply</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Scalar.Add" data-api-signature="F32x4"><code>Scalar_Backend.Add</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Scalar.Reduce_Add" data-api-signature="F32x4"><code>Scalar_Backend.Reduce_Add</code></a></li>
-          </ul>
-          <p>The native instance passes the corresponding <code>F32x4</code> overloads:</p>
-          <ul>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Zero" data-api-signature="return F32x4"><code>Native.Zero</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Load_Partial" data-api-signature="F32_Array"><code>Native.Load_Partial</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Multiply" data-api-signature="F32x4"><code>Native.Multiply</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Add" data-api-signature="F32x4"><code>Native.Add</code></a></li>
-            <li><a data-api="Flyology_SIMD.Backends.Native.Reduce_Add" data-api-signature="F32x4"><code>Native.Reduce_Add</code></a></li>
-          </ul>
-          <pre><code class="language-ada">package Scalar_Backend renames Flyology_SIMD.Backends.Scalar;
-package Native renames Flyology_SIMD.Backends.Native;
-
-function Scalar_Dot_Product is new Generic_Dot_Product
-  (Vector_Zero          =&gt; Scalar_Backend.Zero,
-   Vector_Load_Partial =&gt; Scalar_Backend.Load_Partial,
-   Vector_Multiply     =&gt; Scalar_Backend.Multiply,
-   Vector_Add          =&gt; Scalar_Backend.Add,
-   Vector_Reduce_Add   =&gt; Scalar_Backend.Reduce_Add);
-
-function Native_Dot_Product is new Generic_Dot_Product
-  (Vector_Zero          =&gt; Native.Zero,
-   Vector_Load_Partial =&gt; Native.Load_Partial,
-   Vector_Multiply     =&gt; Native.Multiply,
-   Vector_Add          =&gt; Native.Add,
-   Vector_Reduce_Add   =&gt; Native.Reduce_Add);</code></pre>
+          <h2>Use the supplied static instances</h2>
+          <p>The root <a data-api="Flyology_SIMD"><code>Flyology_SIMD</code></a> primitive bodies are the scalar reference. <a data-api="Flyology_SIMD.Backends.Scalar"><code>Backends.Scalar</code></a> exposes that primitive contract for generic composition. <a data-api="Flyology_SIMD.Backends.Native"><code>Backends.Native</code></a> exposes the matching contract with the body selected for the build target.</p>
+          <p><a data-api="Flyology_SIMD.Algorithms.Scalar_Floating"><code>Algorithms.Scalar_Floating</code></a> binds the generic to the scalar primitives. <a data-api="Flyology_SIMD.Algorithms.Native_Floating"><code>Algorithms.Native_Floating</code></a> binds it to the selected native primitives.</p>
+          <pre><code class="language-ada">Scalar : constant F32 :=
+  Algorithms.Scalar_Floating.Dot_Product (Left, Right);
+Native : constant F32 :=
+  Algorithms.Native_Floating.Dot_Product (Left, Right);</code></pre>
           <p>These instances provide compile-time composition. Static composition does not by itself promise that GNAT inlines every primitive call.</p>
-          <p>The maintained <code>dot_product.adb</code> example runs the ordinary Ada loop, the scalar-backend instance, and the native-backend instance. All three return <code>70.0</code> for its fixed inputs.</p>
+          <p>The maintained <code>dot_product.adb</code> example runs the ordinary Ada loop, both static instances, and runtime dispatch. All four return <code>70.0</code> for its fixed inputs.</p>
         </section>
         <section id="build">
           <h2>Let Alire select a native host backend</h2>
@@ -69,8 +45,13 @@ function Native_Dot_Product is new Generic_Dot_Product
           <p>Use <code>FLYOLOGY_SIMD_ARCH=scalar</code> for a forced scalar build. Use explicit architecture values for supported cross-compilation workflows.</p>
         </section>
         <section id="runtime">
-          <h2>Dispatch only at a current whole-buffer boundary</h2>
-          <div class="semantic-callout"><strong>The library does not provide runtime dispatch for the dot product or primitive floating operations.</strong><p>Runtime dispatch currently covers <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Algorithms.Runtime.Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Algorithms.Runtime.Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Algorithms.Runtime.Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Algorithms.Runtime.Is_ASCII</code></a>.</p></div>
+          <h2>Dispatch once at a complete-array boundary</h2>
+          <div class="semantic-callout"><strong>The library provides runtime dispatch for the dot product, not for primitive floating operations.</strong><p><a data-api="Flyology_SIMD.Algorithms.Runtime"><code>Algorithms.Runtime.Dot_Product</code></a> selects one implementation before the complete-array loop. Primitive operations remain statically bound and perform no feature test.</p></div>
+          <pre><code class="language-ada">Result : constant F32 :=
+  Flyology_SIMD.Algorithms.Runtime.Dot_Product (Left, Right);</code></pre>
+          <p>The binary32 and binary64 overloads require arrays with matching bounds. Binary32 uses four accumulator lane groups. Binary64 uses two groups. Both reduce those groups in ascending lane order, and empty arrays return positive zero.</p>
+          <p>An AVX2 selection uses the compiled 128-bit native instance. This route retains the same four-lane or two-lane accumulation order as the other runtime backends.</p>
+          <p>The runtime package also dispatches <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First"><code>Find_First</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Find_First_Of</code></a>, <a data-api="Flyology_SIMD.Algorithms.Runtime.Count"><code>Count</code></a>, and <a data-api="Flyology_SIMD.Algorithms.Runtime.Is_ASCII"><code>Is_ASCII</code></a> at whole-buffer boundaries.</p>
           <pre><code class="language-ada">Matches : constant Natural :=
   Flyology_SIMD.Algorithms.Runtime.Count (Data, Comma);</code></pre>
           <p>The runtime package selects one safe implementation before it scans the complete byte array. No feature test runs for each vector operation.</p>
@@ -97,5 +78,5 @@ First      : constant Algorithms.Search_Result :=
       </article>
     </div>
   </main>
-  <footer class="site-footer"><div class="footer-inner"><span>Primitive composition is static; current runtime dispatch selects complete byte algorithms.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="../../journal/">Journal</a><a href="../../api/">API</a></div></div></footer>
+  <footer class="site-footer"><div class="footer-inner"><span>Primitive composition is static; runtime dispatch selects complete floating and byte algorithms.</span><div class="footer-links"><a href="../">Guide</a><a href="../../support/">Support</a><a href="../../journal/">Journal</a><a href="../../api/">API</a></div></div></footer>
 </body></html>

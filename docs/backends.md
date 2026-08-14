@@ -862,6 +862,16 @@ optional AVX2 object uses one 32-byte loop plus a 16-byte VEX path and a scalar
 tail. Its gate requires `vpcmpeqb`, `vpor`, `vpmovmskb`, `bsf`, and
 `vzeroupper`. Protected-page tests place lengths 1 through 160 immediately
 before an inaccessible page and cover both no-match and final-match scans.
+
+The binary32 and binary64 `Dot_Product` algorithms have scalar and Native
+generic instances. Runtime dispatch selects one instance before the
+complete-array loop. Deterministic differential tests cover empty arrays,
+every length from zero through 96, a 4,096-element input, offset lower bounds,
+and every available forced backend. Protected-page tests cover binary32 lengths
+1 through 33 and binary64 lengths 1 through 17. An AVX2 runtime selection uses
+the 128-bit Native instance and retains the four-lane or two-lane accumulation
+order. The primitive operations do not perform runtime dispatch.
+
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native
 results with an independent lane oracle. AArch64 and x86-64 caller-level

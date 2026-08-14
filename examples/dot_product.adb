@@ -1,69 +1,13 @@
 with Ada.Text_IO;
 with Flyology_SIMD;
-with Flyology_SIMD.Backends.Native;
-with Flyology_SIMD.Backends.Scalar;
+with Flyology_SIMD.Algorithms.Native_Floating;
+with Flyology_SIMD.Algorithms.Runtime;
+with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 procedure Dot_Product is
    use Ada.Text_IO;
    use Flyology_SIMD;
    use type Flyology_SIMD.F32;
-   package Native renames Flyology_SIMD.Backends.Native;
-   package Scalar_Backend renames Flyology_SIMD.Backends.Scalar;
-
-   generic
-      with function Vector_Zero return F32x4;
-      with function Vector_Load_Partial
-        (Data  : F32_Array;
-         Start : Natural;
-         Count : Lane_Count_32x4) return F32x4;
-      with function Vector_Multiply
-        (Left, Right : F32x4) return F32x4;
-      with function Vector_Add
-        (Left, Right : F32x4) return F32x4;
-      with function Vector_Reduce_Add (Value : F32x4) return F32;
-   function Generic_Dot_Product
-     (Left, Right : F32_Array) return F32
-     with Pre => Left'First = Right'First and Left'Last = Right'Last;
-
-   function Generic_Dot_Product
-     (Left, Right : F32_Array) return F32
-   is
-      Start       : Natural := Left'First;
-      Accumulator : F32x4 := Vector_Zero;
-   begin
-      while Start <= Left'Last loop
-         declare
-            Remaining : constant Natural := Left'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
-            Left_Block : constant F32x4 :=
-              Vector_Load_Partial (Left, Start, Count);
-            Right_Block : constant F32x4 :=
-              Vector_Load_Partial (Right, Start, Count);
-         begin
-            Accumulator := Vector_Add
-              (Accumulator, Vector_Multiply (Left_Block, Right_Block));
-            exit when Count = Remaining;
-            Start := Start + Count;
-         end;
-      end loop;
-
-      return Vector_Reduce_Add (Accumulator);
-   end Generic_Dot_Product;
-
-   function Scalar_Dot_Product is new Generic_Dot_Product
-     (Vector_Zero         => Scalar_Backend.Zero,
-      Vector_Load_Partial => Scalar_Backend.Load_Partial,
-      Vector_Multiply     => Scalar_Backend.Multiply,
-      Vector_Add          => Scalar_Backend.Add,
-      Vector_Reduce_Add   => Scalar_Backend.Reduce_Add);
-
-   function Native_Dot_Product is new Generic_Dot_Product
-     (Vector_Zero         => Native.Zero,
-      Vector_Load_Partial => Native.Load_Partial,
-      Vector_Multiply     => Native.Multiply,
-      Vector_Add          => Native.Add,
-      Vector_Reduce_Add   => Native.Reduce_Add);
 
    function Ordinary_Dot_Product
      (Left, Right : F32_Array) return F32
@@ -81,14 +25,20 @@ procedure Dot_Product is
    Right : constant F32_Array := [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
 
    Ordinary : constant F32 := Ordinary_Dot_Product (Left, Right);
-   Scalar   : constant F32 := Scalar_Dot_Product (Left, Right);
-   Native_Result : constant F32 := Native_Dot_Product (Left, Right);
+   Scalar   : constant F32 :=
+     Algorithms.Scalar_Floating.Dot_Product (Left, Right);
+   Native_Result : constant F32 :=
+     Algorithms.Native_Floating.Dot_Product (Left, Right);
+   Runtime_Result : constant F32 :=
+     Algorithms.Runtime.Dot_Product (Left, Right);
 begin
    pragma Assert (Ordinary = 70.0);
    pragma Assert (Scalar = Ordinary);
    pragma Assert (Native_Result = Ordinary);
+   pragma Assert (Runtime_Result = Ordinary);
 
    Put_Line ("ordinary Ada dot:" & F32'Image (Ordinary));
    Put_Line ("scalar backend dot:" & F32'Image (Scalar));
    Put_Line ("native backend dot:" & F32'Image (Native_Result));
+   Put_Line ("runtime-dispatched dot:" & F32'Image (Runtime_Result));
 end Dot_Product;

@@ -1,7 +1,33 @@
 with Flyology_SIMD.Features;
 
---  Complete-buffer algorithms with one coarse runtime backend selection.
+--  Complete-array and complete-buffer algorithms with one coarse runtime
+--  backend selection.
 package Flyology_SIMD.Algorithms.Runtime is
+   function Dot_Product
+     (Left, Right : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Multiply and add corresponding binary32 elements after one runtime
+   --  backend selection.
+   --  Use the four-group accumulation order from Generic_Floating.Dot_Product.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The lane-grouped sum of corresponding products.
+   function Dot_Product
+     (Left, Right : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64
+     with Pre => Left'First = Right'First and Left'Last = Right'Last;
+   --  Multiply and add corresponding binary64 elements after one runtime
+   --  backend selection.
+   --  Use the two-group accumulation order from Generic_Floating.Dot_Product.
+   --  @param Left The left complete array.
+   --  @param Right The right complete array with matching bounds.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The lane-grouped sum of corresponding products.
+
    function Find_First
      (Data : Byte_Array;
       Needle : U8;

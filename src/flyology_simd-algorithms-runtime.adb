@@ -1,8 +1,38 @@
 with Flyology_SIMD.Algorithms.AVX2;
 with Flyology_SIMD.Algorithms.Native;
+with Flyology_SIMD.Algorithms.Native_Floating;
 with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.Runtime is
+   function Dot_Product
+     (Left, Right : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Dot_Product (Left, Right);
+         when Features.NEON | Features.SSE2 | Features.AVX2 =>
+            return Algorithms.Native_Floating.Dot_Product (Left, Right);
+      end case;
+   end Dot_Product;
+
+   function Dot_Product
+     (Left, Right : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Dot_Product (Left, Right);
+         when Features.NEON | Features.SSE2 | Features.AVX2 =>
+            return Algorithms.Native_Floating.Dot_Product (Left, Right);
+      end case;
+   end Dot_Product;
+
    function Find_First
      (Data : Byte_Array;
       Needle : U8;

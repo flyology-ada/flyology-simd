@@ -8,7 +8,7 @@
     <header class="doc-hero"><div><ol class="breadcrumb"><li><a href="../">Guide</a></li><li>7. Verification and measurement</li></ol><h1>Verify semantics before performance</h1></div><p class="doc-hero-copy">Chapter 7 connects differential tests, generated-code checks, and repeated whole-algorithm measurements.</p></header>
     <div class="docs-layout"><aside class="toc" aria-label="On this page"><span class="toc-title">On this page</span><ul><li><a href="#correctness">Differential tests</a></li><li><a href="#dot-code">Dot-product code</a></li><li><a href="#run">Benchmark commands</a></li><li><a href="#method">Method</a></li><li><a href="#results">Byte-count result</a></li><li><a href="#small-set">Small-set result</a></li><li><a href="#codegen">Instruction checks</a></li><li><a href="#interpret">Interpretation</a></li></ul></aside>
       <article class="prose">
-        <p class="chapter-lead">Chapter 6 selected static primitive backends and a runtime byte-algorithm boundary. First compare results with the scalar reference backend. Then inspect emitted code and measure complete work.</p>
+        <p class="chapter-lead">Chapter 6 selected static primitive backends and runtime complete-algorithm boundaries. First compare results with the scalar reference backend. Then inspect emitted code and measure complete work.</p>
         <section id="correctness">
           <h2>Compare available backends with the scalar reference</h2>
           <pre><code class="language-shell">alr exec -- gprbuild -p -P tests/tests.gpr

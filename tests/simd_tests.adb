@@ -1,12 +1,15 @@
 with Ada.Command_Line;
 with Ada.Exceptions;
 with Ada.Text_IO;
+with Ada.Unchecked_Conversion;
 with Interfaces;
 with Flyology_SIMD;
 with Flyology_SIMD.Algorithms.AVX2;
 with Flyology_SIMD.Algorithms.Native;
+with Flyology_SIMD.Algorithms.Native_Floating;
 with Flyology_SIMD.Algorithms.Runtime;
 with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Algorithms.Scalar_Floating;
 with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Backends.Scalar;
 with Flyology_SIMD.Features;
@@ -17,7 +20,10 @@ procedure SIMD_Tests is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_64;
    use type Flyology_SIMD.Algorithms.Search_Result;
+   use type Flyology_SIMD.F32;
+   use type Flyology_SIMD.F64;
 
    Seed : constant Interfaces.Unsigned_32 := 16#5EED_0123#;
    State : Interfaces.Unsigned_32 := Seed;
@@ -30,6 +36,11 @@ procedure SIMD_Tests is
          Put_Line ("FAIL: " & Message);
       end if;
    end Check;
+
+   function F32_Bits is new Ada.Unchecked_Conversion
+     (F32, Interfaces.Unsigned_32);
+   function F64_Bits is new Ada.Unchecked_Conversion
+     (F64, Interfaces.Unsigned_64);
 
    function Next_U8 return U8 is
    begin
@@ -1493,9 +1504,147 @@ procedure SIMD_Tests is
       end if;
    end Test_Algorithms;
 
+   function Reference_Dot_Product
+     (Left, Right : F32_Array) return F32
+   is
+      Partial : Lane_Values_F32x4 := [others => 0.0];
+      Result  : F32 := 0.0;
+   begin
+      for Index in Left'Range loop
+         declare
+            Lane : constant Lane_Index_32x4 :=
+              Lane_Index_32x4 ((Index - Left'First) mod 4);
+         begin
+            Partial (Lane) :=
+              Partial (Lane) + Left (Index) * Right (Index);
+         end;
+      end loop;
+      for Lane in Partial'Range loop
+         Result := Result + Partial (Lane);
+      end loop;
+      return Result;
+   end Reference_Dot_Product;
+
+   function Reference_Dot_Product
+     (Left, Right : F64_Array) return F64
+   is
+      Partial : Lane_Values_F64x2 := [others => 0.0];
+      Result  : F64 := 0.0;
+   begin
+      for Index in Left'Range loop
+         declare
+            Lane : constant Lane_Index_64x2 :=
+              Lane_Index_64x2 ((Index - Left'First) mod 2);
+         begin
+            Partial (Lane) :=
+              Partial (Lane) + Left (Index) * Right (Index);
+         end;
+      end loop;
+      for Lane in Partial'Range loop
+         Result := Result + Partial (Lane);
+      end loop;
+      return Result;
+   end Reference_Dot_Product;
+
+   procedure Test_Dot_Product_For_Length (Length : Natural) is
+      F32_Left  : F32_Array (37 .. 36 + Length);
+      F32_Right : F32_Array (37 .. 36 + Length);
+      F64_Left  : F64_Array (37 .. 36 + Length);
+      F64_Right : F64_Array (37 .. 36 + Length);
+   begin
+      for Index in F32_Left'Range loop
+         declare
+            Offset : constant Natural := Index - F32_Left'First;
+         begin
+            F32_Left (Index) := F32 (Integer (Offset mod 17) - 8);
+            F32_Right (Index) := F32 (Integer ((3 * Offset + 2) mod 13) - 6);
+            F64_Left (Index) := F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+            F64_Right (Index) := F64 (Integer ((7 * Offset + 3) mod 23) - 11);
+         end;
+      end loop;
+
+      declare
+         Expected_F32 : constant F32 :=
+           Reference_Dot_Product (F32_Left, F32_Right);
+         Expected_F64 : constant F64 :=
+           Reference_Dot_Product (F64_Left, F64_Right);
+      begin
+         Check
+           (Algorithms.Scalar_Floating.Dot_Product (F32_Left, F32_Right) =
+              Expected_F32,
+            "scalar F32 dot length" & Length'Image);
+         Check
+           (Algorithms.Native_Floating.Dot_Product (F32_Left, F32_Right) =
+              Expected_F32,
+            "native F32 dot length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right) =
+              Expected_F32,
+            "runtime F32 dot length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Dot_Product
+              (F32_Left, F32_Right, Features.Scalar) = Expected_F32,
+            "forced scalar F32 dot length" & Length'Image);
+         Check
+           (Algorithms.Scalar_Floating.Dot_Product (F64_Left, F64_Right) =
+              Expected_F64,
+            "scalar F64 dot length" & Length'Image);
+         Check
+           (Algorithms.Native_Floating.Dot_Product (F64_Left, F64_Right) =
+              Expected_F64,
+            "native F64 dot length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right) =
+              Expected_F64,
+            "runtime F64 dot length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Dot_Product
+              (F64_Left, F64_Right, Features.Scalar) = Expected_F64,
+            "forced scalar F64 dot length" & Length'Image);
+
+         if Length = 0 then
+            Check
+              (F32_Bits
+                 (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right)) = 0,
+               "empty runtime F32 dot is positive zero");
+            Check
+              (F64_Bits
+                 (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right)) = 0,
+               "empty runtime F64 dot is positive zero");
+         end if;
+
+         for Backend in Features.Backend_Kind loop
+            if Features.Available (Backend) then
+               Check
+                 (Algorithms.Runtime.Dot_Product
+                    (F32_Left, F32_Right, Backend) = Expected_F32,
+                  "selected F32 dot " & Features.Name (Backend) &
+                    " length" & Length'Image);
+               Check
+                 (Algorithms.Runtime.Dot_Product
+                    (F64_Left, F64_Right, Backend) = Expected_F64,
+                  "selected F64 dot " & Features.Name (Backend) &
+                    " length" & Length'Image);
+            end if;
+         end loop;
+      end;
+   end Test_Dot_Product_For_Length;
+
+   procedure Test_Dot_Product is
+   begin
+      for Length in Natural range 0 .. 96 loop
+         Test_Dot_Product_For_Length (Length);
+      end loop;
+      Test_Dot_Product_For_Length (4_096);
+   end Test_Dot_Product;
+
    procedure Test_Unavailable_Rejection is
       Data : constant Byte_Array (1 .. 1) := [1 => 0];
+      F32_Data : constant F32_Array (1 .. 1) := [1 => 1.0];
+      F64_Data : constant F64_Array (1 .. 1) := [1 => 1.0];
       Result : Natural;
+      Dot : F32;
+      Dot_64 : F64;
       Search : Algorithms.Search_Result;
    begin
       if not Features.Available (Features.AVX2) then
@@ -1526,6 +1675,22 @@ procedure SIMD_Tests is
          exception
             when Features.Backend_Unavailable => null;
          end;
+         begin
+            Dot := Algorithms.Runtime.Dot_Product
+              (F32_Data, F32_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 dot accepted" & Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.Runtime.Dot_Product
+              (F64_Data, F64_Data, Features.AVX2);
+            Check
+              (False,
+               "unavailable runtime AVX2 F64 dot accepted" & Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
       end if;
    end Test_Unavailable_Rejection;
 begin
@@ -1553,6 +1718,7 @@ begin
    Test_Memory;
    Test_Native_Differential;
    Test_Algorithms;
+   Test_Dot_Product;
    Test_Unavailable_Rejection;
    if Failures = 0 then
       Put_Line ("PASS");

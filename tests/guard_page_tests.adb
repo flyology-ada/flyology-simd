@@ -20,6 +20,8 @@ procedure Guard_Page_Tests is
    use type Interfaces.C.int;
    use type Interfaces.Unsigned_8;
    use type Flyology_SIMD.Algorithms.Search_Result;
+   use type Flyology_SIMD.F32;
+   use type Flyology_SIMD.F64;
    use type System.Address;
 
    function Get_Page_Size return Interfaces.C.int
@@ -269,6 +271,34 @@ begin
       end loop;
    end;
 
+   for Length in Positive range 1 .. 33 loop
+      declare
+         Data : F32_Array (1 .. Length);
+         for Data'Address use
+           Add (Allocation, Page_Size - Length * (F32'Size / 8));
+         pragma Import (Ada, Data);
+      begin
+         Data := [others => 1.0];
+         Check
+           (Algorithms.Runtime.Dot_Product (Data, Data) = F32 (Length),
+            "runtime F32 dot protected tail length" & Length'Image);
+      end;
+   end loop;
+
+   for Length in Positive range 1 .. 17 loop
+      declare
+         Data : F64_Array (1 .. Length);
+         for Data'Address use
+           Add (Allocation, Page_Size - Length * (F64'Size / 8));
+         pragma Import (Ada, Data);
+      begin
+         Data := [others => 1.0];
+         Check
+           (Algorithms.Runtime.Dot_Product (Data, Data) = F64 (Length),
+            "runtime F64 dot protected tail length" & Length'Image);
+      end;
+   end loop;
+
    Check
      (Mprotect
         (Add (Allocation, Page_Size),
@@ -278,7 +308,7 @@ begin
    Free (Allocation);
 
    if Failures = 0 then
-      Put_Line ("guard-page memory and whole-buffer tests: PASS");
+      Put_Line ("guard-page memory and complete-algorithm tests: PASS");
    else
       raise Program_Error with Failures'Image & " guard-page failures";
    end if;
