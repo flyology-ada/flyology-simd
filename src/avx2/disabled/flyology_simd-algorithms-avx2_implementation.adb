@@ -30,6 +30,14 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
      (Algorithms.Scalar_Floating.Sum (Data));
    function Sum (Data : F64_Array) return F64 is
      (Algorithms.Scalar_Floating.Sum (Data));
+   function Min_Number (Data : F32_Array) return F32 is
+     (Algorithms.Scalar_Floating.Min_Number (Data));
+   function Max_Number (Data : F32_Array) return F32 is
+     (Algorithms.Scalar_Floating.Max_Number (Data));
+   function Min_Number (Data : F64_Array) return F64 is
+     (Algorithms.Scalar_Floating.Min_Number (Data));
+   function Max_Number (Data : F64_Array) return F64 is
+     (Algorithms.Scalar_Floating.Max_Number (Data));
    function Dot_Product (Left, Right : F32_Array) return F32 is
      (Algorithms.Scalar_Floating.Dot_Product (Left, Right));
    function Dot_Product (Left, Right : F64_Array) return F64 is

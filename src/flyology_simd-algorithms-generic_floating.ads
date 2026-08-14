@@ -7,7 +7,10 @@
 --  @formal Backend_F32_Add Add corresponding binary32 lanes.
 --  @formal Backend_F32_Min_Number Select the binary32 number minimum.
 --  @formal Backend_F32_Max_Number Select the binary32 number maximum.
+--  @formal Backend_F32_Extract Extract one binary32 lane.
 --  @formal Backend_F32_Reduce_Add Add binary32 lanes in ascending order.
+--  @formal Backend_F32_Reduce_Min_Number Reduce binary32 minimum-number lanes.
+--  @formal Backend_F32_Reduce_Max_Number Reduce binary32 maximum-number lanes.
 --  @formal Backend_F64_Zero Construct a zero binary64 vector.
 --  @formal Backend_F64_Load_Partial Load and zero-fill up to two elements.
 --  @formal Backend_F64_Store_Partial Store up to two elements.
@@ -16,7 +19,10 @@
 --  @formal Backend_F64_Add Add corresponding binary64 lanes.
 --  @formal Backend_F64_Min_Number Select the binary64 number minimum.
 --  @formal Backend_F64_Max_Number Select the binary64 number maximum.
+--  @formal Backend_F64_Extract Extract one binary64 lane.
 --  @formal Backend_F64_Reduce_Add Add binary64 lanes in ascending order.
+--  @formal Backend_F64_Reduce_Min_Number Reduce binary64 minimum-number lanes.
+--  @formal Backend_F64_Reduce_Max_Number Reduce binary64 maximum-number lanes.
 generic
    with function Backend_F32_Zero return F32x4;
    with function Backend_F32_Load_Partial
@@ -37,7 +43,11 @@ generic
      (Left, Right : F32x4) return F32x4;
    with function Backend_F32_Max_Number
      (Left, Right : F32x4) return F32x4;
+   with function Backend_F32_Extract
+     (Value : F32x4; Lane : Lane_Index_32x4) return F32;
    with function Backend_F32_Reduce_Add (Value : F32x4) return F32;
+   with function Backend_F32_Reduce_Min_Number (Value : F32x4) return F32;
+   with function Backend_F32_Reduce_Max_Number (Value : F32x4) return F32;
    with function Backend_F64_Zero return F64x2;
    with function Backend_F64_Load_Partial
      (Data  : F64_Array;
@@ -57,7 +67,11 @@ generic
      (Left, Right : F64x2) return F64x2;
    with function Backend_F64_Max_Number
      (Left, Right : F64x2) return F64x2;
+   with function Backend_F64_Extract
+     (Value : F64x2; Lane : Lane_Index_64x2) return F64;
    with function Backend_F64_Reduce_Add (Value : F64x2) return F64;
+   with function Backend_F64_Reduce_Min_Number (Value : F64x2) return F64;
+   with function Backend_F64_Reduce_Max_Number (Value : F64x2) return F64;
 package Flyology_SIMD.Algorithms.Generic_Floating
   with Preelaborate
 is
@@ -130,6 +144,38 @@ is
    --  feature check.
    --  @param Data The complete array to sum.
    --  @return The lane-grouped sum of all elements.
+
+   function Min_Number (Data : F32_Array) return F32
+     with Pre => Data'Length > 0;
+   --  Return the number minimum of a nonempty binary32 array. Full blocks
+   --  accumulate in four lane groups before reduction; the tail follows in
+   --  source order.
+   --  @param Data The nonempty complete array to reduce.
+   --  @return The minimum-number result.
+
+   function Max_Number (Data : F32_Array) return F32
+     with Pre => Data'Length > 0;
+   --  Return the number maximum of a nonempty binary32 array. Full blocks
+   --  accumulate in four lane groups before reduction; the tail follows in
+   --  source order.
+   --  @param Data The nonempty complete array to reduce.
+   --  @return The maximum-number result.
+
+   function Min_Number (Data : F64_Array) return F64
+     with Pre => Data'Length > 0;
+   --  Return the number minimum of a nonempty binary64 array. Full blocks
+   --  accumulate in two lane groups before reduction; the tail follows in
+   --  source order.
+   --  @param Data The nonempty complete array to reduce.
+   --  @return The minimum-number result.
+
+   function Max_Number (Data : F64_Array) return F64
+     with Pre => Data'Length > 0;
+   --  Return the number maximum of a nonempty binary64 array. Full blocks
+   --  accumulate in two lane groups before reduction; the tail follows in
+   --  source order.
+   --  @param Data The nonempty complete array to reduce.
+   --  @return The maximum-number result.
 
    function Dot_Product (Left, Right : F32_Array) return F32
      with Pre => Left'First = Right'First and Left'Last = Right'Last;

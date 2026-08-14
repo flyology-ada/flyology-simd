@@ -87,6 +87,47 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Backend The compiled and available backend to use.
    --  @return The lane-grouped sum of all elements.
 
+   function Min_Number
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32
+     with Pre => Data'Length > 0;
+   --  Return the number minimum of a nonempty binary32 array after one
+   --  runtime backend selection.
+   --  @param Data The nonempty complete array to reduce.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The minimum-number result.
+   function Max_Number
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32
+     with Pre => Data'Length > 0;
+   --  Return the number maximum of a nonempty binary32 array after one
+   --  runtime backend selection.
+   --  @param Data The nonempty complete array to reduce.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The maximum-number result.
+   function Min_Number
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64
+     with Pre => Data'Length > 0;
+   --  Return the number minimum of a nonempty binary64 array after one
+   --  runtime backend selection.
+   --  @param Data The nonempty complete array to reduce.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The minimum-number result.
+   function Max_Number
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64
+     with Pre => Data'Length > 0;
+   --  Return the number maximum of a nonempty binary64 array after one
+   --  runtime backend selection.
+   --  @param Data The nonempty complete array to reduce.
+   --  @param Backend The compiled and available backend to use.
+   --  @return The maximum-number result.
+
    function Dot_Product
      (Left, Right : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)

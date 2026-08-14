@@ -475,6 +475,14 @@ extract_symbol 'flyology_simd__algorithms__native_floating__sum' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-sum.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__sum__2' \
   "$temporary/floating-algorithm.txt" "$temporary/f64-sum.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__min_number' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-min-number.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__max_number' \
+  "$temporary/floating-algorithm.txt" "$temporary/f32-max-number.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__min_number__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-min-number.txt"
+extract_symbol 'flyology_simd__algorithms__native_floating__max_number__2' \
+  "$temporary/floating-algorithm.txt" "$temporary/f64-max-number.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__dot_product' \
   "$temporary/floating-algorithm.txt" "$temporary/f32-dot-product.txt"
 extract_symbol 'flyology_simd__algorithms__native_floating__dot_product__2' \
@@ -482,14 +490,16 @@ extract_symbol 'flyology_simd__algorithms__native_floating__dot_product__2' \
 
 for precision in f32 f64; do
     case "$precision" in
-        f32) zero=zero__9; load=load_partial__9; store=store_partial__9; splat=splat__9; multiply=multiply; add=add; minimum=min_number; maximum=max_number; reduce=reduce_add ;;
-        f64) zero=zero__10; load=load_partial__10; store=store_partial__10; splat=splat__10; multiply=multiply__2; add=add__2; minimum=min_number__2; maximum=max_number__2; reduce=reduce_add__2 ;;
+        f32) zero=zero__9; load=load_partial__9; store=store_partial__9; splat=splat__9; extract=extract__9; multiply=multiply; add=add; minimum=min_number; maximum=max_number; reduce=reduce_add; reduce_min=reduce_min_number; reduce_max=reduce_max_number ;;
+        f64) zero=zero__10; load=load_partial__10; store=store_partial__10; splat=splat__10; extract=extract__10; multiply=multiply__2; add=add__2; minimum=min_number__2; maximum=max_number__2; reduce=reduce_add__2; reduce_min=reduce_min_number__2; reduce_max=reduce_max_number__2 ;;
     esac
     scale_file="$temporary/${precision}-scale.txt"
     clamp_file="$temporary/${precision}-clamp.txt"
     axpy_file="$temporary/${precision}-axpy.txt"
     sum_file="$temporary/${precision}-sum.txt"
     dot_file="$temporary/${precision}-dot-product.txt"
+    min_file="$temporary/${precision}-min-number.txt"
+    max_file="$temporary/${precision}-max-number.txt"
     require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
       "$scale_file" "one selected splat route in the native ${precision} scale"
     require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
@@ -537,6 +547,23 @@ for precision in f32 f64; do
       "$sum_file" "one selected reduction in the native ${precision} sum"
     forbid_pattern 'flyology_simd__backends__native__multiply' "$sum_file" \
       "multiplication in the native ${precision} sum"
+
+    require_pattern "flyology_simd__backends__native__${load}([^_]|$)" \
+      "$min_file" "selected partial load in native ${precision} minimum"
+    require_pattern "flyology_simd__backends__native__${minimum}([^_]|$)" \
+      "$min_file" "selected Min_Number in native ${precision} minimum"
+    require_pattern "flyology_simd__backends__native__${reduce_min}([^_]|$)" \
+      "$min_file" "selected reduction in native ${precision} minimum"
+    require_pattern "flyology_simd__backends__native__${extract}([^_]|$)" \
+      "$min_file" "selected tail extraction in native ${precision} minimum"
+    require_pattern "flyology_simd__backends__native__${load}([^_]|$)" \
+      "$max_file" "selected partial load in native ${precision} maximum"
+    require_pattern "flyology_simd__backends__native__${maximum}([^_]|$)" \
+      "$max_file" "selected Max_Number in native ${precision} maximum"
+    require_pattern "flyology_simd__backends__native__${reduce_max}([^_]|$)" \
+      "$max_file" "selected reduction in native ${precision} maximum"
+    require_pattern "flyology_simd__backends__native__${extract}([^_]|$)" \
+      "$max_file" "selected tail extraction in native ${precision} maximum"
 
     require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$dot_file" "one selected zero route in the native ${precision} dot loop"
@@ -5066,6 +5093,17 @@ EOF
               'flyology_simd__algorithms__native_floating__clamp__2$' 1 \
               "$temporary/avx2-undefined.txt" \
               'one exact selected binary64 clamp route in the AVX2 object'
+            for entry in \
+              'min_number binary32-minimum' \
+              'max_number binary32-maximum' \
+              'min_number__2 binary64-minimum' \
+              'max_number__2 binary64-maximum'; do
+                set -- $entry
+                require_count \
+                  "flyology_simd__algorithms__native_floating__$1$" 1 \
+                  "$temporary/avx2-undefined.txt" \
+                  "one exact selected $2 route in the AVX2 object"
+            done
             extract_symbol \
               'flyology_simd__algorithms__avx2_implementation__axpy' \
               "$temporary/avx2.txt" "$temporary/avx2-f32-axpy.txt"

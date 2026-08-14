@@ -98,6 +98,12 @@ groups. The binary64 algorithm accumulates two lane groups. Each algorithm then
 applies `Reduce_Add` to those groups in ascending lane order. Empty inputs
 return positive zero.
 
+The complete-array `Min_Number` and `Max_Number` algorithms require nonempty
+input. Binary32 full blocks accumulate in four lane groups and binary64 full
+blocks in two; those lanes reduce with the corresponding primitive before a
+partial tail is applied in source order. The result follows the primitive NaN
+and signed-zero rules. NaN payload selection remains unspecified.
+
 `Algorithms.Generic_Floating.Scale` and the matching static and runtime
 instances multiply every element of one complete array by one scalar factor in
 place. Each result is the corresponding input multiplied by `Factor` once.

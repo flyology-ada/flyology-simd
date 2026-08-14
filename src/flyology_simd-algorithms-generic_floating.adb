@@ -181,6 +181,138 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       return Backend_F64_Reduce_Add (Accumulator);
    end Sum;
 
+   function Min_Number (Data : F32_Array) return F32 is
+      Start  : Natural := Data'First;
+      Result : F32;
+   begin
+      if Data'Length >= 4 then
+         declare
+            Accumulator : F32x4 :=
+              Backend_F32_Load_Partial (Data, Start, 4);
+         begin
+            Start := Start + 4;
+            while Start <= Data'Last
+              and then Data'Last - Start + 1 >= 4
+            loop
+               Accumulator := Backend_F32_Min_Number
+                 (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
+               Start := Start + 4;
+            end loop;
+            Result := Backend_F32_Reduce_Min_Number (Accumulator);
+         end;
+      else
+         Result := Data (Start);
+         Start := Start + 1;
+      end if;
+      while Start <= Data'Last loop
+         Result := Backend_F32_Extract
+           (Backend_F32_Min_Number
+              (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))),
+            0);
+         Start := Start + 1;
+      end loop;
+      return Result;
+   end Min_Number;
+
+   function Max_Number (Data : F32_Array) return F32 is
+      Start  : Natural := Data'First;
+      Result : F32;
+   begin
+      if Data'Length >= 4 then
+         declare
+            Accumulator : F32x4 :=
+              Backend_F32_Load_Partial (Data, Start, 4);
+         begin
+            Start := Start + 4;
+            while Start <= Data'Last
+              and then Data'Last - Start + 1 >= 4
+            loop
+               Accumulator := Backend_F32_Max_Number
+                 (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
+               Start := Start + 4;
+            end loop;
+            Result := Backend_F32_Reduce_Max_Number (Accumulator);
+         end;
+      else
+         Result := Data (Start);
+         Start := Start + 1;
+      end if;
+      while Start <= Data'Last loop
+         Result := Backend_F32_Extract
+           (Backend_F32_Max_Number
+              (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))),
+            0);
+         Start := Start + 1;
+      end loop;
+      return Result;
+   end Max_Number;
+
+   function Min_Number (Data : F64_Array) return F64 is
+      Start  : Natural := Data'First;
+      Result : F64;
+   begin
+      if Data'Length >= 2 then
+         declare
+            Accumulator : F64x2 :=
+              Backend_F64_Load_Partial (Data, Start, 2);
+         begin
+            Start := Start + 2;
+            while Start <= Data'Last
+              and then Data'Last - Start + 1 >= 2
+            loop
+               Accumulator := Backend_F64_Min_Number
+                 (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
+               Start := Start + 2;
+            end loop;
+            Result := Backend_F64_Reduce_Min_Number (Accumulator);
+         end;
+      else
+         Result := Data (Start);
+         Start := Start + 1;
+      end if;
+      while Start <= Data'Last loop
+         Result := Backend_F64_Extract
+           (Backend_F64_Min_Number
+              (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))),
+            0);
+         Start := Start + 1;
+      end loop;
+      return Result;
+   end Min_Number;
+
+   function Max_Number (Data : F64_Array) return F64 is
+      Start  : Natural := Data'First;
+      Result : F64;
+   begin
+      if Data'Length >= 2 then
+         declare
+            Accumulator : F64x2 :=
+              Backend_F64_Load_Partial (Data, Start, 2);
+         begin
+            Start := Start + 2;
+            while Start <= Data'Last
+              and then Data'Last - Start + 1 >= 2
+            loop
+               Accumulator := Backend_F64_Max_Number
+                 (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
+               Start := Start + 2;
+            end loop;
+            Result := Backend_F64_Reduce_Max_Number (Accumulator);
+         end;
+      else
+         Result := Data (Start);
+         Start := Start + 1;
+      end if;
+      while Start <= Data'Last loop
+         Result := Backend_F64_Extract
+           (Backend_F64_Max_Number
+              (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))),
+            0);
+         Start := Start + 1;
+      end loop;
+      return Result;
+   end Max_Number;
+
    function Dot_Product (Left, Right : F32_Array) return F32 is
       Start       : Natural := Left'First;
       Accumulator : F32x4 := Backend_F32_Zero;

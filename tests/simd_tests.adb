@@ -2052,6 +2052,171 @@ procedure SIMD_Tests is
       Test_AXPY_For_Length (4_096);
    end Test_AXPY;
 
+   function Reference_Min_Number (Data : F32_Array) return F32 is
+      Result : F32 := Data (Data'First);
+   begin
+      for Index in Data'First + 1 .. Data'Last loop
+         Result := Extract
+           (Min_Number (Splat (Result), Splat (Data (Index))), 0);
+      end loop;
+      return Result;
+   end Reference_Min_Number;
+
+   function Reference_Max_Number (Data : F32_Array) return F32 is
+      Result : F32 := Data (Data'First);
+   begin
+      for Index in Data'First + 1 .. Data'Last loop
+         Result := Extract
+           (Max_Number (Splat (Result), Splat (Data (Index))), 0);
+      end loop;
+      return Result;
+   end Reference_Max_Number;
+
+   function Reference_Min_Number (Data : F64_Array) return F64 is
+      Result : F64 := Data (Data'First);
+   begin
+      for Index in Data'First + 1 .. Data'Last loop
+         Result := Extract
+           (Min_Number (Splat (Result), Splat (Data (Index))), 0);
+      end loop;
+      return Result;
+   end Reference_Min_Number;
+
+   function Reference_Max_Number (Data : F64_Array) return F64 is
+      Result : F64 := Data (Data'First);
+   begin
+      for Index in Data'First + 1 .. Data'Last loop
+         Result := Extract
+           (Max_Number (Splat (Result), Splat (Data (Index))), 0);
+      end loop;
+      return Result;
+   end Reference_Max_Number;
+
+   procedure Test_Min_Max_For_Length (Length : Positive) is
+      Data_F32 : F32_Array (37 .. 36 + Length);
+      Data_F64 : F64_Array (37 .. 36 + Length);
+   begin
+      for Index in Data_F32'Range loop
+         declare
+            Offset : constant Natural := Index - Data_F32'First;
+         begin
+            Data_F32 (Index) := F32 (Integer ((7 * Offset + 2) mod 31) - 15);
+            Data_F64 (Index) := F64 (Integer ((9 * Offset + 1) mod 37) - 18);
+         end;
+      end loop;
+      declare
+         Min_F32 : constant F32 := Reference_Min_Number (Data_F32);
+         Max_F32 : constant F32 := Reference_Max_Number (Data_F32);
+         Min_F64 : constant F64 := Reference_Min_Number (Data_F64);
+         Max_F64 : constant F64 := Reference_Max_Number (Data_F64);
+      begin
+         Check
+           (F32_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F32)) =
+              F32_Bits (Min_F32)
+            and then
+            F32_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F32)) =
+              F32_Bits (Max_F32),
+            "scalar F32 min/max length" & Length'Image);
+         Check
+           (F64_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F64)) =
+              F64_Bits (Min_F64)
+            and then
+            F64_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F64)) =
+              F64_Bits (Max_F64),
+            "scalar F64 min/max length" & Length'Image);
+         Check
+           (F32_Bits (Algorithms.Native_Floating.Min_Number (Data_F32)) =
+              F32_Bits (Min_F32)
+            and then
+            F32_Bits (Algorithms.Native_Floating.Max_Number (Data_F32)) =
+              F32_Bits (Max_F32),
+            "native F32 min/max length" & Length'Image);
+         Check
+           (F64_Bits (Algorithms.Native_Floating.Min_Number (Data_F64)) =
+              F64_Bits (Min_F64)
+            and then
+            F64_Bits (Algorithms.Native_Floating.Max_Number (Data_F64)) =
+              F64_Bits (Max_F64),
+            "native F64 min/max length" & Length'Image);
+         Check
+           (F32_Bits (Algorithms.Runtime.Min_Number (Data_F32)) =
+              F32_Bits (Min_F32)
+            and then F32_Bits (Algorithms.Runtime.Max_Number (Data_F32)) =
+              F32_Bits (Max_F32),
+            "runtime F32 min/max length" & Length'Image);
+         Check
+           (F64_Bits (Algorithms.Runtime.Min_Number (Data_F64)) =
+              F64_Bits (Min_F64)
+            and then F64_Bits (Algorithms.Runtime.Max_Number (Data_F64)) =
+              F64_Bits (Max_F64),
+            "runtime F64 min/max length" & Length'Image);
+
+         for Backend in Features.Backend_Kind loop
+            if Features.Available (Backend) then
+               Check
+                 (F32_Bits
+                    (Algorithms.Runtime.Min_Number (Data_F32, Backend)) =
+                      F32_Bits (Min_F32)
+                  and then F32_Bits
+                    (Algorithms.Runtime.Max_Number (Data_F32, Backend)) =
+                      F32_Bits (Max_F32),
+                  "selected F32 min/max " & Features.Name (Backend) &
+                    " length" & Length'Image);
+               Check
+                 (F64_Bits
+                    (Algorithms.Runtime.Min_Number (Data_F64, Backend)) =
+                      F64_Bits (Min_F64)
+                  and then F64_Bits
+                    (Algorithms.Runtime.Max_Number (Data_F64, Backend)) =
+                      F64_Bits (Max_F64),
+                  "selected F64 min/max " & Features.Name (Backend) &
+                    " length" & Length'Image);
+            end if;
+         end loop;
+
+         if Features.Available (Features.AVX2) then
+            Check
+              (F32_Bits (Algorithms.AVX2.Min_Number (Data_F32)) =
+                 F32_Bits (Min_F32)
+               and then F32_Bits (Algorithms.AVX2.Max_Number (Data_F32)) =
+                 F32_Bits (Max_F32),
+               "direct AVX2 F32 min/max length" & Length'Image);
+            Check
+              (F64_Bits (Algorithms.AVX2.Min_Number (Data_F64)) =
+                 F64_Bits (Min_F64)
+               and then F64_Bits (Algorithms.AVX2.Max_Number (Data_F64)) =
+                 F64_Bits (Max_F64),
+               "direct AVX2 F64 min/max length" & Length'Image);
+         end if;
+      end;
+   end Test_Min_Max_For_Length;
+
+   procedure Test_Min_Max is
+   begin
+      for Length in Positive range 1 .. 96 loop
+         Test_Min_Max_For_Length (Length);
+      end loop;
+      Test_Min_Max_For_Length (4_096);
+      declare
+         Zeros_F32 : constant F32_Array :=
+           [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#)];
+         Zeros_F64 : constant F64_Array :=
+           [F64_Of_Bits (16#0000_0000_0000_0000#),
+            F64_Of_Bits (16#8000_0000_0000_0000#)];
+      begin
+         Check
+           (F32_Bits (Algorithms.Runtime.Min_Number (Zeros_F32)) =
+              16#8000_0000#
+            and then F32_Bits (Algorithms.Runtime.Max_Number (Zeros_F32)) = 0,
+            "runtime F32 min/max signed-zero semantics");
+         Check
+           (F64_Bits (Algorithms.Runtime.Min_Number (Zeros_F64)) =
+              16#8000_0000_0000_0000#
+            and then F64_Bits (Algorithms.Runtime.Max_Number (Zeros_F64)) = 0,
+            "runtime F64 min/max signed-zero semantics");
+      end;
+   end Test_Min_Max;
+
    function Reference_Sum (Data : F32_Array) return F32 is
       Partial : Lane_Values_F32x4 := [others => 0.0];
       Result  : F32 := 0.0;
@@ -2397,6 +2562,30 @@ procedure SIMD_Tests is
             when Features.Backend_Unavailable => null;
          end;
          begin
+            Dot := Algorithms.Runtime.Min_Number (F32_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F32 min accepted" & Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.Runtime.Max_Number (F64_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 max accepted" & Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot := Algorithms.AVX2.Max_Number (F32_Data);
+            Check (False, "unavailable direct AVX2 F32 max accepted" & Dot'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Dot_64 := Algorithms.AVX2.Min_Number (F64_Data);
+            Check (False, "unavailable direct AVX2 F64 min accepted" & Dot_64'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
             Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
             Check (False, "unavailable AVX2 accepted" & Result'Image);
          exception
@@ -2556,6 +2745,7 @@ begin
    Test_Scale;
    Test_Clamp;
    Test_AXPY;
+   Test_Min_Max;
    Test_Sum;
    Test_Dot_Product;
    Test_Unavailable_Rejection;

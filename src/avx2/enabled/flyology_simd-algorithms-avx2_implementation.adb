@@ -274,6 +274,15 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Sum;
 
+   function Min_Number (Data : F32_Array) return F32 is
+     (Algorithms.Native_Floating.Min_Number (Data));
+   function Max_Number (Data : F32_Array) return F32 is
+     (Algorithms.Native_Floating.Max_Number (Data));
+   function Min_Number (Data : F64_Array) return F64 is
+     (Algorithms.Native_Floating.Min_Number (Data));
+   function Max_Number (Data : F64_Array) return F64 is
+     (Algorithms.Native_Floating.Max_Number (Data));
+
    function Dot_Product (Left, Right : F32_Array) return F32 is
       Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
       Result       : F32 := 0.0;

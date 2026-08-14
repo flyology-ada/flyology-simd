@@ -50,6 +50,30 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Sum (Data);
    end Sum;
 
+   function Min_Number (Data : F32_Array) return F32 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Min_Number (Data);
+   end Min_Number;
+
+   function Max_Number (Data : F32_Array) return F32 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Max_Number (Data);
+   end Max_Number;
+
+   function Min_Number (Data : F64_Array) return F64 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Min_Number (Data);
+   end Min_Number;
+
+   function Max_Number (Data : F64_Array) return F64 is
+   begin
+      Features.Require (Features.AVX2);
+      return AVX2_Implementation.Max_Number (Data);
+   end Max_Number;
+
    function Dot_Product (Left, Right : F32_Array) return F32 is
    begin
       Features.Require (Features.AVX2);

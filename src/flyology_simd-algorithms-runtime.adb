@@ -135,6 +135,70 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Sum;
 
+   function Min_Number
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Min_Number (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Min_Number (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Min_Number (Data);
+      end case;
+   end Min_Number;
+
+   function Max_Number
+     (Data : F32_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F32 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Max_Number (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Max_Number (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Max_Number (Data);
+      end case;
+   end Max_Number;
+
+   function Min_Number
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Min_Number (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Min_Number (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Min_Number (Data);
+      end case;
+   end Min_Number;
+
+   function Max_Number
+     (Data : F64_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return F64 is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar_Floating.Max_Number (Data);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native_Floating.Max_Number (Data);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Max_Number (Data);
+      end case;
+   end Max_Number;
+
    function Dot_Product
      (Left, Right : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)
