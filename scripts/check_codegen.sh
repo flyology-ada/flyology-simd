@@ -3134,6 +3134,15 @@ EOF
           'inlined NEON comparison in representative loop'
         require_pattern 'uaddlv' "$temporary/algorithm.txt" \
           'inlined compact-mask extraction in representative loop'
+        extract_symbol 'flyology_simd__algorithms__native__find_first_of' \
+          "$temporary/algorithm.txt" "$temporary/find-first-of.txt"
+        require_pattern 'ldr[[:space:]]+q[0-9]+' \
+          "$temporary/find-first-of.txt" \
+          'fused small-set NEON vector load'
+        require_pattern 'cmeq.*16b' "$temporary/find-first-of.txt" \
+          'fused small-set NEON comparisons'
+        require_pattern 'uaddlv' "$temporary/find-first-of.txt" \
+          'fused small-set NEON mask extraction'
         forbid_pattern 'bl.*equal_mask' "$temporary/native.txt" 'out-of-line mask helper call'
         ;;
     x86_64)
@@ -4801,6 +4810,14 @@ EOF
         require_pattern 'pcmpeqb' "$temporary/algorithm.txt" 'inlined SSE2 comparison in representative loop'
         require_pattern 'pmovmskb' "$temporary/algorithm.txt" 'inlined mask extraction in representative loop'
         require_pattern 'movdqu' "$temporary/algorithm.txt" 'inlined vector load in representative loop'
+        extract_symbol 'flyology_simd__algorithms__native__find_first_of' \
+          "$temporary/algorithm.txt" "$temporary/find-first-of.txt"
+        require_pattern 'pcmpeqb' "$temporary/find-first-of.txt" \
+          'fused small-set SSE2 comparisons'
+        require_pattern 'pmovmskb' "$temporary/find-first-of.txt" \
+          'fused small-set SSE2 mask extraction'
+        require_pattern 'movdqu' "$temporary/find-first-of.txt" \
+          'fused small-set SSE2 vector load'
         #  In GNU and Apple disassembly, an instruction mnemonic is a
         #  whitespace-delimited token. Reject every VEX/EVEX mnemonic, not
         #  only the instruction classes used by the current AVX2 leaves.
@@ -4814,10 +4831,23 @@ EOF
         if [ "$avx2" = enabled ]; then
             avx_object="$object_root/flyology_simd-algorithms-avx2_implementation.o"
             disassemble "$avx_object" >"$temporary/avx2.txt"
+            nm -u "$avx_object" >"$temporary/avx2-undefined.txt"
             require_pattern 'ymm[0-9]+|vp[a-z]+' "$temporary/avx2.txt" \
               'AVX2 vectorization in the AVX2-only algorithm object'
             require_pattern 'bsf' "$temporary/avx2.txt" \
               'constant-time first-set-bit extraction in the AVX2 algorithm'
+            require_pattern 'vpcmpeqb' "$temporary/avx2.txt" \
+              'fused AVX2 small-set comparisons'
+            require_pattern 'vpor' "$temporary/avx2.txt" \
+              'fused AVX2 small-set comparison merge'
+            require_pattern 'vpmovmskb' "$temporary/avx2.txt" \
+              'fused AVX2 small-set mask extraction'
+            require_pattern 'vzeroupper' "$temporary/avx2.txt" \
+              'AVX-SSE transition cleanup in the small-set algorithm'
+            forbid_pattern \
+              'flyology_simd(__backends__native)?__(splat|load_unaligned|equal|bitwise_(and|or)|shift_right_logical|table_lookup|to_bit_mask|first_true)$' \
+              "$temporary/avx2-undefined.txt" \
+              'per-vector primitive relocation in the AVX2 small-set algorithm object'
         fi
         if [ "$wide_backend" = avx2 ]; then
             forbid_pattern 'flyology_simd__(__wide)?__(extract|from_lanes|permute_lanes)' "$temporary/wide-permute.txt" 'scalar or per-lane helper in AVX2 permutation object'
@@ -5118,7 +5148,7 @@ if nm -u "$algorithm_object" 2>/dev/null | grep -Eq '[_ ]flyology_simd__equal$';
 fi
 
 if nm -u "$algorithm_object" 2>/dev/null | grep -Eq \
-  'flyology_simd__backends__native__(splat|load_unaligned|equal|bitwise_and|to_bit_mask|equal_bits|neon_bitwise_and|u8_and)$'; then
+  'flyology_simd__backends__native__(splat|load_unaligned|equal|bitwise_and|bitwise_or|shift_right_logical|table_lookup|to_bit_mask|equal_bits|neon_bitwise_and|u8_and)$'; then
     echo "representative native algorithm retains an out-of-line backend primitive" >&2
     exit 1
 fi

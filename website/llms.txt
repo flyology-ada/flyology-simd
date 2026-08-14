@@ -13,6 +13,8 @@ Memory operations: https://simd.flyology.org/guide/memory/
 Conversions: https://simd.flyology.org/guide/conversions/
 Backend selection: https://simd.flyology.org/guide/dispatch/
 Benchmark reproduction: https://simd.flyology.org/guide/benchmarking/
+Journal: https://simd.flyology.org/journal/
+Small-set scan measurement: https://simd.flyology.org/journal/2026-08-small-set-scanning/
 Architecture: https://simd.flyology.org/architecture/
 Support matrix: https://simd.flyology.org/support/
 Generated API reference: https://simd.flyology.org/api/

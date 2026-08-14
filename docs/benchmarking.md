@@ -8,6 +8,7 @@ local `flyology_simd`; no Flyology dependency enters the library closure.
 cd benchmarks
 alr build --release
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark
 ```
 
 Alire selects AArch64 NEON or x86-64 automatically from the host architecture.
@@ -93,3 +94,35 @@ from the runtime path. On this host, runtime AVX2 had lower throughput than the
 ordinary Ada loop for buffers below 32 bytes because AVX2 uses a scalar tail.
 This crossover is host-specific. Measure the expected buffer sizes before you
 select a forced runtime backend.
+
+### Small-set first-match scan
+
+`class_scan_benchmark` compares `Find_First_Of` for a four-byte set with an
+ordinary Ada loop over a precomputed 256-entry Boolean membership table. It
+measures both no-match and last-match inputs, so every candidate scans the full
+buffer. The set is constructed outside the timed batch.
+
+On 2026-08-14, Apple `Mac15,9`, Darwin AArch64, GNAT FSF 16.1.0, checked
+library objects at `-O2 -ftree-vectorize` and benchmark code at `-O3`, one
+uncontrolled-host run produced these medians:
+
+| Bytes | Scenario | Ada table | Static NEON | Runtime NEON | Static/Ada |
+|---:|:---|---:|---:|---:|---:|
+| 16 | no match | 7.53 ns | 9.19 ns | 10.92 ns | 0.82× |
+| 32 | no match | 14.61 ns | 13.04 ns | 15.17 ns | 1.12× |
+| 48 | no match | 21.16 ns | 17.07 ns | 18.80 ns | 1.24× |
+| 64 | no match | 28.55 ns | 20.85 ns | 23.34 ns | 1.37× |
+| 128 | no match | 60.98 ns | 36.00 ns | 38.88 ns | 1.69× |
+| 16 | last match | 7.32 ns | 10.72 ns | 12.14 ns | 0.68× |
+| 32 | last match | 14.55 ns | 14.69 ns | 16.71 ns | 0.99× |
+| 48 | last match | 21.32 ns | 18.76 ns | 20.24 ns | 1.14× |
+| 64 | last match | 28.07 ns | 22.40 ns | 24.45 ns | 1.25× |
+| 128 | last match | 63.79 ns | 38.63 ns | 40.69 ns | 1.65× |
+| 4,096 | last match | 1,744 ns | 1,039 ns | 1,041 ns | 1.68× |
+
+The ordinary Ada class-table loop was faster below 32 bytes. Static NEON first
+won clearly at 32 bytes for no-match input and at 48 bytes for last-match
+input. Runtime selection first won clearly at 48 bytes in both scenarios. The
+127-byte case was slower than the adjacent 128-byte case because the current
+16-byte loop handles its 15-byte remainder scalarly. These crossovers are
+specific to this host, four-byte set, and full-buffer match positions.

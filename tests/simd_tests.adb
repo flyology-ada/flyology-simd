@@ -1362,6 +1362,8 @@ procedure SIMD_Tests is
    procedure Test_Algorithms_For_Length (Length : Natural) is
       Data : Byte_Array (1 .. Length);
       Reference_Find, Native_Find, Runtime_Find : Algorithms.Search_Result;
+      Needles : constant Byte_Array := [0, 42, 128, 255];
+      Reference_Of : Algorithms.Search_Result := (Found => False, Index => 0);
    begin
       for Index in Data'Range loop
          Data (Index) := Next_U8;
@@ -1374,6 +1376,28 @@ procedure SIMD_Tests is
       Runtime_Find := Algorithms.Runtime.Find_First (Data, 42);
       Check (Native_Find = Reference_Find, "native find length" & Length'Image);
       Check (Runtime_Find = Reference_Find, "runtime find length" & Length'Image);
+      for Index in Data'Range loop
+         for Needle of Needles loop
+            if Data (Index) = Needle then
+               Reference_Of := (Found => True, Index => Index);
+               exit;
+            end if;
+         end loop;
+         exit when Reference_Of.Found;
+      end loop;
+      Check
+        (Algorithms.Scalar.Find_First_Of (Data, Needles) = Reference_Of,
+         "scalar find-first-of length" & Length'Image);
+      Check
+        (Algorithms.Native.Find_First_Of (Data, Needles) = Reference_Of,
+         "native find-first-of length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Find_First_Of (Data, Needles) = Reference_Of,
+         "runtime find-first-of length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Find_First_Of
+           (Data, Needles, Features.Scalar) = Reference_Of,
+         "forced scalar find-first-of length" & Length'Image);
       Check (Algorithms.Native.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
              "native count length" & Length'Image);
       Check (Algorithms.Runtime.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
@@ -1385,6 +1409,13 @@ procedure SIMD_Tests is
       if Features.Available (Features.AVX2) then
          Check (Algorithms.AVX2.Find_First (Data, 42) = Reference_Find,
                 "AVX2 find length" & Length'Image);
+         Check
+           (Algorithms.AVX2.Find_First_Of (Data, Needles) = Reference_Of,
+            "AVX2 find-first-of length" & Length'Image);
+         Check
+           (Algorithms.Runtime.Find_First_Of
+              (Data, Needles, Features.AVX2) = Reference_Of,
+            "runtime AVX2 find-first-of length" & Length'Image);
          Check (Algorithms.AVX2.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
                 "AVX2 count length" & Length'Image);
          Check (Algorithms.AVX2.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
@@ -1394,11 +1425,62 @@ procedure SIMD_Tests is
 
    procedure Test_Algorithms is
       Lane_Data : Byte_Array (1 .. 64) := [others => 0];
+      Empty_Data : constant Byte_Array (1 .. 0) := [];
+      Empty_Set : constant Byte_Array (1 .. 0) := [];
+      Four_Set : constant Byte_Array := [9, 10, 13, 32];
+      Duplicate_Set : constant Byte_Array := [32, 9, 32, 10];
+      Large_Set : constant Byte_Array := [1, 3, 5, 7, 9, 11];
    begin
       for Length in Natural range 0 .. 80 loop
          Test_Algorithms_For_Length (Length);
       end loop;
       Test_Algorithms_For_Length (4_096);
+      Check
+        (Algorithms.Scalar.Find_First_Of (Empty_Data, Four_Set) =
+           (Found => False, Index => 0),
+         "find-first-of empty data");
+      Check
+        (Algorithms.Native.Find_First_Of (Lane_Data, Empty_Set) =
+           (Found => False, Index => 0),
+         "find-first-of empty set");
+      Lane_Data := [others => 65];
+      Lane_Data (37) := 32;
+      Check
+        (Algorithms.Native.Find_First_Of (Lane_Data, Duplicate_Set) =
+           (Found => True, Index => 37),
+         "find-first-of duplicate set");
+      Lane_Data := [others => 2];
+      Lane_Data (51) := 11;
+      Check
+        (Algorithms.Native.Find_First_Of (Lane_Data, Large_Set) =
+           (Found => True, Index => 51),
+         "find-first-of large-set fallback");
+      declare
+         Offset_Data : Byte_Array (37 .. 196) := [others => 65];
+      begin
+         for Position in Offset_Data'Range loop
+            Offset_Data := [others => 65];
+            Offset_Data (Position) := 13;
+            Check
+              (Algorithms.Scalar.Find_First_Of (Offset_Data, Four_Set) =
+                 (Found => True, Index => Position),
+               "scalar find-first-of offset" & Position'Image);
+            Check
+              (Algorithms.Native.Find_First_Of (Offset_Data, Four_Set) =
+                 (Found => True, Index => Position),
+               "native find-first-of offset" & Position'Image);
+            Check
+              (Algorithms.Runtime.Find_First_Of (Offset_Data, Four_Set) =
+                 (Found => True, Index => Position),
+               "runtime find-first-of offset" & Position'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Of (Offset_Data, Four_Set) =
+                    (Found => True, Index => Position),
+                  "AVX2 find-first-of offset" & Position'Image);
+            end if;
+         end loop;
+      end;
       if Features.Available (Features.AVX2) then
          for Lane in Natural range 0 .. 31 loop
             Lane_Data := [others => 0];
@@ -1414,6 +1496,7 @@ procedure SIMD_Tests is
    procedure Test_Unavailable_Rejection is
       Data : constant Byte_Array (1 .. 1) := [1 => 0];
       Result : Natural;
+      Search : Algorithms.Search_Result;
    begin
       if not Features.Available (Features.AVX2) then
          begin
@@ -1425,6 +1508,21 @@ procedure SIMD_Tests is
          begin
             Result := Algorithms.AVX2.Count (Data, 0);
             Check (False, "direct unavailable AVX2 accepted" & Result'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Search := Algorithms.Runtime.Find_First_Of
+              (Data, Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 find-first-of accepted" &
+                   Search.Index'Image);
+         exception
+            when Features.Backend_Unavailable => null;
+         end;
+         begin
+            Search := Algorithms.AVX2.Find_First_Of (Data, Data);
+            Check (False, "unavailable direct AVX2 find-first-of accepted" &
+                   Search.Index'Image);
          exception
             when Features.Backend_Unavailable => null;
          end;

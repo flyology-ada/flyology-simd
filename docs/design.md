@@ -280,6 +280,15 @@ permits inlining through whole-buffer loops.  Named scalar/native
 instantiations are supplied.  Runtime selection is performed once in the
 non-generic algorithm facade, never once per primitive operation.
 
+`Find_First_Of` accepts an ordinary `Byte_Array` small set. Its static
+instances load each full vector once, compare all set members inside the
+whole-buffer loop, merge their masks, and select the first matching Ada index.
+The optional AVX2 object performs the same work in an isolated 32-byte loop
+with a 16-byte path before the exact scalar tail. The public API does not expose
+a nibble-table encoding because intersected eight-bit nibble tables cannot
+represent every possible byte class and baseline SSE2 has no efficient
+byte-table lookup.
+
 Feature information is immutable and computed once during package elaboration,
 without a racy writable cache. Runtime selection occurs once per complete
 buffer operation, never per vector.

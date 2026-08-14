@@ -20,8 +20,10 @@ applicable table range produces zero in that lane. Each value family at both
 widths supports reusable, strongly typed lane maps that reorder or broadcast
 lanes from one source vector, or select lanes from two source vectors. Every family
 has zero-filled lane slides in both index directions. Every family also has
-stable mask compression and expansion. `Find_First`, `Count`,
-and `Is_ASCII` demonstrate whole-buffer composition.
+stable mask compression and expansion. `Find_First`, `Find_First_Of`, `Count`,
+and `Is_ASCII` provide whole-buffer algorithms. `Find_First_Of` keeps loading,
+small-set classification, mask extraction, and first-match selection inside one
+complete-buffer call.
 
 “Full family” refers to the ten 128-bit value types. The API includes
 lane-preserving bit casts, adjacent integer widening and narrowing, and exact

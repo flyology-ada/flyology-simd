@@ -3,7 +3,13 @@ with Interfaces.C;
 with System;
 with System.Storage_Elements;
 with Flyology_SIMD;
+with Flyology_SIMD.Algorithms;
+with Flyology_SIMD.Algorithms.AVX2;
+with Flyology_SIMD.Algorithms.Native;
+with Flyology_SIMD.Algorithms.Runtime;
+with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Backends.Native;
+with Flyology_SIMD.Features;
 with Flyology_SIMD.Wide;
 with Flyology_SIMD.Wide.Native;
 
@@ -13,6 +19,7 @@ procedure Guard_Page_Tests is
    use System.Storage_Elements;
    use type Interfaces.C.int;
    use type Interfaces.Unsigned_8;
+   use type Flyology_SIMD.Algorithms.Search_Result;
    use type System.Address;
 
    function Get_Page_Size return Interfaces.C.int
@@ -214,6 +221,54 @@ begin
       end loop;
    end;
 
+   declare
+      Needles : constant Byte_Array := [9, 10, 13, 32];
+      Empty : constant Byte_Array (1 .. 0) := [];
+   begin
+      Check
+        (Algorithms.Native.Find_First_Of (Empty, Needles) =
+           (Found => False, Index => 0),
+         "whole-buffer empty scan");
+      for Length in Positive range 1 .. 160 loop
+         declare
+            Data : Byte_Array (1 .. Length);
+            for Data'Address use Add (Allocation, Page_Size - Length);
+            pragma Import (Ada, Data);
+         begin
+            Data := [others => 65];
+            Check
+              (Algorithms.Scalar.Find_First_Of (Data, Needles) =
+                 (Found => False, Index => 0),
+               "scalar protected-tail no-match length" & Length'Image);
+            Check
+              (Algorithms.Native.Find_First_Of (Data, Needles) =
+                 (Found => False, Index => 0),
+               "native protected-tail no-match length" & Length'Image);
+            Check
+              (Algorithms.Runtime.Find_First_Of (Data, Needles) =
+                 (Found => False, Index => 0),
+               "runtime protected-tail no-match length" & Length'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Of (Data, Needles) =
+                    (Found => False, Index => 0),
+                  "AVX2 protected-tail no-match length" & Length'Image);
+            end if;
+            Data (Data'Last) := Needles (Needles'Last);
+            Check
+              (Algorithms.Native.Find_First_Of (Data, Needles) =
+                 (Found => True, Index => Data'Last),
+               "native protected-tail final-match length" & Length'Image);
+            if Features.Available (Features.AVX2) then
+               Check
+                 (Algorithms.AVX2.Find_First_Of (Data, Needles) =
+                    (Found => True, Index => Data'Last),
+                  "AVX2 protected-tail final-match length" & Length'Image);
+            end if;
+         end;
+      end loop;
+   end;
+
    Check
      (Mprotect
         (Add (Allocation, Page_Size),
@@ -223,7 +278,7 @@ begin
    Free (Allocation);
 
    if Failures = 0 then
-      Put_Line ("guard-page partial-memory tests: PASS");
+      Put_Line ("guard-page memory and whole-buffer tests: PASS");
    else
       raise Program_Error with Failures'Image & " guard-page failures";
    end if;

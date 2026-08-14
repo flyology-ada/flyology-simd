@@ -851,6 +851,17 @@ Before a target runs that binary, CPUID must report the AVX, AVX2, and OSXSAVE
 bits, and XCR0 must enable XMM and YMM register state. This rule
 differs from `Algorithms.AVX2`, which checks these conditions before it enters
 an optional whole-buffer object.
+
+`Find_First_Of` is optimized for sets of up to four bytes. Scalar and static
+Native instances share exact semantics; the Native instantiation inlines the
+selected load, equality, and mask operations into one 16-byte loop. AArch64
+code-generation checks require the load, `cmeq`, and compact-mask reduction in
+the `Find_First_Of` symbol. Baseline x86-64 checks require `movdqu`, `pcmpeqb`,
+and `pmovmskb`. Both reject relocations to per-vector backend primitives. The
+optional AVX2 object uses one 32-byte loop plus a 16-byte VEX path and a scalar
+tail. Its gate requires `vpcmpeqb`, `vpor`, `vpmovmskb`, `bsf`, and
+`vzeroupper`. Protected-page tests place lengths 1 through 160 immediately
+before an inaccessible page and cover both no-match and final-match scans.
 The Wide exact byte sum adds two selected 128-bit `Horizontal_Sum` results.
 Fixed-vector and deterministic pseudorandom tests compare scalar and Native
 results with an independent lane oracle. AArch64 and x86-64 caller-level

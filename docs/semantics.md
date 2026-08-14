@@ -158,6 +158,20 @@ same sum modulo 256 as `U8`.
 The private pair-of-128 implementation is not a caller ABI or a
 single-instruction promise.
 
+## Complete-buffer byte searches
+
+`Find_First_Of (Data, Needles)` returns the lowest Ada array index in `Data`
+whose byte equals any element of `Needles`. Needle order does not affect the
+result, duplicate needles have no effect, and either input may be empty. A
+match returns `(Found => True, Index => the matching Data index)`. No match
+returns `(Found => False, Index => 0)`; `Found` therefore disambiguates a real
+match at index zero.
+
+Sets of one through four bytes use the small-set vector path. Larger sets use
+an exact scalar fallback with the same semantics. Every backend scans only
+complete vectors and then the remaining scalar tail, so it does not read past
+`Data'Last`.
+
 ## Memory
 
 All ordinary memory operations use a typed lane array plus an Ada array index.

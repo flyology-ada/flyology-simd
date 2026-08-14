@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-08-14",
+  "model_identifier": "Mac15,9",
+  "model_name": "MacBook Pro",
+  "chip": "Apple M3 Max",
+  "performance_cores": 12,
+  "efficiency_cores": 4,
+  "total_cores": 16,
+  "memory_gb": 48,
+  "operating_system": "Darwin 25.5.0",
+  "machine": "arm64",
+  "source": "host observations recorded during the benchmark campaign"
+}

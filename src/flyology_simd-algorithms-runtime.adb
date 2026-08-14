@@ -18,6 +18,23 @@ package body Flyology_SIMD.Algorithms.Runtime is
       end case;
    end Find_First;
 
+   function Find_First_Of
+     (Data : Byte_Array;
+      Needles : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Search_Result is
+   begin
+      Features.Require (Backend);
+      case Backend is
+         when Features.Scalar =>
+            return Algorithms.Scalar.Find_First_Of (Data, Needles);
+         when Features.NEON | Features.SSE2 =>
+            return Algorithms.Native.Find_First_Of (Data, Needles);
+         when Features.AVX2 =>
+            return Algorithms.AVX2.Find_First_Of (Data, Needles);
+      end case;
+   end Find_First_Of;
+
    function Count
      (Data : Byte_Array;
       Needle : U8;

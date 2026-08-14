@@ -22,6 +22,15 @@ is
    --  @param Data The complete byte array to search.
    --  @param Needle The byte to find.
    --  @return A found flag and the first matching Ada index.
+   function Find_First_Of
+     (Data : Byte_Array; Needles : Byte_Array) return Search_Result;
+   --  Return the first Ada index whose byte equals any member of Needles. An
+   --  empty Data or Needles array has no match. Duplicate needles have no
+   --  effect. The vector path is optimized for sets of up to four bytes;
+   --  larger sets retain the same exact semantics through a scalar scan.
+   --  @param Data The complete byte array to search.
+   --  @param Needles The byte values that constitute the small set.
+   --  @return A found flag and the first matching Ada index.
    function Count (Data : Byte_Array; Needle : U8) return Natural;
    --  Count occurrences of one byte.
    --  @param Data The complete byte array to scan.

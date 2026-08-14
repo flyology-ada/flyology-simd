@@ -12,6 +12,18 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Needle The byte to find.
    --  @param Backend The compiled and available backend to use.
    --  @return A found flag and the first matching Ada index.
+   function Find_First_Of
+     (Data : Byte_Array;
+      Needles : Byte_Array;
+      Backend : Features.Backend_Kind := Features.Best_Available)
+      return Search_Result;
+   --  Find the first byte equal to any member of a small set after one runtime
+   --  backend selection. Empty inputs have no match and duplicates have no
+   --  effect.
+   --  @param Data The complete byte array to search.
+   --  @param Needles The byte values that constitute the small set.
+   --  @param Backend The compiled and available backend to use.
+   --  @return A found flag and the first matching Ada index.
    function Count
      (Data : Byte_Array;
       Needle : U8;

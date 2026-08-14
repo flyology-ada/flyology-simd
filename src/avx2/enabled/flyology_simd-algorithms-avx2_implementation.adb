@@ -1,5 +1,6 @@
 with Interfaces;
 with System.Machine_Code;
+with Flyology_SIMD.Algorithms.Scalar;
 
 package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    use type Interfaces.Unsigned_8;
@@ -48,6 +49,108 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    end High_Bit_Mask_32;
    pragma Inline_Always (High_Bit_Mask_32);
 
+   function Equal_Any_Offset_32
+     (Data : Byte_Array;
+      Start : Natural;
+      Length : Natural;
+      Needle_0, Needle_1, Needle_2, Needle_3 : U8)
+      return Interfaces.Unsigned_32
+   is
+      Cursor : System.Address := Data (Start)'Address;
+      Offset : Interfaces.Unsigned_32;
+      Bits : Interfaces.Unsigned_32;
+      Local_0 : aliased U8 := Needle_0;
+      Local_1 : aliased U8 := Needle_1;
+      Local_2 : aliased U8 := Needle_2;
+      Local_3 : aliased U8 := Needle_3;
+   begin
+      Asm
+        (Template =>
+           "xorl %1, %1" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%3), %%ymm4" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%4), %%ymm5" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%5), %%ymm6" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%6), %%ymm7" & ASCII.LF &
+           "0:" & ASCII.LF & ASCII.HT &
+           "vmovdqu (%0), %%ymm0" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm4, %%ymm0, %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm5, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm6, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%ymm7, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
+           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
+           "vpmovmskb %%ymm1, %2" & ASCII.LF & ASCII.HT &
+           "testl %2, %2" & ASCII.LF & ASCII.HT &
+           "jne 1f" & ASCII.LF & ASCII.HT &
+           "addq $32, %0" & ASCII.LF & ASCII.HT &
+           "addl $32, %1" & ASCII.LF & ASCII.HT &
+           "cmpl %7, %1" & ASCII.LF & ASCII.HT &
+           "jb 0b" & ASCII.LF & ASCII.HT &
+           "movl $-1, %1" & ASCII.LF & ASCII.HT &
+           "jmp 2f" & ASCII.LF &
+           "1:" & ASCII.LF & ASCII.HT &
+           "bsfl %2, %2" & ASCII.LF & ASCII.HT &
+           "addl %2, %1" & ASCII.LF &
+           "2:" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Outputs =>
+           [System.Address'Asm_Output ("+&r", Cursor),
+            Interfaces.Unsigned_32'Asm_Output ("=&r", Offset),
+            Interfaces.Unsigned_32'Asm_Output ("=&r", Bits)],
+         Inputs =>
+           [System.Address'Asm_Input ("r", Local_0'Address),
+            System.Address'Asm_Input ("r", Local_1'Address),
+            System.Address'Asm_Input ("r", Local_2'Address),
+            System.Address'Asm_Input ("r", Local_3'Address),
+            Natural'Asm_Input ("r", Length)],
+         Clobber => "ymm0,ymm1,ymm2,ymm4,ymm5,ymm6,ymm7,cc,memory",
+         Volatile => True);
+      return Offset;
+   end Equal_Any_Offset_32;
+   pragma Inline_Always (Equal_Any_Offset_32);
+
+   function Equal_Any_Mask_16
+     (Data : Byte_Array;
+      Start : Natural;
+      Needle_0, Needle_1, Needle_2, Needle_3 : U8)
+      return Interfaces.Unsigned_32
+   is
+      Result : Interfaces.Unsigned_32;
+      Local_0 : aliased U8 := Needle_0;
+      Local_1 : aliased U8 := Needle_1;
+      Local_2 : aliased U8 := Needle_2;
+      Local_3 : aliased U8 := Needle_3;
+   begin
+      Asm
+        (Template =>
+           "vmovdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%2), %%xmm4" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%3), %%xmm5" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%4), %%xmm6" & ASCII.LF & ASCII.HT &
+           "vpbroadcastb (%5), %%xmm7" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%xmm4, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%xmm5, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
+           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%xmm6, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
+           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "vpcmpeqb %%xmm7, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
+           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
+           "vpmovmskb %%xmm1, %0" & ASCII.LF & ASCII.HT &
+           "vzeroupper",
+         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs =>
+           [System.Address'Asm_Input ("r", Data (Start)'Address),
+            System.Address'Asm_Input ("r", Local_0'Address),
+            System.Address'Asm_Input ("r", Local_1'Address),
+            System.Address'Asm_Input ("r", Local_2'Address),
+            System.Address'Asm_Input ("r", Local_3'Address)],
+         Clobber => "xmm0,xmm1,xmm2,xmm4,xmm5,xmm6,xmm7,memory",
+         Volatile => True);
+      return Result;
+   end Equal_Any_Mask_16;
+   pragma Inline_Always (Equal_Any_Mask_16);
+
    function First_Set_Bit (Bits : Interfaces.Unsigned_32) return Natural is
       Result : Interfaces.Unsigned_32;
    begin
@@ -92,6 +195,75 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       end loop;
       return (Found => False, Index => 0);
    end Find_First;
+
+   function Find_First_Of
+     (Data : Byte_Array; Needles : Byte_Array) return Search_Result
+   is
+      Offset : Natural := 0;
+      Full_Bytes : Natural;
+      Match_Offset : Interfaces.Unsigned_32;
+      Bits : Interfaces.Unsigned_32;
+      Needle_0, Needle_1, Needle_2, Needle_3 : U8;
+   begin
+      case Needles'Length is
+         when 0 =>
+            return (Found => False, Index => 0);
+         when 1 =>
+            return Find_First (Data, Needles (Needles'First));
+         when 2 .. 4 =>
+            Needle_0 := Needles (Needles'First);
+            Needle_1 := Needles (Needles'First + 1);
+            Needle_2 :=
+              (if Needles'Length >= 3
+               then Needles (Needles'First + 2) else Needle_0);
+            Needle_3 :=
+              (if Needles'Length >= 4
+               then Needles (Needles'First + 3) else Needle_0);
+         when others =>
+            return Algorithms.Scalar.Find_First_Of (Data, Needles);
+      end case;
+
+      Full_Bytes := Data'Length - (Data'Length mod 32);
+      if Full_Bytes > 0 then
+         Match_Offset := Equal_Any_Offset_32
+           (Data, Data'First, Full_Bytes,
+            Needle_0, Needle_1, Needle_2, Needle_3);
+         if Match_Offset /= Interfaces.Unsigned_32'Last then
+            return
+              (Found => True,
+               Index => Data'First + Natural (Match_Offset));
+         end if;
+         Offset := Full_Bytes;
+      end if;
+
+      if Data'Length - Offset >= 16 then
+         Bits := Equal_Any_Mask_16
+           (Data, Data'First + Offset,
+            Needle_0, Needle_1, Needle_2, Needle_3);
+         if Bits /= 0 then
+            return
+              (Found => True,
+               Index => Data'First + Offset + First_Set_Bit (Bits));
+         end if;
+         Offset := Offset + 16;
+      end if;
+
+      while Offset < Data'Length loop
+         declare
+            Item : constant U8 := Data (Data'First + Offset);
+         begin
+            if Item = Needle_0
+              or else Item = Needle_1
+              or else Item = Needle_2
+              or else Item = Needle_3
+            then
+               return (Found => True, Index => Data'First + Offset);
+            end if;
+         end;
+         Offset := Offset + 1;
+      end loop;
+      return (Found => False, Index => 0);
+   end Find_First_Of;
 
    function Count (Data : Byte_Array; Needle : U8) return Natural is
       Offset : Natural := 0;

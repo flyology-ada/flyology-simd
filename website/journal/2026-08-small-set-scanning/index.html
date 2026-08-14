@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A dated AArch64 measurement of Flyology SIMD whole-buffer small-set scanning and the design decision it supported.">
+  <meta name="theme-color" content="#f5f2e9">
+  <title>Small-set scanning on AArch64 · Flyology SIMD</title>
+  <link rel="canonical" href="https://simd.flyology.org/journal/2026-08-small-set-scanning/">
+  <link rel="icon" href="../../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../assets/styles/site.css">
+  <link rel="stylesheet" href="../../assets/styles/simd.css">
+  <script src="../../assets/scripts/ada-highlight.js"></script>
+  <script src="../../assets/scripts/site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="brand" href="../../"><img src="../../assets/brand/flyology-mark-transparent.svg" alt=""><span>Flyology SIMD</span></a>
+      <ul class="nav-links" data-nav-links><li><a href="../../">Overview</a></li><li><a href="../../guide/">Guide</a></li><li><a href="../../guide/operations/">Operations</a></li><li><a href="../../architecture/">Architecture</a></li><li><a href="../../support/">Support</a></li><li><a href="../" aria-current="page">Journal</a></li><li><a href="../../api/">API</a></li><li><a href="https://github.com/flyology-ada/flyology-simd">GitHub</a></li></ul>
+      <div class="nav-tools"><button class="icon-button" type="button" data-theme-toggle><span class="visually-hidden" data-theme-label>Change theme</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg></button><button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h2M4 17h16"/></svg></button></div>
+    </nav>
+  </header>
+
+  <main id="main" class="page-shell">
+    <header class="article-hero">
+      <div><ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../../">Flyology SIMD</a></li><li><a href="../">Journal</a></li><li aria-current="page">Small-set scanning</li></ol><h1>Small-set scanning crossed over at 32 to 48 bytes.</h1></div>
+      <div>
+        <p class="article-summary">A public nibble-table class was too restrictive. An exact small-set operation was simpler, and this AArch64 run showed where its fused native loop became faster than ordinary Ada.</p>
+        <dl class="article-meta">
+          <div><dt>Published</dt><dd><time datetime="2026-08-14">2026-08-14</time></dd></div>
+          <div><dt>Source state</dt><dd><code>3c48a9e69716</code> plus this working-tree change</dd></div>
+          <div><dt>Host</dt><dd>Apple <code>Mac15,9</code></dd></div>
+          <div><dt>Target</dt><dd>Darwin / AArch64 / NEON</dd></div>
+          <div><dt>Compiler</dt><dd>GNAT FSF 16.1.0</dd></div>
+          <div><dt>Profile</dt><dd>250 ms warmup, 3 seconds, 75 samples</dd></div>
+        </dl>
+      </div>
+    </header>
+
+    <div class="docs-layout">
+      <nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ol><li><a href="#boundary">Snapshot boundary</a></li><li><a href="#representation">Representation decision</a></li><li><a href="#implementation">Retained operation</a></li><li><a href="#method">Method</a></li><li><a href="#results">Results</a></li><li><a href="#interpretation">Interpretation</a></li><li><a href="#verification">Verification and limits</a></li><li><a href="#reproduce">Reproduce it</a></li></ol></nav>
+
+      <article class="prose">
+        <section id="boundary">
+          <div class="snapshot-boundary"><strong>Local measurement snapshot</strong><p>This entry records one uncontrolled-host run on one AArch64 machine. It does not establish a portable crossover, and the base revision does not contain the working-tree implementation by itself.</p></div>
+          <p>We investigated one whole-buffer call that returns the first array index whose byte equals any byte in a small set. Load, comparison, compact-mask extraction, and first-match selection needed to remain inside one loop.</p>
+          <div class="data-links" aria-label="Benchmark data downloads"><a href="data/medians.csv" download>Median summary CSV</a><a href="data/metadata.json" download>Run metadata</a><a href="data/host.json" download>Host metadata</a></div>
+        </section>
+
+        <section id="representation">
+          <span class="step-label">DECISION</span>
+          <h2>We did not expose the nibble tables as a general byte class</h2>
+          <p>The first candidate used one 16-entry table for each nibble. A byte matched when the selected low-table and high-table bytes had a common set bit.</p>
+          <p>That representation is not an arbitrary 256-byte class. Each bit describes one rectangle in the 16-by-16 nibble matrix. Eight bits can describe at most eight such rectangles. A 16-byte diagonal class can require 16 rectangles, so the two byte tables cannot encode it exactly.</p>
+          <p>The representation can encode any set of up to eight bytes by assigning one bit to each member. It can also encode some larger structured sets. That narrower contract did not justify a public class type, especially because baseline x86-64 has SSE2 but no byte-shuffle instruction.</p>
+        </section>
+
+        <section id="implementation">
+          <span class="step-label">IMPLEMENTATION</span>
+          <h2>The retained API expresses an exact small set</h2>
+          <p><a data-api="Flyology_SIMD.Algorithms.Runtime.Find_First_Of"><code>Algorithms.Runtime.Find_First_Of</code></a> accepts a byte array and a byte-array set. It returns the first matching Ada index. An empty input or empty set returns <code>(Found =&gt; False, Index =&gt; 0)</code>. Duplicate set members do not change the result.</p>
+          <p>For sets of one through four bytes, each complete 16-byte block in the static Native path uses a fused vector loop. The loop loads the block once, compares it with pre-splatted set members, combines the compact masks, and selects the first set bit. The exact scalar tail touches only valid input bytes.</p>
+          <p>Larger sets retain the same exact result through a scalar membership loop. This boundary keeps the public operation useful without pretending that every set size benefits from the same vector mechanism.</p>
+        </section>
+
+        <section id="method">
+          <span class="step-label">METHOD</span>
+          <h2>We compared complete calls with an ordinary Ada table loop</h2>
+          <p>The set contained four bytes: horizontal tab, line feed, carriage return, and space. The ordinary Ada candidate used a precomputed 256-entry Boolean membership table. Set construction occurred outside each timed batch.</p>
+          <p>Each comparison included the ordinary Ada loop, scalar reference backend, static native backend, and default runtime route. No-match and last-match inputs both forced a complete scan.</p>
+          <dl class="decision-list">
+            <div class="decision-row"><dt>Library build</dt><dd><code>-O2 -ftree-vectorize</code>, with assertions enabled.</dd></div>
+            <div class="decision-row"><dt>Benchmark build</dt><dd><code>-O3 -ftree-vectorize</code>.</dd></div>
+            <div class="decision-row"><dt>Schedule</dt><dd>Balanced rounds with equal measurement time for each candidate.</dd></div>
+            <div class="decision-row"><dt>Samples</dt><dd>75 samples after a 250 ms warmup, during three seconds per comparison.</dd></div>
+            <div class="decision-row"><dt>Timer</dt><dd>Estimated timer cost was not subtracted.</dd></div>
+            <div class="decision-row"><dt>Placement</dt><dd>Uncontrolled. The benchmark thread was not pinned and CPU quiescence was not required.</dd></div>
+          </dl>
+        </section>
+
+        <section id="results">
+          <span class="step-label">OBSERVATION</span>
+          <h2>The ordinary loop won below 32 bytes on this machine</h2>
+          <div class="benchmark-table-wrap">
+            <table class="support-table">
+              <caption>Median time for selected full-scan cases</caption>
+              <thead><tr><th>Bytes</th><th>Scenario</th><th>Ada table</th><th>Static NEON</th><th>Runtime NEON</th><th>Static speedup</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">7</th><td>No match</td><td>4.22 ns</td><td>14.32 ns</td><td>16.08 ns</td><td>0.29×</td></tr>
+                <tr><th scope="row">16</th><td>No match</td><td>7.53 ns</td><td>9.19 ns</td><td>10.92 ns</td><td>0.82×</td></tr>
+                <tr><th scope="row">32</th><td>No match</td><td>14.61 ns</td><td>13.04 ns</td><td>15.17 ns</td><td>1.12×</td></tr>
+                <tr><th scope="row">48</th><td>No match</td><td>21.16 ns</td><td>17.07 ns</td><td>18.80 ns</td><td>1.24×</td></tr>
+                <tr><th scope="row">128</th><td>No match</td><td>60.98 ns</td><td>36.00 ns</td><td>38.88 ns</td><td>1.69×</td></tr>
+                <tr><th scope="row">16</th><td>Last match</td><td>7.32 ns</td><td>10.72 ns</td><td>12.14 ns</td><td>0.68×</td></tr>
+                <tr><th scope="row">32</th><td>Last match</td><td>14.55 ns</td><td>14.69 ns</td><td>16.71 ns</td><td>0.99×</td></tr>
+                <tr><th scope="row">48</th><td>Last match</td><td>21.32 ns</td><td>18.76 ns</td><td>20.24 ns</td><td>1.14×</td></tr>
+                <tr><th scope="row">128</th><td>Last match</td><td>63.79 ns</td><td>38.63 ns</td><td>40.69 ns</td><td>1.65×</td></tr>
+                <tr><th scope="row">4,096</th><td>Last match</td><td>1,744 ns</td><td>1,039 ns</td><td>1,041 ns</td><td>1.68×</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Static NEON first had a clear lower median at 32 bytes for no-match input. The last-match case was effectively tied at 32 bytes and first clearly favored static NEON at 48 bytes. Runtime selection first had a clear lower median at 48 bytes in both scenarios.</p>
+          <p>The scalar reference backend was slower than the ordinary Ada table loop at every measured size. It exists to define and check semantics; this run did not support using it as a performance route.</p>
+        </section>
+
+        <section id="interpretation">
+          <span class="step-label">TAILS</span>
+          <h2>A complete vector was faster than a nearly complete vector plus a scalar tail</h2>
+          <p>The 127-byte case took 53.88 ns with static NEON and the 128-byte case took 36.00 ns in the no-match scenario. The current loop handles the 15-byte remainder scalarly, which explains the reversal.</p>
+          <p>This result changed our API decision, but not into a universal SIMD claim. The measurements supported the exact small-set operation for repeated full scans of medium and large buffers. An ordinary table loop remained the better measured choice for the shortest buffers on this host.</p>
+        </section>
+
+        <section id="verification">
+          <span class="step-label">LIMITS</span>
+          <h2>Correctness and generated code had separate checks</h2>
+          <p>Differential tests covered empty arrays, empty and duplicate sets, non-one lower bounds, every relevant lane position, randomized inputs, and exact no-match results. Guard-page tests placed valid tails immediately before a protected page for lengths 1 through 160.</p>
+          <p>The AArch64 code-generation gate found the required native load, comparison, mask extraction, and first-set-bit work. It also rejected per-vector calls to backend primitives from the whole-buffer loop.</p>
+          <p>Scalar and AArch64 tests executed on this host. AddressSanitizer passed for the scalar configuration. The AVX2 source received a semantic compiler check, but no x86-64 or AVX2 binary ran on this AArch64 machine.</p>
+          <p>The crossover depends on the processor, compiler, switches, set size, match position, and tail length. This campaign used one four-byte set and retained medians, not its complete raw sample stream. Repeat the campaign before making a deployment decision.</p>
+        </section>
+
+        <section id="reproduce">
+          <span class="step-label">REPRODUCE</span>
+          <h2>Run the focused benchmark</h2>
+          <pre><code class="language-shell">cd benchmarks
+alr build --release
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark</code></pre>
+          <p>Set <code>FLYOLOGY_SIMD_BENCH_CPU</code> to request thread placement. Set <code>FLYOLOGY_BENCH_QUIESCENCE=1</code> to require an idle interval before each comparison. Use CSV or JSON output when raw reports must survive the run.</p>
+          <div class="next-links"><a href="../../guide/dispatch/"><span>Guide</span>Use the whole-buffer API</a><a href="../../guide/benchmarking/"><span>Method</span>Verify and measure</a></div>
+        </section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><span>This snapshot records one machine, one compiler, one set, and two full-scan match positions.</span><div class="footer-links"><a href="../">Journal</a><a href="../../guide/">Guide</a><a href="../../support/">Support</a><a href="../../api/">API</a></div></div></footer>
+</body>
+</html>
