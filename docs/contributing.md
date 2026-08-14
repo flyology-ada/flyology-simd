@@ -4,6 +4,20 @@ Run `git diff --check`, the scalar suite, the native suite on your architecture,
 and `scripts/check_codegen.sh` before proposing changes.  Tests use a printed,
 fixed random seed; preserve reproducibility or print any replacement seed.
 
+Every public fixed-width and Wide overload is assigned to one family in
+`scripts/simd_coverage.toml`. The inventory records semantic, generated-code,
+exact API-documentation, and teaching evidence, and it names every accepted
+gap together with its deterministic closure. Reproduce `docs/coverage.md` and
+validate the public declaration totals and gap ledger with:
+
+```sh
+python3 scripts/check_simd_coverage.py --write-report
+```
+
+CI runs that command before its clean-tree check. During final closure, use
+`python3 scripts/check_simd_coverage.py --require-complete`; it fails until the
+declared gap set is empty.
+
 ## Adding a backend
 
 1. Add one source directory containing bodies for `Backends.Native` and

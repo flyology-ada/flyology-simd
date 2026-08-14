@@ -1,0 +1,550 @@
+schema = 1
+expected_overloads = { fixed = 606, wide = 604 }
+split_operations = ["Widen_Low", "Widen_High"]
+expected_gap = [
+  { family = "fixed-mask-core", dimension = "codegen" },
+  { family = "fixed-integer-width-conversions", dimension = "semantic" },
+  { family = "fixed-integer-width-conversions", dimension = "codegen" },
+  { family = "fixed-integer-width-conversions", dimension = "docs" },
+  { family = "fixed-float-width-conversions", dimension = "semantic" },
+  { family = "fixed-signedness-conversions", dimension = "semantic" },
+  { family = "fixed-signedness-conversions", dimension = "codegen" },
+  { family = "fixed-signedness-conversions", dimension = "docs" },
+  { family = "fixed-numeric-conversions", dimension = "semantic" },
+]
+
+[profile.fixed_semantic]
+status = "complete"
+evidence = ["tests/simd_tests.adb", "tests/family_tests.adb"]
+
+[profile.fixed_memory_semantic]
+status = "complete"
+evidence = ["tests/simd_tests.adb", "tests/family_tests.adb", "tests/guard_page_tests.adb"]
+
+[profile.fixed_conversion_semantic]
+status = "complete"
+evidence = ["tests/conversion_tests.adb"]
+
+[profile.wide_semantic]
+status = "complete"
+evidence = ["tests/wide_tests.adb"]
+
+[profile.wide_memory_semantic]
+status = "complete"
+evidence = ["tests/wide_tests.adb", "tests/guard_page_tests.adb"]
+
+[profile.fixed_codegen]
+status = "complete"
+evidence = ["scripts/check_codegen.sh"]
+
+[profile.wide_codegen]
+status = "complete"
+evidence = ["scripts/check_codegen.sh"]
+
+[profile.codegen_not_applicable]
+status = "not_applicable"
+reason = "The operation is portable Ada policy or map construction and has no selected target leaf."
+
+[profile.api_docs]
+status = "complete"
+evidence = ["scripts/check_api_support_docs.py"]
+
+[profile.teaching_operations]
+status = "complete"
+evidence = ["website/guide/operations/index.html"]
+
+[profile.teaching_memory]
+status = "complete"
+evidence = ["website/guide/memory/index.html"]
+
+[profile.teaching_masks]
+status = "complete"
+evidence = ["website/guide/masks/index.html"]
+
+[profile.teaching_conversions]
+status = "complete"
+evidence = ["website/guide/conversions/index.html", "examples/conversions.adb"]
+
+[profile.teaching_practical]
+status = "complete"
+evidence = ["website/guide/practical/index.html"]
+
+[profile.gap_conversion_scalar]
+status = "gap"
+reason = "Independent conversion expectations do not directly exercise Backends.Scalar for every overload."
+closure = "Add direct root, Backends.Scalar, and Backends.Native assertions to each independent conversion oracle."
+
+[profile.gap_integer_width_codegen]
+status = "gap"
+reason = "The 27 public callers lack one generated all-overload route manifest, and AArch64 leaf coverage is incomplete."
+closure = "Generate 27 callers and require exact matching caller routes and target leaves on AArch64 and x86-64."
+
+[profile.gap_integer_width_docs]
+status = "gap"
+reason = "The 27 support notes use generic widening or narrowing descriptions instead of operation-and-type exact mechanisms."
+closure = "Generate exact support notes in root and Native specs and enforce every declaration block."
+
+[profile.gap_signedness_codegen]
+status = "gap"
+reason = "The eight public callers lack an all-overload route manifest despite selected x86 leaf checks."
+closure = "Generate eight callers and require exact matching routes and target leaf evidence on both targets."
+
+[profile.gap_signedness_docs]
+status = "gap"
+reason = "Same-width signedness support notes are not operation-and-type exact."
+closure = "Generate exact clamp and conversion mechanisms for all eight root and Native declaration blocks."
+
+[profile.gap_mask_core_codegen]
+status = "gap"
+reason = "The 40 fixed-width mask-core overloads lack a dedicated all-caller manifest and route gate."
+closure = "Generate 40 callers and gate exact matching conversions, algebra, Test, and query routes."
+
+[[family]]
+id = "fixed-contracts"
+layer = "fixed"
+operations = { Has_Extent = 1 }
+semantic = "fixed_memory_semantic"
+codegen = "codegen_not_applicable"
+docs = "api_docs"
+teaching = "teaching_memory"
+
+[[family]]
+id = "fixed-alignment"
+layer = "fixed"
+operations = { Is_Aligned_16 = 10 }
+semantic = "fixed_memory_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_memory"
+
+[[family]]
+id = "fixed-map-construction"
+layer = "fixed"
+operations = { Make_Lane_Map = 4, Make_Two_Source_Lane_Map = 4, Select_Left_Lane = 4, Select_Right_Lane = 4 }
+semantic = "fixed_semantic"
+codegen = "codegen_not_applicable"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-construction-access"
+layer = "fixed"
+operations = { Zero = 10, Splat = 10, From_Lanes = 10, To_Lanes = 10, Extract = 10, Replace = 10 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-memory"
+layer = "fixed"
+operations = { Load = 10, Store = 10, Load_Unaligned = 10, Store_Unaligned = 10, Load_Aligned = 10, Store_Aligned = 10, Load_Partial = 10, Store_Partial = 10 }
+semantic = "fixed_memory_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_memory"
+
+[[family]]
+id = "fixed-wrapping-arithmetic"
+layer = "fixed"
+operations = { Add_Wrap = 8, Subtract_Wrap = 8, Multiply_Wrap = 8 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "fixed-saturating-arithmetic"
+layer = "fixed"
+operations = { Add_Saturate = 8, Subtract_Saturate = 8 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "fixed-bitwise"
+layer = "fixed"
+operations = { Bitwise_And = 8, Bitwise_Or = 8, Bitwise_Xor = 8, Bitwise_Not = 8 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "fixed-integer-minmax"
+layer = "fixed"
+operations = { Min = 8, Max = 8 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-shifts"
+layer = "fixed"
+operations = { Shift_Left_Logical = 8, Shift_Right_Logical = 8, Shift_Right_Arithmetic = 4 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "fixed-comparison-selection"
+layer = "fixed"
+operations = { Equal = 10, Less_Than = 10, Less_Equal = 10, Greater_Than = 10, Greater_Equal = 10, Select_Value = 10, Unordered = 2 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "fixed-lane-arrangement"
+layer = "fixed"
+operations = { Reverse_Lanes = 10, Reverse_Bytes = 1, Interleave_Low = 10, Interleave_High = 10, Deinterleave_Even = 10, Deinterleave_Odd = 10 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-permute-slides"
+layer = "fixed"
+operations = { Permute_Lanes = 20, Slide_Lanes_Toward_High = 10, Slide_Lanes_Toward_Low = 10 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-compress-expand"
+layer = "fixed"
+operations = { Compress = 10, Expand = 10 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "fixed-integer-reductions"
+layer = "fixed"
+operations = { Reduce_Add_Wrap = 8, Reduce_Min = 8, Reduce_Max = 8 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-float-binary"
+layer = "fixed"
+operations = { Add = 2, Subtract = 2, Multiply = 2, Divide = 2, Min_Number = 2, Max_Number = 2 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "fixed-float-reductions"
+layer = "fixed"
+operations = { Reduce_Add = 2, Reduce_Min_Number = 2, Reduce_Max_Number = 2 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-mask-core"
+layer = "fixed"
+operations = { Mask_From_Bit_Mask = 4, To_Bit_Mask = 4, Mask_And = 4, Mask_Or = 4, Mask_Xor = 4, Mask_Not = 4, Test = 4, Any_True = 4, All_True = 4, None_True = 4 }
+semantic = "fixed_semantic"
+codegen = "gap_mask_core_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "fixed-mask-positions"
+layer = "fixed"
+operations = { Population_Count = 4, First_True = 4, Last_True = 4 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "fixed-bitcasts"
+layer = "fixed"
+operations = { Bit_Cast = 16 }
+semantic = "fixed_conversion_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "fixed-integer-width-conversions"
+layer = "fixed"
+operations = { Widen_Low = 6, Widen_High = 6, Narrow_Truncate = 6, Narrow_Saturate = 9 }
+semantic = "gap_conversion_scalar"
+codegen = "gap_integer_width_codegen"
+docs = "gap_integer_width_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "fixed-float-width-conversions"
+layer = "fixed"
+operations = { Widen_Low = 1, Widen_High = 1, Narrow_Round = 1 }
+semantic = "gap_conversion_scalar"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "fixed-signedness-conversions"
+layer = "fixed"
+operations = { Convert_Saturate = 8 }
+semantic = "gap_conversion_scalar"
+codegen = "gap_signedness_codegen"
+docs = "gap_signedness_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "fixed-numeric-conversions"
+layer = "fixed"
+operations = { Convert_Round = 4, Convert_Truncate_Saturate = 4 }
+semantic = "gap_conversion_scalar"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "fixed-table-lookup"
+layer = "fixed"
+operations = { Table_Lookup = 1 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "fixed-horizontal-sum"
+layer = "fixed"
+operations = { Horizontal_Sum = 1 }
+semantic = "fixed_semantic"
+codegen = "fixed_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-alignment"
+layer = "wide"
+operations = { Is_Aligned_32 = 10 }
+semantic = "wide_memory_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_memory"
+
+[[family]]
+id = "wide-map-construction"
+layer = "wide"
+operations = { Make_Lane_Map = 4, Make_Two_Source_Lane_Map = 4, Select_Left_Lane = 4, Select_Right_Lane = 4 }
+semantic = "wide_semantic"
+codegen = "codegen_not_applicable"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-construction-access"
+layer = "wide"
+operations = { Zero = 10, Splat = 10, From_Lanes = 10, To_Lanes = 10, Extract = 10, Replace = 10 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-memory"
+layer = "wide"
+operations = { Load = 10, Store = 10, Load_Unaligned = 10, Store_Unaligned = 10, Load_Aligned = 10, Store_Aligned = 10, Load_Partial = 10, Store_Partial = 10 }
+semantic = "wide_memory_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_memory"
+
+[[family]]
+id = "wide-wrapping-arithmetic"
+layer = "wide"
+operations = { Add_Wrap = 8, Subtract_Wrap = 8, Multiply_Wrap = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "wide-saturating-arithmetic"
+layer = "wide"
+operations = { Add_Saturate = 8, Subtract_Saturate = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "wide-bitwise"
+layer = "wide"
+operations = { Bitwise_And = 8, Bitwise_Or = 8, Bitwise_Xor = 8, Bitwise_Not = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "wide-integer-minmax"
+layer = "wide"
+operations = { Min = 8, Max = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-shifts"
+layer = "wide"
+operations = { Shift_Left_Logical = 8, Shift_Right_Logical = 8, Shift_Right_Arithmetic = 4 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "wide-comparison-selection"
+layer = "wide"
+operations = { Equal = 10, Less_Than = 10, Less_Equal = 10, Greater_Than = 10, Greater_Equal = 10, Select_Value = 10, Unordered = 2 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "wide-lane-arrangement"
+layer = "wide"
+operations = { Reverse_Lanes = 10, Interleave_Low = 10, Interleave_High = 10, Deinterleave_Even = 10, Deinterleave_Odd = 10 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-permute-slides"
+layer = "wide"
+operations = { Permute_Lanes = 20, Slide_Lanes_Toward_High = 10, Slide_Lanes_Toward_Low = 10 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-compress-expand"
+layer = "wide"
+operations = { Compress = 10, Expand = 10 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "wide-integer-reductions"
+layer = "wide"
+operations = { Reduce_Add_Wrap = 8, Reduce_Min = 8, Reduce_Max = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-float-binary"
+layer = "wide"
+operations = { Add = 2, Subtract = 2, Multiply = 2, Divide = 2, Min_Number = 2, Max_Number = 2 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_practical"
+
+[[family]]
+id = "wide-float-reductions"
+layer = "wide"
+operations = { Reduce_Add = 2, Reduce_Min_Number = 2, Reduce_Max_Number = 2 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-masks"
+layer = "wide"
+operations = { Mask_From_Bit_Mask = 4, To_Bit_Mask = 4, Mask_And = 4, Mask_Or = 4, Mask_Xor = 4, Mask_Not = 4, Test = 4, Any_True = 4, All_True = 4, None_True = 4, Population_Count = 4, First_True = 4, Last_True = 4 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_masks"
+
+[[family]]
+id = "wide-bitcasts"
+layer = "wide"
+operations = { Bit_Cast = 16 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "wide-integer-width-conversions"
+layer = "wide"
+operations = { Widen_Low = 6, Widen_High = 6, Narrow_Truncate = 6, Narrow_Saturate = 9 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "wide-float-width-conversions"
+layer = "wide"
+operations = { Widen_Low = 1, Widen_High = 1, Narrow_Round = 1 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "wide-signedness-conversions"
+layer = "wide"
+operations = { Convert_Saturate = 8 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "wide-numeric-conversions"
+layer = "wide"
+operations = { Convert_Round = 4, Convert_Truncate_Saturate = 4 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_conversions"
+
+[[family]]
+id = "wide-table-lookup"
+layer = "wide"
+operations = { Table_Lookup = 1 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
+
+[[family]]
+id = "wide-horizontal-sum"
+layer = "wide"
+operations = { Horizontal_Sum = 1 }
+semantic = "wide_semantic"
+codegen = "wide_codegen"
+docs = "api_docs"
+teaching = "teaching_operations"
