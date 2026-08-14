@@ -24,6 +24,7 @@ node "$kit/scripts/install-assets.mjs" "$site"
 mkdir -p "$site/api"
 cp -R "$project_root/docs/api/." "$site/api/"
 node "$project_root/scripts/resolve-api-links.mjs" "$site"
+node "$project_root/scripts/cache-bust-site-assets.mjs" "$site"
 touch "$site/.nojekyll"
 node "$kit/scripts/check-site.mjs" "$site"
 
