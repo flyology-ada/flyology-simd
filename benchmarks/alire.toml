@@ -1,6 +1,6 @@
 name = "flyology_simd_benchmarks"
 description = "Statistical backend benchmarks for flyology_simd"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 licenses = "MIT OR Apache-2.0"
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
