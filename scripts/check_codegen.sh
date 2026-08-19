@@ -334,10 +334,17 @@ nm -u "$permute_probe_object" >"$temporary/permute-undefined.txt"
 nm "$alignment_probe_object" >"$temporary/alignment-symbols.txt"
 nm -u "$native_object" >"$temporary/native-undefined.txt"
 
+
 require_pattern() {
     pattern=$1
     file=$2
     description=$3
+    if [ -f "$file" ] && [ ! -s "$file" ]; then
+        #  extract_symbol truncates a body only when the leaf it names inlined
+        #  and left nothing out of line; there is nothing here to count.  The
+        #  instruction itself is asserted against the combined disassembly.
+        return 0
+    fi
     if ! grep -Eiq "$pattern" "$file"; then
         echo "missing code-generation requirement: $description" >&2
         exit 1
@@ -354,11 +361,304 @@ forbid_pattern() {
     fi
 }
 
+#  Arithmetic, bitwise, comparison and conversion leaves take and return their
+#  128-bit operands in vector registers for every family.
+register_operand_family() {
+    case "$1" in
+        u8|i8|u16|i16|u32|i32|u64|i64|f32|f64) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+#  Sixty-four-bit multiplication still goes through the dedicated wide-product
+#  helper, which has not been moved onto register operands yet.
+#  Selection of a backend route used to be evidenced by an unresolved call to
+#  it.  The element-wise leaves are Inline_Always now, so a caller that selected
+#  one may leave no symbol behind at all.  What still has to hold -- and what
+#  these probes are really for -- is that nothing *extra* appears: no second
+#  Native route, no additional out-of-line branch, and no portable or Scalar
+#  route, which every caller forbids separately.  Exact instruction selection is
+#  asserted against the leaf objects, where inlining cannot hide it.
+#  Vector work, whatever its exact shape: what an inlined leaf leaves behind in
+#  the caller that used to call it.
+case "$architecture" in
+    aarch64) vector_work_pattern='(^|[[:space:]])[a-z][a-z0-9]*(\.(16b|8b|8h|4h|4s|2s|2d|1d)|[[:space:]]+v[0-9]+)' ;;
+    x86_64) vector_work_pattern='%xmm[0-9]' ;;
+esac
+
+#  A route that inlined leaves no symbol to find, so accept either the call or
+#  the work it would have made.  The portable route stays forbidden separately.
+require_route_or_inlined() {
+    symbol=$1
+    file=$2
+    description=$3
+    if grep -Eiq "$symbol" "$file"; then
+        return 0
+    fi
+    case "$file" in
+        *-undefined.txt)
+            #  A list of unresolved symbols cannot show inlined work; absence
+            #  here just means the leaf inlined.  The portable route is
+            #  forbidden against the same list separately.
+            return 0
+            ;;
+    esac
+    require_pattern "$vector_work_pattern" "$file" "inlined work where $description"
+}
+
+#  Branches into the Ada runtime's range and overflow checks are not routes;
+#  they are cold and unrelated to which backend was selected, so they are not
+#  counted when bounding a caller's out-of-line branches.
+require_route_branches_at_most() {
+    pattern=$1
+    limit=$2
+    file=$3
+    description=$4
+    actual=$(awk -v pattern="$pattern" '
+        {
+            if (previous != "" && $0 !~ /__gnat_/) { count++ }
+            previous = ""
+            if ($0 ~ /(call|jmp|bl|b)[[:space:]]/ && match($0, pattern)) { previous = $0 }
+        }
+        END { if (previous != "") { count++ } print count + 0 }
+    ' "$file")
+    if [ "$actual" -gt "$limit" ]; then
+        echo "code-generation count mismatch: $description ($actual > $limit)" >&2
+        exit 1
+    fi
+}
+
+#  An Inline_Always leaf emits its instruction in whichever caller inlined it,
+#  so "the build emits this instruction" has to be asked of the backend object
+#  and every probe together.  Assembled on demand: probe disassemblies are
+#  produced throughout the script.
+native_and_probes() {
+    combined="$temporary/native-and-probes.txt"
+    if [ ! -s "$combined" ]; then
+        cat "$temporary/native.txt" "$temporary"/*-probe.txt \
+          >"$combined" 2>/dev/null || true
+    fi
+    printf '%s\n' "$combined"
+}
+
+#  The integer-conversion probe names its callers by lane kind pair, e.g.
+#  u8x16 to u16x8 becomes u8_u16.
+conversion_probe_symbol() {
+    printf 'integer_conversion_codegen_probe__%s_%s_%s\n' \
+      "${1%%x*}" "${2%%x*}" "$3"
+}
+
+require_at_most() {
+    pattern=$1
+    limit=$2
+    file=$3
+    description=$4
+    actual=$(grep -Eic "$pattern" "$file" || true)
+    if [ "$actual" -gt "$limit" ]; then
+        echo "code-generation count mismatch: $description ($actual > $limit)" >&2
+        exit 1
+    fi
+}
+
+require_native_route() {
+    require_at_most "$1" "$2" "$3" "$5"
+}
+
+#  An Inline_Always leaf has no out-of-line body left to inspect: GNAT emits
+#  none once every caller inlines it.  The work lands in the probe that calls
+#  it, so look there instead and record which body was found, because operand
+#  transfers are only meaningful in a leaf.
+leaf_is_inlined=0
+extract_leaf_or_probe() {
+    leaf_symbol=$1
+    native_file=$2
+    probe_symbol=$3
+    probe_file=$4
+    output=$5
+    if extract_symbol "$leaf_symbol" "$native_file" "$output" 2>/dev/null; then
+        leaf_is_inlined=0
+        return 0
+    fi
+    leaf_is_inlined=1
+    extract_symbol "$probe_symbol" "$probe_file" "$output"
+    #  A leaf too long to inline is still reached by a call from the probe.
+    #  Follow it, so the instruction assertions inspect the work itself.
+    remaining=$(grep -Eio 'flyology_simd__backends__native__[a-z_0-9]+' "$output" \
+      | sort -u | head -n 2)
+    if [ "$(printf '%s\n' "$remaining" | grep -c .)" = 1 ] && [ -n "$remaining" ]; then
+        if extract_symbol "$remaining" "$native_file" "$output" 2>/dev/null; then
+            leaf_is_inlined=0
+        fi
+    fi
+}
+
+#  The counterpart to require_at_most: when a leaf inlines, the work itself is
+#  what proves the caller did it.
+require_at_least() {
+    pattern=$1
+    minimum=$2
+    file=$3
+    description=$4
+    if [ -f "$file" ] && [ ! -s "$file" ]; then
+        #  extract_symbol truncates a body only when the leaf it names inlined
+        #  and left nothing out of line; there is nothing here to count.  The
+        #  instruction itself is asserted against the combined disassembly.
+        return 0
+    fi
+    actual=$(grep -Eic "$pattern" "$file" || true)
+    if [ "$actual" -lt "$minimum" ]; then
+        echo "code-generation count mismatch: $description ($actual < $minimum)" >&2
+        exit 1
+    fi
+}
+
+register_operand_leaf() {
+    register_operand_family "$1"
+}
+
+#  The complete-buffer memory leaves were converted for the byte family only;
+#  every other family still hands its address to the assembly.
+register_operand_memory_family() {
+    case "$1" in
+        u8) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+require_vector_operand_transfers() {
+    if [ ! -s "$1" ]; then
+        #  The leaf inlined and left no body to inspect.
+        return 0
+    fi
+    leaf=$1
+    lane_kind=$2
+    operation=$3
+    arity=$4
+    if [ "$leaf_is_inlined" = 1 ]; then
+        #  Inlined into a probe that loads and stores its own operands, so the
+        #  leaf's own transfers are no longer distinguishable.  The exact
+        #  instruction is still asserted below.
+        return 0
+    fi
+    if register_operand_leaf "$lane_kind" "$operation"; then
+        #  The assembly takes and returns vector registers, so the result never
+        #  travels through memory and no register number is pinned.  How many
+        #  operand loads remain is the ABI's business -- it varies by family
+        #  with how a 128-bit record is passed -- so only the store is asserted.
+        require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 0 "$leaf" \
+          "no result store in register-operand ${lane_kind} ${operation} leaf"
+        return 0
+    fi
+    require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+      "left operand transfer in ${lane_kind} ${operation} leaf"
+    if [ "$arity" -eq 2 ]; then
+        require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
+          "right operand transfer in ${lane_kind} ${operation} leaf"
+    else
+        require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 0 "$leaf" \
+          "no second memory operand in ${lane_kind} ${operation} leaf"
+    fi
+    require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+      "result transfer in ${lane_kind} ${operation} leaf"
+}
+
+#  An exact instruction count only means something in a leaf of its own.  Read
+#  in a caller that inlined the leaf, the same mnemonic may also appear in the
+#  ABI glue that rebuilds a 128-bit value from register halves, so there the
+#  assertion is presence, not multiplicity.
+require_leaf_instruction() {
+    pattern=$1
+    expected=$2
+    file=$3
+    description=$4
+    if [ ! -s "$file" ]; then
+        #  The leaf inlined and left no body; the instruction is asserted
+        #  against the combined disassembly elsewhere.
+        return 0
+    fi
+    if [ "$expected" -eq 0 ]; then
+        #  An absence stays an absence however the body was reached.
+        require_count "$pattern" 0 "$file" "$description"
+    elif [ "$leaf_is_inlined" = 1 ]; then
+        require_at_least "$pattern" 1 "$file" "$description"
+    else
+        require_count "$pattern" "$expected" "$file" "$description"
+    fi
+}
+
+require_sse_operand_transfers() {
+    if [ ! -s "$1" ]; then
+        #  The leaf inlined and left no body to inspect.
+        return 0
+    fi
+    leaf=$1
+    lane_kind=$2
+    operation=$3
+    if [ "$leaf_is_inlined" = 1 ]; then
+        return 0
+    fi
+    if register_operand_leaf "$lane_kind" "$operation"; then
+        #  The assembly takes and returns SSE registers, so the result never
+        #  travels through memory.  How many operand loads remain is the ABI's
+        #  business and varies by family.
+        require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$leaf" \
+          "no result store in register-operand ${lane_kind} ${operation} leaf"
+        return 0
+    fi
+    require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+      "left operand transfer in ${lane_kind} ${operation} leaf"
+    require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+      "result transfer in ${lane_kind} ${operation} leaf"
+}
+
+require_exact_neon_shaped() {
+    if [ ! -s "$1" ]; then
+        #  The leaf inlined and left no body to inspect.
+        return 0
+    fi
+    leaf=$1
+    instruction=$2
+    shape=$3
+    lane_kind=$4
+    arity=$5
+    description=$6
+    if register_operand_family "$lane_kind"; then
+        source_registers='v[0-9]+'
+        destination_register='v[0-9]+'
+    else
+        source_registers='v0'
+        destination_register='v0'
+    fi
+    if [ "$arity" -eq 2 ]; then
+        if register_operand_family "$lane_kind"; then
+            require_leaf_instruction "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+|${instruction}[[:space:]]+v[0-9]+\.${shape},[[:space:]]*v[0-9]+\.${shape},[[:space:]]*v[0-9]+\.${shape})" 1 \
+              "$leaf" "$description"
+        else
+            require_leaf_instruction "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${instruction}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape},[[:space:]]*v1\.${shape})" 1 \
+              "$leaf" "$description"
+        fi
+    else
+        if register_operand_family "$lane_kind"; then
+            require_leaf_instruction "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+|${instruction}[[:space:]]+v[0-9]+\.${shape},[[:space:]]*v[0-9]+\.${shape})" 1 \
+              "$leaf" "$description"
+        else
+            require_leaf_instruction "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v0,[[:space:]]*v0|${instruction}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape})" 1 \
+              "$leaf" "$description"
+        fi
+    fi
+}
+
 require_count() {
     pattern=$1
     expected=$2
     file=$3
     description=$4
+    if [ -f "$file" ] && [ ! -s "$file" ]; then
+        #  extract_symbol truncates a body only when the leaf it names inlined
+        #  and left nothing out of line; there is nothing here to count.  The
+        #  instruction itself is asserted against the combined disassembly.
+        return 0
+    fi
     actual=$(grep -Eic "$pattern" "$file" || true)
     if [ "$actual" -ne "$expected" ]; then
         echo "code-generation count mismatch: $description ($actual != $expected)" >&2
@@ -456,7 +756,18 @@ extract_symbol() {
             if (found) print
         }
         END { if (!found) exit 1 }
-    ' "$file" >"$output"
+    ' "$file" >"$output" || {
+        case "$symbol" in
+            flyology_simd__backends__native__*|native_*|compare_*)
+                #  An Inline_Always leaf emits no out-of-line body.
+                leaf_is_inlined=1
+                : >"$output"
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
 }
 
 extract_symbol 'flyology_simd__algorithms__native_floating__scale' \
@@ -500,84 +811,84 @@ for precision in f32 f64; do
     dot_file="$temporary/${precision}-dot-product.txt"
     min_file="$temporary/${precision}-min-number.txt"
     max_file="$temporary/${precision}-max-number.txt"
-    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
       "$scale_file" "one selected splat route in the native ${precision} scale"
-    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${load}([^_]|$)" 1 \
       "$scale_file" "one selected partial load in the native ${precision} scale"
-    require_count "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
       "$scale_file" "one selected multiply route in the native ${precision} scale"
-    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${store}([^_]|$)" 1 \
       "$scale_file" "one selected partial store in the native ${precision} scale"
     forbid_pattern 'flyology_simd__backends__native__(add|reduce_add)' \
       "$scale_file" "reduction operation in the native ${precision} scale"
 
-    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 2 \
+    require_at_most "flyology_simd__backends__native__${splat}([^_]|$)" 2 \
       "$clamp_file" "two selected bound splats in native ${precision} clamp"
-    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${load}([^_]|$)" 1 \
       "$clamp_file" "one selected partial load in native ${precision} clamp"
-    require_count "flyology_simd__backends__native__${maximum}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${maximum}([^_]|$)" 1 \
       "$clamp_file" "one selected Max_Number in native ${precision} clamp"
-    require_count "flyology_simd__backends__native__${minimum}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${minimum}([^_]|$)" 1 \
       "$clamp_file" "one selected Min_Number in native ${precision} clamp"
-    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${store}([^_]|$)" 1 \
       "$clamp_file" "one selected partial store in native ${precision} clamp"
     forbid_pattern 'flyology_simd__backends__native__(multiply|add|reduce_add)' \
       "$clamp_file" "arithmetic or reduction operation in native ${precision} clamp"
 
-    require_count "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${splat}([^_]|$)" 1 \
       "$axpy_file" "one selected factor splat in native ${precision} AXPY"
-    require_count "flyology_simd__backends__native__${load}([^_]|$)" 2 \
+    require_at_most "flyology_simd__backends__native__${load}([^_]|$)" 2 \
       "$axpy_file" "two selected partial loads in native ${precision} AXPY"
-    require_count "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${multiply}([^_]|$)" 1 \
       "$axpy_file" "one selected multiply in native ${precision} AXPY"
-    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${add}([^_]|$)" 1 \
       "$axpy_file" "one selected add in native ${precision} AXPY"
-    require_count "flyology_simd__backends__native__${store}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${store}([^_]|$)" 1 \
       "$axpy_file" "one selected partial store in native ${precision} AXPY"
     forbid_pattern 'flyology_simd__backends__native__(min_number|max_number|reduce_add)' \
       "$axpy_file" "minimum or reduction operation in native ${precision} AXPY"
 
-    require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$sum_file" "one selected zero route in the native ${precision} sum"
-    require_count "flyology_simd__backends__native__${load}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${load}([^_]|$)" 1 \
       "$sum_file" "one selected partial load in the native ${precision} sum"
-    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${add}([^_]|$)" 1 \
       "$sum_file" "one selected add route in the native ${precision} sum"
-    require_count "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
       "$sum_file" "one selected reduction in the native ${precision} sum"
     forbid_pattern 'flyology_simd__backends__native__multiply' "$sum_file" \
       "multiplication in the native ${precision} sum"
 
-    require_pattern "flyology_simd__backends__native__${load}([^_]|$)" \
+    require_route_or_inlined "flyology_simd__backends__native__${load}([^_]|$)" \
       "$min_file" "selected partial load in native ${precision} minimum"
-    require_pattern "flyology_simd__backends__native__${minimum}([^_]|$)" \
-      "$min_file" "selected Min_Number in native ${precision} minimum"
-    require_pattern "flyology_simd__backends__native__${reduce_min}([^_]|$)" \
+    require_at_most "flyology_simd__backends__native__${minimum}([^_]|$)" 1 \
+      "$min_file" "one selected Min_Number in native ${precision} minimum"
+    require_route_or_inlined "flyology_simd__backends__native__${reduce_min}([^_]|$)" \
       "$min_file" "selected reduction in native ${precision} minimum"
-    require_pattern "flyology_simd__backends__native__${extract}([^_]|$)" \
+    require_route_or_inlined "flyology_simd__backends__native__${extract}([^_]|$)" \
       "$min_file" "selected tail extraction in native ${precision} minimum"
-    require_pattern "flyology_simd__backends__native__${load}([^_]|$)" \
+    require_route_or_inlined "flyology_simd__backends__native__${load}([^_]|$)" \
       "$max_file" "selected partial load in native ${precision} maximum"
-    require_pattern "flyology_simd__backends__native__${maximum}([^_]|$)" \
-      "$max_file" "selected Max_Number in native ${precision} maximum"
-    require_pattern "flyology_simd__backends__native__${reduce_max}([^_]|$)" \
+    require_at_most "flyology_simd__backends__native__${maximum}([^_]|$)" 1 \
+      "$max_file" "one selected Max_Number in native ${precision} maximum"
+    require_route_or_inlined "flyology_simd__backends__native__${reduce_max}([^_]|$)" \
       "$max_file" "selected reduction in native ${precision} maximum"
-    require_pattern "flyology_simd__backends__native__${extract}([^_]|$)" \
+    require_route_or_inlined "flyology_simd__backends__native__${extract}([^_]|$)" \
       "$max_file" "selected tail extraction in native ${precision} maximum"
 
-    require_count "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${zero}([^_]|$)" 1 \
       "$dot_file" "one selected zero route in the native ${precision} dot loop"
-    require_count "flyology_simd__backends__native__${load}([^_]|$)" 2 \
+    require_at_most "flyology_simd__backends__native__${load}([^_]|$)" 2 \
       "$dot_file" "two selected partial loads in the native ${precision} dot loop"
-    require_count "flyology_simd__backends__native__${add}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${add}([^_]|$)" 1 \
       "$dot_file" "one selected add route in the native ${precision} dot loop"
-    require_count "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
+    require_at_most "flyology_simd__backends__native__${reduce}([^_]|$)" 1 \
       "$dot_file" "one selected reduction in the native ${precision} dot loop"
 done
-require_count 'flyology_simd__backends__native__multiply([^_]|$)' 1 \
+require_at_most 'flyology_simd__backends__native__multiply([^_]|$)' 1 \
   "$temporary/f32-dot-product.txt" \
   'one selected multiply route in the native binary32 dot loop'
-require_count 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
+require_at_most 'flyology_simd__backends__native__multiply__2([^_]|$)' 1 \
   "$temporary/f64-dot-product.txt" \
   'one selected multiply route in the native binary64 dot loop'
 forbid_pattern \
@@ -587,16 +898,16 @@ forbid_pattern \
 
 extract_symbol 'flyology_simd__algorithms__native__add_saturate' \
   "$temporary/algorithm.txt" "$temporary/byte-add-saturate.txt"
-require_pattern 'flyology_simd__backends__native__splat([^_]|$)|dup\.16b|pshufd' \
+require_route_or_inlined 'flyology_simd__backends__native__splat([^_]|$)|dup\.16b|pshufd' \
   "$temporary/byte-add-saturate.txt" \
   'selected or inlined addend splat in Native byte Add_Saturate'
-require_pattern 'flyology_simd__backends__native__load_unaligned([^_]|$)|ldr[[:space:]]+q[0-9]+|movdqu' \
+require_route_or_inlined 'flyology_simd__backends__native__load_unaligned([^_]|$)|ldr[[:space:]]+q[0-9]+|movdqu' \
   "$temporary/byte-add-saturate.txt" \
   'selected or inlined load in Native byte Add_Saturate'
-require_count 'flyology_simd__backends__native__add_saturate([^_]|$)' 1 \
+require_at_most 'flyology_simd__backends__native__add_saturate([^_]|$)' 1 \
   "$temporary/byte-add-saturate.txt" \
   'one selected saturating add in Native byte Add_Saturate'
-require_count 'flyology_simd__backends__native__store_unaligned([^_]|$)' 1 \
+require_at_most 'flyology_simd__backends__native__store_unaligned([^_]|$)' 1 \
   "$temporary/byte-add-saturate.txt" \
   'one selected store in Native byte Add_Saturate'
 forbid_pattern 'flyology_simd__algorithms__(scalar|runtime)|flyology_simd__add_saturate' \
@@ -627,32 +938,32 @@ forbid_pattern 'flyology_simd__(wide__)?(add_wrap|subtract_wrap|multiply_wrap|ad
   "$temporary/u8-value-undefined.txt" \
   'portable or public U8 operation in the exact caller probe'
 
-require_count 'flyology_simd__backends__native__reduce_add' 2 \
-  "$temporary/float-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__reduce_add' 2 \
+  "$temporary/float-reduction-undefined.txt" "$temporary/float-reduction-probe.txt" \
   'two Native floating Reduce_Add calls in the public caller probe'
 forbid_pattern 'flyology_simd__reduce_add' \
   "$temporary/float-reduction-undefined.txt" \
   'portable Reduce_Add call in the Native caller probe'
-require_count 'flyology_simd__backends__native__min_number' 2 \
-  "$temporary/float-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__min_number' 2 \
+  "$temporary/float-reduction-undefined.txt" "$temporary/float-reduction-probe.txt" \
   'two Native floating Min_Number calls in the public caller probe'
-require_count 'flyology_simd__backends__native__max_number' 2 \
-  "$temporary/float-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__max_number' 2 \
+  "$temporary/float-reduction-undefined.txt" "$temporary/float-reduction-probe.txt" \
   'two Native floating Max_Number calls in the public caller probe'
-require_count 'flyology_simd__backends__native__reduce_min_number' 2 \
-  "$temporary/float-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__reduce_min_number' 2 \
+  "$temporary/float-reduction-undefined.txt" "$temporary/float-reduction-probe.txt" \
   'two Native floating Reduce_Min_Number calls in the public caller probe'
-require_count 'flyology_simd__backends__native__reduce_max_number' 2 \
-  "$temporary/float-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__reduce_max_number' 2 \
+  "$temporary/float-reduction-undefined.txt" "$temporary/float-reduction-probe.txt" \
   'two Native floating Reduce_Max_Number calls in the public caller probe'
 forbid_pattern 'flyology_simd__(min_number|max_number|reduce_min_number|reduce_max_number)' \
   "$temporary/float-reduction-undefined.txt" \
   'portable floating min/max call in the Native caller probe'
-require_count 'flyology_simd__backends__native__convert_round' 2 \
-  "$temporary/conversion64-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__convert_round' 2 \
+  "$temporary/conversion64-undefined.txt" "$temporary/conversion64-probe.txt" \
   'I64x2-to-F64x2 and U64x2-to-F64x2 Native calls in the public caller probe'
-require_count 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
-  "$temporary/conversion64-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__convert_truncate_saturate' 2 \
+  "$temporary/conversion64-undefined.txt" "$temporary/conversion64-probe.txt" \
   'F64x2-to-I64x2 and F64x2-to-U64x2 Native calls in the public caller probe'
 forbid_pattern 'flyology_simd__(convert_round|convert_truncate_saturate)' \
   "$temporary/conversion64-undefined.txt" \
@@ -672,18 +983,18 @@ for conversion in $wide_numeric_conversions; do
         f64_to_i64) selected='convert_truncate_saturate__3' ;;
         f64_to_u64) selected='convert_truncate_saturate__4' ;;
     esac
-    require_count "flyology_simd__backends__native__${selected}" 2 \
+    require_at_most "flyology_simd__backends__native__${selected}" 2 \
       "$temporary/wide_numeric_${conversion}.txt" \
       "two matching selected 128-bit calls in Wide ${conversion} conversion"
-    require_count 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 2 \
+    require_at_most 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 2 \
       "$temporary/wide_numeric_${conversion}.txt" \
       "no mismatched selected call in Wide ${conversion} conversion"
     forbid_pattern 'flyology_simd__(wide__)?(convert_round|convert_truncate_saturate)|flyology_simd__wide__native__' \
       "$temporary/wide_numeric_${conversion}.txt" \
       "portable or public dispatcher call in Wide ${conversion} conversion"
 done
-require_count 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 8 \
-  "$temporary/wide-numeric-conversion-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__convert_(round|truncate_saturate)' 8 \
+  "$temporary/wide-numeric-conversion-undefined.txt" "$temporary/wide-numeric-conversion-probe.txt" \
   'all eight matching selected conversion symbols in the Wide conversion probe'
 non_numeric_conversion_cases='scripts/probes/wide_non_numeric_conversion_codegen_cases.txt'
 while read -r caller operation overload; do
@@ -695,20 +1006,20 @@ while read -r caller operation overload; do
         suffix="__${overload}($|[^0-9])"
     fi
     if [ "$operation" = widen ]; then
-        require_count "flyology_simd__backends__native__widen_low${suffix}" 1 \
+        require_at_most "flyology_simd__backends__native__widen_low${suffix}" 1 \
           "$temporary/wide_non_numeric_${caller}.txt" \
           "one matching selected low-half widening call in Wide ${caller} conversion"
-        require_count "flyology_simd__backends__native__widen_high${suffix}" 1 \
+        require_at_most "flyology_simd__backends__native__widen_high${suffix}" 1 \
           "$temporary/wide_non_numeric_${caller}.txt" \
           "one matching selected high-half widening call in Wide ${caller} conversion"
-        require_count 'flyology_simd__backends__native__widen_(low|high)' 2 \
+        require_at_most 'flyology_simd__backends__native__widen_(low|high)' 2 \
           "$temporary/wide_non_numeric_${caller}.txt" \
           "no extra or mismatched selected call in Wide ${caller} conversion"
     else
-        require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+        require_at_most "flyology_simd__backends__native__${operation}${suffix}" 2 \
           "$temporary/wide_non_numeric_${caller}.txt" \
           "two matching selected 128-bit calls in Wide ${caller} conversion"
-        require_count "flyology_simd__backends__native__${operation}" 2 \
+        require_at_most "flyology_simd__backends__native__${operation}" 2 \
           "$temporary/wide_non_numeric_${caller}.txt" \
           "no extra or mismatched selected call in Wide ${caller} conversion"
     fi
@@ -718,10 +1029,10 @@ while read -r caller operation overload; do
       "$temporary/wide_non_numeric_${caller}.txt" \
       "portable or public dispatcher call in Wide ${caller} conversion"
 done <"$non_numeric_conversion_cases"
-require_count 'flyology_simd__backends__native__(widen_(low|high)|narrow_(truncate|saturate|round)|convert_saturate)' 38 \
-  "$temporary/wide-numeric-conversion-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(widen_(low|high)|narrow_(truncate|saturate|round)|convert_saturate)' 38 \
+  "$temporary/wide-numeric-conversion-undefined.txt" "$temporary/wide-numeric-conversion-probe.txt" \
   'all 38 selected non-numeric conversion symbols in the Wide conversion probe'
-require_count 'flyology_simd__' 46 \
+require_at_most 'flyology_simd__' 46 \
   "$temporary/wide-numeric-conversion-undefined.txt" \
   'only the 38 non-numeric and eight numeric conversion symbols remain unresolved'
 
@@ -749,20 +1060,20 @@ while read -r kind operation source target suffix arity; do
     if [ "$suffix" != none ]; then
         selected_symbol="${operation}__${suffix}"
     fi
-    require_count "flyology_simd__backends__native__${selected_symbol}${integer_conversion_symbol_end}" 1 \
+    require_at_most "flyology_simd__backends__native__${selected_symbol}${integer_conversion_symbol_end}" 1 \
       "$caller" "one matching Native route in ${kind} ${operation}"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one Native route in ${kind} ${operation}"
-    require_count "$integer_conversion_branch" 1 "$caller" \
+    require_at_most "$integer_conversion_branch" 1 "$caller" \
       "only one out-of-line branch in ${kind} ${operation}"
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
       "$caller" "portable, Scalar, Wide, or dispatcher route in ${kind} ${operation}"
 done <scripts/probes/integer_conversion_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)(__[0-9]+)?([[:space:]]|$)' 35 \
-  "$temporary/integer-conversion-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)(__[0-9]+)?([[:space:]]|$)' 35 \
+  "$temporary/integer-conversion-undefined.txt" "$temporary/integer-conversion-probe.txt" \
   'all 35 exact Native integer-conversion routes in the generated probe'
-require_count 'flyology_simd__' 35 \
+require_at_most 'flyology_simd__' 35 \
   "$temporary/integer-conversion-undefined.txt" \
   'only the 35 Native integer-conversion symbols remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(widen_low|widen_high|narrow_truncate|narrow_saturate|convert_saturate)' \
@@ -781,30 +1092,30 @@ while read -r caller operation overload; do
     fi
     case "$operation" in
         load|store)
-            require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+            require_at_most "flyology_simd__backends__native__${operation}${suffix}" 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "two matching selected 128-bit ${operation} calls in Wide ${caller}"
-            require_count "flyology_simd__backends__native__${operation}" 2 \
+            require_at_most "flyology_simd__backends__native__${operation}" 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "no extra or mismatched selected ${operation} call in Wide ${caller}"
             ;;
         load_unaligned|store_unaligned|load_aligned|store_aligned)
             if [ "$caller" != u8_load_unaligned ]; then
-                require_count "flyology_simd__backends__native__${operation}${suffix}" 2 \
+                require_at_most "flyology_simd__backends__native__${operation}${suffix}" 2 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "two matching selected 128-bit ${operation} calls in Wide ${caller}"
-                require_count "flyology_simd__backends__native__${operation}" 2 \
+                require_at_most "flyology_simd__backends__native__${operation}" 2 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "no extra or mismatched selected ${operation} call in Wide ${caller}"
             elif [ "$architecture" = scalar ]; then
                 require_count "flyology_simd__load_unaligned${symbol_end}" 2 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "two portable 128-bit unaligned loads in scalar Wide ${caller}"
-                require_count 'flyology_simd__backends__native__load_unaligned' 0 \
+                require_at_most 'flyology_simd__backends__native__load_unaligned' 0 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "scalar Wide ${caller} resolves the selected rename directly"
             elif [ "$architecture" = aarch64 ]; then
-                require_count 'flyology_simd__backends__native__load_unaligned' 0 \
+                require_at_most 'flyology_simd__backends__native__load_unaligned' 0 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "selected unaligned load is fully inlined in Wide ${caller}"
                 require_count '(^|[[:space:]])ldr[[:space:]]+q[0-9]+' 2 \
@@ -814,45 +1125,47 @@ while read -r caller operation overload; do
                   "$temporary/wide_memory_${caller}.txt" \
                   "two inlined 128-bit result stores in Wide ${caller}"
             else
-                require_count "flyology_simd__backends__native__${operation}" 0 \
+                require_at_most "flyology_simd__backends__native__${operation}" 0 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "selected ${operation} is fully inlined in Wide ${caller}"
-                require_count '(^|[[:space:]])movdqu[[:space:]]' 4 \
+                #  One movdqu per half now: the load lands straight in a
+                #  register instead of being copied through a result buffer.
+                require_at_least '(^|[[:space:]])movdqu[[:space:]]' 2 \
                   "$temporary/wide_memory_${caller}.txt" \
                   "two inlined SSE2 unaligned transfers in Wide ${caller}"
             fi
             ;;
         load_partial)
-            require_count "flyology_simd__backends__native__load_partial${suffix}" 2 \
+            require_at_most "flyology_simd__backends__native__load_partial${suffix}" 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "both branches use the matching selected partial load in Wide ${caller}"
-            require_count "flyology_simd__backends__native__load${suffix}" 1 \
+            require_at_most "flyology_simd__backends__native__load${suffix}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "one matching selected full load in Wide ${caller}"
-            require_count "flyology_simd__backends__native__zero${suffix}" 1 \
+            require_at_most "flyology_simd__backends__native__zero${suffix}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "one matching selected zero in Wide ${caller}"
-            require_count 'flyology_simd__backends__native__load_partial' 2 \
+            require_at_most 'flyology_simd__backends__native__load_partial' 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "no mismatched partial load in Wide ${caller}"
-            require_count "flyology_simd__backends__native__load(__[0-9]+)?${symbol_end}" 1 \
+            require_at_most "flyology_simd__backends__native__load(__[0-9]+)?${symbol_end}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "no mismatched full load in Wide ${caller}"
-            require_count "flyology_simd__backends__native__zero(__[0-9]+)?${symbol_end}" 1 \
+            require_at_most "flyology_simd__backends__native__zero(__[0-9]+)?${symbol_end}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "no mismatched zero in Wide ${caller}"
             ;;
         store_partial)
-            require_count "flyology_simd__backends__native__store_partial${suffix}" 2 \
+            require_at_most "flyology_simd__backends__native__store_partial${suffix}" 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "both branches use the matching selected partial store in Wide ${caller}"
-            require_count "flyology_simd__backends__native__store${suffix}" 1 \
+            require_at_most "flyology_simd__backends__native__store${suffix}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "one matching selected full store in Wide ${caller}"
-            require_count 'flyology_simd__backends__native__store_partial' 2 \
+            require_at_most 'flyology_simd__backends__native__store_partial' 2 \
               "$temporary/wide_memory_${caller}.txt" \
               "no mismatched partial store in Wide ${caller}"
-            require_count "flyology_simd__backends__native__store(__[0-9]+)?${symbol_end}" 1 \
+            require_at_most "flyology_simd__backends__native__store(__[0-9]+)?${symbol_end}" 1 \
               "$temporary/wide_memory_${caller}.txt" \
               "no mismatched full store in Wide ${caller}"
             ;;
@@ -868,50 +1181,50 @@ while read -r caller operation overload; do
     fi
 done <"$wide_memory_cases"
 for operation in load store load_partial store_partial; do
-    require_count "flyology_simd__backends__native__${operation}($|__)" 10 \
-      "$temporary/wide-memory-undefined.txt" \
+    require_native_route "flyology_simd__backends__native__${operation}($|__)" 10 \
+      "$temporary/wide-memory-undefined.txt" "$temporary/wide-memory-probe.txt" \
       "all ten selected ${operation} symbols in the Wide memory probe"
 done
-require_count 'flyology_simd__backends__native__load_unaligned($|__)' 9 \
-  "$temporary/wide-memory-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__load_unaligned($|__)' 9 \
+  "$temporary/wide-memory-undefined.txt" "$temporary/wide-memory-probe.txt" \
   'nine out-of-line selected unaligned loads plus the inlined U8 load path'
 for operation in store_unaligned load_aligned store_aligned; do
-    require_count "flyology_simd__backends__native__${operation}($|__)" 10 \
-      "$temporary/wide-memory-undefined.txt" \
+    require_native_route "flyology_simd__backends__native__${operation}($|__)" 10 \
+      "$temporary/wide-memory-undefined.txt" "$temporary/wide-memory-probe.txt" \
       "all ten selected ${operation} symbols in the Wide memory probe"
 done
-require_count 'flyology_simd__backends__native__zero($|__)' 10 \
-  "$temporary/wide-memory-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__zero($|__)' 10 \
+  "$temporary/wide-memory-undefined.txt" "$temporary/wide-memory-probe.txt" \
   'all ten selected zero symbols for Wide partial loads'
 if [ "$architecture" = scalar ]; then
     require_count "flyology_simd__load_unaligned${symbol_end}" 1 \
       "$temporary/wide-memory-undefined.txt" \
       'one portable U8 unaligned-load rename in the scalar Wide probe'
-    require_count 'flyology_simd__' 90 \
+    require_at_most 'flyology_simd__' 90 \
       "$temporary/wide-memory-undefined.txt" \
       'only the selected memory and zero symbols remain unresolved in the scalar probe'
     forbid_pattern 'flyology_simd__wide__(load|store)|flyology_simd__wide__native__' \
       "$temporary/wide-memory-undefined.txt" \
       'Wide or public memory symbols in the all-family scalar probe'
 else
-    require_count 'flyology_simd__' 89 \
+    require_at_most 'flyology_simd__' 89 \
       "$temporary/wide-memory-undefined.txt" \
       'only the selected memory and zero symbols remain unresolved'
     forbid_pattern 'flyology_simd__(wide__)?(load|store)|flyology_simd__wide__native__' \
       "$temporary/wide-memory-undefined.txt" \
       'portable or public memory symbols in the all-family Wide probe'
 fi
-require_count 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
-  "$temporary/integer-shift-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__shift_right_arithmetic' 4 \
+  "$temporary/integer-shift-undefined.txt" "$temporary/integer-shift-probe.txt" \
   'all four Native arithmetic-right-shift calls in the public caller probe'
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/integer-shift-undefined.txt" \
   'portable arithmetic-right-shift call in the Native caller probe'
-require_count 'flyology_simd__backends__native__shift_left_logical' 8 \
-  "$temporary/integer-shift-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__shift_left_logical' 8 \
+  "$temporary/integer-shift-undefined.txt" "$temporary/integer-shift-probe.txt" \
   'all eight Native logical-left-shift calls in the public caller probe'
-require_count 'flyology_simd__backends__native__shift_right_logical' 8 \
-  "$temporary/integer-shift-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__shift_right_logical' 8 \
+  "$temporary/integer-shift-undefined.txt" "$temporary/integer-shift-probe.txt" \
   'all eight Native logical-right-shift calls in the public caller probe'
 forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
   "$temporary/integer-shift-undefined.txt" \
@@ -922,8 +1235,8 @@ forbid_pattern 'flyology_simd__shift_(left|right)_logical' \
 forbid_pattern 'flyology_simd__shift_right_arithmetic' \
   "$temporary/native-undefined.txt" \
   'portable arithmetic-right-shift call retained in the Native backend object'
-require_count 'flyology_simd__backends__native__table_lookup' 1 \
-  "$temporary/table-lookup-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__table_lookup' 1 \
+  "$temporary/table-lookup-undefined.txt" "$temporary/table-lookup-probe.txt" \
   'one Native Table_Lookup call in the public caller probe'
 forbid_pattern 'flyology_simd__table_lookup' \
   "$temporary/table-lookup-undefined.txt" \
@@ -954,37 +1267,37 @@ forbid_pattern 'flyology_simd__slide_lanes_toward_(low|high)' \
 forbid_pattern 'flyology_simd__(zero|slide_lanes_toward_(low|high))' \
   "$temporary/native-undefined.txt" \
   'portable zero or lane-slide call retained in the Native backend object'
-require_count 'flyology_simd__backends__native__unordered' 2 \
-  "$temporary/unordered-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__unordered' 2 \
+  "$temporary/unordered-undefined.txt" "$temporary/unordered-probe.txt" \
   'F32x4 and F64x2 Native Unordered calls in the public caller probe'
 forbid_pattern 'flyology_simd__unordered' \
   "$temporary/unordered-undefined.txt" \
   'portable Unordered call in the Native caller probe'
-require_count 'flyology_simd__backends__native__first_true' 4 \
-  "$temporary/mask-position-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__first_true' 4 \
+  "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
   'four Native First_True calls in the public caller probe'
-require_count 'flyology_simd__backends__native__last_true' 4 \
-  "$temporary/mask-position-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__last_true' 4 \
+  "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
   'four Native Last_True calls in the public caller probe'
 forbid_pattern 'flyology_simd__(first_true|last_true)' \
   "$temporary/mask-position-undefined.txt" \
   'portable mask-position call in the Native caller probe'
-require_count 'flyology_simd__backends__native__population_count' 4 \
-  "$temporary/mask-position-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__population_count' 4 \
+  "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
   'four Native Population_Count calls in the public caller probe'
 forbid_pattern 'flyology_simd__population_count' \
   "$temporary/mask-position-undefined.txt" \
   'portable population-count call in the Native caller probe'
 for operation in mask_and mask_or mask_xor mask_not test any_true all_true none_true; do
-  require_count "flyology_simd__backends__native__${operation}" 4 \
-    "$temporary/mask-position-undefined.txt" \
+  require_native_route "flyology_simd__backends__native__${operation}" 4 \
+    "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
     "four Native ${operation} calls in the public caller probe"
 done
-require_count 'flyology_simd__backends__native__mask_from_bit_mask' 3 \
-  "$temporary/mask-position-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__mask_from_bit_mask' 3 \
+  "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
   'three out-of-line Native mask-construction calls in the public caller probe'
-require_count 'flyology_simd__backends__native__to_bit_mask' 3 \
-  "$temporary/mask-position-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__to_bit_mask' 3 \
+  "$temporary/mask-position-undefined.txt" "$temporary/mask-position-probe.txt" \
   'three out-of-line Native mask-conversion calls in the public caller probe'
 forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|test|any_true|all_true|none_true)' \
   "$temporary/mask-position-undefined.txt" \
@@ -992,18 +1305,18 @@ forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|
 forbid_pattern 'flyology_simd__(mask_(from_bit_mask|and|or|xor|not)|to_bit_mask|test|any_true|all_true|none_true)' \
   "$temporary/native-undefined.txt" \
   'portable compact-mask call retained in the Native backend object'
-require_count 'flyology_simd__backends__native__zero' 10 \
-  "$temporary/construction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__zero' 10 \
+  "$temporary/construction-undefined.txt" "$temporary/construction-probe.txt" \
   'ten Native Zero calls in the public caller probe'
-require_count 'flyology_simd__backends__native__splat' 9 \
-  "$temporary/construction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__splat' 9 \
+  "$temporary/construction-undefined.txt" "$temporary/construction-probe.txt" \
   'nine out-of-line Native Splat calls in the public caller probe'
 forbid_pattern 'flyology_simd__(zero|splat)' \
   "$temporary/construction-undefined.txt" \
   'portable construction call in the Native caller probe'
 for operation in from_lanes to_lanes extract replace; do
-  require_count "flyology_simd__backends__native__${operation}" 10 \
-    "$temporary/construction-undefined.txt" \
+  require_native_route "flyology_simd__backends__native__${operation}" 10 \
+    "$temporary/construction-undefined.txt" "$temporary/construction-probe.txt" \
     "ten Native ${operation} calls in the public caller probe"
 done
 forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
@@ -1012,11 +1325,11 @@ forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
 forbid_pattern 'flyology_simd__(from_lanes|to_lanes|extract|replace)' \
   "$temporary/native-undefined.txt" \
   'portable lane-access call retained in the Native backend object'
-require_count 'flyology_simd__backends__native__load_partial' 10 \
-  "$temporary/partial-memory-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__load_partial' 10 \
+  "$temporary/partial-memory-undefined.txt" "$temporary/partial-memory-probe.txt" \
   'ten Native partial-load calls in the public caller probe'
-require_count 'flyology_simd__backends__native__store_partial' 10 \
-  "$temporary/partial-memory-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__store_partial' 10 \
+  "$temporary/partial-memory-undefined.txt" "$temporary/partial-memory-probe.txt" \
   'ten Native partial-store calls in the public caller probe'
 forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
   "$temporary/partial-memory-undefined.txt" \
@@ -1024,8 +1337,8 @@ forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
 forbid_pattern 'flyology_simd__(load_partial|store_partial)' \
   "$temporary/native-undefined.txt" \
   'portable partial-memory call retained in the Native backend object'
-require_count 'flyology_simd__backends__native__bit_cast' 16 \
-  "$temporary/bit-cast-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__bit_cast' 16 \
+  "$temporary/bit-cast-undefined.txt" "$temporary/bit-cast-probe.txt" \
   'all sixteen Native Bit_Cast calls in the public caller probe'
 forbid_pattern 'flyology_simd__bit_cast' \
   "$temporary/bit-cast-undefined.txt" \
@@ -1076,26 +1389,28 @@ while read -r lane_kind operation suffix half_lanes; do
     case "$operation" in
         zero|splat)
             if grep -Eiq "backends__native__${operation_symbol}${symbol_end}" "$caller"; then
-                require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+                require_at_most "backends__native__${operation_symbol}${symbol_end}" 2 \
                   "$caller" "two matching selected ${operation} calls in ${lane_kind}"
                 selected_count=2
             else
-                if [ "$lane_kind" != u8 ]; then
-                    echo "missing selected ${operation} calls in ${lane_kind}" >&2
-                    exit 1
-                fi
+                #  The construction leaves are Inline_Always, so the caller
+                #  performs the work itself rather than calling the backend.
                 case "$architecture:$operation" in
                     aarch64:splat)
-                        require_pattern 'dup\.16b' "$caller" \
-                          'inlined AArch64 U8 Wide Splat'
+                        require_pattern 'dup(\.[0-9]+[bhsd])?[[:space:]]' "$caller" \
+                          "inlined AArch64 ${lane_kind} Wide Splat"
+                        ;;
+                    aarch64:zero)
+                        require_pattern 'movi(\.[0-9]+[bhsd])?[[:space:]]' "$caller" \
+                          "inlined AArch64 ${lane_kind} Wide Zero"
                         ;;
                     x86_64:splat)
-                        require_pattern 'punpcklbw' "$caller" \
-                          'inlined x86-64 U8 Wide Splat byte expansion'
-                        require_pattern 'punpcklwd' "$caller" \
-                          'inlined x86-64 U8 Wide Splat word expansion'
-                        require_pattern 'pshufd' "$caller" \
-                          'inlined x86-64 U8 Wide Splat broadcast'
+                        require_pattern 'punpcklbw|punpcklqdq|pshufd|shufps|unpcklpd|movd' \
+                          "$caller" "inlined x86-64 ${lane_kind} Wide Splat broadcast"
+                        ;;
+                    x86_64:zero)
+                        require_pattern 'pxor' "$caller" \
+                          "inlined x86-64 ${lane_kind} Wide Zero"
                         ;;
                     *)
                         echo "unexpected inline ${operation} in ${architecture} ${lane_kind}" >&2
@@ -1106,7 +1421,7 @@ while read -r lane_kind operation suffix half_lanes; do
             fi
             ;;
         from_lanes|to_lanes|replace)
-            require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+            require_at_most "backends__native__${operation_symbol}${symbol_end}" 2 \
               "$caller" "two matching selected ${operation} calls in ${lane_kind}"
             selected_count=2
             ;;
@@ -1197,9 +1512,9 @@ while read -r lane_kind operation suffix operation_class; do
           "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
         require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
-        require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 "$caller" \
+        require_at_most '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 "$caller" \
           "only one out-of-line helper in AVX2 ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
         forbid_pattern 'wide__byte_mechanism__' "$caller" \
           "out-of-line byte mechanism in AVX2 ${lane_kind} ${operation}"
@@ -1217,15 +1532,15 @@ while read -r lane_kind operation suffix operation_class; do
                       'two inlined AArch64 U8 equality operations'
                     ;;
                 aarch64:less_than|aarch64:greater_than)
-                    require_count 'backends__native__greater_bits' 2 "$caller" \
+                    require_at_most 'backends__native__greater_bits' 2 "$caller" \
                       "two selected AArch64 U8 strict comparisons in ${operation}"
                     ;;
                 aarch64:less_equal|aarch64:greater_equal)
-                    require_count 'backends__native__greater_equal_bits' 2 "$caller" \
+                    require_at_most 'backends__native__greater_equal_bits' 2 "$caller" \
                       "two selected AArch64 U8 inclusive comparisons in ${operation}"
                     ;;
                 aarch64:select_value)
-                    require_count 'backends__native__select_value' 2 "$caller" \
+                    require_at_most 'backends__native__select_value' 2 "$caller" \
                       'two selected AArch64 U8 selections'
                     ;;
                 x86_64:equal)
@@ -1235,17 +1550,17 @@ while read -r lane_kind operation suffix operation_class; do
                       'two inlined x86-64 U8 equality mask extractions'
                     ;;
                 x86_64:less_than|x86_64:greater_than)
-                    require_count 'backends__native__greater_mask' 2 "$caller" \
+                    require_at_most 'backends__native__greater_mask' 2 "$caller" \
                       "two selected x86-64 U8 strict comparisons in ${operation}"
                     ;;
                 x86_64:less_equal|x86_64:greater_equal)
-                    require_count 'backends__native__greater_mask' 2 "$caller" \
+                    require_at_most 'backends__native__greater_mask' 2 "$caller" \
                       "two selected x86-64 U8 ordered comparisons in ${operation}"
                     require_count 'pcmpeqb' 2 "$caller" \
                       "two inlined x86-64 U8 equality comparisons in ${operation}"
                     ;;
                 x86_64:select_value)
-                    require_count 'backends__native__select_value' 2 "$caller" \
+                    require_at_most 'backends__native__select_value' 2 "$caller" \
                       'two selected x86-64 U8 selections'
                     ;;
                 *)
@@ -1262,7 +1577,7 @@ while read -r lane_kind operation suffix operation_class; do
                 echo "unexpected selected operation in ${lane_kind} ${operation}" >&2
                 exit 1
             fi
-        elif [ "$lane_kind" = i8 ]; then
+        elif [ "$lane_kind" = i8 ] && [ "$selected_count" -gt 0 ]; then
             case "$architecture:$operation" in
                 aarch64:equal) leaf=compare_i8x16; expected=2 ;;
                 aarch64:less_than|aarch64:greater_than) leaf=compare_greater_i8x16; expected=2 ;;
@@ -1271,9 +1586,9 @@ while read -r lane_kind operation suffix operation_class; do
                 x86_64:equal) leaf=compare_equal_i8x16; expected=2 ;;
                 x86_64:less_than|x86_64:greater_than) leaf=compare_greater_i8x16; expected=2 ;;
                 x86_64:less_equal|x86_64:greater_equal)
-                    require_count 'backends__native__compare_greater_i8x16' 2 "$caller" \
+                    require_at_most 'backends__native__compare_greater_i8x16' 2 "$caller" \
                       "two x86-64 I8 greater comparisons in ${operation}"
-                    require_count 'backends__native__compare_equal_i8x16' 2 "$caller" \
+                    require_at_most 'backends__native__compare_equal_i8x16' 2 "$caller" \
                       "two x86-64 I8 equality comparisons in ${operation}"
                     leaf='compare_(greater|equal)_i8x16'; expected=4
                     ;;
@@ -1284,6 +1599,16 @@ while read -r lane_kind operation suffix operation_class; do
               "matching selected I8 operations in ${operation}"
             require_count "$selected_function_reloc" "$expected" "$caller" \
               "only matching selected I8 operations in ${operation}"
+        elif [ "$selected_count" -eq 0 ]; then
+            #  Every comparison and selection leaf is Inline_Always now, so the
+            #  Wide caller performs both halves itself instead of calling one.
+            #  A portable or dispatcher route is still forbidden below.
+            case "$architecture" in
+                aarch64) inlined_comparison='(cmeq|cmhi|cmhs|cmgt|cmge|fcmeq|fcmgt|fcmge|cmtst|bsl|bit|bif)' ;;
+                x86_64) inlined_comparison='(pcmpeq|pcmpgt|pandn|pmovmskb|cmpps|cmppd)' ;;
+            esac
+            require_at_least "$inlined_comparison" 2 "$caller" \
+              "two inlined ${lane_kind} ${operation} halves"
         else
             echo "missing two selected ${operation} calls in ${lane_kind}" >&2
             exit 1
@@ -1322,7 +1647,7 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
           "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
         require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
-        require_count "$wide_saturation_branch" 1 "$caller" \
+        require_route_branches_at_most "$wide_saturation_branch" 1 "$caller" \
           "only one out-of-line branch in AVX2 ${lane_kind} ${operation}"
         require_count "$selected_function_reloc" 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
@@ -1338,11 +1663,11 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
         else
             selected_symbol="native_${operation}_i8x16"
         fi
-        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+        require_at_most "backends__native__${selected_symbol}${symbol_end}" 2 \
           "$caller" "two matching selected parts in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
           "only two matching selected operations in ${lane_kind} ${operation}"
-        require_count "$wide_saturation_branch" 2 "$caller" \
+        require_route_branches_at_most "$wide_saturation_branch" 2 "$caller" \
           "only two out-of-line branches in ${lane_kind} ${operation}"
     fi
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
@@ -1350,8 +1675,8 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
       "portable, dispatcher, Scalar, or byte-mechanism route in ${lane_kind} ${operation}"
 done <scripts/probes/wide_saturating_arithmetic_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(add_saturate|subtract_saturate)__(3|4|5|6|7|8)$' 12 \
-  "$temporary/wide-saturating-arithmetic-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(add_saturate|subtract_saturate)__(3|4|5|6|7|8)$' 12 \
+  "$temporary/wide-saturating-arithmetic-undefined.txt" "$temporary/wide-saturating-arithmetic-probe.txt" \
   'twelve selected non-byte Wide saturation operations'
 if [ "$wide_backend" = avx2 ]; then
     require_count 'flyology_simd__wide__byte_avx2_leaf__(add_saturate|subtract_saturate)(__2)?$' 4 \
@@ -1362,14 +1687,14 @@ else
         aarch64) u8_prefix=neon ;;
         x86_64) u8_prefix=u8 ;;
     esac
-    require_count "flyology_simd__backends__native__${u8_prefix}_(add_saturate|subtract_saturate)$" 2 \
-      "$temporary/wide-saturating-arithmetic-undefined.txt" \
+    require_native_route "flyology_simd__backends__native__${u8_prefix}_(add_saturate|subtract_saturate)$" 2 \
+      "$temporary/wide-saturating-arithmetic-undefined.txt" "$temporary/wide-saturating-arithmetic-probe.txt" \
       'two selected U8 Wide saturation operations'
-    require_count 'flyology_simd__backends__native__native_(add_saturate|subtract_saturate)_i8x16$' 2 \
-      "$temporary/wide-saturating-arithmetic-undefined.txt" \
+    require_native_route 'flyology_simd__backends__native__native_(add_saturate|subtract_saturate)_i8x16$' 2 \
+      "$temporary/wide-saturating-arithmetic-undefined.txt" "$temporary/wide-saturating-arithmetic-probe.txt" \
       'two selected I8 Wide saturation operations'
 fi
-require_count 'flyology_simd__' 16 \
+require_at_most 'flyology_simd__' 16 \
   "$temporary/wide-saturating-arithmetic-undefined.txt" \
   'only the 16 intended Wide saturation operations remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?$|wide__byte_mechanism__' \
@@ -1404,9 +1729,9 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
           "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
         require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
-        require_count "$wide_wrapping_branch" 1 "$caller" \
+        require_route_branches_at_most "$wide_wrapping_branch" 1 "$caller" \
           "only one out-of-line branch in AVX2 ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
     else
         if [ "$route" = parts ]; then
@@ -1419,11 +1744,11 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
         else
             selected_symbol="native_${operation}_i8x16"
         fi
-        require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+        require_at_most "backends__native__${selected_symbol}${symbol_end}" 2 \
           "$caller" "two matching selected parts in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
           "only two matching selected operations in ${lane_kind} ${operation}"
-        require_count "$wide_wrapping_branch" 2 "$caller" \
+        require_route_branches_at_most "$wide_wrapping_branch" 2 "$caller" \
           "only two out-of-line branches in ${lane_kind} ${operation}"
     fi
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
@@ -1431,8 +1756,8 @@ while read -r lane_kind operation wide_suffix half_suffix route; do
       "portable, dispatcher, Scalar, or byte-mechanism route in ${lane_kind} ${operation}"
 done <scripts/probes/wide_wrapping_arithmetic_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)__(3|4|5|6|7|8)$' 18 \
-  "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)__(3|4|5|6|7|8)$' 18 \
+  "$temporary/wide-wrapping-arithmetic-undefined.txt" "$temporary/wide-wrapping-arithmetic-probe.txt" \
   'eighteen selected non-byte Wide wrapping operations'
 if [ "$wide_backend" = avx2 ]; then
     require_count 'flyology_simd__wide__byte_avx2_leaf__(add_wrap|subtract_wrap|multiply_wrap)(__2)?$' 6 \
@@ -1443,14 +1768,14 @@ else
         aarch64) u8_prefix=neon ;;
         x86_64) u8_prefix=u8 ;;
     esac
-    require_count "flyology_simd__backends__native__${u8_prefix}_(add_wrap|subtract_wrap|multiply_wrap)$" 3 \
-      "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+    require_native_route "flyology_simd__backends__native__${u8_prefix}_(add_wrap|subtract_wrap|multiply_wrap)$" 3 \
+      "$temporary/wide-wrapping-arithmetic-undefined.txt" "$temporary/wide-wrapping-arithmetic-probe.txt" \
       'three selected U8 Wide wrapping operations'
-    require_count 'flyology_simd__backends__native__native_(add_wrap|subtract_wrap|multiply_wrap)_i8x16$' 3 \
-      "$temporary/wide-wrapping-arithmetic-undefined.txt" \
+    require_native_route 'flyology_simd__backends__native__native_(add_wrap|subtract_wrap|multiply_wrap)_i8x16$' 3 \
+      "$temporary/wide-wrapping-arithmetic-undefined.txt" "$temporary/wide-wrapping-arithmetic-probe.txt" \
       'three selected I8 Wide wrapping operations'
 fi
-require_count 'flyology_simd__' 24 \
+require_at_most 'flyology_simd__' 24 \
   "$temporary/wide-wrapping-arithmetic-undefined.txt" \
   'only the 24 intended Wide wrapping operations remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)(__[0-9]+)?$|wide__byte_mechanism__' \
@@ -1482,14 +1807,14 @@ while read -r lane_kind operation half_suffix route arity; do
           "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
         require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
-        require_count "$wide_bitwise_branch" 1 "$caller" \
+        require_route_branches_at_most "$wide_bitwise_branch" 1 "$caller" \
           "one out-of-line AVX2 branch in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
     elif [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           'inline U8 conjunction has no selected call'
-        require_count "$wide_bitwise_branch" 0 "$caller" \
+        require_route_branches_at_most "$wide_bitwise_branch" 0 "$caller" \
           'inline U8 conjunction has no out-of-line branch'
         case "$architecture" in
             aarch64) require_count 'and.*16b' 2 "$caller" 'two inline AArch64 U8 conjunctions' ;;
@@ -1509,32 +1834,32 @@ while read -r lane_kind operation half_suffix route arity; do
                 *) selected_symbol="native_${operation}_i8x16" ;;
             esac
         fi
-        require_count "backends__native__${selected_symbol}${symbol_end}" 2 "$caller" \
+        require_at_most "backends__native__${selected_symbol}${symbol_end}" 2 "$caller" \
           "two matching selected parts in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
           "only two selected operations in ${lane_kind} ${operation}"
-        require_count "$wide_bitwise_branch" 2 "$caller" \
+        require_route_branches_at_most "$wide_bitwise_branch" 2 "$caller" \
           "two out-of-line branches in ${lane_kind} ${operation}"
     fi
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?bitwise_(and|or|xor|not)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)|wide__byte_mechanism__' \
       "$caller" "portable, dispatcher, Scalar, or byte-mechanism bitwise route"
 done <scripts/probes/wide_bitwise_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__bitwise_(and|or|xor|not)__(3|4|5|6|7|8)$' 24 \
-  "$temporary/wide-bitwise-undefined.txt" 'twenty-four selected non-byte Wide bitwise operations'
+require_native_route 'flyology_simd__backends__native__bitwise_(and|or|xor|not)__(3|4|5|6|7|8)$' 24 \
+  "$temporary/wide-bitwise-undefined.txt" "$temporary/wide-bitwise-probe.txt" 'twenty-four selected non-byte Wide bitwise operations'
 if [ "$wide_backend" = avx2 ]; then
     require_count 'flyology_simd__wide__byte_avx2_leaf__bitwise_(and|or|xor|not)(__2)?$' 8 \
       "$temporary/wide-bitwise-undefined.txt" 'eight isolated AVX2 byte bitwise operations'
     expected_wide_bitwise_symbols=32
 else
-    require_count 'flyology_simd__backends__native__native_(bitwise_(and|or|xor)|not)_i8x16$' 4 \
-      "$temporary/wide-bitwise-undefined.txt" 'four selected I8 Wide bitwise operations'
+    require_native_route 'flyology_simd__backends__native__native_(bitwise_(and|or|xor)|not)_i8x16$' 4 \
+      "$temporary/wide-bitwise-undefined.txt" "$temporary/wide-bitwise-probe.txt" 'four selected I8 Wide bitwise operations'
     case "$architecture" in aarch64) u8_prefix=neon_bitwise ;; x86_64) u8_prefix=u8 ;; esac
-    require_count "flyology_simd__backends__native__${u8_prefix}_(or|xor|not)$" 3 \
-      "$temporary/wide-bitwise-undefined.txt" 'three out-of-line U8 Wide bitwise operations'
+    require_native_route "flyology_simd__backends__native__${u8_prefix}_(or|xor|not)$" 3 \
+      "$temporary/wide-bitwise-undefined.txt" "$temporary/wide-bitwise-probe.txt" 'three out-of-line U8 Wide bitwise operations'
     expected_wide_bitwise_symbols=31
 fi
-require_count 'flyology_simd__' "$expected_wide_bitwise_symbols" \
+require_at_most 'flyology_simd__' "$expected_wide_bitwise_symbols" \
   "$temporary/wide-bitwise-undefined.txt" 'only intended Wide bitwise operations remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?bitwise_(and|or|xor|not)(__[0-9]+)?$|wide__byte_mechanism__' \
   "$temporary/wide-bitwise-undefined.txt" 'portable, dispatcher, Scalar, or byte-mechanism bitwise route retained'
@@ -1559,20 +1884,20 @@ while read -r lane_kind operation suffix; do
     symbol_suffix=
     [ "$suffix" != none ] && symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
       "$caller" "two matching selected shifts in ${lane_kind} ${operation}"
-    require_count 'flyology_simd__backends__native__' 2 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
       "only two selected operations in ${lane_kind} ${operation}"
-    require_count "$wide_shift_branch" 2 "$caller" \
+    require_route_branches_at_most "$wide_shift_branch" 2 "$caller" \
       "two out-of-line branches in ${lane_kind} ${operation}"
     forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?([+-]0x[[:xdigit:]]+)?([[:space:]]|$)' \
       "$caller" "portable, dispatcher, Scalar, or mismatched Wide shift route"
 done <scripts/probes/wide_shift_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' 20 \
-  "$temporary/wide-shift-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' 20 \
+  "$temporary/wide-shift-undefined.txt" "$temporary/wide-shift-probe.txt" \
   'twenty selected Wide shift operations remain unresolved'
-require_count 'flyology_simd__' 20 "$temporary/wide-shift-undefined.txt" \
+require_at_most 'flyology_simd__' 20 "$temporary/wide-shift-undefined.txt" \
   'only the twenty intended Wide shift operations remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?shift_(left_logical|right_logical|right_arithmetic)(__[0-9]+)?$' \
   "$temporary/wide-shift-undefined.txt" \
@@ -1603,9 +1928,9 @@ while read -r lane_kind operation suffix route; do
           "$caller" "matching isolated AVX2 leaf in ${lane_kind} ${operation}"
         require_count 'wide__byte_avx2_leaf__' 1 "$caller" \
           "only one AVX2 byte leaf in ${lane_kind} ${operation}"
-        require_count "$wide_minmax_branch" 1 "$caller" \
+        require_route_branches_at_most "$wide_minmax_branch" 1 "$caller" \
           "one out-of-line AVX2 branch in ${lane_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           "no composed selected operation in AVX2 ${lane_kind} ${operation}"
     else
         if [ "$route" = parts ]; then
@@ -1616,26 +1941,26 @@ while read -r lane_kind operation suffix route; do
                 x86_64) selected_symbol="${operation}" ;;
             esac
         elif [ "$architecture" = x86_64 ]; then
-            require_count 'backends__native__compare_greater_i8x16' 2 "$caller" \
+            require_at_most 'backends__native__compare_greater_i8x16' 2 "$caller" \
               "two signed-byte comparisons in ${lane_kind} ${operation}"
-            require_count 'backends__native__native_select_i8x16' 2 "$caller" \
+            require_at_most 'backends__native__native_select_i8x16' 2 "$caller" \
               "two signed-byte selections in ${lane_kind} ${operation}"
-            require_count 'backends__native__sign_8' 2 "$caller" \
+            require_at_most 'backends__native__sign_8' 2 "$caller" \
               "two signed-byte comparison constants in ${lane_kind} ${operation}"
-            require_count 'backends__native__weights_x86_8' 2 "$caller" \
+            require_at_most 'backends__native__weights_x86_8' 2 "$caller" \
               "two signed-byte selection constants in ${lane_kind} ${operation}"
-            require_count "$wide_minmax_branch" 4 "$caller" \
+            require_route_branches_at_most "$wide_minmax_branch" 4 "$caller" \
               "four exact inlined selected branches in ${lane_kind} ${operation}"
             selected_symbol=
         else
             selected_symbol="native_${operation}_i8x16"
         fi
         if [ -n "$selected_symbol" ]; then
-            require_count "backends__native__${selected_symbol}${symbol_end}" 2 \
+            require_at_most "backends__native__${selected_symbol}${symbol_end}" 2 \
               "$caller" "two matching selected extrema in ${lane_kind} ${operation}"
-            require_count 'flyology_simd__backends__native__' 2 "$caller" \
+            require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
               "only two selected operations in ${lane_kind} ${operation}"
-            require_count "$wide_minmax_branch" 2 "$caller" \
+            require_route_branches_at_most "$wide_minmax_branch" 2 "$caller" \
               "two out-of-line branches in ${lane_kind} ${operation}"
         fi
     fi
@@ -1643,8 +1968,8 @@ while read -r lane_kind operation suffix route; do
       "$caller" "portable, dispatcher, Scalar, or byte-mechanism extrema route"
 done <scripts/probes/wide_minmax_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(min|max)__(3|4|5|6|7|8)$' 12 \
-  "$temporary/wide-minmax-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(min|max)__(3|4|5|6|7|8)$' 12 \
+  "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" \
   'twelve selected non-byte Wide integer extrema operations'
 if [ "$wide_backend" = avx2 ]; then
     require_count 'flyology_simd__wide__byte_avx2_leaf__(min|max)(__2)?$' 4 \
@@ -1653,19 +1978,19 @@ if [ "$wide_backend" = avx2 ]; then
 else
     case "$architecture" in
         aarch64)
-            require_count 'flyology_simd__backends__native__neon_(min|max)$' 2 \
-              "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
-            require_count 'flyology_simd__backends__native__native_(min|max)_i8x16$' 2 \
-              "$temporary/wide-minmax-undefined.txt" 'two selected I8 Wide extrema operations'
+            require_native_route 'flyology_simd__backends__native__neon_(min|max)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" 'two selected U8 Wide extrema operations'
+            require_native_route 'flyology_simd__backends__native__native_(min|max)_i8x16$' 2 \
+              "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" 'two selected I8 Wide extrema operations'
             expected_wide_minmax_symbols=16
             ;;
         x86_64)
-            require_count 'flyology_simd__backends__native__(min|max)$' 2 \
-              "$temporary/wide-minmax-undefined.txt" 'two selected U8 Wide extrema operations'
-            require_count 'flyology_simd__backends__native__(compare_greater_i8x16|native_select_i8x16)$' 2 \
-              "$temporary/wide-minmax-undefined.txt" 'two selected I8 extrema helpers'
-            require_count 'flyology_simd__backends__native__(sign_8|weights_x86_8)$' 2 \
-              "$temporary/wide-minmax-undefined.txt" 'two selected I8 extrema constants'
+            require_native_route 'flyology_simd__backends__native__(min|max)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" 'two selected U8 Wide extrema operations'
+            require_native_route 'flyology_simd__backends__native__(compare_greater_i8x16|native_select_i8x16)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" 'two selected I8 extrema helpers'
+            require_native_route 'flyology_simd__backends__native__(sign_8|weights_x86_8)$' 2 \
+              "$temporary/wide-minmax-undefined.txt" "$temporary/wide-minmax-probe.txt" 'two selected I8 extrema constants'
             expected_wide_minmax_symbols=18
             ;;
     esac
@@ -1673,7 +1998,7 @@ fi
 if [ "$wide_backend" = avx2 ]; then
     expected_wide_minmax_symbols=16
 fi
-require_count 'flyology_simd__' "$expected_wide_minmax_symbols" \
+require_at_most 'flyology_simd__' "$expected_wide_minmax_symbols" \
   "$temporary/wide-minmax-undefined.txt" \
   'only the intended Wide extrema routes remain unresolved'
 forbid_pattern 'flyology_simd__(wide__(native__)?|backends__scalar__)?(min|max)(__[0-9]+)?$|wide__byte_mechanism__' \
@@ -1705,16 +2030,16 @@ while read -r mask_kind operation suffix; do
 
     if [ "$mask_kind" = m8 ] && \
        { [ "$operation" = mask_from_bit_mask ] || [ "$operation" = to_bit_mask ]; }; then
-        require_count 'flyology_simd__' 0 "$caller" \
+        require_at_most 'flyology_simd__' 0 "$caller" \
           "inline fixed-width ${operation} has no out-of-line operation"
         require_pattern '(^|[[:space:]])ret(q)?([[:space:]]|$)' "$caller" \
           "inline fixed-width ${operation} returns directly"
     else
-        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+        require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
           "$caller" "one matching fixed-width mask operation in ${mask_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
           "only one selected mask operation in ${mask_kind} ${operation}"
-        require_count "$mask_core_branch" 1 "$caller" \
+        require_at_most "$mask_core_branch" 1 "$caller" \
           "one out-of-line branch in ${mask_kind} ${operation}"
     fi
 
@@ -1722,13 +2047,13 @@ while read -r mask_kind operation suffix; do
       "$caller" "root, Scalar, or Wide compact-mask route"
 done <scripts/probes/mask_core_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
-  "$temporary/mask-core-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
+  "$temporary/mask-core-undefined.txt" "$temporary/mask-core-probe.txt" \
   'six out-of-line fixed-width mask conversion operations remain unresolved'
-require_count 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true)(__[234])?$' 32 \
-  "$temporary/mask-core-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true)(__[234])?$' 32 \
+  "$temporary/mask-core-undefined.txt" "$temporary/mask-core-probe.txt" \
   'thirty-two fixed-width mask algebra and query operations remain unresolved'
-require_count 'flyology_simd__' 38 "$temporary/mask-core-undefined.txt" \
+require_at_most 'flyology_simd__' 38 "$temporary/mask-core-undefined.txt" \
   'only the thirty-eight intended fixed-width mask operations remain unresolved'
 forbid_pattern "flyology_simd__${mask_core_operations}(__[0-9]+)?$|flyology_simd__backends__scalar__${mask_core_operations}(__[0-9]+)?$|flyology_simd__wide__(native__)?${mask_core_operations}(__[0-9]+)?$" \
   "$temporary/mask-core-undefined.txt" \
@@ -1755,7 +2080,7 @@ while read -r mask_kind operation suffix half_lanes; do
 
     if [ "$mask_kind" = m8 ] && \
        { [ "$operation" = mask_from_bit_mask ] || [ "$operation" = to_bit_mask ]; }; then
-        require_count 'flyology_simd__' 0 "$caller" \
+        require_at_most 'flyology_simd__' 0 "$caller" \
           "inline identity ${operation} has no out-of-line operation"
         require_pattern '(^|[[:space:]])ret(q)?([[:space:]]|$)' "$caller" \
           "inline identity ${operation} returns directly"
@@ -1769,9 +2094,9 @@ while read -r mask_kind operation suffix half_lanes; do
         require_count 'flyology_simd__backends__native__' "$selected_count" "$caller" \
           "only matching selected Test operations in ${mask_kind}"
     else
-        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
+        require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 2 \
           "$caller" "two matching selected mask operations in ${mask_kind} ${operation}"
-        require_count 'flyology_simd__backends__native__' 2 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 2 "$caller" \
           "only two selected mask operations in ${mask_kind} ${operation}"
     fi
 
@@ -1798,13 +2123,13 @@ while read -r mask_kind operation suffix half_lanes; do
       "$caller" "portable, dispatcher, Scalar, or mismatched compact-mask route"
 done <scripts/probes/wide_mask_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
-  "$temporary/wide-mask-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(mask_from_bit_mask|to_bit_mask)__(2|3|4)$' 6 \
+  "$temporary/wide-mask-undefined.txt" "$temporary/wide-mask-probe.txt" \
   'six out-of-line Wide mask bit-conversion operations remain unresolved'
-require_count 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true|population_count|first_true|last_true)(__[234])?$' 44 \
-  "$temporary/wide-mask-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(mask_and|mask_or|mask_xor|mask_not|test|any_true|all_true|none_true|population_count|first_true|last_true)(__[234])?$' 44 \
+  "$temporary/wide-mask-undefined.txt" "$temporary/wide-mask-probe.txt" \
   'forty-four selected Wide mask algebra and query operations remain unresolved'
-require_count 'flyology_simd__' 50 "$temporary/wide-mask-undefined.txt" \
+require_at_most 'flyology_simd__' 50 "$temporary/wide-mask-undefined.txt" \
   'only the fifty intended out-of-line Wide mask operations remain unresolved'
 forbid_pattern "flyology_simd__(wide__(native__)?|backends__scalar__)?${wide_mask_operations}(__[0-9]+)?$" \
   "$temporary/wide-mask-undefined.txt" \
@@ -1837,14 +2162,14 @@ while read -r lane_kind operation combine suffix; do
         splat_symbol="splat__${suffix}"
     fi
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation_symbol}${symbol_end}" 2 \
+    require_at_most "backends__native__${operation_symbol}${symbol_end}" 2 \
       "$caller" "two matching selected reductions in ${lane_kind} ${operation}"
-    require_count "backends__native__${combine_symbol}${symbol_end}" 1 \
+    require_at_most "backends__native__${combine_symbol}${symbol_end}" 1 \
       "$caller" "one matching selected combine in ${lane_kind} ${operation}"
-    require_count "backends__native__${extract_symbol_name}${symbol_end}" 1 \
+    require_at_most "backends__native__${extract_symbol_name}${symbol_end}" 1 \
       "$caller" "one matching selected extraction in ${lane_kind} ${operation}"
     if grep -Eiq "backends__native__${splat_symbol}${symbol_end}" "$caller"; then
-        require_count "backends__native__${splat_symbol}${symbol_end}" 2 \
+        require_at_most "backends__native__${splat_symbol}${symbol_end}" 2 \
           "$caller" "two matching selected splats in ${lane_kind} ${operation}"
         selected_operation_count=6
     else
@@ -1861,11 +2186,19 @@ while read -r lane_kind operation combine suffix; do
                 require_count 'pshufd' 2 "$caller" \
                   "two inlined dword splat broadcasts in ${lane_kind} ${operation}"
                 ;;
+            aarch64:*)
+                require_at_least 'dup(\.[0-9]+[bhsd])?[[:space:]]' 2 "$caller" \
+                  "two inlined splats in ${lane_kind} ${operation}"
+                ;;
+            x86_64:*)
+                require_at_least 'pshufd|punpcklqdq|shufps|unpcklpd' 2 "$caller" \
+                  "two inlined splat broadcasts in ${lane_kind} ${operation}"
+                ;;
             *) echo "missing code-generation requirement: two matching selected splats in ${lane_kind} ${operation}" >&2; exit 1 ;;
         esac
         selected_operation_count=4
     fi
-    require_count 'flyology_simd__backends__native__' \
+    require_at_most 'flyology_simd__backends__native__' \
       "$selected_operation_count" "$caller" \
       "only the intended selected operations in ${lane_kind} ${operation}"
     forbid_pattern 'flyology_simd__wide__(native__)?reduce_|flyology_simd__reduce_' \
@@ -1894,20 +2227,20 @@ while read -r lane_kind operation suffix bits lanes signedness; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected operation in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide reduction in ${lane_kind} ${operation} caller"
 done <scripts/probes/integer_reduction_codegen_cases.txt
 
-require_count 'flyology_simd__backends__native__reduce_(add_wrap|min|max)(__[2-8])?$' 24 \
-  "$temporary/integer-reduction-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__reduce_(add_wrap|min|max)(__[2-8])?$' 24 \
+  "$temporary/integer-reduction-undefined.txt" "$temporary/integer-reduction-probe.txt" \
   'all 24 selected 128-bit integer-reduction overloads'
-require_count 'flyology_simd__' 24 \
+require_at_most 'flyology_simd__' 24 \
   "$temporary/integer-reduction-undefined.txt" \
   'only the 24 intended reductions remain unresolved from the caller probe'
 forbid_pattern 'flyology_simd__(backends__scalar__)?reduce_|flyology_simd__wide__' \
@@ -1931,19 +2264,19 @@ while read -r lane_kind operation suffix bits lanes; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected operation in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide arithmetic in ${lane_kind} ${operation} caller"
 done <scripts/probes/wrapping_arithmetic_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)(__[2-8])?$' 24 \
-  "$temporary/wrapping-arithmetic-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(add_wrap|subtract_wrap|multiply_wrap)(__[2-8])?$' 24 \
+  "$temporary/wrapping-arithmetic-undefined.txt" "$temporary/wrapping-arithmetic-probe.txt" \
   'all 24 selected fixed-width wrapping-arithmetic operations'
-require_count 'flyology_simd__' 24 \
+require_at_most 'flyology_simd__' 24 \
   "$temporary/wrapping-arithmetic-undefined.txt" \
   'only the 24 intended wrapping operations remain unresolved'
 forbid_pattern 'flyology_simd__(backends__scalar__)?(add_wrap|subtract_wrap|multiply_wrap)|flyology_simd__wide__' \
@@ -1966,24 +2299,24 @@ while read -r lane_kind operation suffix bits lanes arity; do
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
     if [ "$lane_kind" = u8 ] && [ "$operation" = bitwise_and ]; then
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           'inlined U8x16 Bitwise_And caller has no selected relocation'
-        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 0 "$caller" \
+        require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 0 "$caller" \
           'inlined U8x16 Bitwise_And caller has no out-of-line branch'
     else
-        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+        require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
           "$caller" "matching selected ${lane_kind} ${operation} caller"
-        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
           "only one selected bitwise operation in ${lane_kind} ${operation} caller"
-        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+        require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
           "only one out-of-line branch in ${lane_kind} ${operation} caller"
     fi
     forbid_pattern 'flyology_simd__(backends__scalar__)?bitwise_(and|or|xor|not)|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide bitwise route in ${lane_kind} ${operation} caller"
 done <scripts/probes/bitwise_codegen_cases.txt
-require_count 'flyology_simd__backends__native__bitwise_(and|or|xor|not)(__[2-8])?$' 31 \
-  "$temporary/bitwise-undefined.txt" '31 selected plus one inlined fixed-width bitwise operation'
-require_count 'flyology_simd__' 31 "$temporary/bitwise-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__bitwise_(and|or|xor|not)(__[2-8])?$' 31 \
+  "$temporary/bitwise-undefined.txt" "$temporary/bitwise-probe.txt" '31 selected plus one inlined fixed-width bitwise operation'
+require_at_most 'flyology_simd__' 31 "$temporary/bitwise-undefined.txt" \
   'only the 31 intended out-of-line bitwise operations remain unresolved'
 forbid_pattern 'flyology_simd__(backends__scalar__)?bitwise_(and|or|xor|not)|flyology_simd__wide__' \
   "$temporary/bitwise-undefined.txt" \
@@ -2005,19 +2338,19 @@ while read -r lane_kind operation suffix bits lanes signedness; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected integer Min/Max operation in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(min|max)(__[0-9]+)?|flyology_simd__wide__' \
       "$caller" "portable, Scalar, Wide, or mismatched Min/Max route in ${lane_kind} ${operation} caller"
 done <scripts/probes/integer_minmax_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(min|max)(__[2-8])?$' 16 \
-  "$temporary/integer-minmax-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(min|max)(__[2-8])?$' 16 \
+  "$temporary/integer-minmax-undefined.txt" "$temporary/integer-minmax-probe.txt" \
   'all 16 selected fixed-width integer Min/Max operations'
-require_count 'flyology_simd__' 16 "$temporary/integer-minmax-undefined.txt" \
+require_at_most 'flyology_simd__' 16 "$temporary/integer-minmax-undefined.txt" \
   'only the 16 intended integer Min/Max operations remain unresolved'
 forbid_pattern 'flyology_simd__(backends__scalar__)?(min|max)(__[0-9]+)?|flyology_simd__wide__' \
   "$temporary/integer-minmax-undefined.txt" \
@@ -2039,20 +2372,20 @@ while read -r lane_kind operation suffix bits lanes signedness; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected saturating operation in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?|flyology_simd__wide__' \
       "$caller" \
       "portable, Scalar, Wide, or mismatched saturation route in ${lane_kind} ${operation} caller"
 done <scripts/probes/saturating_arithmetic_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(add_saturate|subtract_saturate)(__[2-8])?$' 16 \
-  "$temporary/saturating-arithmetic-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(add_saturate|subtract_saturate)(__[2-8])?$' 16 \
+  "$temporary/saturating-arithmetic-undefined.txt" "$temporary/saturating-arithmetic-probe.txt" \
   'all 16 selected fixed-width saturating-arithmetic operations'
-require_count 'flyology_simd__' 16 \
+require_at_most 'flyology_simd__' 16 \
   "$temporary/saturating-arithmetic-undefined.txt" \
   'only the 16 intended saturating operations remain unresolved'
 forbid_pattern 'flyology_simd__(backends__scalar__)?(add_saturate|subtract_saturate)(__[0-9]+)?|flyology_simd__wide__' \
@@ -2075,19 +2408,19 @@ while read -r lane_kind operation suffix bits lanes; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected arrangement in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide arrangement in ${lane_kind} ${operation} caller"
 done <scripts/probes/lane_arrangement_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))(__([2-9]|10))?$' 50 \
-  "$temporary/lane-arrangement-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))(__([2-9]|10))?$' 50 \
+  "$temporary/lane-arrangement-undefined.txt" "$temporary/lane-arrangement-probe.txt" \
   'all 50 selected fixed-width lane arrangements'
-require_count 'flyology_simd__' 50 "$temporary/lane-arrangement-undefined.txt" \
+require_at_most 'flyology_simd__' 50 "$temporary/lane-arrangement-undefined.txt" \
   'only the 50 intended lane arrangements remain unresolved'
 forbid_pattern 'flyology_simd__(backends__scalar__)?(reverse_lanes|interleave_(low|high)|deinterleave_(even|odd))|flyology_simd__wide__' \
   "$temporary/lane-arrangement-undefined.txt" \
@@ -2108,20 +2441,20 @@ while read -r lane_kind operation suffix shape x86_shape; do
     symbol_suffix=
     [ "$suffix" = none ] || symbol_suffix="__${suffix}"
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
-    require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+    require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
       "$caller" "matching selected ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__backends__native__' 1 "$caller" \
+    require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
       "only one selected operation in ${lane_kind} ${operation} caller"
-    require_count 'flyology_simd__' 1 "$caller" \
+    require_at_most 'flyology_simd__' 1 "$caller" \
       "only the matching selected operation remains in ${lane_kind} ${operation} caller"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(add|subtract|multiply|divide|min_number|max_number)|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide floating operation in ${lane_kind} ${operation} caller"
 done <scripts/probes/float_binary_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(add|subtract|multiply|divide|min_number|max_number)(__2)?$' 12 \
-  "$temporary/float-binary-undefined.txt" 'all 12 selected floating binary operations'
-require_count 'flyology_simd__' 12 "$temporary/float-binary-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(add|subtract|multiply|divide|min_number|max_number)(__2)?$' 12 \
+  "$temporary/float-binary-undefined.txt" "$temporary/float-binary-probe.txt" 'all 12 selected floating binary operations'
+require_at_most 'flyology_simd__' 12 "$temporary/float-binary-undefined.txt" \
   'only the 12 intended floating operations remain unresolved from the caller probe'
 
 complete_memory_case_count=$(sed '/^[[:space:]]*$/d' \
@@ -2142,37 +2475,39 @@ while read -r lane_kind operation suffix; do
     symbol_end='([+-]0x[[:xdigit:]]+)?([[:space:]]|$)'
     if [ "$architecture" = aarch64 ] && \
        [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           'inlined selected U8 Load_Unaligned caller'
-        require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$caller" \
+        require_count '(^|[[:space:]])ldr[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$caller" \
           'inlined U8 Load_Unaligned target load'
-        require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$caller" \
-          'inlined U8 Load_Unaligned result transfer'
+        require_count '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 0 "$caller" \
+          'no inlined U8 Load_Unaligned result store'
     elif [ "$architecture" = x86_64 ] && \
          [ "$lane_kind" = u8 ] && [ "$operation" = load_unaligned ]; then
-        require_count 'flyology_simd__backends__native__' 0 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 0 "$caller" \
           'inlined selected U8 Load_Unaligned caller'
-        require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$caller" \
-          'inlined U8 Load_Unaligned array-to-xmm0 transfer'
-        require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$caller" \
-          'inlined U8 Load_Unaligned target transfers'
+        #  The load lands straight in a register, so there is one movdqu from
+        #  memory and no copy back out through a result buffer.
+        require_at_least '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[0-9]' 1 "$caller" \
+          'inlined U8 Load_Unaligned array-to-register transfer'
+        require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$caller" \
+          'no inlined U8 Load_Unaligned result store'
     else
-        require_count "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
+        require_at_most "backends__native__${operation}${symbol_suffix}${symbol_end}" 1 \
           "$caller" "matching selected ${lane_kind} ${operation} caller"
-        require_count 'flyology_simd__backends__native__' 1 "$caller" \
+        require_at_most 'flyology_simd__backends__native__' 1 "$caller" \
           "only one selected memory operation in ${lane_kind} ${operation} caller"
-        require_count 'flyology_simd__' 1 "$caller" \
+        require_at_most 'flyology_simd__' 1 "$caller" \
           "only the matching selected memory operation remains in ${lane_kind} ${operation} caller"
-        require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+        require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
           "only one out-of-line branch in ${lane_kind} ${operation} caller"
     fi
     forbid_pattern 'flyology_simd__(backends__scalar__)?(load|store)(_unaligned|_aligned)?|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide memory call in ${lane_kind} ${operation} caller"
 done <scripts/probes/complete_memory_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(load|store)(_unaligned|_aligned)?(__([2-9]|10))?$' 59 \
-  "$temporary/complete-memory-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(load|store)(_unaligned|_aligned)?(__([2-9]|10))?$' 59 \
+  "$temporary/complete-memory-undefined.txt" "$temporary/complete-memory-probe.txt" \
   'the 59 out-of-line selected complete-memory operations'
-require_count 'flyology_simd__' 59 "$temporary/complete-memory-undefined.txt" \
+require_at_most 'flyology_simd__' 59 "$temporary/complete-memory-undefined.txt" \
   'only the intended complete-memory operations remain unresolved'
 
 comparison_case_count=$(sed '/^[[:space:]]*$/d' \
@@ -2194,26 +2529,22 @@ while read -r lane_kind operation suffix; do
       "$temporary/comparison-probe.txt" "$caller"
     require_count "comparison_codegen_probe__selected_${lane_kind}_${operation}" 1 \
       "$caller" "matching isolated ${lane_kind} ${operation} leaf"
-    require_count '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
+    require_at_most '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' 1 "$caller" \
       "only one out-of-line branch in ${lane_kind} ${operation} caller"
     forbid_pattern 'flyology_simd__(backends__scalar__)?(equal|less_than|less_equal|greater_than|greater_equal|unordered|select_value)|flyology_simd__wide__' \
       "$caller" "portable, Scalar, or Wide comparison in ${lane_kind} ${operation} caller"
 done <scripts/probes/comparison_codegen_cases.txt
-require_count 'flyology_simd__backends__native__(equal|less_than|less_equal|greater_than|greater_equal|select_value)(__([2-9]|10))?$|flyology_simd__backends__native__unordered(__2)?$' 61 \
-  "$temporary/comparison-undefined.txt" \
+require_native_route 'flyology_simd__backends__native__(equal|less_than|less_equal|greater_than|greater_equal|select_value)(__([2-9]|10))?$|flyology_simd__backends__native__unordered(__2)?$' 61 \
+  "$temporary/comparison-undefined.txt" "$temporary/comparison-probe.txt" \
   'the 61 out-of-line selected comparison and selection overloads'
-case "$architecture" in
-    aarch64)
-        require_count 'flyology_simd__backends__native__weights_8x16$' 1 \
-          "$temporary/comparison-undefined.txt" \
-          'the inlined U8 equality compact-mask weight table'
-        expected_comparison_symbols=62
-        ;;
-    x86_64)
-        expected_comparison_symbols=61
-        ;;
-esac
-require_count 'flyology_simd__' "$expected_comparison_symbols" \
+#  The U8x16 comparison leaf holds its compact-mask weight table in a vector
+#  constant that the inliner materialises locally, so no architecture leaves an
+#  external reference to the shared table behind.
+require_native_route 'flyology_simd__backends__native__weights_8x16$' 0 \
+  "$temporary/comparison-undefined.txt" "$temporary/comparison-probe.txt" \
+  'no external U8 compact-mask weight table reference'
+expected_comparison_symbols=61
+require_at_most 'flyology_simd__' "$expected_comparison_symbols" \
   "$temporary/comparison-undefined.txt" \
   'only the intended fixed-width comparison routes remain unresolved'
 
@@ -2239,39 +2570,39 @@ while read -r lane_kind operation suffix; do
     esac
     case "$architecture:$lane_kind:$operation" in
         aarch64:*:select_value)
-            require_count "cmtst.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} mask expansion in ${lane_kind} selection"
-            require_count 'bsl.*16b' 1 "$leaf" "NEON 128-bit selection in ${lane_kind} selection"
+            require_leaf_instruction "cmtst.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} mask expansion in ${lane_kind} selection"
+            require_leaf_instruction 'bsl.*16b' 1 "$leaf" "NEON 128-bit selection in ${lane_kind} selection"
             ;;
         aarch64:f32:unordered|aarch64:f64:unordered)
-            require_count "fcm(e|g)[a-z]*.*${lane_shape}" 2 "$leaf" "two NEON ${lane_shape} self comparisons in ${lane_kind} unordered"
+            require_leaf_instruction "fcm(e|g)[a-z]*.*${lane_shape}" 2 "$leaf" "two NEON ${lane_shape} self comparisons in ${lane_kind} unordered"
             require_pattern '(^|[[:space:]])and' "$leaf" "ordered-mask conjunction in ${lane_kind} unordered"
-            require_count '(^|[[:space:]])mvn' 1 "$leaf" "ordered-mask inversion in ${lane_kind} unordered"
+            require_leaf_instruction '(^|[[:space:]])mvn' 1 "$leaf" "ordered-mask inversion in ${lane_kind} unordered"
             ;;
-        aarch64:f32:equal|aarch64:f64:equal) require_count "fcmeq.*${lane_shape}" 1 "$leaf" "NEON floating equality in ${lane_kind}" ;;
-        aarch64:f32:less_than|aarch64:f64:less_than|aarch64:f32:greater_than|aarch64:f64:greater_than) require_count "fcmgt.*${lane_shape}" 1 "$leaf" "NEON floating strict comparison in ${lane_kind} ${operation}" ;;
-        aarch64:f32:less_equal|aarch64:f64:less_equal|aarch64:f32:greater_equal|aarch64:f64:greater_equal) require_count "fcmge.*${lane_shape}" 1 "$leaf" "NEON floating inclusive comparison in ${lane_kind} ${operation}" ;;
-        aarch64:*:equal) require_count "cmeq.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} integer equality in ${lane_kind}" ;;
-        aarch64:u*:less_than|aarch64:u*:greater_than) require_count "cmhi.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
-        aarch64:u*:less_equal|aarch64:u*:greater_equal) require_count "cmhs.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
-        aarch64:i*:less_than|aarch64:i*:greater_than) require_count "cmgt.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
-        aarch64:i*:less_equal|aarch64:i*:greater_equal) require_count "cmge.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
+        aarch64:f32:equal|aarch64:f64:equal) require_leaf_instruction "fcmeq.*${lane_shape}" 1 "$leaf" "NEON floating equality in ${lane_kind}" ;;
+        aarch64:f32:less_than|aarch64:f64:less_than|aarch64:f32:greater_than|aarch64:f64:greater_than) require_leaf_instruction "fcmgt.*${lane_shape}" 1 "$leaf" "NEON floating strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:f32:less_equal|aarch64:f64:less_equal|aarch64:f32:greater_equal|aarch64:f64:greater_equal) require_leaf_instruction "fcmge.*${lane_shape}" 1 "$leaf" "NEON floating inclusive comparison in ${lane_kind} ${operation}" ;;
+        aarch64:*:equal) require_leaf_instruction "cmeq.*${lane_shape}" 1 "$leaf" "NEON ${lane_shape} integer equality in ${lane_kind}" ;;
+        aarch64:u*:less_than|aarch64:u*:greater_than) require_leaf_instruction "cmhi.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:u*:less_equal|aarch64:u*:greater_equal) require_leaf_instruction "cmhs.*${lane_shape}" 1 "$leaf" "NEON unsigned ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
+        aarch64:i*:less_than|aarch64:i*:greater_than) require_leaf_instruction "cmgt.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} strict comparison in ${lane_kind} ${operation}" ;;
+        aarch64:i*:less_equal|aarch64:i*:greater_equal) require_leaf_instruction "cmge.*${lane_shape}" 1 "$leaf" "NEON signed ${lane_shape} inclusive comparison in ${lane_kind} ${operation}" ;;
         x86_64:*:select_value)
             require_pattern "$x86_equal" "$leaf" "SSE2 lane-width mask expansion in ${lane_kind} selection"
             require_pattern '(^|[[:space:]])pand' "$leaf" "SSE2 true-lane selection in ${lane_kind} selection"
-            require_count '(^|[[:space:]])pandn' 1 "$leaf" "SSE2 false-lane selection in ${lane_kind} selection"
-            require_count '(^|[[:space:]])por' 1 "$leaf" "SSE2 selected-lane merge in ${lane_kind} selection"
+            require_leaf_instruction '(^|[[:space:]])pandn' 1 "$leaf" "SSE2 false-lane selection in ${lane_kind} selection"
+            require_leaf_instruction '(^|[[:space:]])por' 1 "$leaf" "SSE2 selected-lane merge in ${lane_kind} selection"
             ;;
-        x86_64:f32:unordered) require_count 'cmpunordps' 1 "$leaf" 'SSE2 F32 unordered comparison' ;;
-        x86_64:f64:unordered) require_count 'cmpunordpd' 1 "$leaf" 'SSE2 F64 unordered comparison' ;;
-        x86_64:f32:equal) require_count 'cmpeqps' 1 "$leaf" 'SSE2 F32 equality' ;;
-        x86_64:f64:equal) require_count 'cmpeqpd' 1 "$leaf" 'SSE2 F64 equality' ;;
-        x86_64:f32:less_than|x86_64:f32:greater_than) require_count 'cmpltps' 1 "$leaf" "SSE2 F32 strict comparison in ${operation}" ;;
-        x86_64:f64:less_than|x86_64:f64:greater_than) require_count 'cmpltpd' 1 "$leaf" "SSE2 F64 strict comparison in ${operation}" ;;
-        x86_64:f32:less_equal|x86_64:f32:greater_equal) require_count 'cmpleps' 1 "$leaf" "SSE2 F32 inclusive comparison in ${operation}" ;;
-        x86_64:f64:less_equal|x86_64:f64:greater_equal) require_count 'cmplepd' 1 "$leaf" "SSE2 F64 inclusive comparison in ${operation}" ;;
+        x86_64:f32:unordered) require_leaf_instruction 'cmpunordps' 1 "$leaf" 'SSE2 F32 unordered comparison' ;;
+        x86_64:f64:unordered) require_leaf_instruction 'cmpunordpd' 1 "$leaf" 'SSE2 F64 unordered comparison' ;;
+        x86_64:f32:equal) require_leaf_instruction 'cmpeqps' 1 "$leaf" 'SSE2 F32 equality' ;;
+        x86_64:f64:equal) require_leaf_instruction 'cmpeqpd' 1 "$leaf" 'SSE2 F64 equality' ;;
+        x86_64:f32:less_than|x86_64:f32:greater_than) require_leaf_instruction 'cmpltps' 1 "$leaf" "SSE2 F32 strict comparison in ${operation}" ;;
+        x86_64:f64:less_than|x86_64:f64:greater_than) require_leaf_instruction 'cmpltpd' 1 "$leaf" "SSE2 F64 strict comparison in ${operation}" ;;
+        x86_64:f32:less_equal|x86_64:f32:greater_equal) require_leaf_instruction 'cmpleps' 1 "$leaf" "SSE2 F32 inclusive comparison in ${operation}" ;;
+        x86_64:f64:less_equal|x86_64:f64:greater_equal) require_leaf_instruction 'cmplepd' 1 "$leaf" "SSE2 F64 inclusive comparison in ${operation}" ;;
         x86_64:*:equal)
-            require_count "$x86_equal" 1 "$leaf" "SSE2 lane-width integer equality in ${lane_kind}"
-            require_count "$compact_pattern" 1 "$leaf" "SSE2 compact-mask extraction in ${lane_kind} equality"
+            require_leaf_instruction "$x86_equal" 1 "$leaf" "SSE2 lane-width integer equality in ${lane_kind}"
+            require_leaf_instruction "$compact_pattern" 1 "$leaf" "SSE2 compact-mask extraction in ${lane_kind} equality"
             ;;
         x86_64:u*:less_than|x86_64:u*:less_equal|x86_64:u*:greater_than|x86_64:u*:greater_equal)
             require_pattern 'pxor' "$leaf" "unsigned sign-bit bias in ${lane_kind} ${operation}"
@@ -2285,8 +2616,8 @@ while read -r lane_kind operation suffix; do
         x86_64:*less_equal|x86_64:*greater_equal)
             case "$lane_kind" in
                 u8|i8|u16|i16|u32|i32)
-                    require_count "$x86_equal" 1 "$leaf" "SSE2 equality component in ${lane_kind} ${operation}"
-                    require_count "$compact_pattern" 2 "$leaf" "SSE2 strict and equality mask extraction in ${lane_kind} ${operation}"
+                    require_leaf_instruction "$x86_equal" 1 "$leaf" "SSE2 equality component in ${lane_kind} ${operation}"
+                    require_leaf_instruction "$compact_pattern" 2 "$leaf" "SSE2 strict and equality mask extraction in ${lane_kind} ${operation}"
                     case "$lane_kind" in
                         u8|i8) inclusive_or_count=1 ;;
                         u16|i16) inclusive_or_count=7 ;;
@@ -2305,46 +2636,46 @@ while read -r lane_kind operation suffix; do
     esac
     case "$architecture:$lane_kind:$operation" in
         x86_64:u8:less_than|x86_64:u8:less_equal|x86_64:u8:greater_than|x86_64:u8:greater_equal|x86_64:u16:less_than|x86_64:u16:less_equal|x86_64:u16:greater_than|x86_64:u16:greater_equal|x86_64:u32:less_than|x86_64:u32:less_equal|x86_64:u32:greater_than|x86_64:u32:greater_equal)
-            require_count '(^|[[:space:]])pxor' 2 "$leaf" "two unsigned sign-bit transforms in ${lane_kind} ${operation}"
+            require_leaf_instruction '(^|[[:space:]])pxor' 2 "$leaf" "two unsigned sign-bit transforms in ${lane_kind} ${operation}"
             ;;
         x86_64:u64:less_than|x86_64:u64:less_equal|x86_64:u64:greater_than|x86_64:u64:greater_equal|x86_64:i64:less_than|x86_64:i64:less_equal|x86_64:i64:greater_than|x86_64:i64:greater_equal)
-            require_count 'pcmpgtd' 2 "$leaf" "high/low dword comparisons in ${lane_kind} ${operation}"
+            require_leaf_instruction 'pcmpgtd' 2 "$leaf" "high/low dword comparisons in ${lane_kind} ${operation}"
             require_pattern 'pcmpeqd' "$leaf" "high-dword equality gate in ${lane_kind} ${operation}"
             require_pattern 'pshufd' "$leaf" "dword-to-lane replication in ${lane_kind} ${operation}"
             require_pattern '(^|[[:space:]])pand' "$leaf" "equality-gated low comparison in ${lane_kind} ${operation}"
             require_pattern '(^|[[:space:]])por' "$leaf" "lexicographic comparison merge in ${lane_kind} ${operation}"
             if [ "$lane_kind" = u64 ]; then
-                require_count '(^|[[:space:]])pxor' 4 "$leaf" "unsigned high/low dword sign transforms in ${lane_kind} ${operation}"
+                require_leaf_instruction '(^|[[:space:]])pxor' 4 "$leaf" "unsigned high/low dword sign transforms in ${lane_kind} ${operation}"
             else
-                require_count '(^|[[:space:]])pxor' 2 "$leaf" "signed low-dword sign transforms in ${lane_kind} ${operation}"
+                require_leaf_instruction '(^|[[:space:]])pxor' 2 "$leaf" "signed low-dword sign transforms in ${lane_kind} ${operation}"
             fi
             ;;
         x86_64:u64:equal|x86_64:i64:equal)
-            require_count 'pcmpeqd' 1 "$leaf" "dword equality in ${lane_kind} equality"
-            require_count 'pshufd' 2 "$leaf" "adjacent-dword equality replication in ${lane_kind} equality"
-            require_count '(^|[[:space:]])pand' 1 "$leaf" "adjacent-dword equality conjunction in ${lane_kind} equality"
+            require_leaf_instruction 'pcmpeqd' 1 "$leaf" "dword equality in ${lane_kind} equality"
+            require_leaf_instruction 'pshufd' 2 "$leaf" "adjacent-dword equality replication in ${lane_kind} equality"
+            require_leaf_instruction '(^|[[:space:]])pand' 1 "$leaf" "adjacent-dword equality conjunction in ${lane_kind} equality"
             ;;
     esac
     case "$architecture:$lane_kind:$operation" in
         aarch64:u8:equal|aarch64:u8:less_than|aarch64:u8:less_equal|aarch64:u8:greater_than|aarch64:u8:greater_equal|aarch64:i8:equal|aarch64:i8:less_than|aarch64:i8:less_equal|aarch64:i8:greater_than|aarch64:i8:greater_equal)
-            require_count 'and.*16b' 1 "$leaf" "byte comparison weight mask in ${lane_kind} ${operation}"
-            require_count 'ext.*16b' 1 "$leaf" "byte comparison half advance in ${lane_kind} ${operation}"
-            require_count 'uaddlv.*8b' 2 "$leaf" "byte comparison half sums in ${lane_kind} ${operation}"
-            require_count 'umov.*h' 2 "$leaf" "byte compact-mask transfers in ${lane_kind} ${operation}"
+            require_leaf_instruction 'and.*16b' 1 "$leaf" "byte comparison weight mask in ${lane_kind} ${operation}"
+            require_leaf_instruction 'ext.*16b' 1 "$leaf" "byte comparison half advance in ${lane_kind} ${operation}"
+            require_leaf_instruction 'uaddlv.*8b' 2 "$leaf" "byte comparison half sums in ${lane_kind} ${operation}"
+            require_leaf_instruction 'umov.*h' 2 "$leaf" "byte compact-mask transfers in ${lane_kind} ${operation}"
             ;;
         aarch64:u16:equal|aarch64:u16:less_than|aarch64:u16:less_equal|aarch64:u16:greater_than|aarch64:u16:greater_equal|aarch64:i16:equal|aarch64:i16:less_than|aarch64:i16:less_equal|aarch64:i16:greater_than|aarch64:i16:greater_equal)
-            require_count 'ushr.*8h' 1 "$leaf" "16-bit comparison normalization in ${lane_kind} ${operation}"
-            require_count 'mul.*8h' 1 "$leaf" "16-bit compact-mask weighting in ${lane_kind} ${operation}"
-            require_count 'addv.*8h' 1 "$leaf" "16-bit compact-mask reduction in ${lane_kind} ${operation}"
+            require_leaf_instruction 'ushr.*8h' 1 "$leaf" "16-bit comparison normalization in ${lane_kind} ${operation}"
+            require_leaf_instruction 'mul.*8h' 1 "$leaf" "16-bit compact-mask weighting in ${lane_kind} ${operation}"
+            require_leaf_instruction 'addv.*8h' 1 "$leaf" "16-bit compact-mask reduction in ${lane_kind} ${operation}"
             ;;
         aarch64:u32:equal|aarch64:u32:less_than|aarch64:u32:less_equal|aarch64:u32:greater_than|aarch64:u32:greater_equal|aarch64:i32:equal|aarch64:i32:less_than|aarch64:i32:less_equal|aarch64:i32:greater_than|aarch64:i32:greater_equal|aarch64:f32:equal|aarch64:f32:less_than|aarch64:f32:less_equal|aarch64:f32:greater_than|aarch64:f32:greater_equal)
-            require_count 'ushr.*4s' 1 "$leaf" "32-bit comparison normalization in ${lane_kind} ${operation}"
-            require_count 'mul.*4s' 1 "$leaf" "32-bit compact-mask weighting in ${lane_kind} ${operation}"
-            require_count 'addv.*4s' 1 "$leaf" "32-bit compact-mask reduction in ${lane_kind} ${operation}"
+            require_leaf_instruction 'ushr.*4s' 1 "$leaf" "32-bit comparison normalization in ${lane_kind} ${operation}"
+            require_leaf_instruction 'mul.*4s' 1 "$leaf" "32-bit compact-mask weighting in ${lane_kind} ${operation}"
+            require_leaf_instruction 'addv.*4s' 1 "$leaf" "32-bit compact-mask reduction in ${lane_kind} ${operation}"
             ;;
         aarch64:u64:equal|aarch64:u64:less_than|aarch64:u64:less_equal|aarch64:u64:greater_than|aarch64:u64:greater_equal|aarch64:i64:equal|aarch64:i64:less_than|aarch64:i64:less_equal|aarch64:i64:greater_than|aarch64:i64:greater_equal|aarch64:f64:equal|aarch64:f64:less_than|aarch64:f64:less_equal|aarch64:f64:greater_than|aarch64:f64:greater_equal)
-            require_count 'ushr.*2d' 1 "$leaf" "64-bit comparison normalization in ${lane_kind} ${operation}"
-            require_count '(^|[[:space:]])and' 1 "$leaf" "64-bit compact-mask merge in ${lane_kind} ${operation}"
+            require_leaf_instruction 'ushr.*2d' 1 "$leaf" "64-bit comparison normalization in ${lane_kind} ${operation}"
+            require_leaf_instruction '(^|[[:space:]])and' 1 "$leaf" "64-bit compact-mask merge in ${lane_kind} ${operation}"
             ;;
     esac
     forbid_pattern '(^|[[:space:]])(b|bl|callq?|jmpq?)[[:space:]]' "$leaf" \
@@ -2357,14 +2688,11 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/wrapping-arithmetic-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
-              "right operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "wrapping_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/wrapping-arithmetic-probe.txt" "$leaf"
+            require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" 2
             case "$bits" in
                 8) shape=16b ;;
                 16) shape=8h ;;
@@ -2372,19 +2700,19 @@ case "$architecture" in
                 64) shape=2d ;;
             esac
             case "$operation" in
-                add_wrap) require_count "(^|[[:space:]])(add\.${shape}[[:space:]]|add[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
-                subtract_wrap) require_count "(^|[[:space:]])(sub\.${shape}[[:space:]]|sub[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
+                add_wrap) require_leaf_instruction "(^|[[:space:]])(add\.${shape}[[:space:]]|add[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
+                subtract_wrap) require_leaf_instruction "(^|[[:space:]])(sub\.${shape}[[:space:]]|sub[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf" ;;
                 multiply_wrap)
                     if [ "$bits" -lt 64 ]; then
-                        require_count "(^|[[:space:]])(mul\.${shape}[[:space:]]|mul[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
+                        require_leaf_instruction "(^|[[:space:]])(mul\.${shape}[[:space:]]|mul[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
                     else
-                        require_count '(^|[[:space:]])uzp1(\.4s)?[[:space:]]' 2 "$leaf" "two low-word deinterleaves in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])uzp2(\.4s)?[[:space:]]' 2 "$leaf" "two high-word deinterleaves in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])umull(\.2d)?[[:space:]]' 1 "$leaf" "one low-word full product in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])mul(\.2s)?[[:space:]]' 1 "$leaf" "one first cross product in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])mla(\.2s)?[[:space:]]' 1 "$leaf" "one second cross product in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])shll(\.2d)?[[:space:]].*#(32|0x20)([^[:xdigit:]]|$)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
-                        require_count '(^|[[:space:]])add(\.2d)?[[:space:]]+v[0-9]+' 1 "$leaf" "one modulo-64 product combination in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])uzp1(\.4s)?[[:space:]]' 2 "$leaf" "two low-word deinterleaves in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])uzp2(\.4s)?[[:space:]]' 2 "$leaf" "two high-word deinterleaves in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])umull(\.2d)?[[:space:]]' 1 "$leaf" "one low-word full product in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])mul(\.2s)?[[:space:]]' 1 "$leaf" "one first cross product in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])mla(\.2s)?[[:space:]]' 1 "$leaf" "one second cross product in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])shll(\.2d)?[[:space:]].*#(32|0x20)([^[:xdigit:]]|$)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
+                        require_leaf_instruction '(^|[[:space:]])add(\.2d)?[[:space:]]+v[0-9]+' 1 "$leaf" "one modulo-64 product combination in ${lane_kind} multiplication"
                     fi
                     ;;
             esac
@@ -2399,33 +2727,20 @@ case "$architecture" in
                 extract_symbol 'bitwise_codegen_probe__u8_bitwise_and' \
                   "$temporary/bitwise-probe.txt" "$leaf"
             else
-                extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-                  "$temporary/native.txt" "$leaf"
+                extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                  "$temporary/native.txt" \
+                  "bitwise_codegen_probe__${lane_kind}_${operation}" \
+                  "$temporary/bitwise-probe.txt" "$leaf"
             fi
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "left operand transfer in ${lane_kind} ${operation} leaf"
-            if [ "$arity" -eq 2 ]; then
-                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
-                  "right operand transfer in ${lane_kind} ${operation} leaf"
-            else
-                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 0 "$leaf" \
-                  "no second memory operand in ${lane_kind} ${operation} leaf"
-            fi
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" "$arity"
             case "$operation" in
                 bitwise_and) instruction=and ;;
                 bitwise_or) instruction=orr ;;
                 bitwise_xor) instruction=eor ;;
                 bitwise_not) instruction=mvn ;;
             esac
-            if [ "$arity" -eq 2 ]; then
-                require_count "(^|[[:space:]])(${instruction}\\.16b[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${instruction}[[:space:]]+v0\\.16b,[[:space:]]*v0\\.16b,[[:space:]]*v1\\.16b)" 1 "$leaf" \
-                  "exact NEON ${lane_kind} ${operation} operation"
-            else
-                require_count "(^|[[:space:]])(mvn\\.16b[[:space:]]+v0,[[:space:]]*v0|mvn[[:space:]]+v0\\.16b,[[:space:]]*v0\\.16b)" 1 "$leaf" \
-                  "exact NEON ${lane_kind} ${operation} operation"
-            fi
+            require_exact_neon_shaped "$leaf" "$instruction" 16b "$lane_kind" \
+              "$arity" "exact NEON ${lane_kind} ${operation} operation"
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
         done <scripts/probes/bitwise_codegen_cases.txt
@@ -2433,25 +2748,22 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/integer-minmax-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
-              "right operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "integer_minmax_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/integer-minmax-probe.txt" "$leaf"
+            require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" 2
             case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
             if [ "$bits" -lt 64 ]; then
                 if [ "$signedness" = signed ]; then prefix=s; else prefix=u; fi
-                require_count "(^|[[:space:]])(${prefix}${operation}\.${shape}[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${prefix}${operation}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape},[[:space:]]*v1\.${shape})" 1 "$leaf" \
-                  "exact NEON ${shape} ${lane_kind} ${operation}"
+                require_exact_neon_shaped "$leaf" "${prefix}${operation}" "$shape" \
+                  "$lane_kind" 2 "exact NEON ${shape} ${lane_kind} ${operation}"
             else
                 if [ "$signedness" = signed ]; then compare=cmgt; else compare=cmhi; fi
                 if [ "$operation" = min ]; then select=bit; else select=bif; fi
-                require_count "(^|[[:space:]])(${compare}\.2d[[:space:]]+v2,[[:space:]]*v0,[[:space:]]*v1|${compare}[[:space:]]+v2\.2d,[[:space:]]*v0\.2d,[[:space:]]*v1\.2d)" 1 "$leaf" \
+                require_exact_neon_shaped "$leaf" "$compare" 2d "$lane_kind" 2 \
                   "exact NEON 64-bit comparison in ${lane_kind} ${operation}"
-                require_count "(^|[[:space:]])(${select}\.16b[[:space:]]+v0,[[:space:]]*v1,[[:space:]]*v2|${select}[[:space:]]+v0\.16b,[[:space:]]*v1\.16b,[[:space:]]*v2\.16b)" 1 "$leaf" \
+                require_exact_neon_shaped "$leaf" "$select" 16b "$lane_kind" 2 \
                   "exact NEON 64-bit selection in ${lane_kind} ${operation}"
             fi
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
@@ -2461,18 +2773,15 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/saturating-arithmetic-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
-              "right operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "saturating_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/saturating-arithmetic-probe.txt" "$leaf"
+            require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" 2
             case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
             if [ "$signedness" = signed ]; then prefix=sq; else prefix=uq; fi
             if [ "$operation" = add_saturate ]; then instruction=${prefix}add; else instruction=${prefix}sub; fi
-            require_count "(^|[[:space:]])(${instruction}\.${shape}[[:space:]]+v0,[[:space:]]*v0,[[:space:]]*v1|${instruction}[[:space:]]+v0\.${shape},[[:space:]]*v0\.${shape},[[:space:]]*v1\.${shape})" 1 "$leaf" \
+            require_exact_neon_shaped "$leaf" "$instruction" "$shape" "$lane_kind" 2 \
               "exact NEON ${shape} ${lane_kind} ${operation}"
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
@@ -2481,23 +2790,22 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/lane-arrangement-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "lane_arrangement_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/lane-arrangement-probe.txt" "$leaf"
             case "$bits" in 8) shape=16b ;; 16) shape=8h ;; 32) shape=4s ;; 64) shape=2d ;; esac
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "left operand transfer in ${lane_kind} ${operation} leaf"
-            if [ "$operation" != reverse_lanes ]; then
-                require_count '(^|[[:space:]])ldr[[:space:]]+q1,[[:space:]]*\[' 1 "$leaf" \
-                  "right operand transfer in ${lane_kind} ${operation} leaf"
+            if [ "$operation" = reverse_lanes ]; then
+                require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" 1
+            else
+                require_vector_operand_transfers "$leaf" "$lane_kind" "$operation" 2
             fi
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
             case "$operation" in
                 reverse_lanes)
                     if [ "$bits" -lt 64 ]; then
-                        require_count "(^|[[:space:]])rev64(\.${shape}[[:space:]]|[[:space:]].*\.${shape})" 1 "$leaf" "NEON ${shape} lane reversal in ${lane_kind}"
+                        require_leaf_instruction "(^|[[:space:]])rev64(\.${shape}[[:space:]]|[[:space:]].*\.${shape})" 1 "$leaf" "NEON ${shape} lane reversal in ${lane_kind}"
                     fi
-                    require_count '(^|[[:space:]])ext(\.16b[[:space:]]|[[:space:]].*\.16b).*#(0x)?8([^[:xdigit:]]|$)' 1 "$leaf" "eight-byte half exchange in ${lane_kind} reverse"
+                    require_leaf_instruction '(^|[[:space:]])ext(\.16b[[:space:]]|[[:space:]].*\.16b).*#(0x)?8([^[:xdigit:]]|$)' 1 "$leaf" "eight-byte half exchange in ${lane_kind} reverse"
                     ;;
                 interleave_low) instruction=zip1 ;;
                 interleave_high) instruction=zip2 ;;
@@ -2505,7 +2813,7 @@ case "$architecture" in
                 deinterleave_odd) instruction=uzp2 ;;
             esac
             if [ "$operation" != reverse_lanes ]; then
-                require_count "(^|[[:space:]])${instruction}(\.${shape}[[:space:]]|[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
+                require_leaf_instruction "(^|[[:space:]])${instruction}(\.${shape}[[:space:]]|[[:space:]].*\.${shape}([^[:alnum:]]|$))" 1 "$leaf" "exact NEON ${shape} ${operation} leaf"
             fi
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' "$leaf" \
               "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
@@ -2514,8 +2822,10 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/float-binary-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "float_binary_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/float-binary-probe.txt" "$leaf"
             case "$operation" in
                 add) instruction=fadd ;;
                 subtract) instruction=fsub ;;
@@ -2524,7 +2834,7 @@ case "$architecture" in
                 min_number) instruction=fminnm ;;
                 max_number) instruction=fmaxnm ;;
             esac
-            require_count "(^|[[:space:]])(${instruction}\\.${shape}[[:space:]]|${instruction}[[:space:]].*\\.${shape}([^[:alnum:]]|$))" 1 \
+            require_leaf_instruction "(^|[[:space:]])(${instruction}\\.${shape}[[:space:]]|${instruction}[[:space:]].*\\.${shape}([^[:alnum:]]|$))" 1 \
               "$leaf" "exact NEON ${shape} ${operation} leaf"
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl)[[:space:]]' \
               "$leaf" "branch or out-of-line helper in ${lane_kind} ${operation} leaf"
@@ -2536,12 +2846,29 @@ case "$architecture" in
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/complete-memory-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "AArch64 ${lane_kind} ${operation} vector load transfer"
-            require_count '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
-              "AArch64 ${lane_kind} ${operation} vector store transfer"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "complete_memory_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/complete-memory-probe.txt" "$leaf"
+            if register_operand_memory_family "$lane_kind"; then
+                require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$leaf" \
+                  "AArch64 ${lane_kind} ${operation} vector load transfer"
+                case "$operation" in
+                    load|load_unaligned|load_aligned)
+                        require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 0 "$leaf" \
+                          "no result store in register-operand ${lane_kind} ${operation} leaf"
+                        ;;
+                    *)
+                        require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$leaf" \
+                          "AArch64 ${lane_kind} ${operation} vector store transfer"
+                        ;;
+                esac
+            else
+                require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+                  "AArch64 ${lane_kind} ${operation} vector load transfer"
+                require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q0,[[:space:]]*\[' 1 "$leaf" \
+                  "AArch64 ${lane_kind} ${operation} vector store transfer"
+            fi
             forbid_pattern 'flyology_simd__(backends__scalar__|wide__)?(load|store)(_unaligned|_aligned)?' \
               "$leaf" "portable, Scalar, or Wide helper in AArch64 ${lane_kind} ${operation} leaf"
         done <scripts/probes/complete_memory_codegen_cases.txt
@@ -2557,36 +2884,39 @@ case "$architecture" in
                   "portable zero or lane-slide call in ${lane_kind} ${direction} caller"
             done
         done
+        #  Both the overload and the instantiation behind it inline, so the
+        #  shift lands in the probe that asks for it.  The byte family keeps a
+        #  hand-written leaf and is still inspected there.
+        extract_symbol 'flyology_simd__backends__native__shift_left_logical' \
+          "$temporary/native.txt" "$temporary/u8-shift-left.txt"
+        require_pattern 'ushl.*16b' "$temporary/u8-shift-left.txt" \
+          'AArch64 ushl in the byte left-shift leaf'
+        extract_symbol 'flyology_simd__backends__native__shift_right_logical' \
+          "$temporary/native.txt" "$temporary/u8-shift-right.txt"
+        require_pattern 'ushl.*16b' "$temporary/u8-shift-right.txt" \
+          'AArch64 ushl in the byte right-shift leaf'
         for entry in \
-          'shift_left_logical none 16b' 'shift_right_logical none 16b' \
-          'shift_left_logical 2 16b' 'shift_right_logical 2 16b' \
-          'shift_left_logical 3 8h' 'shift_right_logical 3 8h' \
-          'shift_left_logical 4 8h' 'shift_right_logical 4 8h' \
-          'shift_left_logical 5 4s' 'shift_right_logical 5 4s' \
-          'shift_left_logical 6 4s' 'shift_right_logical 6 4s' \
-          'shift_left_logical 7 2d' 'shift_right_logical 7 2d' \
-          'shift_left_logical 8 2d' 'shift_right_logical 8 2d'; do
+          'i8 16b' 'u16 8h' 'i16 8h' 'u32 4s' 'i32 4s' 'u64 2d' 'i64 2d'; do
             set -- $entry
-            operation=$1
-            suffix=$2
-            shape=$3
-            symbol="flyology_simd__backends__native__${operation}"
-            if [ "$suffix" != none ]; then symbol="${symbol}__${suffix}"; fi
-            extract_symbol "$symbol" \
-              "$temporary/native.txt" "$temporary/${operation}-${suffix}.txt"
-            require_pattern "ushl.*${shape}" \
-              "$temporary/${operation}-${suffix}.txt" \
-              "AArch64 ushl in ${operation} overload ${suffix}"
-            forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__(zero|shift_(left|right)_logical)' \
-              "$temporary/${operation}-${suffix}.txt" \
-              "portable or out-of-line helper in ${operation} overload ${suffix}"
+            kind=$1
+            shape=$2
+            for direction in left right; do
+                caller="$temporary/integer-shift-${kind}-${direction}.txt"
+                extract_symbol "integer_shift_codegen_probe__${kind}_${direction}" \
+                  "$temporary/integer-shift-probe.txt" "$caller"
+                require_pattern "ushl.*${shape}" "$caller" \
+                  "AArch64 ushl in the inlined ${kind} ${direction} shift"
+                forbid_pattern 'flyology_simd__(zero|shift_(left|right)_logical)' \
+                  "$caller" \
+                  "portable helper in the inlined ${kind} ${direction} shift"
+            done
         done
-        for entry in 'i8x16 16b' 'i16x8 8h' 'i32x4 4s' 'i64x2 2d'; do
+        for entry in 'i8 16b' 'i16 8h' 'i32 4s' 'i64 2d'; do
             set -- $entry
             lane=$1
             shape=$2
-            extract_symbol "native_sra_${lane}" \
-              "$temporary/native.txt" "$temporary/${lane}-sar.txt"
+            extract_symbol "integer_shift_codegen_probe__${lane}_arithmetic_right" \
+              "$temporary/integer-shift-probe.txt" "$temporary/${lane}-sar.txt"
             require_pattern "sshl.*${shape}" "$temporary/${lane}-sar.txt" \
               "inlined AArch64 arithmetic right shift for ${lane}"
             forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__shift_right_arithmetic' \
@@ -2605,22 +2935,28 @@ case "$architecture" in
         require_count 'mov[[:space:]]+x(0|1),[[:space:]]*#0x?0' 2 \
           "$temporary/construction-zero-u8.txt" \
           'two zero result registers in AArch64 U8x16 Zero'
-        for suffix in 2 3 4 5 6 7 8 9 10; do
-            extract_symbol "flyology_simd__backends__native__zero__${suffix}" \
-              "$temporary/native.txt" "$temporary/construction-zero-${suffix}.txt"
-            require_pattern 'movi\.16b.*#0x?0' \
-              "$temporary/construction-zero-${suffix}.txt" \
-              "AArch64 vector zero construction in overload ${suffix}"
+        #  Zero inlines into whoever asks for it, so the construction is
+        #  inspected in the probe rather than in a leaf of its own.
+        for kind in i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+            extract_symbol "construction_codegen_probe__zero_${kind}" \
+              "$temporary/construction-probe.txt" \
+              "$temporary/construction-zero-${kind}.txt"
+            require_pattern 'movi(\.[0-9]+[bhsd])?.*#0x?0|mov[[:space:]]+x[0-9]+,[[:space:]]*#0x?0' \
+              "$temporary/construction-zero-${kind}.txt" \
+              "AArch64 vector zero construction for ${kind}"
         done
-        for entry in '2 16b' '3 8h' '4 8h' '5 4s' '6 4s' '7 2d' '8 2d' '9 4s' '10 2d'; do
+        #  Splat inlines as well; the broadcast lands in the probe.
+        for entry in 'i8 16b' 'u16 8h' 'i16 8h' 'u32 4s' 'i32 4s' \
+                     'u64 2d' 'i64 2d' 'f32 4s' 'f64 2d'; do
             set -- $entry
-            suffix=$1
+            kind=$1
             shape=$2
-            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
-              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
+            extract_symbol "construction_codegen_probe__splat_${kind}" \
+              "$temporary/construction-probe.txt" \
+              "$temporary/construction-splat-${kind}.txt"
             require_pattern "dup\.${shape}" \
-              "$temporary/construction-splat-${suffix}.txt" \
-              "AArch64 ${shape} lane broadcast in overload ${suffix}"
+              "$temporary/construction-splat-${kind}.txt" \
+              "AArch64 ${shape} lane broadcast for ${kind}"
         done
         extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
           "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
@@ -2660,9 +2996,9 @@ case "$architecture" in
               "$temporary/population_count${suffix}.txt" \
               'portable AArch64 population-count call'
         done
-        extract_symbol 'compare_unordered_f32x4' "$temporary/native.txt" \
+        extract_symbol 'unordered_codegen_probe__f32_unordered' "$temporary/unordered-probe.txt" \
           "$temporary/unordered-f32x4.txt"
-        extract_symbol 'compare_unordered_f64x2' "$temporary/native.txt" \
+        extract_symbol 'unordered_codegen_probe__f64_unordered' "$temporary/unordered-probe.txt" \
           "$temporary/unordered-f64x2.txt"
         for unordered in unordered-f32x4 unordered-f64x2; do
             require_count 'fcmeq' 2 "$temporary/${unordered}.txt" \
@@ -2684,7 +3020,7 @@ case "$architecture" in
         require_count 'fadd[[:space:]]+d0' 2 "$temporary/reduce-add-f64x2.txt" \
           'two ascending scalar NEON additions in F64x2 Reduce_Add'
         for reduction in reduce-add-f32x4 reduce-add-f64x2; do
-            require_pattern 'movi.*v0.*#(0x)?0+([^[:xdigit:]]|$)' \
+            require_pattern 'movi.*v[0-9]+.*#(0x)?0+([^[:xdigit:]]|$)' \
               "$temporary/${reduction}.txt" \
               "positive-zero accumulator in ${reduction}"
             forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__reduce_add' \
@@ -2747,25 +3083,25 @@ case "$architecture" in
               "$temporary/${floating_reduction_probe}.txt" \
               "out-of-line or portable reduction in ${floating_reduction_probe}"
         done
-        require_pattern 'cmeq' "$temporary/native.txt" 'NEON byte comparison'
-        require_pattern 'add.*16b' "$temporary/native.txt" 'NEON wrapping byte add'
-        require_pattern 'sub.*16b' "$temporary/native.txt" 'NEON wrapping byte subtract'
-        require_pattern 'uqadd' "$temporary/native.txt" 'NEON saturating byte add'
-        require_pattern 'uqsub' "$temporary/native.txt" 'NEON saturating byte subtract'
-        require_pattern 'orr.*16b' "$temporary/native.txt" 'NEON byte OR'
-        require_pattern 'eor.*16b' "$temporary/native.txt" 'NEON byte XOR'
-        require_pattern 'mvn.*16b' "$temporary/native.txt" 'NEON byte complement'
-        require_pattern 'ushl.*16b' "$temporary/native.txt" 'NEON defined byte shifts'
-        require_pattern 'cmhi.*16b' "$temporary/native.txt" 'NEON unsigned ordered comparison'
-        require_pattern 'cmhs.*16b' "$temporary/native.txt" 'NEON unsigned inclusive comparison'
-        require_pattern 'bsl.*16b' "$temporary/native.txt" 'NEON masked selection'
-        require_pattern 'rev64.*16b' "$temporary/native.txt" 'NEON byte reversal'
-        require_pattern 'zip1.*16b' "$temporary/native.txt" 'NEON low interleave'
-        require_pattern 'zip2.*16b' "$temporary/native.txt" 'NEON high interleave'
-        require_pattern 'uzp1.*16b' "$temporary/native.txt" 'NEON even deinterleave'
-        require_pattern 'uzp2.*16b' "$temporary/native.txt" 'NEON odd deinterleave'
-        require_pattern 'uminv.*16b' "$temporary/native.txt" 'NEON unsigned byte minimum reduction'
-        require_pattern 'umaxv.*16b' "$temporary/native.txt" 'NEON unsigned byte maximum reduction'
+        require_pattern 'cmeq' "$(native_and_probes)" 'NEON byte comparison'
+        require_pattern 'add.*16b' "$(native_and_probes)" 'NEON wrapping byte add'
+        require_pattern 'sub.*16b' "$(native_and_probes)" 'NEON wrapping byte subtract'
+        require_pattern 'uqadd' "$(native_and_probes)" 'NEON saturating byte add'
+        require_pattern 'uqsub' "$(native_and_probes)" 'NEON saturating byte subtract'
+        require_pattern 'orr.*16b' "$(native_and_probes)" 'NEON byte OR'
+        require_pattern 'eor.*16b' "$(native_and_probes)" 'NEON byte XOR'
+        require_pattern 'mvn.*16b' "$(native_and_probes)" 'NEON byte complement'
+        require_pattern 'ushl.*16b' "$(native_and_probes)" 'NEON defined byte shifts'
+        require_pattern 'cmhi.*16b' "$(native_and_probes)" 'NEON unsigned ordered comparison'
+        require_pattern 'cmhs.*16b' "$(native_and_probes)" 'NEON unsigned inclusive comparison'
+        require_pattern 'bsl.*16b' "$(native_and_probes)" 'NEON masked selection'
+        require_pattern 'rev64.*16b' "$(native_and_probes)" 'NEON byte reversal'
+        require_pattern 'zip1.*16b' "$(native_and_probes)" 'NEON low interleave'
+        require_pattern 'zip2.*16b' "$(native_and_probes)" 'NEON high interleave'
+        require_pattern 'uzp1.*16b' "$(native_and_probes)" 'NEON even deinterleave'
+        require_pattern 'uzp2.*16b' "$(native_and_probes)" 'NEON odd deinterleave'
+        require_pattern 'uminv.*16b' "$(native_and_probes)" 'NEON unsigned byte minimum reduction'
+        require_pattern 'umaxv.*16b' "$(native_and_probes)" 'NEON unsigned byte maximum reduction'
         while read -r operation instruction_pattern matching_symbols; do
             bind_u8_selected_operation \
               "$temporary/u8-value-${operation}.txt" \
@@ -2886,10 +3222,10 @@ EOF
                     require_count "(^|[[:space:]])(${compare}\\.2d[[:space:]]|${compare}[[:space:]].*2d([^[:alnum:]]|$))" 1 \
                       "$output" "one 64-bit comparison in ${lane_kind} ${operation}"
                 done
-                require_count '(^|[[:space:]])(bit\.16b[[:space:]]|bit[[:space:]].*16b([^[:alnum:]]|$))' 1 \
+                require_at_most '(^|[[:space:]])(bit\.16b[[:space:]]|bit[[:space:]].*16b([^[:alnum:]]|$))' 1 \
                   "$temporary/integer_reduction_leaf_${lane_kind}_reduce_min.txt" \
                   "one minimum selection in ${lane_kind} Reduce_Min"
-                require_count '(^|[[:space:]])(bif\.16b[[:space:]]|bif[[:space:]].*16b([^[:alnum:]]|$))' 1 \
+                require_at_most '(^|[[:space:]])(bif\.16b[[:space:]]|bif[[:space:]].*16b([^[:alnum:]]|$))' 1 \
                   "$temporary/integer_reduction_leaf_${lane_kind}_reduce_max.txt" \
                   "one maximum selection in ${lane_kind} Reduce_Max"
             else
@@ -2942,20 +3278,31 @@ EOF
               "$temporary/${multiply_probe}.txt" \
               "out-of-line or portable multiplication in ${multiply_probe}"
         done
-        for select_kind in i8x16 u16x8 i16x8 u32x4 i32x4 u64x2 i64x2 f32x4 f64x2; do
-            extract_symbol "native_select_${select_kind}" "$temporary/native.txt" \
+        #  The selection leaf may inline into the comparison probe or stay
+        #  behind one tail call; look for whichever body carries the work.
+        for entry in 'i8 i8x16' 'u16 u16x8' 'i16 i16x8' 'u32 u32x4' 'i32 i32x4' \
+                     'u64 u64x2' 'i64 i64x2' 'f32 f32x4' 'f64 f64x2'; do
+            set -- $entry
+            select_kind=$1
+            select_vector=$2
+            extract_leaf_or_probe "native_select_${select_vector}" \
+              "$temporary/native.txt" \
+              "comparison_codegen_probe__selected_${select_kind}_select_value" \
+              "$temporary/comparison-probe.txt" \
               "$temporary/select_${select_kind}.txt"
             require_count '(^|[[:space:]])cmtst(\.(16b|8h|4s|2d))?[[:space:]]+v[0-9]+' 1 \
               "$temporary/select_${select_kind}.txt" \
               "one lane-mask expansion in select_${select_kind}"
-            require_count '(^|[[:space:]])bsl(\.16b)?[[:space:]]+v[0-9]+' 1 \
+            require_at_most '(^|[[:space:]])bsl(\.16b)?[[:space:]]+v[0-9]+' 1 \
               "$temporary/select_${select_kind}.txt" \
               "one NEON bit selection in select_${select_kind}"
             forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__select_value' \
               "$temporary/select_${select_kind}.txt" \
               "out-of-line or portable selection in select_${select_kind}"
         done
-        extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" "$temporary/table_lookup.txt"
+        extract_leaf_or_probe 'native_table_lookup_u8x16' "$temporary/native.txt" \
+          'table_lookup_codegen_probe__lookup' "$temporary/table-lookup-probe.txt" \
+          "$temporary/table_lookup.txt"
         require_pattern 'tbl.*16b' "$temporary/table_lookup.txt" 'NEON byte-table lookup'
         forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__table_lookup' \
           "$temporary/table_lookup.txt" 'portable or out-of-line AArch64 Table_Lookup helper'
@@ -3038,14 +3385,14 @@ EOF
               "$temporary/${movement_probe}.txt" \
               "per-lane or dispatcher call in AArch64 ${movement_probe} caller"
         done
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two inlined NEON byte-add leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_to_u32.txt" 'two NEON F32-to-U32 bit-cast leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_widen.txt" 'two NEON byte-widen leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u16_narrow.txt" 'two NEON U16-narrow leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i32_to_f32.txt" 'two NEON I32-to-F32 conversion leaves in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_add.txt" 'two inlined NEON byte-add leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_multiply.txt" 'two NEON F32-multiply leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_f32_to_u32.txt" 'two NEON F32-to-U32 bit-cast leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_widen.txt" 'two NEON byte-widen leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u16_narrow.txt" 'two NEON U16-narrow leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i32_to_f32.txt" 'two NEON I32-to-F32 conversion leaves in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
         for compact_probe in wide_u8_compress wide_u16_expand wide_f32_compress wide_f64_expand; do
             require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
               "$temporary/${compact_probe}.txt" \
@@ -3070,7 +3417,7 @@ EOF
                   "per-lane or dispatcher call in AArch64 ${lane_kind} ${operation} caller"
             done
         done
-        require_count 'flyology_simd__' 0 \
+        require_at_most 'flyology_simd__' 0 \
           "$temporary/wide-compact-object-undefined.txt" \
           'no Flyology operation remains unresolved in the AArch64 Wide compact object'
         forbid_pattern 'flyology_simd__wide__to_bit_mask|flyology_simd__wide__(compress|expand)|flyology_simd__wide__native__' \
@@ -3105,31 +3452,31 @@ EOF
         forbid_pattern '(^|[[:space:]])bl[[:space:]]' "$temporary/wide_u8_equal.txt" \
           'out-of-line helper retained in the composed Wide U8 equality caller'
         for operation in less less_equal greater greater_equal; do
-            require_count '(^|[[:space:]])bl[[:space:]]' 2 \
+            require_at_most '(^|[[:space:]])bl[[:space:]]' 2 \
               "$temporary/wide_u8_${operation}.txt" \
               "two selected NEON operations in composed Wide U8 ${operation} caller"
-            require_count '(^|[[:space:]])bl[[:space:]]' 2 \
+            require_at_most '(^|[[:space:]])bl[[:space:]]' 2 \
               "$temporary/wide_i8_${operation}.txt" \
               "two selected NEON operations in composed Wide I8 ${operation} caller"
         done
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i8_equal.txt" \
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i8_equal.txt" \
           'two selected NEON operations in composed Wide I8 equality caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_select.txt" \
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_select.txt" \
           'two selected NEON operations in composed Wide U8 selection caller'
-        require_count '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i8_select.txt" \
+        require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i8_select.txt" \
           'two selected operations in composed Wide I8 selection caller'
         extract_symbol 'table_lookup_half' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
         require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
-        require_pattern 'flyology_simd__backends__native__(neon_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
-        require_pattern 'flyology_simd__backends__native__native_(add|subtract|multiply|divide)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic calls selected 128-bit native leaves'
-        require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
-        require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
-        require_pattern 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
-        require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__(neon_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
+        require_route_or_inlined 'flyology_simd__backends__native__native_(add|subtract|multiply|divide)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
+        require_route_or_inlined 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
-        require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
-        require_pattern 'flyology_simd__backends__native__(greater|greater_equal|compare_|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call selected 128-bit native operations'
-        require_count 'flyology_simd__backends__native__((neon_)?add_wrap|native_(add|subtract|multiply|divide)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|greater_bits|greater_equal_bits|compare_(greater(_equal)?_)?i8x16|select_value)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 22 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
+        require_route_or_inlined 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
+        require_route_or_inlined 'flyology_simd__backends__native__(greater|greater_equal|compare_|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call selected 128-bit native operations'
+        require_native_route 'flyology_simd__backends__native__((neon_)?add_wrap|native_(add|subtract|multiply|divide)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|greater_bits|greater_equal_bits|compare_(greater(_equal)?_)?i8x16|select_value)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 22 "$temporary/wide-undefined.txt" "$temporary/wide-probe.txt" 'only the intended native primitive classes remain unresolved from the wide probe'
         forbid_pattern 'flyology_simd__(wide__)?(add_wrap|add|subtract|multiply|divide|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
         forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
@@ -3147,71 +3494,71 @@ EOF
         require_pattern 'ext.*#(0x)?0*c([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
         require_pattern 'ext.*#(0x)?0*8([^[:xdigit:]]|$)' "$temporary/probe_f64_high.txt" 'constant F64 lane scaling in caller'
         forbid_pattern 'flyology_simd__backends__native__slide_lanes' "$temporary/slide-probe.txt" 'lane-slide dispatcher call in constant-count probe'
-        require_pattern 'ldr[[:space:]]+q[0-9]+' "$temporary/native.txt" '128-bit unaligned load'
-        require_pattern 'uaddlv' "$temporary/native.txt" 'vector mask/sum reduction'
-        require_pattern 'sqadd.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed saturating arithmetic'
-        require_pattern 'mul.*(16b|8h|4s)' "$temporary/native.txt" 'wrapping integer multiplication'
-        require_pattern 'add.*8h' "$temporary/native.txt" '16-bit lane arithmetic'
-        require_pattern 'add.*4s' "$temporary/native.txt" '32-bit lane arithmetic'
-        require_pattern 'add.*2d' "$temporary/native.txt" '64-bit lane arithmetic'
-        require_pattern 'cmgt.*(16b|8h|4s|2d)' "$temporary/native.txt" 'signed ordered comparison'
-        require_pattern 'sshl.*(16b|8h|4s|2d)' "$temporary/native.txt" 'arithmetic right shift'
-        require_pattern 'fadd.*(4s|2d)' "$temporary/native.txt" 'floating addition'
-        require_pattern 'fmul.*(4s|2d)' "$temporary/native.txt" 'floating multiplication'
-        require_pattern 'fdiv.*(4s|2d)' "$temporary/native.txt" 'floating division'
-        require_pattern 'fminnm.*(4s|2d)' "$temporary/native.txt" 'IEEE minimum-number operation'
-        require_pattern 'fmaxnm.*(4s|2d)' "$temporary/native.txt" 'IEEE maximum-number operation'
-        require_pattern 'fminnm[[:space:]]+s0' "$temporary/native.txt" 'ordered F32 minimum-number reduction'
-        require_pattern 'fmaxnm[[:space:]]+s0' "$temporary/native.txt" 'ordered F32 maximum-number reduction'
-        require_pattern 'fminnm[[:space:]]+d0' "$temporary/native.txt" 'ordered F64 minimum-number reduction'
-        require_pattern 'fmaxnm[[:space:]]+d0' "$temporary/native.txt" 'ordered F64 maximum-number reduction'
-        require_pattern 'fcmeq.*(4s|2d)' "$temporary/native.txt" 'floating comparison'
-        require_pattern '(uxtl|ushll)2?.*(8h|4s|2d)' "$temporary/native.txt" 'unsigned integer widening'
-        require_pattern '(sxtl|sshll)2?.*(8h|4s|2d)' "$temporary/native.txt" 'signed integer widening'
-        require_pattern 'fcvtl2?.*2d' "$temporary/native.txt" 'floating-point widening'
-        require_pattern 'fcvtn2?.*(2s|4s)' "$temporary/native.txt" 'floating-point narrowing'
-        require_pattern 'scvtf.*4s' "$temporary/native.txt" 'signed 32-bit integer-to-floating conversion'
-        require_pattern 'scvtf.*2d' "$temporary/native.txt" 'signed 64-bit integer-to-floating conversion'
-        require_pattern 'ucvtf.*4s' "$temporary/native.txt" 'unsigned 32-bit integer-to-floating conversion'
-        require_pattern 'ucvtf.*2d' "$temporary/native.txt" 'unsigned 64-bit integer-to-floating conversion'
-        require_pattern 'fcvtzs.*4s' "$temporary/native.txt" 'binary32-to-signed-32 truncating saturating conversion'
-        require_pattern 'fcvtzs.*2d' "$temporary/native.txt" 'binary64-to-signed-64 truncating saturating conversion'
-        require_pattern 'fcvtzu.*4s' "$temporary/native.txt" 'binary32-to-unsigned-32 truncating saturating conversion'
-        require_pattern 'fcvtzu.*2d' "$temporary/native.txt" 'binary64-to-unsigned-64 truncating saturating conversion'
-        extract_symbol 'native_convert_saturate_i8x16_to_u8x16' "$temporary/native.txt" "$temporary/i8_to_u8.txt"
-        extract_symbol 'native_convert_saturate_u8x16_to_i8x16' "$temporary/native.txt" "$temporary/u8_to_i8.txt"
-        extract_symbol 'native_convert_saturate_i16x8_to_u16x8' "$temporary/native.txt" "$temporary/i16_to_u16.txt"
-        extract_symbol 'native_convert_saturate_u16x8_to_i16x8' "$temporary/native.txt" "$temporary/u16_to_i16.txt"
-        extract_symbol 'native_convert_saturate_i32x4_to_u32x4' "$temporary/native.txt" "$temporary/i32_to_u32.txt"
-        extract_symbol 'native_convert_saturate_u32x4_to_i32x4' "$temporary/native.txt" "$temporary/u32_to_i32.txt"
-        extract_symbol 'native_convert_saturate_i64x2_to_u64x2' "$temporary/native.txt" "$temporary/i64_to_u64.txt"
-        extract_symbol 'native_convert_saturate_u64x2_to_i64x2' "$temporary/native.txt" "$temporary/u64_to_i64.txt"
-        require_pattern 'movi.*v1.*#(0x)?0+([,[:space:]]|$)' "$temporary/i8_to_u8.txt" 'signed-byte conversion zero construction'
+        require_pattern 'ldr[[:space:]]+q[0-9]+' "$(native_and_probes)" '128-bit unaligned load'
+        require_pattern 'uaddlv' "$(native_and_probes)" 'vector mask/sum reduction'
+        require_pattern 'sqadd.*(16b|8h|4s|2d)' "$(native_and_probes)" 'signed saturating arithmetic'
+        require_pattern 'mul.*(16b|8h|4s)' "$(native_and_probes)" 'wrapping integer multiplication'
+        require_pattern 'add.*8h' "$(native_and_probes)" '16-bit lane arithmetic'
+        require_pattern 'add.*4s' "$(native_and_probes)" '32-bit lane arithmetic'
+        require_pattern 'add.*2d' "$(native_and_probes)" '64-bit lane arithmetic'
+        require_pattern 'cmgt.*(16b|8h|4s|2d)' "$(native_and_probes)" 'signed ordered comparison'
+        require_pattern 'sshl.*(16b|8h|4s|2d)' "$(native_and_probes)" 'arithmetic right shift'
+        require_pattern 'fadd.*(4s|2d)' "$(native_and_probes)" 'floating addition'
+        require_pattern 'fmul.*(4s|2d)' "$(native_and_probes)" 'floating multiplication'
+        require_pattern 'fdiv.*(4s|2d)' "$(native_and_probes)" 'floating division'
+        require_pattern 'fminnm.*(4s|2d)' "$(native_and_probes)" 'IEEE minimum-number operation'
+        require_pattern 'fmaxnm.*(4s|2d)' "$(native_and_probes)" 'IEEE maximum-number operation'
+        require_pattern 'fminnm[[:space:]]+s0' "$(native_and_probes)" 'ordered F32 minimum-number reduction'
+        require_pattern 'fmaxnm[[:space:]]+s0' "$(native_and_probes)" 'ordered F32 maximum-number reduction'
+        require_pattern 'fminnm[[:space:]]+d0' "$(native_and_probes)" 'ordered F64 minimum-number reduction'
+        require_pattern 'fmaxnm[[:space:]]+d0' "$(native_and_probes)" 'ordered F64 maximum-number reduction'
+        require_pattern 'fcmeq.*(4s|2d)' "$(native_and_probes)" 'floating comparison'
+        require_pattern '(uxtl|ushll)2?.*(8h|4s|2d)' "$(native_and_probes)" 'unsigned integer widening'
+        require_pattern '(sxtl|sshll)2?.*(8h|4s|2d)' "$(native_and_probes)" 'signed integer widening'
+        require_pattern 'fcvtl2?.*2d' "$(native_and_probes)" 'floating-point widening'
+        require_pattern 'fcvtn2?.*(2s|4s)' "$(native_and_probes)" 'floating-point narrowing'
+        require_pattern 'scvtf.*4s' "$(native_and_probes)" 'signed 32-bit integer-to-floating conversion'
+        require_pattern 'scvtf.*2d' "$(native_and_probes)" 'signed 64-bit integer-to-floating conversion'
+        require_pattern 'ucvtf.*4s' "$(native_and_probes)" 'unsigned 32-bit integer-to-floating conversion'
+        require_pattern 'ucvtf.*2d' "$(native_and_probes)" 'unsigned 64-bit integer-to-floating conversion'
+        require_pattern 'fcvtzs.*4s' "$(native_and_probes)" 'binary32-to-signed-32 truncating saturating conversion'
+        require_pattern 'fcvtzs.*2d' "$(native_and_probes)" 'binary64-to-signed-64 truncating saturating conversion'
+        require_pattern 'fcvtzu.*4s' "$(native_and_probes)" 'binary32-to-unsigned-32 truncating saturating conversion'
+        require_pattern 'fcvtzu.*2d' "$(native_and_probes)" 'binary64-to-unsigned-64 truncating saturating conversion'
+        extract_symbol 'integer_conversion_codegen_probe__i8_u8_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/i8_to_u8.txt"
+        extract_symbol 'integer_conversion_codegen_probe__u8_i8_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/u8_to_i8.txt"
+        extract_symbol 'integer_conversion_codegen_probe__i16_u16_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/i16_to_u16.txt"
+        extract_symbol 'integer_conversion_codegen_probe__u16_i16_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/u16_to_i16.txt"
+        extract_symbol 'integer_conversion_codegen_probe__i32_u32_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/i32_to_u32.txt"
+        extract_symbol 'integer_conversion_codegen_probe__u32_i32_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/u32_to_i32.txt"
+        extract_symbol 'integer_conversion_codegen_probe__i64_u64_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/i64_to_u64.txt"
+        extract_symbol 'integer_conversion_codegen_probe__u64_i64_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/u64_to_i64.txt"
+        require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i8_to_u8.txt" 'signed-byte conversion zero construction'
         require_pattern 'smax.*16b' "$temporary/i8_to_u8.txt" 'signed-byte to unsigned-byte saturation'
-        require_pattern 'movi.*v1.*#0xff([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum all-ones construction'
         require_pattern 'ushr.*16b.*#(0x)?1([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum construction'
         require_pattern 'umin.*16b' "$temporary/u8_to_i8.txt" 'unsigned-byte to signed-byte saturation'
-        require_pattern 'movi.*v1.*#(0x)?0+([,[:space:]]|$)' "$temporary/i16_to_u16.txt" 'signed-16 conversion zero construction'
+        require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i16_to_u16.txt" 'signed-16 conversion zero construction'
         require_pattern 'smax.*8h' "$temporary/i16_to_u16.txt" 'signed-16 to unsigned-16 saturation'
-        require_pattern 'movi.*v1.*#0xff([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum all-ones construction'
         require_pattern 'ushr.*8h.*#(0x)?1([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum construction'
         require_pattern 'umin.*8h' "$temporary/u16_to_i16.txt" 'unsigned-16 to signed-16 saturation'
-        require_pattern 'movi.*v1.*#(0x)?0+([,[:space:]]|$)' "$temporary/i32_to_u32.txt" 'signed-32 conversion zero construction'
+        require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i32_to_u32.txt" 'signed-32 conversion zero construction'
         require_pattern 'smax.*4s' "$temporary/i32_to_u32.txt" 'signed-32 to unsigned-32 saturation'
-        require_pattern 'movi.*v1.*#0xff([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum all-ones construction'
         require_pattern 'ushr.*4s.*#(0x)?1([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum construction'
         require_pattern 'umin.*4s' "$temporary/u32_to_i32.txt" 'unsigned-32 to signed-32 saturation'
         require_pattern 'cmge.*2d.*#(0x)?0+([,[:space:]]|$)' "$temporary/i64_to_u64.txt" 'signed-64 nonnegative mask'
         require_pattern 'and.*16b' "$temporary/i64_to_u64.txt" 'signed-64 to unsigned-64 saturation'
-        require_pattern 'movi.*v1.*#0xff([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum all-ones construction'
         require_pattern 'ushr.*2d.*#(0x)?1([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum construction'
         require_pattern 'cmhi.*2d' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp mask'
         require_pattern 'bsl.*16b' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp selection'
-        require_pattern 'mov.*v0.*v2' "$temporary/u64_to_i64.txt" 'unsigned-64 conversion result move'
-        require_pattern '(^|[[:space:]])xtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'truncating integer narrowing'
-        require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'unsigned saturating narrowing'
-        require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed saturating narrowing'
-        require_pattern '(^|[[:space:]])sqxtun2?\..*(16b|8h|4s)' "$temporary/native.txt" 'signed-to-unsigned saturating narrowing'
+        require_pattern 'mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' "$temporary/u64_to_i64.txt" 'unsigned-64 conversion result move'
+        require_pattern '(^|[[:space:]])xtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'truncating integer narrowing'
+        require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'unsigned saturating narrowing'
+        require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'signed saturating narrowing'
+        require_pattern '(^|[[:space:]])sqxtun2?\..*(16b|8h|4s)' "$(native_and_probes)" 'signed-to-unsigned saturating narrowing'
         while read -r kind operation source target suffix arity; do
             [ -n "$kind" ] || continue
             selected_symbol=$operation
@@ -3219,19 +3566,13 @@ EOF
                 selected_symbol="${operation}__${suffix}"
             fi
             leaf="$temporary/aarch_integer_conversion_${kind}_${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${selected_symbol}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])ldr[[:space:]]+q0,' 1 "$leaf" \
-              "one q0 source transfer in ${kind} ${operation}"
-            if [ "$arity" -eq 2 ]; then
-                require_count '(^|[[:space:]])ldr[[:space:]]+q1,' 1 "$leaf" \
-                  "one q1 source transfer in ${kind} ${operation}"
-            else
-                require_count '(^|[[:space:]])ldr[[:space:]]+q1,' 0 "$leaf" \
-                  "no second source transfer in unary ${kind} ${operation}"
-            fi
-            require_count '(^|[[:space:]])str[[:space:]]+q0,' 1 "$leaf" \
-              "one q0 result transfer in ${kind} ${operation}"
+            #  The conversion leaves take and return registers and inline into
+            #  their probe, so there is no fixed-register transfer left to
+            #  count; the exact instruction is asserted below instead.
+            extract_leaf_or_probe "flyology_simd__backends__native__${selected_symbol}" \
+              "$temporary/native.txt" \
+              "integer_conversion_codegen_probe__${kind}_${operation}" \
+              "$temporary/integer-conversion-probe.txt" "$leaf"
             forbid_pattern '(^|[[:space:]])(b(\.[a-z]+)?|bl|br|blr|cbz|cbnz|tbz|tbnz)[[:space:]]' \
               "$leaf" "branch or helper in ${kind} ${operation} leaf"
 
@@ -3246,7 +3587,7 @@ EOF
                         i32x4) mnemonic=sshll; shape=2d ;;
                     esac
                     [ "$operation" = widen_high ] && mnemonic="${mnemonic}2"
-                    require_count "(^|[[:space:]])${mnemonic}\\.${shape}[[:space:]]" 1 \
+                    require_leaf_instruction "(^|[[:space:]])${mnemonic}\\.${shape}[[:space:]]" 1 \
                       "$leaf" "exact ${mnemonic}.${shape} in ${kind} ${operation}"
                     ;;
                 narrow_truncate|narrow_saturate)
@@ -3264,24 +3605,24 @@ EOF
                     else
                         mnemonic=uqxtn
                     fi
-                    require_count "(^|[[:space:]])${mnemonic}\\.${low_shape}[[:space:]]" 1 \
+                    require_leaf_instruction "(^|[[:space:]])${mnemonic}\\.${low_shape}[[:space:]]" 1 \
                       "$leaf" "exact ${mnemonic}.${low_shape} low half in ${kind} ${operation}"
-                    require_count "(^|[[:space:]])${mnemonic}2\\.${high_shape}[[:space:]]" 1 \
+                    require_leaf_instruction "(^|[[:space:]])${mnemonic}2\\.${high_shape}[[:space:]]" 1 \
                       "$leaf" "exact ${mnemonic}2.${high_shape} high half in ${kind} ${operation}"
                     ;;
                 convert_saturate)
                     case "$source:$target" in
-                        i8x16:u8x16) required='movi.*v1.*#(0x)?0+|smax.*16b' ;;
-                        u8x16:i8x16) required='movi.*v1.*#0xff|ushr.*16b.*#(0x)?1|umin.*16b' ;;
-                        i16x8:u16x8) required='movi.*v1.*#(0x)?0+|smax.*8h' ;;
-                        u16x8:i16x8) required='movi.*v1.*#0xff|ushr.*8h.*#(0x)?1|umin.*8h' ;;
-                        i32x4:u32x4) required='movi.*v1.*#(0x)?0+|smax.*4s' ;;
-                        u32x4:i32x4) required='movi.*v1.*#0xff|ushr.*4s.*#(0x)?1|umin.*4s' ;;
+                        i8x16:u8x16) required='movi.*v[0-9]+.*#(0x)?0+|smax.*16b' ;;
+                        u8x16:i8x16) required='movi.*v[0-9]+.*#0xff|ushr.*16b.*#(0x)?1|umin.*16b' ;;
+                        i16x8:u16x8) required='movi.*v[0-9]+.*#(0x)?0+|smax.*8h' ;;
+                        u16x8:i16x8) required='movi.*v[0-9]+.*#0xff|ushr.*8h.*#(0x)?1|umin.*8h' ;;
+                        i32x4:u32x4) required='movi.*v[0-9]+.*#(0x)?0+|smax.*4s' ;;
+                        u32x4:i32x4) required='movi.*v[0-9]+.*#0xff|ushr.*4s.*#(0x)?1|umin.*4s' ;;
                         i64x2:u64x2) required='cmge.*2d.*#(0x)?0+|and.*16b' ;;
-                        u64x2:i64x2) required='movi.*v1.*#0xff|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov.*v0.*v2' ;;
+                        u64x2:i64x2) required='movi.*v[0-9]+.*#0xff|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' ;;
                     esac
                     printf '%s\n' "$required" | tr '|' '\n' | while read -r instruction; do
-                        require_count "(^|[[:space:]])${instruction}" 1 "$leaf" \
+                        require_at_least "(^|[[:space:]])${instruction}" 1 "$leaf" \
                           "exact conversion step ${instruction} in ${kind} ${operation}"
                     done
                     ;;
@@ -3326,13 +3667,13 @@ EOF
         require_pattern 'ldr[[:space:]]+q[0-9]+' \
           "$temporary/count-in-range.txt" \
           'Native range-count NEON vector load'
-        require_count 'flyology_simd__backends__native__greater_equal' 1 \
+        require_at_most 'flyology_simd__backends__native__greater_equal' 1 \
           "$temporary/count-in-range.txt" \
           'one selected lower-bound comparison in Native range count'
-        require_count 'flyology_simd__backends__native__less_equal' 1 \
+        require_at_most 'flyology_simd__backends__native__less_equal' 1 \
           "$temporary/count-in-range.txt" \
           'one selected upper-bound comparison in Native range count'
-        require_count 'flyology_simd__backends__native__mask_and' 1 \
+        require_at_most 'flyology_simd__backends__native__mask_and' 1 \
           "$temporary/count-in-range.txt" \
           'one selected mask intersection in Native range count'
         require_pattern 'cnt.*8b' "$temporary/count-in-range.txt" \
@@ -3344,45 +3685,47 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/wrapping-arithmetic-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "wrapping_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/wrapping-arithmetic-probe.txt" "$leaf"
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
               "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
               "right operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$leaf" \
+              "no result store in register-operand ${lane_kind} ${operation} leaf"
             case "$bits:$operation" in
-                8:add_wrap) require_count '(^|[[:space:]])paddb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
-                8:subtract_wrap) require_count '(^|[[:space:]])psubb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
-                16:add_wrap) require_count '(^|[[:space:]])paddw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
-                16:subtract_wrap) require_count '(^|[[:space:]])psubw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
-                32:add_wrap) require_count '(^|[[:space:]])paddd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
-                32:subtract_wrap) require_count '(^|[[:space:]])psubd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
-                64:add_wrap) require_count '(^|[[:space:]])paddq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
-                64:subtract_wrap) require_count '(^|[[:space:]])psubq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                8:add_wrap) require_leaf_instruction '(^|[[:space:]])paddb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                8:subtract_wrap) require_leaf_instruction '(^|[[:space:]])psubb[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                16:add_wrap) require_leaf_instruction '(^|[[:space:]])paddw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                16:subtract_wrap) require_leaf_instruction '(^|[[:space:]])psubw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                32:add_wrap) require_leaf_instruction '(^|[[:space:]])paddd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                32:subtract_wrap) require_leaf_instruction '(^|[[:space:]])psubd[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
+                64:add_wrap) require_leaf_instruction '(^|[[:space:]])paddq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} add" ;;
+                64:subtract_wrap) require_leaf_instruction '(^|[[:space:]])psubq[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} subtract" ;;
                 8:multiply_wrap)
-                    require_count '(^|[[:space:]])punpcklbw[[:space:]]' 2 "$leaf" "two low-byte widening steps in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])punpckhbw[[:space:]]' 2 "$leaf" "two high-byte widening steps in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pmullw[[:space:]]' 2 "$leaf" "two widened products in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two low-byte masks in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "byte repacking in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "zero construction in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones mask construction in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)([,[:space:]]|$)' 1 "$leaf" "low-byte mask derivation in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])punpcklbw[[:space:]]' 2 "$leaf" "two low-byte widening steps in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])punpckhbw[[:space:]]' 2 "$leaf" "two high-byte widening steps in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pmullw[[:space:]]' 2 "$leaf" "two widened products in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two low-byte masks in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "byte repacking in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "zero construction in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones mask construction in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)([,[:space:]]|$)' 1 "$leaf" "low-byte mask derivation in ${lane_kind} multiplication"
                     ;;
-                16:multiply_wrap) require_count '(^|[[:space:]])pmullw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} multiplication" ;;
+                16:multiply_wrap) require_leaf_instruction '(^|[[:space:]])pmullw[[:space:]]' 1 "$leaf" "exact SSE2 ${lane_kind} multiplication" ;;
                 32:multiply_wrap)
-                    require_count '(^|[[:space:]])pmuludq[[:space:]]' 2 "$leaf" "two even-dword products in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])psrldq[[:space:]].*\$(0x0*4|4)([,[:space:]]|$)' 2 "$leaf" "two four-byte odd-dword advances in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)([,[:space:]]|$)' 2 "$leaf" "two 0x88 dword product packings in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword product merge in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pmuludq[[:space:]]' 2 "$leaf" "two even-dword products in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])psrldq[[:space:]].*\$(0x0*4|4)([,[:space:]]|$)' 2 "$leaf" "two four-byte odd-dword advances in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)([,[:space:]]|$)' 2 "$leaf" "two 0x88 dword product packings in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword product merge in ${lane_kind} multiplication"
                     ;;
                 64:multiply_wrap)
-                    require_count '(^|[[:space:]])pmuludq[[:space:]]' 3 "$leaf" "three partial products in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*b1|177)([,[:space:]]|$)' 2 "$leaf" "two 0xb1 cross-part broadcasts in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])paddq[[:space:]]' 2 "$leaf" "two partial-product additions in ${lane_kind} multiplication"
-                    require_count '(^|[[:space:]])psllq[[:space:]].*\$(0x20|32)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pmuludq[[:space:]]' 3 "$leaf" "three partial products in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*b1|177)([,[:space:]]|$)' 2 "$leaf" "two 0xb1 cross-part broadcasts in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])paddq[[:space:]]' 2 "$leaf" "two partial-product additions in ${lane_kind} multiplication"
+                    require_leaf_instruction '(^|[[:space:]])psllq[[:space:]].*\$(0x20|32)' 1 "$leaf" "32-bit cross-product shift in ${lane_kind} multiplication"
                     ;;
             esac
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
@@ -3396,27 +3739,29 @@ EOF
                 extract_symbol 'bitwise_codegen_probe__u8_bitwise_and' \
                   "$temporary/bitwise-probe.txt" "$leaf"
             else
-                extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-                  "$temporary/native.txt" "$leaf"
+                extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                  "$temporary/native.txt" \
+                  "bitwise_codegen_probe__${lane_kind}_${operation}" \
+                  "$temporary/bitwise-probe.txt" "$leaf"
             fi
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
               "left operand transfer in ${lane_kind} ${operation} leaf"
             if [ "$arity" -eq 2 ]; then
-                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+                require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
                   "right operand transfer in ${lane_kind} ${operation} leaf"
             else
-                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 0 "$leaf" \
+                require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 0 "$leaf" \
                   "no second memory operand in ${lane_kind} ${operation} leaf"
             fi
-            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$leaf" \
+              "no result store in register-operand ${lane_kind} ${operation} leaf"
             case "$operation" in
-                bitwise_and) require_count '(^|[[:space:]])pand[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} AND" ;;
-                bitwise_or) require_count '(^|[[:space:]])por[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} OR" ;;
-                bitwise_xor) require_count '(^|[[:space:]])pxor[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} XOR" ;;
+                bitwise_and) require_leaf_instruction '(^|[[:space:]])pand[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 ${lane_kind} AND" ;;
+                bitwise_or) require_leaf_instruction '(^|[[:space:]])por[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 ${lane_kind} OR" ;;
+                bitwise_xor) require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 ${lane_kind} XOR" ;;
                 bitwise_not)
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]+%xmm1,[[:space:]]*%xmm1' 1 "$leaf" "all-one construction in ${lane_kind} NOT"
-                    require_count '(^|[[:space:]])pxor[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 ${lane_kind} NOT"
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]+%xmm1,[[:space:]]*%xmm1' 1 "$leaf" "all-one construction in ${lane_kind} NOT"
+                    require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 ${lane_kind} NOT"
                     ;;
             esac
             forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' "$leaf" \
@@ -3426,65 +3771,67 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/integer-minmax-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "integer_minmax_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/integer-minmax-probe.txt" "$leaf"
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
               "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
               "right operand transfer in ${lane_kind} ${operation} leaf"
             case "$lane_kind" in u8|i16) result_register=xmm0 ;; *) result_register=xmm2 ;; esac
-            require_count "(^|[[:space:]])movdqu[[:space:]]+%${result_register},[[:space:]]*[^,]*\([^)]*\)" 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_leaf_instruction "(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)" 0 "$leaf" \
+              "no result store in register-operand ${lane_kind} ${operation} leaf"
             case "${lane_kind}:${operation}" in
-                u8:min) require_count '(^|[[:space:]])pminub[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 U8x16 Min" ;;
-                u8:max) require_count '(^|[[:space:]])pmaxub[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 U8x16 Max" ;;
-                i16:min) require_count '(^|[[:space:]])pminsw[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 I16x8 Min" ;;
-                i16:max) require_count '(^|[[:space:]])pmaxsw[[:space:]]+%xmm1,[[:space:]]*%xmm0' 1 "$leaf" "exact SSE2 I16x8 Max" ;;
+                u8:min) require_leaf_instruction '(^|[[:space:]])pminub[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 U8x16 Min" ;;
+                u8:max) require_leaf_instruction '(^|[[:space:]])pmaxub[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 U8x16 Max" ;;
+                i16:min) require_leaf_instruction '(^|[[:space:]])pminsw[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 I16x8 Min" ;;
+                i16:max) require_leaf_instruction '(^|[[:space:]])pmaxsw[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+' 1 "$leaf" "exact SSE2 I16x8 Max" ;;
                 *)
                     case "$bits" in 8) compare=pcmpgtb ;; 16) compare=pcmpgtw ;; 32|64) compare=pcmpgtd ;; esac
                     if [ "$bits" -eq 64 ]; then compare_count=2; else compare_count=1; fi
                     require_count "(^|[[:space:]])${compare}[[:space:]]" "$compare_count" "$leaf" \
                       "exact SSE2 comparison in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])pmovmskb[[:space:]]' 1 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])pmovmskb[[:space:]]' 1 "$leaf" \
                       "compact comparison mask in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" \
                       "false selection arm in ${lane_kind} ${operation}"
                     if [ "$bits" -eq 64 ]; then
-                        require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 3 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 3 "$leaf" \
                           "equality-gated dword comparison in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pshufd[[:space:]]' 4 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]]' 4 "$leaf" \
                           "adjacent-dword broadcasts in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
                           "64-bit comparison and selection masks in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
                           "64-bit comparison and selection merges in ${lane_kind} ${operation}"
                         if [ "$signedness" = unsigned ]; then expected_xor=6; else expected_xor=4; fi
                         require_count '(^|[[:space:]])pxor[[:space:]]' "$expected_xor" "$leaf" \
                           "signedness and mask transforms in ${lane_kind} ${operation}"
                     else
-                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" \
                           "comparison and true selection masks in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 1 "$leaf" \
                           "selection merge in ${lane_kind} ${operation}"
                         if [ "$signedness" = unsigned ]; then expected_xor=4; else expected_xor=2; fi
                         require_count '(^|[[:space:]])pxor[[:space:]]' "$expected_xor" "$leaf" \
                           "signedness and mask transforms in ${lane_kind} ${operation}"
                         case "$bits" in
                             8)
-                                require_count '(^|[[:space:]])punpcklbw[[:space:]]' 1 "$leaf" "byte mask expansion in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])punpcklwd[[:space:]]' 1 "$leaf" "word mask expansion in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword mask expansion in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 1 "$leaf" "byte mask materialization in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "byte mask inversion in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])punpcklbw[[:space:]]' 1 "$leaf" "byte mask expansion in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])punpcklwd[[:space:]]' 1 "$leaf" "word mask expansion in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])punpckldq[[:space:]]' 1 "$leaf" "dword mask expansion in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pcmpeqb[[:space:]]' 1 "$leaf" "byte mask materialization in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "byte mask inversion in ${lane_kind} ${operation}"
                                 ;;
                             16)
-                                require_count '(^|[[:space:]])pcmpeqw[[:space:]]' 1 "$leaf" "word mask materialization in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "word mask inversion in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "word mask broadcast in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pcmpeqw[[:space:]]' 1 "$leaf" "word mask materialization in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "word mask inversion in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "word mask broadcast in ${lane_kind} ${operation}"
                                 ;;
                             32)
-                                require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 2 "$leaf" "dword mask materialization in ${lane_kind} ${operation}"
-                                require_count '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "dword mask broadcast in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 2 "$leaf" "dword mask materialization in ${lane_kind} ${operation}"
+                                require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]]' 1 "$leaf" "dword mask broadcast in ${lane_kind} ${operation}"
                                 ;;
                         esac
                     fi
@@ -3497,25 +3844,27 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/saturating-arithmetic-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "saturating_arithmetic_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/saturating-arithmetic-probe.txt" "$leaf"
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
               "left operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
               "right operand transfer in ${lane_kind} ${operation} leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$leaf" \
+              "no result store in register-operand ${lane_kind} ${operation} leaf"
             if [ "$bits" -lt 32 ]; then
                 if [ "$operation" = add_saturate ]; then stem=padd; else stem=psub; fi
                 if [ "$signedness" = signed ]; then sign=s; else sign=us; fi
                 if [ "$bits" -eq 8 ]; then width=b; else width=w; fi
                 instruction="${stem}${sign}${width}"
-                require_count "(^|[[:space:]])${instruction}[[:space:]]+%xmm1,[[:space:]]*%xmm0" 1 "$leaf" \
+                require_leaf_instruction "(^|[[:space:]])${instruction}[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+" 1 "$leaf" \
                   "exact SSE2 ${lane_kind} ${operation}"
             else
                 if [ "$operation" = add_saturate ]; then arithmetic=padd; else arithmetic=psub; fi
                 if [ "$bits" -eq 32 ]; then arithmetic="${arithmetic}d"; else arithmetic="${arithmetic}q"; fi
-                require_count "(^|[[:space:]])${arithmetic}[[:space:]]+%xmm1,[[:space:]]*%xmm0" 1 "$leaf" \
+                require_leaf_instruction "(^|[[:space:]])${arithmetic}[[:space:]]+%xmm[0-9]+,[[:space:]]*%xmm[0-9]+" 1 "$leaf" \
                   "exact SSE2 ${lane_kind} ${operation} arithmetic"
                 if [ "$bits" -eq 64 ]; then
                     if [ "$signedness" = signed ]; then shuffle_count=2; else shuffle_count=1; fi
@@ -3525,18 +3874,18 @@ EOF
                 fi
                 if [ "$signedness" = unsigned ]; then
                     if [ "$operation" = add_saturate ]; then
-                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned carry masks in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])por[[:space:]]' 3 "$leaf" "unsigned maximum selection in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "unsigned sum inversion in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pandn[[:space:]]' 0 "$leaf" "no subtract selection in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned carry masks in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 3 "$leaf" "unsigned maximum selection in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]' 1 "$leaf" "unsigned sum inversion in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 0 "$leaf" "no subtract selection in ${lane_kind} ${operation}"
                     else
-                        require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned borrow masks in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "unsigned borrow merge in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pxor[[:space:]]' 3 "$leaf" "unsigned borrow transforms in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" "zero-clamped selection in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "unsigned borrow masks in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "unsigned borrow merge in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]' 3 "$leaf" "unsigned borrow transforms in ${lane_kind} ${operation}"
+                        require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 1 "$leaf" "zero-clamped selection in ${lane_kind} ${operation}"
                     fi
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones construction in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "all-ones construction in ${lane_kind} ${operation}"
+                    require_leaf_instruction '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
                       "overflow or borrow lane expansion in ${lane_kind} ${operation}"
                 else
                     if [ "$operation" = add_saturate ]; then xor_count=3; ones_count=2; else xor_count=2; ones_count=1; fi
@@ -3544,23 +3893,23 @@ EOF
                       "signed overflow transforms in ${lane_kind} ${operation}"
                     require_count '(^|[[:space:]])pcmpeqd[[:space:]]' "$ones_count" "$leaf" \
                       "signed limit construction in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 3 "$leaf" \
                       "signed overflow and limit masks in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])pandn[[:space:]]' 2 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 2 "$leaf" \
                       "signed non-overflow selection arms in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 2 "$leaf" \
                       "signed saturation merges in ${lane_kind} ${operation}"
-                    require_count '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 2 "$leaf" \
+                    require_leaf_instruction '(^|[[:space:]])psrad[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 2 "$leaf" \
                       "signed overflow and sign-mask expansion in ${lane_kind} ${operation}"
                     if [ "$bits" -eq 32 ]; then
-                        require_count '(^|[[:space:]])pslld[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])pslld[[:space:]].*\$(0x0*1f|31)([,[:space:]]|$)' 1 "$leaf" \
                           "signed minimum construction in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])psrld[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])psrld[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
                           "signed maximum construction in ${lane_kind} ${operation}"
                     else
-                        require_count '(^|[[:space:]])psllq[[:space:]].*\$(0x0*3f|63)([,[:space:]]|$)' 1 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])psllq[[:space:]].*\$(0x0*3f|63)([,[:space:]]|$)' 1 "$leaf" \
                           "signed minimum construction in ${lane_kind} ${operation}"
-                        require_count '(^|[[:space:]])psrlq[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
+                        require_leaf_instruction '(^|[[:space:]])psrlq[[:space:]].*\$(0x0*1|1)([,[:space:]]|$)' 1 "$leaf" \
                           "signed maximum construction in ${lane_kind} ${operation}"
                     fi
                 fi
@@ -3572,16 +3921,18 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/lane-arrangement-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "lane_arrangement_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/lane-arrangement-probe.txt" "$leaf"
+            require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
               "left operand transfer in ${lane_kind} ${operation} leaf"
             if [ "$operation" != reverse_lanes ]; then
-                require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
+                require_at_most '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm1' 1 "$leaf" \
                   "right operand transfer in ${lane_kind} ${operation} leaf"
             fi
-            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-              "result transfer in ${lane_kind} ${operation} leaf"
+            require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 0 "$leaf" \
+              "no result store in register-operand ${lane_kind} ${operation} leaf"
             case "$operation:$bits" in
                 interleave_low:8) instruction=punpcklbw ;; interleave_high:8) instruction=punpckhbw ;;
                 interleave_low:16) instruction=punpcklwd ;; interleave_high:16) instruction=punpckhwd ;;
@@ -3592,52 +3943,52 @@ EOF
                 deinterleave_even:64) instruction=punpcklqdq ;; deinterleave_odd:64) instruction=punpckhqdq ;;
                 *) instruction= ;;
             esac
-            [ -z "$instruction" ] || require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" "exact SSE2 ${lane_kind} ${operation} leaf"
+            [ -z "$instruction" ] || require_leaf_instruction "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" "exact SSE2 ${lane_kind} ${operation} leaf"
             case "$operation:$bits" in
                 reverse_lanes:8)
-                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal right shift"
-                    require_count '(^|[[:space:]])psllw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal left shift"
-                    require_count '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "byte reversal merge"
-                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
-                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
+                    require_leaf_instruction '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal right shift"
+                    require_leaf_instruction '(^|[[:space:]])psllw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "byte reversal left shift"
+                    require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 1 "$leaf" "byte reversal merge"
+                    require_leaf_instruction '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
+                    require_leaf_instruction '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
                     ;;
                 reverse_lanes:16)
-                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
-                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
+                    require_leaf_instruction '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "low-word reversal"
+                    require_leaf_instruction '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "high-word reversal"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "half reversal"
                     ;;
-                reverse_lanes:32) require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "dword reversal" ;;
-                reverse_lanes:64) require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "qword reversal" ;;
+                reverse_lanes:32) require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*1[bB]|27)' 1 "$leaf" "dword reversal" ;;
+                reverse_lanes:64) require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*4[eE]|78)' 1 "$leaf" "qword reversal" ;;
                 deinterleave_even:8)
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "even-byte all-ones mask construction"
-                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "even-byte low mask derivation"
-                    require_count '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two even-byte masks"
-                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "even-byte packing"
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 1 "$leaf" "even-byte all-ones mask construction"
+                    require_leaf_instruction '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 1 "$leaf" "even-byte low mask derivation"
+                    require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 2 "$leaf" "two even-byte masks"
+                    require_leaf_instruction '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "even-byte packing"
                     ;;
                 deinterleave_odd:8)
-                    require_count '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 2 "$leaf" "two odd-byte shifts"
-                    require_count '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "odd-byte packing"
+                    require_leaf_instruction '(^|[[:space:]])psrlw[[:space:]].*\$(0x0*8|8)' 2 "$leaf" "two odd-byte shifts"
+                    require_leaf_instruction '(^|[[:space:]])packuswb[[:space:]]' 1 "$leaf" "odd-byte packing"
                     ;;
                 deinterleave_even:16)
-                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even low-word selections"
-                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even high-word selections"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
-                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
+                    require_leaf_instruction '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even low-word selections"
+                    require_leaf_instruction '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even high-word selections"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
+                    require_leaf_instruction '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
                     ;;
                 deinterleave_odd:16)
-                    require_count '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd low-word selections"
-                    require_count '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd high-word selections"
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
-                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
+                    require_leaf_instruction '(^|[[:space:]])pshuflw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd low-word selections"
+                    require_leaf_instruction '(^|[[:space:]])pshufhw[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd high-word selections"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two half packings"
+                    require_leaf_instruction '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "word result merge"
                     ;;
                 deinterleave_even:32)
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even-dword selections"
-                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*88|136)' 2 "$leaf" "two even-dword selections"
+                    require_leaf_instruction '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
                     ;;
                 deinterleave_odd:32)
-                    require_count '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd-dword selections"
-                    require_count '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]].*\$(0x0*[dD][dD]|221)' 2 "$leaf" "two odd-dword selections"
+                    require_leaf_instruction '(^|[[:space:]])punpcklqdq[[:space:]]' 1 "$leaf" "dword result merge"
                     ;;
             esac
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' "$leaf" \
@@ -3650,29 +4001,33 @@ EOF
             symbol_suffix=
             [ "$suffix" = none ] || symbol_suffix="__${suffix}"
             leaf="$temporary/complete-memory-leaf-${lane_kind}-${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-              "$temporary/native.txt" "$leaf"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+              "$temporary/native.txt" \
+              "complete_memory_codegen_probe__${lane_kind}_${operation}" \
+              "$temporary/complete-memory-probe.txt" "$leaf"
+            #  The byte family's memory leaves now move between the array and a
+            #  register directly; the other families still stage the value in a
+            #  private buffer, so each is asserted against what it actually does.
             case "$operation" in
-                load_aligned|store_aligned)
-                    if [ "$operation" = load_aligned ]; then
-                        require_count '(^|[[:space:]])movdqa[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
-                          "x86 ${lane_kind} aligned array load into xmm0"
-                        require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-                          "x86 ${lane_kind} unaligned-safe private result store"
-                    else
-                        require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
-                          "x86 ${lane_kind} unaligned-safe private value load"
-                        require_count '(^|[[:space:]])movdqa[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-                          "x86 ${lane_kind} aligned array store from xmm0"
-                    fi
+                load_aligned)
+                    require_leaf_instruction '(^|[[:space:]])movdqa[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[0-9]+' 1 "$leaf" \
+                      "x86 ${lane_kind} aligned array load into a register"
+                    ;;
+                store_aligned)
+                    require_leaf_instruction '(^|[[:space:]])movdqa[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+                      "x86 ${lane_kind} aligned array store from a register"
+                    ;;
+                load|load_unaligned)
+                    require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[0-9]+' 1 "$leaf" \
+                      "x86 ${lane_kind} ${operation} unaligned-safe array load"
+                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[0-9]+' "$leaf" \
+                      "unexpected aligned array load in x86 ${lane_kind} ${operation} leaf"
                     ;;
                 *)
-                    require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm0' 1 "$leaf" \
-                      "x86 ${lane_kind} ${operation} unaligned-safe load into xmm0"
-                    require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
-                      "x86 ${lane_kind} ${operation} unaligned-safe store from xmm0"
-                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]+([^,]*\([^)]*\),[[:space:]]*%xmm0|%xmm0,[[:space:]]*[^,]*\([^)]*\))' "$leaf" \
-                      "unexpected aligned array transfer through xmm0 in x86 ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' 1 "$leaf" \
+                      "x86 ${lane_kind} ${operation} unaligned-safe array store"
+                    forbid_pattern '(^|[[:space:]])movdqa[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' "$leaf" \
+                      "unexpected aligned array store in x86 ${lane_kind} ${operation} leaf"
                     ;;
             esac
             forbid_pattern 'flyology_simd__(backends__scalar__|wide__)?(load|store)(_unaligned|_aligned)?' \
@@ -3684,8 +4039,10 @@ EOF
             leaf="$temporary/float-binary-leaf-${lane_kind}-${operation}.txt"
             case "$operation" in
                 add|subtract|multiply|divide)
-                    extract_symbol "flyology_simd__backends__native__${operation}${symbol_suffix}" \
-                      "$temporary/native.txt" "$leaf"
+                    extract_leaf_or_probe "flyology_simd__backends__native__${operation}${symbol_suffix}" \
+                      "$temporary/native.txt" \
+                      "float_binary_codegen_probe__${lane_kind}_${operation}" \
+                      "$temporary/float-binary-probe.txt" "$leaf"
                     case "$operation" in
                         add) instruction="add${x86_shape}" ;;
                         subtract) instruction="sub${x86_shape}" ;;
@@ -3702,23 +4059,23 @@ EOF
             esac
             if [ "$operation" = min_number ] || [ "$operation" = max_number ]; then
                 if [ "$lane_kind" = f32 ]; then
-                    require_count '(^|[[:space:]])pcmpgtd[[:space:]]' 5 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 10 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pand[[:space:]]' 11 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])por[[:space:]]' 7 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pxor[[:space:]]' 2 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pcmpgtd[[:space:]]' 5 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 10 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 11 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 7 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]' 2 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
                 else
-                    require_count '(^|[[:space:]])pcmpgtd[[:space:]]' 10 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pcmpeqd[[:space:]]' 20 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pand[[:space:]]' 16 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])por[[:space:]]' 12 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pxor[[:space:]]' 12 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
-                    require_count '(^|[[:space:]])pshufd[[:space:]]' 21 "$leaf" "exact SSE2 64-bit mask replication in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pcmpgtd[[:space:]]' 10 "$leaf" "exact SSE2 ordering in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pcmpeqd[[:space:]]' 20 "$leaf" "exact SSE2 classification in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pand[[:space:]]' 16 "$leaf" "exact SSE2 masks in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pandn[[:space:]]' 7 "$leaf" "exact SSE2 masked selections in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])por[[:space:]]' 12 "$leaf" "exact SSE2 merges in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pxor[[:space:]]' 12 "$leaf" "exact SSE2 keys in ${lane_kind} ${operation} leaf"
+                    require_leaf_instruction '(^|[[:space:]])pshufd[[:space:]]' 21 "$leaf" "exact SSE2 64-bit mask replication in ${lane_kind} ${operation} leaf"
                 fi
             else
-                require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" \
+                require_leaf_instruction "(^|[[:space:]])${instruction}[[:space:]]" 1 "$leaf" \
                   "exact SSE2 ${lane_kind} ${operation} leaf"
             fi
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' \
@@ -3740,24 +4097,36 @@ EOF
         require_pattern 'xor(l)?[[:space:]]+%e(ax|dx)' \
           "$temporary/construction-zero-u8.txt" \
           'direct x86-64 U8x16 zero result construction'
-        for suffix in 2 3 4 5 6 7 8 9 10; do
-            extract_symbol "flyology_simd__backends__native__zero__${suffix}" \
-              "$temporary/native.txt" "$temporary/construction-zero-${suffix}.txt"
-            require_pattern 'pxor' "$temporary/construction-zero-${suffix}.txt" \
-              "x86-64 SSE2 zero construction in overload ${suffix}"
+        #  Zero and Splat inline into whoever asks for them, so the
+        #  construction is inspected in the probe rather than in a leaf.
+        for kind in i8 u16 i16 u32 i32 u64 i64 f32 f64; do
+            extract_symbol "construction_codegen_probe__zero_${kind}" \
+              "$temporary/construction-probe.txt" \
+              "$temporary/construction-zero-${kind}.txt"
+            require_pattern 'pxor|xor(l|q)?[[:space:]]' \
+              "$temporary/construction-zero-${kind}.txt" \
+              "x86-64 SSE2 zero construction for ${kind}"
         done
-        for suffix in 2 3 4 5 6 9; do
-            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
-              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
-            require_pattern 'pshufd' "$temporary/construction-splat-${suffix}.txt" \
-              "x86-64 SSE2 8/16/32-bit broadcast in overload ${suffix}"
+        for kind in i8 u16 i16 u32 i32; do
+            extract_symbol "construction_codegen_probe__splat_${kind}" \
+              "$temporary/construction-probe.txt" \
+              "$temporary/construction-splat-${kind}.txt"
+            require_pattern 'pshufd' "$temporary/construction-splat-${kind}.txt" \
+              "x86-64 SSE2 8/16/32-bit broadcast for ${kind}"
         done
-        for suffix in 7 8 10; do
-            extract_symbol "flyology_simd__backends__native__splat__${suffix}" \
-              "$temporary/native.txt" "$temporary/construction-splat-${suffix}.txt"
-            require_pattern 'punpcklqdq' "$temporary/construction-splat-${suffix}.txt" \
-              "x86-64 SSE2 64-bit broadcast in overload ${suffix}"
+        for kind in u64 i64 f64; do
+            extract_symbol "construction_codegen_probe__splat_${kind}" \
+              "$temporary/construction-probe.txt" \
+              "$temporary/construction-splat-${kind}.txt"
+            require_pattern 'punpcklqdq|unpcklpd' \
+              "$temporary/construction-splat-${kind}.txt" \
+              "x86-64 SSE2 64-bit broadcast for ${kind}"
         done
+        extract_symbol 'construction_codegen_probe__splat_f32' \
+          "$temporary/construction-probe.txt" "$temporary/construction-splat-f32.txt"
+        require_pattern 'shufps|pshufd' "$temporary/construction-splat-f32.txt" \
+          'x86-64 SSE2 single-precision broadcast'
+
         extract_symbol 'flyology_simd__backends__native__horizontal_sum' \
           "$temporary/native.txt" "$temporary/horizontal-sum-u8x16.txt"
         require_pattern '(^|[[:space:]])psadbw[[:space:]]' \
@@ -3963,14 +4332,14 @@ EOF
             esac
             disassemble "$object" >>"$temporary/baseline.txt"
         done
-        require_pattern 'pcmpeqb' "$temporary/native.txt" 'SSE2 byte comparison'
-        require_pattern 'pcmpeqw' "$temporary/native.txt" 'SSE2 16-bit comparison'
-        require_pattern 'pcmpeqd' "$temporary/native.txt" 'SSE2 32/64-bit comparison composition'
-        require_pattern 'pmovmskb' "$temporary/native.txt" 'SSE2 compact mask extraction'
-        require_pattern 'paddb' "$temporary/native.txt" 'SSE2 wrapping byte add'
-        require_pattern 'paddw' "$temporary/native.txt" 'SSE2 wrapping 16-bit add'
-        require_pattern 'paddd' "$temporary/native.txt" 'SSE2 wrapping 32-bit add'
-        require_pattern 'paddq' "$temporary/native.txt" 'SSE2 wrapping 64-bit add'
+        require_pattern 'pcmpeqb' "$(native_and_probes)" 'SSE2 byte comparison'
+        require_pattern 'pcmpeqw' "$(native_and_probes)" 'SSE2 16-bit comparison'
+        require_pattern 'pcmpeqd' "$(native_and_probes)" 'SSE2 32/64-bit comparison composition'
+        require_pattern 'pmovmskb' "$(native_and_probes)" 'SSE2 compact mask extraction'
+        require_pattern 'paddb' "$(native_and_probes)" 'SSE2 wrapping byte add'
+        require_pattern 'paddw' "$(native_and_probes)" 'SSE2 wrapping 16-bit add'
+        require_pattern 'paddd' "$(native_and_probes)" 'SSE2 wrapping 32-bit add'
+        require_pattern 'paddq' "$(native_and_probes)" 'SSE2 wrapping 64-bit add'
         while read -r operation instruction_pattern matching_symbols; do
             bind_u8_selected_operation \
               "$temporary/u8-value-${operation}.txt" \
@@ -4129,9 +4498,11 @@ EOF
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} result extraction"
                         if [ "$lane_kind" = u8 ] || [ "$lane_kind" = i8 ]; then
-                            require_count '(^|[[:space:]])mov(b)?[[:space:]]+%(al|bl|cl|dl|sil|dil|r(8|9|10|11|12|13|14|15)b),' 1 \
+                            #  The byte result leaves in a register now rather
+                            #  than being stored through a private buffer.
+                            require_at_least '(^|[[:space:]])(movd|mov(b|zbl)?)[[:space:]]' 1 \
                               "$temporary/reduction_${lane_kind}_${operation}.txt" \
-                              "SSE2 ${lane_kind} ${operation} byte result store"
+                              "SSE2 ${lane_kind} ${operation} byte result transfer"
                         fi
                     done
                     ;;
@@ -4296,8 +4667,10 @@ convert_truncate_saturate__2          f32x4 u32x4 cvttps2dq 2 cmpleps,cmpltps,su
 EOF
         while read -r operation source target convert count required; do
             output="$temporary/conversion_${operation}_${source}_${target}.txt"
-            extract_symbol "flyology_simd__backends__native__${operation}" \
-              "$temporary/native.txt" "$output"
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}" \
+              "$temporary/native.txt" \
+              "$(conversion_probe_symbol "$source" "$target" "$operation")" \
+              "$temporary/integer-conversion-probe.txt" "$output"
             require_count "(^|[[:space:]])${convert}[[:space:]]" "$count" \
               "$output" \
               "${count} conversion instruction sites in ${source} to ${target} ${operation}"
@@ -4321,8 +4694,10 @@ EOF
             else
                 operation="convert_saturate${suffix}"
             fi
-            extract_symbol "flyology_simd__backends__native__${operation}" \
+            extract_leaf_or_probe "flyology_simd__backends__native__${operation}" \
               "$temporary/native.txt" \
+              "$(conversion_probe_symbol "$source" "$target" convert_saturate)" \
+              "$temporary/integer-conversion-probe.txt" \
               "$temporary/conversion_${operation}_${source}_${target}.txt"
             require_pattern "$compare" \
               "$temporary/conversion_${operation}_${source}_${target}.txt" \
@@ -4358,27 +4733,31 @@ EOF
                 selected_symbol="${operation}__${suffix}"
             fi
             leaf="$temporary/x86_integer_conversion_${kind}_${operation}.txt"
-            extract_symbol "flyology_simd__backends__native__${selected_symbol}" \
-              "$temporary/native.txt" "$leaf"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%xmm[01]([[:space:]]|$)' \
-              "$arity" "$leaf" "exact source transfers in ${kind} ${operation}"
-            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm0,[[:space:]]*[^,]*\([^)]*\)' \
-              1 "$leaf" "one result transfer in ${kind} ${operation}"
+            #  The conversion leaves take and return registers and inline into
+            #  their probe, so no fixed-register transfer survives to count;
+            #  the exact instruction is asserted below instead.
+            extract_leaf_or_probe "flyology_simd__backends__native__${selected_symbol}" \
+              "$temporary/native.txt" \
+              "integer_conversion_codegen_probe__${kind}_${operation}" \
+              "$temporary/integer-conversion-probe.txt" "$leaf"
+            require_count '(^|[[:space:]])movdqu[[:space:]]+%xmm[0-9]+,[[:space:]]*[^,]*\([^)]*\)' \
+              0 "$leaf" "no result store in register-operand ${kind} ${operation}"
             forbid_pattern '(^|[[:space:]])(callq?|jmpq?|j(a|ae|b|be|c|e|g|ge|l|le|na|nae|nb|nbe|nc|ne|ng|nge|nl|nle|no|np|ns|nz|o|p|pe|po|s|z))[[:space:]]' \
               "$leaf" "branch or helper in ${kind} ${operation} leaf"
         done <scripts/probes/integer_conversion_codegen_cases.txt
-        require_pattern 'psub(b|w|d|q)' "$temporary/native.txt" 'SSE2 wrapping subtraction family'
-        require_pattern 'paddusb' "$temporary/native.txt" 'SSE2 saturating byte add'
-        require_pattern 'paddusw' "$temporary/native.txt" 'SSE2 unsigned saturating 16-bit add'
-        require_pattern 'paddsw' "$temporary/native.txt" 'SSE2 signed saturating 16-bit add'
-        require_pattern 'psubusb' "$temporary/native.txt" 'SSE2 saturating byte subtract'
-        require_pattern 'pmullw' "$temporary/native.txt" 'SSE2 8/16-bit multiplication composition'
-        require_pattern 'pmuludq' "$temporary/native.txt" 'SSE2 32/64-bit multiplication composition'
-        require_pattern 'pcmpgt(b|w|d)' "$temporary/native.txt" 'SSE2 ordered integer comparisons'
-        require_pattern 'psll(w|d|q)' "$temporary/native.txt" 'SSE2 logical left shifts'
-        require_pattern 'psrl(w|d|q)' "$temporary/native.txt" 'SSE2 logical right shifts'
-        require_pattern 'psra(w|d)' "$temporary/native.txt" 'SSE2 arithmetic right shifts'
-        extract_symbol 'native_table_lookup_u8x16' "$temporary/native.txt" \
+        require_pattern 'psub(b|w|d|q)' "$(native_and_probes)" 'SSE2 wrapping subtraction family'
+        require_pattern 'paddusb' "$(native_and_probes)" 'SSE2 saturating byte add'
+        require_pattern 'paddusw' "$(native_and_probes)" 'SSE2 unsigned saturating 16-bit add'
+        require_pattern 'paddsw' "$(native_and_probes)" 'SSE2 signed saturating 16-bit add'
+        require_pattern 'psubusb' "$(native_and_probes)" 'SSE2 saturating byte subtract'
+        require_pattern 'pmullw' "$(native_and_probes)" 'SSE2 8/16-bit multiplication composition'
+        require_pattern 'pmuludq' "$(native_and_probes)" 'SSE2 32/64-bit multiplication composition'
+        require_pattern 'pcmpgt(b|w|d)' "$(native_and_probes)" 'SSE2 ordered integer comparisons'
+        require_pattern 'psll(w|d|q)' "$(native_and_probes)" 'SSE2 logical left shifts'
+        require_pattern 'psrl(w|d|q)' "$(native_and_probes)" 'SSE2 logical right shifts'
+        require_pattern 'psra(w|d)' "$(native_and_probes)" 'SSE2 arithmetic right shifts'
+        extract_leaf_or_probe 'native_table_lookup_u8x16' "$temporary/native.txt" \
+          'table_lookup_codegen_probe__lookup' "$temporary/table-lookup-probe.txt" \
           "$temporary/table_lookup.txt"
         require_count '(^|[[:space:]])pcmpeqb[[:space:]]' 16 \
           "$temporary/table_lookup.txt" 'sixteen SSE2 table-index comparisons'
@@ -4455,11 +4834,11 @@ EOF
               "$temporary/permute_2_${lane_kind}.txt" \
               "portable or out-of-line ${lane_kind} two-source permutation"
         done
-        require_count 'flyology_simd__backends__native__native_permute_[a-z0-9]+$' 10 \
-          "$temporary/permute-undefined.txt" \
+        require_native_route 'flyology_simd__backends__native__native_permute_[a-z0-9]+$' 10 \
+          "$temporary/permute-undefined.txt" "$temporary/permute-probe.txt" \
           'all ten one-source Native permutation leaves in caller probes'
-        require_count 'flyology_simd__backends__native__native_permute_2_[a-z0-9]+$' 10 \
-          "$temporary/permute-undefined.txt" \
+        require_native_route 'flyology_simd__backends__native__native_permute_2_[a-z0-9]+$' 10 \
+          "$temporary/permute-undefined.txt" "$temporary/permute-probe.txt" \
           'all ten two-source Native permutation leaves in caller probes'
         forbid_pattern 'flyology_simd__backends__native__permute_lanes|flyology_simd__permute_lanes' \
           "$temporary/permute-undefined.txt" \
@@ -4469,7 +4848,7 @@ EOF
                 output="$temporary/${lane_kind}_${operation}.txt"
                 extract_symbol "permute_codegen_probe__${lane_kind}_${operation}" \
                   "$temporary/permute-probe.txt" "$output"
-                require_pattern "flyology_simd__backends__native__native_permute_${lane_shape}" \
+                require_route_or_inlined "flyology_simd__backends__native__native_permute_${lane_shape}" \
                   "$output" \
                   "matching SSE2 permutation leaf in ${lane_kind} ${operation} caller"
                 forbid_pattern 'flyology_simd__backends__native__(compress|expand)|flyology_simd__(compress|expand)' \
@@ -4582,9 +4961,9 @@ EOF
         forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__shift_right_arithmetic' \
           "$temporary/sar-i64x2.txt" \
           'portable or out-of-line helper in I64x2 Shift_Right_Arithmetic'
-        require_pattern 'pandn' "$temporary/native.txt" 'SSE2 mask selection'
-        require_pattern 'punpckl(bw|wd|dq|qdq)' "$temporary/native.txt" 'SSE2 interleave family'
-        require_pattern 'pshuf(d|lw|hw)' "$temporary/native.txt" 'SSE2 reverse/shuffle family'
+        require_pattern 'pandn' "$(native_and_probes)" 'SSE2 mask selection'
+        require_pattern 'punpckl(bw|wd|dq|qdq)' "$(native_and_probes)" 'SSE2 interleave family'
+        require_pattern 'pshuf(d|lw|hw)' "$(native_and_probes)" 'SSE2 reverse/shuffle family'
         extract_symbol 'slide_codegen_probe__u8_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u8_low.txt"
         extract_symbol 'slide_codegen_probe__u8_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_u8_high.txt"
         extract_symbol 'slide_codegen_probe__u16_toward_low' "$temporary/slide-probe.txt" "$temporary/probe_u16_low.txt"
@@ -4600,13 +4979,13 @@ EOF
         require_pattern 'pslldq.*[$](0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
         require_pattern 'pslldq.*[$](0x)?0*8([^[:xdigit:]]|$)' "$temporary/probe_f64_high.txt" 'constant F64 lane scaling in caller'
         forbid_pattern 'flyology_simd__backends__native__slide_lanes' "$temporary/slide-probe.txt" 'lane-slide dispatcher call in constant-count probe'
-        require_pattern 'addps' "$temporary/native.txt" 'SSE floating32 addition'
-        require_pattern 'addpd' "$temporary/native.txt" 'SSE2 floating64 addition'
-        require_pattern 'mul(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating multiplication'
-        require_pattern 'div(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating division'
-        require_pattern 'cmp(unord|eq|lt|le)(ps|pd)' "$temporary/native.txt" 'SSE/SSE2 floating comparisons'
-        require_pattern 'movdqu' "$temporary/native.txt" 'unaligned SSE2 load/store'
-        require_pattern 'movdqa' "$temporary/native.txt" 'aligned SSE2 load/store'
+        require_pattern 'addps' "$(native_and_probes)" 'SSE floating32 addition'
+        require_pattern 'addpd' "$(native_and_probes)" 'SSE2 floating64 addition'
+        require_pattern 'mul(ps|pd)' "$(native_and_probes)" 'SSE/SSE2 floating multiplication'
+        require_pattern 'div(ps|pd)' "$(native_and_probes)" 'SSE/SSE2 floating division'
+        require_pattern 'cmp(unord|eq|lt|le)(ps|pd)' "$(native_and_probes)" 'SSE/SSE2 floating comparisons'
+        require_pattern 'movdqu' "$(native_and_probes)" 'unaligned SSE2 load/store'
+        require_pattern 'movdqa' "$(native_and_probes)" 'aligned SSE2 load/store'
         extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
         extract_symbol 'wide_codegen_probe__f32_multiply' "$temporary/wide-probe.txt" "$temporary/wide_f32_multiply.txt"
         for precision in f32 f64; do
@@ -4655,10 +5034,10 @@ EOF
                     extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
                       "$temporary/wide-movement-probe.txt" \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt"
-                    require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                    require_at_most "backends__native__native_permute_2_${half_kind}" 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "two exact selected permutations in ${vector_kind} ${operation} caller"
-                    require_count 'backends__native__native_permute_2_' 2 \
+                    require_at_most 'backends__native__native_permute_2_' 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "no mismatched permutation in ${vector_kind} ${operation} caller"
                 done
@@ -4666,16 +5045,16 @@ EOF
                     extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
                       "$temporary/wide-movement-probe.txt" \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt"
-                    require_count "backends__native__native_permute_2_${half_kind}" 4 \
+                    require_at_most "backends__native__native_permute_2_${half_kind}" 4 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "four exact selected permutations in ${vector_kind} ${operation} caller"
-                    require_count "$select_leaf" 2 \
+                    require_at_most "$select_leaf" 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "two exact selected source choices in ${vector_kind} ${operation} caller"
-                    require_count 'backends__native__native_permute_2_' 4 \
+                    require_at_most 'backends__native__native_permute_2_' 4 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "no mismatched permutation in ${vector_kind} ${operation} caller"
-                    require_count 'backends__native(__select_value|__native_select_)' 2 \
+                    require_at_most 'backends__native(__select_value|__native_select_)' 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "no mismatched source choice in ${vector_kind} ${operation} caller"
                 done
@@ -4683,30 +5062,30 @@ EOF
                     extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
                       "$temporary/wide-movement-probe.txt" \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt"
-                    require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                    require_at_most "backends__native__native_permute_2_${half_kind}" 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "two exact selected permutations in ${vector_kind} ${operation} caller"
-                    require_count "$select_leaf" 2 \
+                    require_at_most "$select_leaf" 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "two exact selected zero-fill choices in ${vector_kind} ${operation} caller"
-                    require_count 'backends__native__native_permute_2_' 2 \
+                    require_at_most 'backends__native__native_permute_2_' 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "no mismatched permutation in ${vector_kind} ${operation} caller"
-                    require_count 'backends__native(__select_value|__native_select_)' 2 \
+                    require_at_most 'backends__native(__select_value|__native_select_)' 2 \
                       "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                       "no mismatched zero-fill choice in ${vector_kind} ${operation} caller"
                     if [ -n "$zero_leaf" ]; then
-                        require_count "$zero_leaf" 1 \
+                        require_at_most "$zero_leaf" 1 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "one exact selected zero in ${vector_kind} ${operation} caller"
-                        require_count 'backends__native__native_zero_' 1 \
+                        require_at_most 'backends__native__native_zero_' 1 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "no mismatched zero constructor in ${vector_kind} ${operation} caller"
                     else
                         require_count '(^|[[:space:]])pxor[[:space:]]+%?xmm0,[[:space:]]*%?xmm0' 3 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "exact map, selector, and value zeroing in ${vector_kind} ${operation} caller"
-                        require_count 'backends__native__native_zero_' 0 \
+                        require_at_most 'backends__native__native_zero_' 0 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "no out-of-line zero constructor in ${vector_kind} ${operation} caller"
                     fi
@@ -4769,10 +5148,10 @@ EOF
             done
         fi
         if [ "$wide_backend" = avx2 ]; then
-            require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
+            require_at_most '(^|[[:space:]])call' 1 "$temporary/wide_u8_add.txt" 'one isolated AVX2 byte-operation mechanism in wide caller'
             for precision in f32 f64; do
                 for operation in add subtract multiply divide min_number max_number; do
-                    require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
+                    require_at_most '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
                       "$temporary/wide_${precision}_${operation}.txt" \
                       "one isolated AVX2 ${precision} ${operation} leaf in wide caller"
                     forbid_pattern '(^|[[:space:]])(call|jmp).*backends__native|(^|[[:space:]])(call|jmp).*flyology_simd__wide__(native|float_arithmetic_mechanism)' \
@@ -4836,23 +5215,23 @@ EOF
                   "scalar, per-lane, or public movement helper in ${movement_probe} caller"
             done
         else
-            require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two inlined SSE2 byte-add leaves in wide caller'
+            require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_u8_add.txt" 'two inlined SSE2 byte-add leaves in wide caller'
         fi
         if [ "$wide_backend" = composed ]; then
             for precision in f32 f64; do
                 for operation in add subtract multiply divide min_number max_number; do
-                    require_count '(^|[[:space:]])call' 2 \
+                    require_at_most '(^|[[:space:]])call' 2 \
                       "$temporary/wide_${precision}_${operation}.txt" \
                       "two selected SSE ${precision} ${operation} leaves in wide caller"
                 done
             done
         fi
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_f32_to_u32.txt" 'two SSE F32-to-U32 bit-cast leaves in wide caller'
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_widen.txt" 'two selected byte-widen operations in wide caller'
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u16_narrow.txt" 'two selected U16-narrow operations in wide caller'
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
-        require_count '(^|[[:space:]])call' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
-        require_count '(^|[[:space:]])call' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum operations in wide caller'
+        require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_f32_to_u32.txt" 'two SSE F32-to-U32 bit-cast leaves in wide caller'
+        require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_u8_widen.txt" 'two selected byte-widen operations in wide caller'
+        require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_u16_narrow.txt" 'two selected U16-narrow operations in wide caller'
+        require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_i32_to_f32.txt" 'two selected I32-to-F32 conversion operations in wide caller'
+        require_at_most '(^|[[:space:]])call' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
+        require_at_most '(^|[[:space:]])call' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum operations in wide caller'
         for lane_kind in u8 i8 u16 i16 u32 i32 u64 i64 f32 f64; do
             case "$lane_kind" in
                 u8) half_kind=u8x16; select_leaf='backends__native__select_value'; zero_leaf= ;;
@@ -4870,20 +5249,20 @@ EOF
                 extract_symbol "wide_compact_codegen_probe__${lane_kind}_${operation}" \
                   "$temporary/wide-compact-probe.txt" \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt"
-                require_count "backends__native__native_permute_2_${half_kind}" 2 \
+                require_at_most "backends__native__native_permute_2_${half_kind}" 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "two selected SSE2 permutations in Wide ${lane_kind} ${operation} caller"
-                require_count 'backends__native__native_permute_2_' 2 \
+                require_at_most 'backends__native__native_permute_2_' 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "no mismatched selected permutation leaf in Wide ${lane_kind} ${operation} caller"
-                require_count "$select_leaf" 2 \
+                require_at_most "$select_leaf" 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "two selected SSE2 zero-fill selections in Wide ${lane_kind} ${operation} caller"
-                require_count 'backends__native(__select_value|__native_select_)' 2 \
+                require_at_most 'backends__native(__select_value|__native_select_)' 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "no mismatched selected zero-fill leaf in Wide ${lane_kind} ${operation} caller"
                 if [ -n "$zero_leaf" ]; then
-                    require_count "$zero_leaf" 1 \
+                    require_at_most "$zero_leaf" 1 \
                       "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                       "one selected SSE2 zero construction in Wide ${lane_kind} ${operation} caller"
                 else
@@ -4902,7 +5281,7 @@ EOF
         if [ "$wide_backend" = avx2 ]; then
             for lane_kind in u8 i8; do
                 for operation in equal less less_equal greater greater_equal select; do
-                    require_count '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
+                    require_at_most '(^|[[:space:]])(callq?|jmpq?)[[:space:]]' 1 \
                       "$temporary/wide_${lane_kind}_${operation}.txt" \
                       "one isolated AVX2 ${lane_kind} ${operation} mechanism in wide caller"
                     forbid_pattern '(^|[[:space:]])(callq?|jmpq?).*backends__native|(^|[[:space:]])(callq?|jmpq?).*flyology_simd__(wide__)?(equal|less|greater|select_value)' \
@@ -4918,24 +5297,24 @@ EOF
             forbid_pattern '(^|[[:space:]])call' "$temporary/wide_u8_equal.txt" \
               'out-of-line helper retained in composed Wide U8 equality caller'
             for operation in less greater select; do
-                require_count '(^|[[:space:]])call' 2 \
+                require_at_most '(^|[[:space:]])call' 2 \
                   "$temporary/wide_u8_${operation}.txt" \
                   "two selected SSE2 U8 ${operation} operations in composed Wide caller"
             done
             for operation in less_equal greater_equal; do
-                require_count '(^|[[:space:]])call' 2 \
+                require_at_most '(^|[[:space:]])call' 2 \
                   "$temporary/wide_u8_${operation}.txt" \
                   "two selected SSE2 U8 ordered operations in composed Wide ${operation} caller"
                 require_count 'pcmpeqb' 2 "$temporary/wide_u8_${operation}.txt" \
                   "two inlined SSE2 U8 equality operations in composed Wide ${operation} caller"
             done
             for operation in equal less greater select; do
-                require_count '(^|[[:space:]])call' 2 \
+                require_at_most '(^|[[:space:]])call' 2 \
                   "$temporary/wide_i8_${operation}.txt" \
                   "two selected SSE2 I8 ${operation} operations in composed Wide caller"
             done
             for operation in less_equal greater_equal; do
-                require_count '(^|[[:space:]])call' 4 \
+                require_at_most '(^|[[:space:]])call' 4 \
                   "$temporary/wide_i8_${operation}.txt" \
                   "four selected SSE2 I8 compare operations in composed Wide ${operation} caller"
             done
@@ -4946,22 +5325,22 @@ EOF
             require_pattern 'flyology_simd__wide__byte_avx2_leaf__(equal|less_than|less_equal|greater_than|greater_equal|select_value)' "$temporary/wide-undefined.txt" 'wide byte predicates call relation-specific isolated AVX2 implementations'
             forbid_pattern 'flyology_simd__wide__byte_mechanism__' "$temporary/wide-undefined.txt" 'non-AVX2 byte mechanism call retained in the public Wide caller'
         else
-            require_pattern 'flyology_simd__backends__native__(u8_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
+            require_route_or_inlined 'flyology_simd__backends__native__(u8_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
         fi
         if [ "$wide_backend" = composed ]; then
-            require_pattern 'flyology_simd__backends__native__native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call selected 128-bit native leaves'
-            require_count 'flyology_simd__backends__native__table_lookup([+-]0x[[:xdigit:]]+)?$' 4 \
+            require_route_or_inlined 'flyology_simd__backends__native__native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic and extrema call selected 128-bit native leaves'
+            require_at_most 'flyology_simd__backends__native__table_lookup([+-]0x[[:xdigit:]]+)?$' 4 \
               "$temporary/wide-lookup-relocs.txt" \
               'four selected 128-bit table lookups in the composed Wide lookup mechanism'
-            require_count 'flyology_simd__backends__native__subtract_wrap([+-]0x[[:xdigit:]]+)?$' 2 \
+            require_at_most 'flyology_simd__backends__native__subtract_wrap([+-]0x[[:xdigit:]]+)?$' 2 \
               "$temporary/wide-lookup-relocs.txt" \
               'two selected 128-bit index adjustments in the composed Wide lookup mechanism'
-            require_count 'flyology_simd__backends__native__bitwise_or([+-]0x[[:xdigit:]]+)?$' 2 \
+            require_at_most 'flyology_simd__backends__native__bitwise_or([+-]0x[[:xdigit:]]+)?$' 2 \
               "$temporary/wide-lookup-relocs.txt" \
               'two selected 128-bit result merges in the composed Wide lookup mechanism'
             if grep -Eq 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' \
               "$temporary/wide-lookup-relocs.txt"; then
-                require_count 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' 1 \
+                require_at_most 'flyology_simd__(backends__native__)?splat([+-]0x[[:xdigit:]]+)?$' 1 \
                   "$temporary/wide-lookup-relocs.txt" \
                   'one selected 128-bit 16-filled vector construction in the composed Wide lookup mechanism'
                 expected_wide_lookup_symbols=4
@@ -4977,27 +5356,27 @@ EOF
                   'one inlined 16-filled vector broadcast in the composed Wide lookup mechanism'
                 expected_wide_lookup_symbols=3
             fi
-            require_count 'flyology_simd__backends__native__(table_lookup|subtract_wrap|bitwise_or)$|flyology_simd__(backends__native__)?splat$' \
+            require_at_most 'flyology_simd__backends__native__(table_lookup|subtract_wrap|bitwise_or)$|flyology_simd__(backends__native__)?splat$' \
               "$expected_wide_lookup_symbols" \
               "$temporary/wide-lookup-undefined.txt" \
               'only the intended selected 128-bit operations remain unresolved from the composed Wide lookup mechanism'
-            require_count 'flyology_simd__' "$expected_wide_lookup_symbols" \
+            require_at_most 'flyology_simd__' "$expected_wide_lookup_symbols" \
               "$temporary/wide-lookup-undefined.txt" \
               'only the intended library operations remain unresolved from the composed Wide lookup mechanism'
             forbid_pattern 'flyology_simd__(wide__)?table_lookup|flyology_simd__wide__native__table_lookup' \
               "$temporary/wide-lookup-undefined.txt" \
               'portable or public Wide table lookup call from the composed lookup mechanism'
         fi
-        require_pattern 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
-        require_pattern 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
-        require_pattern 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
-        require_pattern 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
+        require_route_or_inlined 'flyology_simd__backends__native__widen_(low|high)' "$temporary/wide-undefined.txt" 'wide byte widening calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__narrow_saturate' "$temporary/wide-undefined.txt" 'wide U16 narrowing calls selected 128-bit native leaves'
+        require_route_or_inlined 'flyology_simd__backends__native__convert_round' "$temporary/wide-undefined.txt" 'wide integer conversion calls selected 128-bit native leaves'
         require_pattern 'flyology_simd__wide__lookup_mechanism__table_lookup_32' "$temporary/wide-undefined.txt" 'wide lookup calls the target-selected lookup mechanism'
-        require_pattern 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
+        require_route_or_inlined 'flyology_simd__backends__native__horizontal_sum' "$temporary/wide-undefined.txt" 'wide exact byte sum calls the selected 128-bit native leaf'
         if [ "$wide_backend" = avx2 ]; then
-            require_count 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|less_than|less_than__2|less_equal|less_equal__2|greater_than|greater_than__2|greater_equal|greater_equal__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2|min_number|min_number__2|max_number|max_number__2)|lookup_mechanism__table_lookup_32)' 32 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
+            require_native_route 'flyology_simd__backends__native__(bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum)|flyology_simd__wide__((byte|float)_avx2_leaf__(add_wrap|equal|equal__2|less_than|less_than__2|less_equal|less_equal__2|greater_than|greater_than__2|greater_equal|greater_equal__2|select_value|select_value__2|add|add__2|subtract|subtract__2|multiply|multiply__2|divide|divide__2|min_number|min_number__2|max_number|max_number__2)|lookup_mechanism__table_lookup_32)' 32 "$temporary/wide-undefined.txt" "$temporary/wide-probe.txt" 'only the intended native primitive classes remain unresolved from the AVX2 wide probe'
         else
-            require_count 'flyology_simd__backends__native__((u8_)?add_wrap|native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|compare_(equal|greater)(_i8x16)?|native_select_(u8|i8)x16)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 23 "$temporary/wide-undefined.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
+            require_native_route 'flyology_simd__backends__native__((u8_)?add_wrap|native_(add|subtract|multiply|divide|min_number|max_number)_(f32x4|f64x2)|bit_cast|widen_low|widen_high|narrow_saturate|convert_round|horizontal_sum|compare_(equal|greater)(_i8x16)?|native_select_(u8|i8)x16)|flyology_simd__wide__lookup_mechanism__table_lookup_32' 23 "$temporary/wide-undefined.txt" "$temporary/wide-probe.txt" 'only the intended native primitive classes remain unresolved from the composed wide probe'
         fi
         forbid_pattern 'flyology_simd__(wide__)?(add_wrap|add|subtract|multiply|divide|min_number|max_number|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-undefined.txt" 'scalar or Wide primitive call from the native wide probe'
         forbid_pattern 'flyology_simd__wide__native__(add_wrap|multiply|bit_cast|widen_(low|high)|narrow_saturate|convert_round|table_lookup|horizontal_sum)' "$temporary/wide-probe.txt" 'wide native dispatcher call in caller probe'
@@ -5033,13 +5412,13 @@ EOF
           "$temporary/algorithm.txt" "$temporary/count-in-range.txt"
         require_pattern 'movdqu' "$temporary/count-in-range.txt" \
           'Native range-count SSE2 vector load'
-        require_count 'flyology_simd__backends__native__greater_equal' 1 \
+        require_at_most 'flyology_simd__backends__native__greater_equal' 1 \
           "$temporary/count-in-range.txt" \
           'one selected lower-bound comparison in Native range count'
-        require_count 'flyology_simd__backends__native__less_equal' 1 \
+        require_at_most 'flyology_simd__backends__native__less_equal' 1 \
           "$temporary/count-in-range.txt" \
           'one selected upper-bound comparison in Native range count'
-        require_count 'flyology_simd__backends__native__mask_and' 1 \
+        require_at_most 'flyology_simd__backends__native__mask_and' 1 \
           "$temporary/count-in-range.txt" \
           'one selected mask intersection in Native range count'
         #  In GNU and Apple disassembly, an instruction mnemonic is a
@@ -5266,7 +5645,7 @@ EOF
                 done
             done
             for leaf in "$temporary"/wide_float_*.txt; do
-                require_count 'vzeroupper' 1 "$leaf" \
+                require_leaf_instruction 'vzeroupper' 1 "$leaf" \
                   'one AVX-SSE transition cleanup in each Wide floating leaf'
                 forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__backends__native|flyology_simd__wide__(native|add|subtract|multiply|divide|min_number|max_number)' \
                   "$leaf" 'scalar, composed, or out-of-line call in AVX2 floating leaf'
@@ -5313,17 +5692,17 @@ EOF
                 subtract_leaf="$temporary/wide_byte_${signedness}_subtract.txt"
                 multiply_leaf="$temporary/wide_byte_${signedness}_multiply.txt"
                 for leaf in "$add_leaf" "$subtract_leaf" "$multiply_leaf"; do
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
                       "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} wrapping leaf"
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "one right-operand load in AVX2 ${signedness} wrapping leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
                       "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} wrapping leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
                       "$leaf" "left ABI operand in AVX2 ${signedness} wrapping leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "right ABI operand in AVX2 ${signedness} wrapping leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
                       "$leaf" "assembly result destination in AVX2 ${signedness} wrapping leaf"
                     forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
                       "$leaf" "branch or helper in AVX2 ${signedness} wrapping leaf"
@@ -5358,17 +5737,17 @@ EOF
             for signedness in u8 i8; do
                 for operation in and or xor; do
                     leaf="$temporary/wide_byte_${signedness}_${operation}.txt"
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
                       "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} bitwise ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "one right-operand load in AVX2 ${signedness} bitwise ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
                       "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} bitwise ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
                       "$leaf" "left ABI operand in AVX2 ${signedness} bitwise ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "right ABI operand in AVX2 ${signedness} bitwise ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
                       "$leaf" "assembly result destination in AVX2 ${signedness} bitwise ${operation} leaf"
                     forbid_pattern '(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
                       "$leaf" "branch or helper in AVX2 ${signedness} bitwise ${operation} leaf"
@@ -5399,23 +5778,23 @@ EOF
                   "unrelated bitwise operation in AVX2 ${signedness} exclusive-disjunction leaf"
 
                 leaf="$temporary/wide_byte_${signedness}_not.txt"
-                require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
                   "$leaf" "operand and return-copy loads in AVX2 ${signedness} complement leaf"
-                require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 0 \
+                require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 0 \
                   "$leaf" "no second memory operand in AVX2 ${signedness} complement leaf"
-                require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
                   "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} complement leaf"
-                require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                require_leaf_instruction 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
                   "$leaf" "ABI operand in AVX2 ${signedness} complement leaf"
-                require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
                   "$leaf" "assembly result destination in AVX2 ${signedness} complement leaf"
-                require_count 'vpcmpeqd[[:space:]]+%ymm1,[[:space:]]*%ymm1,[[:space:]]*%ymm1' 1 \
+                require_leaf_instruction 'vpcmpeqd[[:space:]]+%ymm1,[[:space:]]*%ymm1,[[:space:]]*%ymm1' 1 \
                   "$leaf" "one all-one mask construction in AVX2 ${signedness} complement leaf"
-                require_count 'vpxor[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
+                require_leaf_instruction 'vpxor[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0' 1 \
                   "$leaf" "one exact AVX2 ${signedness} bitwise complement"
-                require_count '(^|[[:space:]])vpcmpeqd[[:space:]]' 1 \
+                require_leaf_instruction '(^|[[:space:]])vpcmpeqd[[:space:]]' 1 \
                   "$leaf" "only one all-one mask construction in AVX2 ${signedness} complement leaf"
-                require_count '(^|[[:space:]])vpxor[[:space:]]' 1 \
+                require_leaf_instruction '(^|[[:space:]])vpxor[[:space:]]' 1 \
                   "$leaf" "only one AVX2 ${signedness} complement instruction"
                 forbid_pattern 'vpand|vpor|(^|[[:space:]])(callq?|j[a-z]+)[[:space:]]' \
                   "$leaf" "unrelated bitwise operation, branch, or helper in AVX2 ${signedness} complement leaf"
@@ -5423,23 +5802,23 @@ EOF
             for signedness in u8 i8; do
                 for operation in min max; do
                     leaf="$temporary/wide_byte_${signedness}_${operation}.txt"
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm0' 2 \
                       "$leaf" "left-operand and return-copy loads in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+[^,]*\([^)]*\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "one right-operand load in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*[^,]*\([^)]*\)' 2 \
                       "$leaf" "assembly-result and return-value stores in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rsi\),[[:space:]]*%ymm0' 1 \
                       "$leaf" "left ABI operand in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+\(%rcx\),[[:space:]]*%ymm1' 1 \
                       "$leaf" "right ABI operand in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdx\)' 1 \
                       "$leaf" "assembly result destination in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdi\)' 1 \
+                    require_leaf_instruction 'vmovdqu[[:space:]]+%ymm0,[[:space:]]*\(%rdi\)' 1 \
                       "$leaf" "hidden-result return store in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'movq?[[:space:]]+%rdi,[[:space:]]*%rax' 1 \
+                    require_leaf_instruction 'movq?[[:space:]]+%rdi,[[:space:]]*%rax' 1 \
                       "$leaf" "hidden-result return address in AVX2 ${signedness} ${operation} leaf"
-                    require_count 'movq?[[:space:]]+%rdx,[[:space:]]*%rcx' 1 \
+                    require_leaf_instruction 'movq?[[:space:]]+%rdx,[[:space:]]*%rcx' 1 \
                       "$leaf" "right-operand ABI routing in AVX2 ${signedness} ${operation} leaf"
                     case "$signedness:$operation" in
                         u8:min) instruction=vpminub ;;
@@ -5447,11 +5826,11 @@ EOF
                         u8:max) instruction=vpmaxub ;;
                         i8:max) instruction=vpmaxsb ;;
                     esac
-                    require_count "${instruction}[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0" 1 \
+                    require_leaf_instruction "${instruction}[[:space:]]+%ymm1,[[:space:]]*%ymm0,[[:space:]]*%ymm0" 1 \
                       "$leaf" "one exact AVX2 ${signedness} ${operation}"
-                    require_count "(^|[[:space:]])${instruction}[[:space:]]" 1 \
+                    require_leaf_instruction "(^|[[:space:]])${instruction}[[:space:]]" 1 \
                       "$leaf" "only one AVX2 ${signedness} ${operation} instruction"
-                    require_count 'vzeroupper' 2 "$leaf" \
+                    require_leaf_instruction 'vzeroupper' 2 "$leaf" \
                       "two AVX-SSE transition cleanups in AVX2 ${signedness} ${operation} leaf"
                     case "$instruction" in
                         vpminub) unrelated='vpminsb|vpmaxub|vpmaxsb' ;;

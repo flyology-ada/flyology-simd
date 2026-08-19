@@ -4,6 +4,9 @@
 from pathlib import Path
 import re
 
+from neon_operands import registerise_instantiations, required_variants
+from sse_operands import registerise_instantiations as registerise_sse
+from sse_operands import required_variants as required_sse_variants
 from generate_full_family import (
     FLOAT_TO_INTEGER_CONVERSIONS,
     BIT_CAST_GROUPS,
@@ -77,6 +80,30 @@ def contract() -> str:
         r"Permute_Lanes \(Left, Right : [A-Za-z0-9_]+; Map : Two_Source_Lane_Map_[A-Za-z0-9_]+\) return [A-Za-z0-9_]+));",
         r"\1 with Inline_Always;",
         result,
+    )
+    #  The element-wise leaves are one-line forwarders onto a machine
+    #  instruction.  Inter-unit inlining is what lets a chain of them keep its
+    #  operands in vector registers, so the aspect has to be visible here.
+    result = re.sub(
+        r"(function (?:"
+        r"Zero|Splat|"
+        r"Add_Wrap|Subtract_Wrap|Multiply_Wrap|Add_Saturate|Subtract_Saturate|"
+        r"Bitwise_And|Bitwise_Or|Bitwise_Xor|Bitwise_Not|"
+        r"Min|Max|Min_Number|Max_Number|"
+        r"Add|Subtract|Multiply|Divide|"
+        r"Equal|Less_Than|Less_Equal|Greater_Than|Greater_Equal|Unordered|"
+        r"Select_Value|"
+        r"Shift_Left_Logical|Shift_Right_Logical|Shift_Right_Arithmetic|"
+        r"Reverse_Lanes|Reverse_Bytes|"
+        r"Interleave_Low|Interleave_High|Deinterleave_Even|Deinterleave_Odd|"
+        r"Widen_Low|Widen_High|Narrow_Truncate|Narrow_Saturate|"
+        r"Convert_Saturate|Convert_Truncate|Convert_Nearest|Convert_To_Float|"
+        r"Bit_Cast|Table_Lookup|"
+        r"Mask_From_Bit_Mask|To_Bit_Mask|Mask_And|Mask_Or|Mask_Xor|Mask_Not"
+        r")\b[^\n]*?)(;)$",
+        r"\1 with Inline_Always\2",
+        result,
+        flags=re.MULTILINE,
     )
     result = re.sub(
         r"(function Is_Aligned_16 \(Data : [A-Za-z0-9_]+; Start : Natural\) return Boolean);",
@@ -253,44 +280,57 @@ def target_construction_body(
     """Instantiate exact target zero and bit-preserving splat leaves."""
     zero = f"Native_Zero_{vector}"
     splat = f"Native_Splat_{vector}"
+    floating = scalar.startswith("F")
     if architecture == "aarch64":
         element = {8: "b", 16: "h", 32: "s", 64: "d"}[bits]
-        load = f"ldr {element}0, [%1]"
-        duplicate = f"dup v0.{lanes}{element}, v0.{element}[0]"
         helper_zero = "NEON_Zero_128"
-        helper_splat = "NEON_Splat_128"
-        instructions = f'"{load}", "{duplicate}"'
-    else:
-        if bits == 8:
-            load = "movzbl (%1), %%eax"
-            duplicate = (
-                "imull $0x01010101, %%eax, %%eax\n"
-                "movd %%eax, %%xmm0\n"
-                "pshufd $0, %%xmm0, %%xmm0"
-            )
-        elif bits == 16:
-            load = "movzwl (%1), %%eax"
-            duplicate = (
-                "imull $0x00010001, %%eax, %%eax\n"
-                "movd %%eax, %%xmm0\n"
-                "pshufd $0, %%xmm0, %%xmm0"
-            )
-        elif bits == 32:
-            load = "movl (%1), %%eax"
-            duplicate = "movd %%eax, %%xmm0\npshufd $0, %%xmm0, %%xmm0"
+        if floating:
+            #  A float scalar already sits in a vector register.
+            helper_splat = "NEON_Splat_Float_128"
+            duplicate = f"dup %0.{lanes}{element}, %1.{element}[0]"
         else:
-            load = "movq (%1), %%rax"
-            duplicate = "movq %%rax, %%xmm0\npunpcklqdq %%xmm0, %%xmm0"
+            helper_splat = "NEON_Splat_Integer_128"
+            width = "x" if bits == 64 else "w"
+            duplicate = f"dup %0.{lanes}{element}, %{width}1"
+        instructions = f'"{duplicate}"'
+    else:
         helper_zero = "SSE2_Zero_128"
-        helper_splat = "SSE2_Splat_128"
-        instructions = (
-            f'"{x86_ada_instruction(load)}", '
-            f'"{x86_ada_instruction(duplicate)}"'
-        )
+        if floating:
+            helper_splat = "SSE2_Splat_Float_128"
+            duplicate = (
+                "movaps %1, %0\nshufps $0, %0, %0"
+                if bits == 32
+                else "movapd %1, %0\nunpcklpd %0, %0"
+            )
+        else:
+            helper_splat = "SSE2_Splat_Integer_128"
+            #  Only the low bits of the scalar's register are defined, so the
+            #  narrow forms zero-extend before broadcasting.
+            if bits == 8:
+                duplicate = (
+                    "movzbl %b2, %k1\n"
+                    "imull $0x01010101, %k1, %k1\n"
+                    "movd %k1, %0\n"
+                    "pshufd $0, %0, %0"
+                )
+            elif bits == 16:
+                duplicate = (
+                    "movzwl %w2, %k1\n"
+                    "imull $0x00010001, %k1, %k1\n"
+                    "movd %k1, %0\n"
+                    "pshufd $0, %0, %0"
+                )
+            elif bits == 32:
+                duplicate = "movd %k2, %0\npshufd $0, %0, %0"
+            else:
+                duplicate = "movq %q2, %0\npunpcklqdq %0, %0"
+        instructions = f'"{x86_ada_instruction(duplicate)}"'
     return [
         f"   function {zero} is new {helper_zero} ({vector});",
+        f"   pragma Inline_Always ({zero});",
         f"   function Zero return {vector} is ({zero});",
         f"   function {splat} is new {helper_splat} ({vector}, {scalar}, {instructions});",
+        f"   pragma Inline_Always ({splat});",
         f"   function Splat (Value : {scalar}) return {vector} is ({splat} (Value));",
     ]
 
@@ -447,43 +487,129 @@ def fallback_body() -> str:
     return "\n".join(out)
 
 
-def neon_helpers() -> list[str]:
+def neon_register_generic(
+    name: str, parameters: list[str], signature: str, conversions: list[str],
+    inputs: str, scratch: int, result_conversion: str,
+) -> list[str]:
+    """Emit one scratch-count variant of a register-operand NEON generic."""
+    scratch_names = [f"Scratch_{index}" for index in range(1, scratch + 1)]
+    outputs = ["Machine_Vector'Asm_Output (\"=&w\", Result)"] + [
+        f"Machine_Vector'Asm_Output (\"=&w\", {each})" for each in scratch_names
+    ]
+    declarations = [f"      {each} : Machine_Vector;" for each in scratch_names]
     return [
         "   generic",
-        "      type Vector_Type is private;",
-        "      Instruction : String;",
-        "   function NEON_Binary_128 (Left, Right : Vector_Type) return Vector_Type;",
-        "   function NEON_Binary_128 (Left, Right : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        *[f"      {each}" for each in parameters],
+        f"   function {name} {signature};",
+        f"   function {name} {signature} is",
+        *conversions,
+        "      Result : Machine_Vector;",
+        *declarations,
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT &",
-        "           \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address)],",
-        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
-        "      return Result;",
-        "   end NEON_Binary_128;",
+        "      Asm (Template => Instruction,",
+        f"           Outputs => [{', '.join(outputs)}],",
+        f"           Inputs => {inputs});",
+        f"      return {result_conversion} (Result);",
+        f"   end {name};",
+        "",
+    ]
+
+
+def neon_register_generics() -> list[str]:
+    out: list[str] = []
+    for scratch in required_variants("NEON_Binary_128"):
+        out += neon_register_generic(
+            f"NEON_Binary_128_S{scratch}",
+            ["type Vector_Type is private;", "Instruction : String;"],
+            "(Left, Right : Vector_Type) return Vector_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+                "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+            ],
+            "[Machine_Vector'Asm_Input (\"w\", To_Machine (Left)), Machine_Vector'Asm_Input (\"w\", To_Machine (Right))]",
+            scratch,
+            "To_Vector",
+        )
+    for scratch in required_variants("NEON_Unary_128"):
+        out += neon_register_generic(
+            f"NEON_Unary_128_S{scratch}",
+            ["type Vector_Type is private;", "Instruction : String;"],
+            "(Value : Vector_Type) return Vector_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+                "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+            ],
+            "Machine_Vector'Asm_Input (\"w\", To_Machine (Value))",
+            scratch,
+            "To_Vector",
+        )
+    for scratch in required_variants("NEON_Convert_Pair_128"):
+        out += neon_register_generic(
+            f"NEON_Convert_Pair_128_S{scratch}",
+            [
+                "type Source_Type is private;",
+                "type Result_Type is private;",
+                "Instruction : String;",
+            ],
+            "(Low, High : Source_Type) return Result_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);",
+                "      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);",
+            ],
+            "[Machine_Vector'Asm_Input (\"w\", To_Machine (Low)), Machine_Vector'Asm_Input (\"w\", To_Machine (High))]",
+            scratch,
+            "To_Result",
+        )
+    for scratch in required_variants("NEON_Convert_128"):
+        out += neon_register_generic(
+            f"NEON_Convert_128_S{scratch}",
+            [
+                "type Source_Type is private;",
+                "type Result_Type is private;",
+                "Instruction : String;",
+            ],
+            "(Value : Source_Type) return Result_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);",
+                "      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);",
+            ],
+            "Machine_Vector'Asm_Input (\"w\", To_Machine (Value))",
+            scratch,
+            "To_Result",
+        )
+    return out
+
+
+def neon_helpers() -> list[str]:
+    return [
+        "   --  Assembly leaves below take and return this machine vector type so",
+        "   --  that 128-bit values stay in NEON registers across a chain of",
+        "   --  operations instead of spilling to memory between them.",
+        "   type Machine_Vector is array (0 .. 15) of Interfaces.Unsigned_8;",
+        "   for Machine_Vector'Alignment use 16;",
+        "   pragma Machine_Attribute (Machine_Vector, \"vector_type\");",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type;",
         "   function NEON_Multiply_64_128 (Left, Right : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Left_Low, Left_High, Right_Low, Right_High, Cross : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT &",
-        "           \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT &",
-        "           \"uzp1 v2.4s, v0.4s, v0.4s\" & ASCII.LF & ASCII.HT &",
-        "           \"uzp2 v3.4s, v0.4s, v0.4s\" & ASCII.LF & ASCII.HT &",
-        "           \"uzp1 v4.4s, v1.4s, v1.4s\" & ASCII.LF & ASCII.HT &",
-        "           \"uzp2 v5.4s, v1.4s, v1.4s\" & ASCII.LF & ASCII.HT &",
-        "           \"umull v6.2d, v2.2s, v4.2s\" & ASCII.LF & ASCII.HT &",
-        "           \"mul v7.2s, v2.2s, v5.2s\" & ASCII.LF & ASCII.HT &",
-        "           \"mla v7.2s, v3.2s, v4.2s\" & ASCII.LF & ASCII.HT &",
-        "           \"shll v7.2d, v7.2s, #32\" & ASCII.LF & ASCII.HT &",
-        "           \"add v0.2d, v6.2d, v7.2d\" & ASCII.LF & ASCII.HT &",
-        "           \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address)],",
-        "           Clobber => \"v0,v1,v2,v3,v4,v5,v6,v7,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"uzp1 %1.4s, %6.4s, %6.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp2 %2.4s, %6.4s, %6.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp1 %3.4s, %7.4s, %7.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"uzp2 %4.4s, %7.4s, %7.4s\" & ASCII.LF & ASCII.HT &",
+        "           \"umull %0.2d, %1.2s, %3.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"mul %5.2s, %1.2s, %4.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"mla %5.2s, %2.2s, %3.2s\" & ASCII.LF & ASCII.HT &",
+        "           \"shll %5.2d, %5.2s, #32\" & ASCII.LF & ASCII.HT &",
+        "           \"add %0.2d, %0.2d, %5.2d\",",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=&w\", Result), Machine_Vector'Asm_Output (\"=&w\", Left_Low), Machine_Vector'Asm_Output (\"=&w\", Left_High), Machine_Vector'Asm_Output (\"=&w\", Right_Low), Machine_Vector'Asm_Output (\"=&w\", Right_High), Machine_Vector'Asm_Output (\"=&w\", Cross)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"w\", To_Machine (Left)), Machine_Vector'Asm_Input (\"w\", To_Machine (Right))]);",
+        "      return To_Vector (Result);",
         "   end NEON_Multiply_64_128;",
         "",
         "   generic",
@@ -491,15 +617,15 @@ def neon_helpers() -> list[str]:
         "      type Map_Type is private;",
         "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type;",
         "   function NEON_Permute_128 (Value : Vector_Type; Map : Map_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function Map_To_Machine is new Ada.Unchecked_Conversion (Map_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT &",
-        "           \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT &",
-        "           \"tbl v0.16b, {v0.16b}, v1.16b\" & ASCII.LF & ASCII.HT &",
-        "           \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Map'Address)],",
-        "           Clobber => \"v0,v1,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"tbl %0.16b, {%1.16b}, %2.16b\",",
+        "           Outputs => Machine_Vector'Asm_Output (\"=w\", Result),",
+        "           Inputs => [Machine_Vector'Asm_Input (\"w\", To_Machine (Value)), Machine_Vector'Asm_Input (\"w\", Map_To_Machine (Map))]);",
+        "      return To_Vector (Result);",
         "   end NEON_Permute_128;",
         "",
         "   generic",
@@ -507,57 +633,62 @@ def neon_helpers() -> list[str]:
         "      type Map_Type is private;",
         "   function NEON_Permute_2_128 (Left, Right : Vector_Type; Map : Map_Type) return Vector_Type;",
         "   function NEON_Permute_2_128 (Left, Right : Vector_Type; Map : Map_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function Map_To_Machine is new Ada.Unchecked_Conversion (Map_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        '      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT &',
-        '           "ldr q1, [%2]" & ASCII.LF & ASCII.HT &',
-        '           "ldr q2, [%3]" & ASCII.LF & ASCII.HT &',
-        '           "tbl v0.16b, {v0.16b, v1.16b}, v2.16b" & ASCII.LF & ASCII.HT &',
-        '           "str q0, [%0]",',
-        '           Inputs => [System.Address\'Asm_Input ("r", Result\'Address), System.Address\'Asm_Input ("r", Left\'Address), System.Address\'Asm_Input ("r", Right\'Address), System.Address\'Asm_Input ("r", Map\'Address)],',
-        '           Clobber => "v0,v1,v2,memory", Volatile => True);',
-        "      return Result;",
+        '      Asm (Template => "mov v0.16b, %1.16b" & ASCII.LF & ASCII.HT &',
+        '           "mov v1.16b, %2.16b" & ASCII.LF & ASCII.HT &',
+        '           "tbl v0.16b, {v0.16b, v1.16b}, %3.16b" & ASCII.LF & ASCII.HT &',
+        '           "mov %0.16b, v0.16b",',
+        '           Outputs => Machine_Vector\'Asm_Output ("=w", Result),',
+        '           Inputs => [Machine_Vector\'Asm_Input ("w", To_Machine (Left)), Machine_Vector\'Asm_Input ("w", To_Machine (Right)), Machine_Vector\'Asm_Input ("w", Map_To_Machine (Map))],',
+        '           Clobber => "v0,v1");',
+        "      return To_Vector (Result);",
         "   end NEON_Permute_2_128;",
-        "",
-        "   generic",
-        "      type Vector_Type is private;",
-        "      Instruction : String;",
-        "   function NEON_Unary_128 (Value : Vector_Type) return Vector_Type;",
-        "   function NEON_Unary_128 (Value : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
-        "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,v1,memory\", Volatile => True);",
-        "      return Result;",
-        "   end NEON_Unary_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "   function NEON_Zero_128 return Vector_Type;",
         "   function NEON_Zero_128 return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        '      Asm (Template => "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "str q0, [%0]",',
-        '           Inputs => System.Address\'Asm_Input ("r", Result\'Address),',
-        '           Clobber => "v0,memory", Volatile => True);',
-        "      return Result;",
+        '      Asm (Template => "movi %0.16b, #0",',
+        '           Outputs => Machine_Vector\'Asm_Output ("=w", Result));',
+        "      return To_Vector (Result);",
         "   end NEON_Zero_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "      type Scalar_Type is private;",
-        "      Load_Instruction : String;",
         "      Duplicate_Instruction : String;",
-        "   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type;",
-        "   function NEON_Splat_128 (Value : Scalar_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "   function NEON_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function NEON_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type is",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        '      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "str q0, [%0]",',
-        '           Inputs => [System.Address\'Asm_Input ("r", Result\'Address), System.Address\'Asm_Input ("r", Value\'Address)],',
-        '           Clobber => "v0,memory", Volatile => True);',
-        "      return Result;",
-        "   end NEON_Splat_128;",
+        "      Asm (Template => Duplicate_Instruction,",
+        "           Outputs => Machine_Vector'Asm_Output (\"=w\", Result),",
+        "           Inputs => Scalar_Type'Asm_Input (\"r\", Value));",
+        "      return To_Vector (Result);",
+        "   end NEON_Splat_Integer_128;",
+        "",
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Duplicate_Instruction : String;",
+        "   function NEON_Splat_Float_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function NEON_Splat_Float_128 (Value : Scalar_Type) return Vector_Type is",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "   begin",
+        "      Asm (Template => Duplicate_Instruction,",
+        "           Outputs => Machine_Vector'Asm_Output (\"=w\", Result),",
+        "           Inputs => Scalar_Type'Asm_Input (\"w\", Value));",
+        "      return To_Vector (Result);",
+        "   end NEON_Splat_Float_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
@@ -590,57 +721,44 @@ def neon_helpers() -> list[str]:
         "   end NEON_Float_Reduce_128;",
         "",
         "   generic",
-        "      type Source_Type is private;",
-        "      type Result_Type is private;",
-        "      Instruction : String;",
-        "   function NEON_Convert_128 (Value : Source_Type) return Result_Type;",
-        "   function NEON_Convert_128 (Value : Source_Type) return Result_Type is",
-        "      Result : Result_Type;",
-        "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
-        "      return Result;",
-        "   end NEON_Convert_128;",
-        "",
-        "   generic",
-        "      type Source_Type is private;",
-        "      type Result_Type is private;",
-        "      Instruction : String;",
-        "   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;",
-        "   function NEON_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is",
-        "      Result : Result_Type;",
-        "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Low'Address), System.Address'Asm_Input (\"r\", High'Address)],",
-        "           Clobber => \"v0,v1,memory\", Volatile => True);",
-        "      return Result;",
-        "   end NEON_Convert_Pair_128;",
-        "",
-        "   generic",
         "      type Vector_Type is private;",
         "      Instruction : String;",
         "      Compact : String;",
-        "   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_8;",
-        "   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_8 is",
+        "   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : Machine_Vector) return Interfaces.Unsigned_8;",
+        "   function NEON_Compare_128 (Left, Right : Vector_Type; Weights : Machine_Vector) return Interfaces.Unsigned_8 is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
         "      Result : Interfaces.Unsigned_32;",
+        "      Half : Interfaces.Unsigned_32;",
+        "      Truths : Machine_Vector;",
+        "      Spare : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Compact,",
-        "           Outputs => Interfaces.Unsigned_32'Asm_Output (\"=r\", Result),",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address), System.Address'Asm_Input (\"r\", Weights)],",
-        "           Clobber => \"v0,v1,v2,x9,memory\", Volatile => True);",
+        "      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Compact,",
+        "           Outputs => [Interfaces.Unsigned_32'Asm_Output (\"=&r\", Result), Interfaces.Unsigned_32'Asm_Output (\"=&r\", Half), Machine_Vector'Asm_Output (\"=&w\", Truths), Machine_Vector'Asm_Output (\"=&w\", Spare)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"w\", To_Machine (Left)), Machine_Vector'Asm_Input (\"w\", To_Machine (Right)), Machine_Vector'Asm_Input (\"w\", Weights)]);",
         "      return Interfaces.Unsigned_8 (Result and 16#FF#);",
         "   end NEON_Compare_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "      Instruction : String;",
-        "   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_16;",
-        "   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : System.Address) return Interfaces.Unsigned_16 is",
+        "   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : Machine_Vector) return Interfaces.Unsigned_16;",
+        "   function NEON_Compare_16_Lanes (Left, Right : Vector_Type; Weights : Machine_Vector) return Interfaces.Unsigned_16 is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
         "      Result : Interfaces.Unsigned_32;",
+        "      Half : Interfaces.Unsigned_32;",
+        "      Low : Machine_Vector;",
+        "      High : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q2, [%3]\" & ASCII.LF & ASCII.HT & \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%2]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"and v0.16b, v0.16b, v2.16b\" & ASCII.LF & ASCII.HT & \"ext v1.16b, v0.16b, v0.16b, #8\" & ASCII.LF & ASCII.HT & \"uaddlv h0, v0.8b\" & ASCII.LF & ASCII.HT & \"uaddlv h1, v1.8b\" & ASCII.LF & ASCII.HT & \"umov %w0, v0.h[0]\" & ASCII.LF & ASCII.HT & \"umov w9, v1.h[0]\" & ASCII.LF & ASCII.HT & \"orr %w0, %w0, w9, lsl #8\",",
-        "           Outputs => Interfaces.Unsigned_32'Asm_Output (\"=r\", Result), Inputs => [System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address), System.Address'Asm_Input (\"r\", Weights)], Clobber => \"v0,v1,v2,x9,memory\", Volatile => True);",
+        "      Asm (Template => Instruction & ASCII.LF & ASCII.HT &",
+        "           \"and %2.16b, %2.16b, %6.16b\" & ASCII.LF & ASCII.HT &",
+        "           \"ext %3.16b, %2.16b, %2.16b, #8\" & ASCII.LF & ASCII.HT &",
+        "           \"uaddlv %h2, %2.8b\" & ASCII.LF & ASCII.HT &",
+        "           \"uaddlv %h3, %3.8b\" & ASCII.LF & ASCII.HT &",
+        "           \"umov %w0, %2.h[0]\" & ASCII.LF & ASCII.HT &",
+        "           \"umov %w1, %3.h[0]\" & ASCII.LF & ASCII.HT &",
+        "           \"orr %w0, %w0, %w1, lsl #8\",",
+        "           Outputs => [Interfaces.Unsigned_32'Asm_Output (\"=&r\", Result), Interfaces.Unsigned_32'Asm_Output (\"=&r\", Half), Machine_Vector'Asm_Output (\"=&w\", Low), Machine_Vector'Asm_Output (\"=&w\", High)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"w\", To_Machine (Left)), Machine_Vector'Asm_Input (\"w\", To_Machine (Right)), Machine_Vector'Asm_Input (\"w\", Weights)]);",
         "      return Interfaces.Unsigned_16 (Result and 16#FFFF#);",
         "   end NEON_Compare_16_Lanes;",
         "",
@@ -648,34 +766,37 @@ def neon_helpers() -> list[str]:
         "      type Vector_Type is private;",
         "      Dup_Instruction : String;",
         "      Test_Instruction : String;",
-        "   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;",
-        "   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type;",
+        "   function NEON_Select_128 (Bits : Interfaces.Unsigned_64; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        "      Asm (Template => Dup_Instruction & ASCII.LF & ASCII.HT &",
-        "           \"ldr q3, [%4]\" & ASCII.LF & ASCII.HT & Test_Instruction & ASCII.LF & ASCII.HT &",
-        "           \"ldr q0, [%2]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%3]\" & ASCII.LF & ASCII.HT &",
-        "           \"bsl v2.16b, v0.16b, v1.16b\" & ASCII.LF & ASCII.HT & \"str q2, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), Interfaces.Unsigned_64'Asm_Input (\"r\", Bits), System.Address'Asm_Input (\"r\", If_True'Address), System.Address'Asm_Input (\"r\", If_False'Address), System.Address'Asm_Input (\"r\", Weights)],",
-        "           Clobber => \"v0,v1,v2,v3,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => Dup_Instruction & ASCII.LF & ASCII.HT & Test_Instruction & ASCII.LF & ASCII.HT &",
+        "           \"bsl %0.16b, %3.16b, %4.16b\",",
+        "           Outputs => Machine_Vector'Asm_Output (\"=&w\", Result),",
+        "           Inputs => [Interfaces.Unsigned_64'Asm_Input (\"r\", Bits), Machine_Vector'Asm_Input (\"w\", Weights), Machine_Vector'Asm_Input (\"w\", To_Machine (If_True)), Machine_Vector'Asm_Input (\"w\", To_Machine (If_False))]);",
+        "      return To_Vector (Result);",
         "   end NEON_Select_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
-        "   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;",
-        "   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type;",
+        "   function NEON_Select_16_Lanes_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Spread : Machine_Vector;",
+        "      Upper : Interfaces.Unsigned_32;",
         "   begin",
-        "      Asm (Template => \"dup v2.16b, %w1\" & ASCII.LF & ASCII.HT &",
-        "           \"lsr w9, %w1, #8\" & ASCII.LF & ASCII.HT & \"dup v3.16b, w9\" & ASCII.LF & ASCII.HT &",
-        "           \"ins v2.d[1], v3.d[0]\" & ASCII.LF & ASCII.HT & \"ldr q3, [%4]\" & ASCII.LF & ASCII.HT &",
-        "           \"cmtst v2.16b, v2.16b, v3.16b\" & ASCII.LF & ASCII.HT &",
-        "           \"ldr q0, [%2]\" & ASCII.LF & ASCII.HT & \"ldr q1, [%3]\" & ASCII.LF & ASCII.HT &",
-        "           \"bsl v2.16b, v0.16b, v1.16b\" & ASCII.LF & ASCII.HT & \"str q2, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), Interfaces.Unsigned_16'Asm_Input (\"r\", Bits), System.Address'Asm_Input (\"r\", If_True'Address), System.Address'Asm_Input (\"r\", If_False'Address), System.Address'Asm_Input (\"r\", Weights)],",
-        "           Clobber => \"v0,v1,v2,v3,x9,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"dup %0.16b, %w3\" & ASCII.LF & ASCII.HT &",
+        "           \"lsr %w2, %w3, #8\" & ASCII.LF & ASCII.HT & \"dup %1.16b, %w2\" & ASCII.LF & ASCII.HT &",
+        "           \"ins %0.d[1], %1.d[0]\" & ASCII.LF & ASCII.HT &",
+        "           \"cmtst %0.16b, %0.16b, %4.16b\" & ASCII.LF & ASCII.HT &",
+        "           \"bsl %0.16b, %5.16b, %6.16b\",",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=&w\", Result), Machine_Vector'Asm_Output (\"=&w\", Spread), Interfaces.Unsigned_32'Asm_Output (\"=&r\", Upper)],",
+        "           Inputs => [Interfaces.Unsigned_16'Asm_Input (\"r\", Bits), Machine_Vector'Asm_Input (\"w\", Weights), Machine_Vector'Asm_Input (\"w\", To_Machine (If_True)), Machine_Vector'Asm_Input (\"w\", To_Machine (If_False))]);",
+        "      return To_Vector (Result);",
         "   end NEON_Select_16_Lanes_128;",
         "",
         "   generic",
@@ -684,34 +805,42 @@ def neon_helpers() -> list[str]:
         "      Shift_Instruction : String;",
         "   function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type;",
         "   function NEON_Shift_128 (Value : Vector_Type; Amount : Interfaces.Integer_64) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Spread : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Dup_Instruction & ASCII.LF & ASCII.HT & Shift_Instruction & ASCII.LF & ASCII.HT & \"str q0, [%0]\",",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), Interfaces.Integer_64'Asm_Input (\"r\", Amount)],",
-        "           Clobber => \"v0,v1,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => Dup_Instruction & ASCII.LF & ASCII.HT & Shift_Instruction,",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=&w\", Result), Machine_Vector'Asm_Output (\"=&w\", Spread)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"w\", To_Machine (Value)), Interfaces.Integer_64'Asm_Input (\"r\", Amount)]);",
+        "      return To_Vector (Result);",
         "   end NEON_Shift_128;",
         "",
     ]
 
 
 def compact(bits: int) -> str:
+    """The lane-truth to bit-mask fold, on register operands.
+
+    Operand numbering follows NEON_Compare_128: %0 the result, %1 a general
+    scratch, %2 the comparison truths, %3 and %4 the operands, %5 the weights.
+    """
     if bits == 64:
         return (
-            '"ushr v0.2d, v0.2d, #63" & ASCII.LF & ASCII.HT & '
-            '"umov %w0, v0.s[0]" & ASCII.LF & ASCII.HT & '
-            '"umov w9, v0.s[2]" & ASCII.LF & ASCII.HT & '
-            '"orr %w0, %w0, w9, lsl #1"'
+            '"ushr %2.2d, %2.2d, #63" & ASCII.LF & ASCII.HT & '
+            '"umov %w0, %2.s[0]" & ASCII.LF & ASCII.HT & '
+            '"umov %w1, %2.s[2]" & ASCII.LF & ASCII.HT & '
+            '"orr %w0, %w0, %w1, lsl #1"'
         )
     shape, lane, move = {
-        8: ("16b", "b", "umov %w0, v0.b[0]"),
-        16: ("8h", "h", "umov %w0, v0.h[0]"),
-        32: ("4s", "s", "umov %w0, v0.s[0]"),
+        8: ("16b", "b", "umov %w0, %2.b[0]"),
+        16: ("8h", "h", "umov %w0, %2.h[0]"),
+        32: ("4s", "s", "umov %w0, %2.s[0]"),
     }[bits]
-    reduction = f"addv {lane}0, v0.{shape}"
+    reduction = f"addv %{lane}2, %2.{shape}"
     return (
-        f'"ushr v0.{shape}, v0.{shape}, #{bits - 1}" & ASCII.LF & ASCII.HT & '
-        f'"ldr q2, [%3]" & ASCII.LF & ASCII.HT & "mul v0.{shape}, v0.{shape}, v2.{shape}" & ASCII.LF & ASCII.HT & '
+        f'"ushr %2.{shape}, %2.{shape}, #{bits - 1}" & ASCII.LF & ASCII.HT & '
+        f'"mul %2.{shape}, %2.{shape}, %6.{shape}" & ASCII.LF & ASCII.HT & '
         f'"{reduction}" & ASCII.LF & ASCII.HT & "{move}"'
     )
 
@@ -819,11 +948,24 @@ def native_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
 
 
 def neon_body() -> str:
-    out = neon_helpers()
+    out: list[str] = []
+    out += [
+        "   Weights_Vector_8x16 : constant Machine_Vector :="
+        " [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
+    ]
     for bits, lanes in ((16, 8), (32, 4), (64, 2)):
         scalar = f"U{bits}"
         vals = lane_values(f"{scalar}x{lanes}")
-        out += [f"   Weights_{bits}x{lanes} : aliased constant {vals} := [{', '.join(str(1 << n) for n in range(lanes))}];"]
+        #  The same weights, spelled as the bytes of a machine vector.
+        weight_bytes = ", ".join(
+            str(((1 << lane) >> (8 * byte)) & 0xFF)
+            for lane in range(lanes)
+            for byte in range(bits // 8)
+        )
+        out += [
+            f"   Weights_{bits}x{lanes} : aliased constant {vals} := [{', '.join(str(1 << n) for n in range(lanes))}];",
+            f"   Weights_Vector_{bits}x{lanes} : constant Machine_Vector := [{weight_bytes}];",
+        ]
     out.append("")
 
     for source_vector, _, target_vector, _ in bit_cast_pairs():
@@ -963,16 +1105,19 @@ def neon_body() -> str:
         arr, count = array_name(scalar), lane_count(bits, lanes)
         shape = f"{lanes}{ {8:'b',16:'h',32:'s',64:'d'}[bits]}"
         prefix = "s" if signed else "u"
-        weight = "Weights_8x16'Address" if bits == 8 else f"Weights_{bits}x{lanes}'Address"
+        weight = "Weights_Vector_8x16" if bits == 8 else f"Weights_Vector_{bits}x{lanes}"
         compare_type = "Interfaces.Unsigned_16" if bits == 8 else "Interfaces.Unsigned_8"
         # 8-bit comparison already exists; all other operations are emitted here.
         if vector == "I8x16":
             compare = f"Compare_{vector}"
         else:
             out += [
-                f"   function Compare_{vector} is new NEON_Compare_128 ({vector}, \"cmeq v0.{shape}, v0.{shape}, v1.{shape}\", {compact(bits)});",
-                f"   function Compare_Greater_{vector} is new NEON_Compare_128 ({vector}, \"cm{'gt' if signed else 'hi'} v0.{shape}, v0.{shape}, v1.{shape}\", {compact(bits)});",
-                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_128 ({vector}, \"cm{'ge' if signed else 'hs'} v0.{shape}, v0.{shape}, v1.{shape}\", {compact(bits)});",
+                f"   function Compare_{vector} is new NEON_Compare_128 ({vector}, \"cmeq %2.{shape}, %4.{shape}, %5.{shape}\", {compact(bits)});",
+                f"   pragma Inline_Always (Compare_{vector});",
+                f"   function Compare_Greater_{vector} is new NEON_Compare_128 ({vector}, \"cm{'gt' if signed else 'hi'} %2.{shape}, %4.{shape}, %5.{shape}\", {compact(bits)});",
+                f"   pragma Inline_Always (Compare_Greater_{vector});",
+                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_128 ({vector}, \"cm{'ge' if signed else 'hs'} %2.{shape}, %4.{shape}, %5.{shape}\", {compact(bits)});",
+                f"   pragma Inline_Always (Compare_Greater_Equal_{vector});",
             ]
             compare = f"Compare_{vector}"
         inst: dict[str, str] = {
@@ -1028,28 +1173,33 @@ def neon_body() -> str:
                 f"   function Native_Multiply_Wrap_{vector} is new NEON_Multiply_64_128 ({vector});",
                 f"   function Multiply_Wrap (Left, Right : {vector}) return {vector} is (Native_Multiply_Wrap_{vector} (Left, Right));",
             ]
-        dup = f"dup v1.{shape}, %{'2' if bits == 64 else 'w2'}"
+        dup = f"dup %1.{shape}, %{'3' if bits == 64 else 'w3'}"
         for name, amount, instruction in (
-            ("Shift_Left_Logical", f"Interfaces.Integer_64 (Natural'Min (Count, {bits}))", f"ushl v0.{shape}, v0.{shape}, v1.{shape}"),
-            ("Shift_Right_Logical", f"-Interfaces.Integer_64 (Natural'Min (Count, {bits}))", f"ushl v0.{shape}, v0.{shape}, v1.{shape}"),
+            ("Shift_Left_Logical", f"Interfaces.Integer_64 (Natural'Min (Count, {bits}))", f"ushl %0.{shape}, %2.{shape}, %1.{shape}"),
+            ("Shift_Right_Logical", f"-Interfaces.Integer_64 (Natural'Min (Count, {bits}))", f"ushl %0.{shape}, %2.{shape}, %1.{shape}"),
         ):
             out += [
                 f"   function Native_{name}_{vector} is new NEON_Shift_128 ({vector}, \"{dup}\", \"{instruction}\");",
+                f"   pragma Inline_Always (Native_{name}_{vector});",
                 f"   function {name} (Value : {vector}; Count : Natural) return {vector} is",
                 f"     (Native_{name}_{vector} (Value, {amount}));",
             ]
         if signed:
             out += [
-                f"   function Native_SRA_{vector} is new NEON_Shift_128 ({vector}, \"{dup}\", \"sshl v0.{shape}, v0.{shape}, v1.{shape}\");",
+                f"   function Native_SRA_{vector} is new NEON_Shift_128 ({vector}, \"{dup}\", \"sshl %0.{shape}, %2.{shape}, %1.{shape}\");",
+                f"   pragma Inline_Always (Native_SRA_{vector});",
                 f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is",
                 f"     (Native_SRA_{vector} (Value, -Interfaces.Integer_64 (Natural'Min (Count, {bits}))));",
             ]
         if vector == "I8x16":
             # Signed byte comparison needs its own compacting instantiations.
             out += [
-                f"   function Compare_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmeq v0.16b, v0.16b, v1.16b\");",
-                f"   function Compare_Greater_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmgt v0.16b, v0.16b, v1.16b\");",
-                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmge v0.16b, v0.16b, v1.16b\");",
+                f"   function Compare_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmeq %2.16b, %4.16b, %5.16b\");",
+                f"   pragma Inline_Always (Compare_{vector});",
+                f"   function Compare_Greater_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmgt %2.16b, %4.16b, %5.16b\");",
+                f"   pragma Inline_Always (Compare_Greater_{vector});",
+                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmge %2.16b, %4.16b, %5.16b\");",
+                f"   pragma Inline_Always (Compare_Greater_Equal_{vector});",
             ]
         out += [
             f"   function Equal (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask ({compare} (Left, Right, {weight})));",
@@ -1059,13 +1209,15 @@ def neon_body() -> str:
             f"   function Less_Equal (Left, Right : {vector}) return {mask} is (Greater_Equal (Left => Right, Right => Left));",
             (
                 f"   function Native_Select_{vector} is new NEON_Select_16_Lanes_128 ({vector});\n"
+                f"   pragma Inline_Always (Native_Select_{vector});\n"
                 f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is "
-                f"(Native_Select_{vector} (Mask.Bits, Weights_8x16'Address, If_True, If_False));"
+                f"(Native_Select_{vector} (Mask.Bits, Weights_Vector_8x16, If_True, If_False));"
                 if lanes == 16
                 else
-                f"   function Native_Select_{vector} is new NEON_Select_128 ({vector}, \"dup v2.{shape}, %{'1' if bits == 64 else 'w1'}\", \"cmtst v2.{shape}, v2.{shape}, v3.{shape}\");\n"
+                f"   function Native_Select_{vector} is new NEON_Select_128 ({vector}, \"dup %0.{shape}, %{'1' if bits == 64 else 'w1'}\", \"cmtst %0.{shape}, %0.{shape}, %2.{shape}\");\n"
+                f"   pragma Inline_Always (Native_Select_{vector});\n"
                 f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is "
-                f"(Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_{bits}x{lanes}'Address, If_True, If_False));"
+                f"(Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_{bits}x{lanes}, If_True, If_False));"
             ),
         ]
         scalar_lane = {8: "b", 16: "h", 32: "s", 64: "d"}[bits]
@@ -1106,7 +1258,7 @@ def neon_body() -> str:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
         shape = f"{lanes}{'s' if bits == 32 else 'd'}"
-        weight = f"Weights_{bits}x{lanes}'Address"
+        weight = f"Weights_Vector_{bits}x{lanes}"
         add_lane = "s" if bits == 32 else "d"
         add_steps = [
             '"mov v2.16b, v0.16b"',
@@ -1125,15 +1277,19 @@ def neon_body() -> str:
         reverse = ("rev64 v0.4s, v0.4s\" & ASCII.LF & ASCII.HT & \"ext v0.16b, v0.16b, v0.16b, #8" if bits == 32 else "ext v0.16b, v0.16b, v0.16b, #8")
         out += [f"   function Native_Reverse_{vector} is new NEON_Unary_128 ({vector}, \"{reverse}\");", f"   function Reverse_Lanes (Value : {vector}) return {vector} is (Native_Reverse_{vector} (Value));"]
         for name, instruction in (("Equal", "fcmeq"), ("Greater_Than", "fcmgt"), ("Greater_Equal", "fcmge")):
-            out += [f"   function Compare_{name}_{vector} is new NEON_Compare_128 ({vector}, \"{instruction} v0.{shape}, v0.{shape}, v1.{shape}\", {compact(bits)});", f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Compare_{name}_{vector} (Left, Right, {weight})));"]
+            out += [f"   function Compare_{name}_{vector} is new NEON_Compare_128 ({vector}, \"{instruction} %2.{shape}, %4.{shape}, %5.{shape}\", {compact(bits)});", f"   pragma Inline_Always (Compare_{name}_{vector});", f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Compare_{name}_{vector} (Left, Right, {weight})));"]
+        #  Neither operand equalling itself is the definition of unordered.
+        #  %2 is the truth register, %6 a second scratch, %3 and %4 the
+        #  operands.
         unordered = (
-            f"fcmeq v0.{shape}, v0.{shape}, v0.{shape}"
-            f'" & ASCII.LF & ASCII.HT & "fcmeq v1.{shape}, v1.{shape}, v1.{shape}'
-            '" & ASCII.LF & ASCII.HT & "and v0.16b, v0.16b, v1.16b'
-            '" & ASCII.LF & ASCII.HT & "mvn v0.16b, v0.16b'
+            f"fcmeq %2.{shape}, %4.{shape}, %4.{shape}"
+            f'" & ASCII.LF & ASCII.HT & "fcmeq %3.{shape}, %5.{shape}, %5.{shape}'
+            '" & ASCII.LF & ASCII.HT & "and %2.16b, %2.16b, %3.16b'
+            '" & ASCII.LF & ASCII.HT & "mvn %2.16b, %2.16b'
         )
         out += [
             f"   function Compare_Unordered_{vector} is new NEON_Compare_128 ({vector}, \"{unordered}\", {compact(bits)});",
+            f"   pragma Inline_Always (Compare_Unordered_{vector});",
             f"   function Unordered (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Compare_Unordered_{vector} (Left, Right, {weight})));",
             f"   function Less_Than (Left, Right : {vector}) return {mask} is (Greater_Than (Left => Right, Right => Left));",
             f"   function Less_Equal (Left, Right : {vector}) return {mask} is (Greater_Equal (Left => Right, Right => Left));",
@@ -1145,8 +1301,9 @@ def neon_body() -> str:
             f"   function Native_Permute_2_{vector} is new NEON_Permute_2_128 ({vector}, {two_source_lane_map(bits, lanes)});",
             f"   pragma Inline_Always (Native_Permute_2_{vector});",
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_source_lane_map(bits, lanes)}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
-            f"   function Native_Select_{vector} is new NEON_Select_128 ({vector}, \"dup v2.{shape}, %{'1' if bits == 64 else 'w1'}\", \"cmtst v2.{shape}, v2.{shape}, v3.{shape}\");",
-            f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_{bits}x{lanes}'Address, If_True, If_False));",
+            f"   function Native_Select_{vector} is new NEON_Select_128 ({vector}, \"dup %0.{shape}, %{'1' if bits == 64 else 'w1'}\", \"cmtst %0.{shape}, %0.{shape}, %2.{shape}\");",
+            f"   pragma Inline_Always (Native_Select_{vector});",
+            f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_{bits}x{lanes}, If_True, If_False));",
             f"   function Native_Reduce_Add_{vector} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {add_instruction}, \"{add_store}\");",
             f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
         ]
@@ -1181,7 +1338,8 @@ def neon_body() -> str:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         out += native_mask_body(bits, lanes, storage)
         out += [f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), {lanes}));"]
-    return "\n".join(out)
+    body = registerise_instantiations("\n".join(out))
+    return "\n".join(neon_helpers() + neon_register_generics()) + "\n" + body
 
 
 def memory_body(vector: str, arr: str, count: str) -> list[str]:
@@ -1213,27 +1371,119 @@ def memory_body(vector: str, arr: str, count: str) -> list[str]:
     ]
 
 
+def sse_register_generic(
+    name: str, parameters: list[str], signature: str, conversions: list[str],
+    inputs: str, scratch: int, result_conversion: str,
+) -> list[str]:
+    """Emit one scratch-count variant of a register-operand SSE2 generic.
+
+    SSE2 instructions read their destination, so the result operand is tied to
+    the first input: the assembly finds that value already in place.
+    """
+    scratch_names = [f"Scratch_{index}" for index in range(1, scratch + 1)]
+    outputs = ["Machine_Vector'Asm_Output (\"=x\", Result)"] + [
+        f"Machine_Vector'Asm_Output (\"=&x\", {each})" for each in scratch_names
+    ]
+    return [
+        "   generic",
+        *[f"      {each}" for each in parameters],
+        f"   function {name} {signature};",
+        f"   function {name} {signature} is",
+        *conversions,
+        "      Result : Machine_Vector;",
+        *[f"      {each} : Machine_Vector;" for each in scratch_names],
+        "   begin",
+        "      Asm (Template => Instruction,",
+        f"           Outputs => [{', '.join(outputs)}],",
+        f"           Inputs => {inputs},",
+        "           Clobber => Clobber_List);",
+        f"      return {result_conversion} (Result);",
+        f"   end {name};",
+        "",
+    ]
+
+
+def sse_register_generics() -> list[str]:
+    out: list[str] = []
+    for scratch in required_sse_variants("SSE2_Binary_128"):
+        out += sse_register_generic(
+            f"SSE2_Binary_128_S{scratch}",
+            ["type Vector_Type is private;", "Instruction : String;", "Clobber_List : String;"],
+            "(Left, Right : Vector_Type) return Vector_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+                "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+            ],
+            "[Machine_Vector'Asm_Input (\"0\", To_Machine (Left)), Machine_Vector'Asm_Input (\"x\", To_Machine (Right))]",
+            scratch,
+            "To_Vector",
+        )
+    for scratch in required_sse_variants("SSE2_Unary_128"):
+        out += sse_register_generic(
+            f"SSE2_Unary_128_S{scratch}",
+            ["type Vector_Type is private;", "Instruction : String;", "Clobber_List : String;"],
+            "(Value : Vector_Type) return Vector_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+                "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+            ],
+            "Machine_Vector'Asm_Input (\"0\", To_Machine (Value))",
+            scratch,
+            "To_Vector",
+        )
+    for scratch in required_sse_variants("SSE2_Convert_Pair_128"):
+        out += sse_register_generic(
+            f"SSE2_Convert_Pair_128_S{scratch}",
+            ["type Source_Type is private;", "type Result_Type is private;", "Instruction : String;", "Clobber_List : String;"],
+            "(Low, High : Source_Type) return Result_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);",
+                "      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);",
+            ],
+            "[Machine_Vector'Asm_Input (\"0\", To_Machine (Low)), Machine_Vector'Asm_Input (\"x\", To_Machine (High))]",
+            scratch,
+            "To_Result",
+        )
+    for scratch in required_sse_variants("SSE2_Convert_128"):
+        out += sse_register_generic(
+            f"SSE2_Convert_128_S{scratch}",
+            ["type Source_Type is private;", "type Result_Type is private;", "Instruction : String;", "Clobber_List : String;"],
+            "(Value : Source_Type) return Result_Type",
+            [
+                "      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);",
+                "      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);",
+            ],
+            "Machine_Vector'Asm_Input (\"0\", To_Machine (Value))",
+            scratch,
+            "To_Result",
+        )
+    return out
+
+
 def x86_helpers() -> list[str]:
     """SSE2-only leaves shared by the generated 128-bit x86 family."""
     return [
+        "   --  Assembly leaves below take and return this machine vector type so",
+        "   --  that 128-bit values stay in SSE registers across a chain of",
+        "   --  operations instead of spilling to memory between them.",
+        "   type Machine_Vector is array (0 .. 15) of Interfaces.Unsigned_8;",
+        "   for Machine_Vector'Alignment use 16;",
+        "   pragma Machine_Attribute (Machine_Vector, \"vector_type\");",
+        "",
+        "   Sign_Vector_8 : constant Machine_Vector := [others => 16#80#];",
         "   Sign_8 : aliased constant Lane_Values_8x16 := [others => 16#80#];",
         "   Sign_16 : aliased constant Lane_Values_8x16 := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];",
+        "   Sign_Vector_16 : constant Machine_Vector := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];",
         "   Sign_32 : aliased constant Lane_Values_8x16 := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];",
+        "   Sign_Vector_32 : constant Machine_Vector := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];",
         "   Weights_X86_8 : aliased constant Lane_Values_8x16 := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
+        "   Weights_X86_Vector_8 : constant Machine_Vector := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
         "   Weights_X86_16 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];",
+        "   Weights_X86_Vector_16 : constant Machine_Vector := [1, 0, 2, 0, 4, 0, 8, 0, 16, 0, 32, 0, 64, 0, 128, 0];",
         "   Weights_X86_32 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];",
+        "   Weights_X86_Vector_32 : constant Machine_Vector := [1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 8, 0, 0, 0];",
         "   Weights_X86_64 : aliased constant Lane_Values_U64x2 := [1, 2];",
-        "",
-        "   generic",
-        "      type Vector_Type is private;",
-        "      Instruction : String;",
-        "   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type;",
-        "   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
-        "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Binary_128;",
+        "   Weights_X86_Vector_64 : constant Machine_Vector := [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];",
         "",
         "   generic",
         "      type Vector_Type is private;",
@@ -1261,75 +1511,62 @@ def x86_helpers() -> list[str]:
         "",
         "   generic",
         "      type Vector_Type is private;",
-        "      Instruction : String;",
-        "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type;",
-        "   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
-        "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Unary_128;",
-        "",
-        "   generic",
-        "      type Vector_Type is private;",
         "   function SSE2_Zero_128 return Vector_Type;",
         "   function SSE2_Zero_128 return Vector_Type is",
-        "      Result : Vector_Type;",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        '      Asm (Template => "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",',
-        '           Inputs => System.Address\'Asm_Input ("r", Result\'Address),',
-        '           Clobber => "xmm0,memory", Volatile => True);',
-        "      return Result;",
+        '      Asm (Template => "pxor %0, %0",',
+        '           Outputs => Machine_Vector\'Asm_Output ("=x", Result));',
+        "      return To_Vector (Result);",
         "   end SSE2_Zero_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "      type Scalar_Type is private;",
-        "      Load_Instruction : String;",
         "      Duplicate_Instruction : String;",
-        "   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type;",
-        "   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type is",
-        "      Result : Vector_Type;",
+        "   function SSE2_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function SSE2_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type is",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Scratch : Interfaces.Unsigned_64;",
         "   begin",
-        '      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",',
-        '           Inputs => [System.Address\'Asm_Input ("r", Result\'Address), System.Address\'Asm_Input ("r", Value\'Address)],',
-        '           Clobber => "rax,xmm0,memory", Volatile => True);',
-        "      return Result;",
-        "   end SSE2_Splat_128;",
+        "      Asm (Template => Duplicate_Instruction,",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=&x\", Result), Interfaces.Unsigned_64'Asm_Output (\"=&r\", Scratch)],",
+        "           Inputs => Scalar_Type'Asm_Input (\"r\", Value));",
+        "      return To_Vector (Result);",
+        "   end SSE2_Splat_Integer_128;",
         "",
         "   generic",
-        "      type Source_Type is private;",
-        "      type Result_Type is private;",
-        "      Instruction : String;",
-        "   function SSE2_Convert_128 (Value : Source_Type) return Result_Type;",
-        "   function SSE2_Convert_128 (Value : Source_Type) return Result_Type is",
-        "      Result : Result_Type;",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Duplicate_Instruction : String;",
+        "   function SSE2_Splat_Float_128 (Value : Scalar_Type) return Vector_Type;",
+        "   function SSE2_Splat_Float_128 (Value : Scalar_Type) return Vector_Type is",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"rax,rcx,rdx,r8,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,cc,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Convert_128;",
+        "      Asm (Template => Duplicate_Instruction,",
+        "           Outputs => Machine_Vector'Asm_Output (\"=&x\", Result),",
+        "           Inputs => Scalar_Type'Asm_Input (\"x\", Value));",
+        "      return To_Vector (Result);",
+        "   end SSE2_Splat_Float_128;",
         "",
-        "   generic",
-        "      type Source_Type is private;",
-        "      type Result_Type is private;",
-        "      Instruction : String;",
-        "   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;",
-        "   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is",
-        "      Result : Result_Type;",
-        "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Low'Address), System.Address'Asm_Input (\"r\", High'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Convert_Pair_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "      Lane_Bits : Positive;",
         "      Instruction : String;",
-        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16;",
-        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16 is",
+        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : Machine_Vector) return Interfaces.Unsigned_16;",
+        "   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : Machine_Vector) return Interfaces.Unsigned_16 is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
         "      Raw, Packed : Interfaces.Unsigned_32;",
+        "      Truths, Other : Machine_Vector;",
+        "      First, Second, Third, Fourth : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu (%2), %%xmm1\" & ASCII.LF & ASCII.HT & \"movdqu (%3), %%xmm7\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"pmovmskb %%xmm0, %0\", Outputs => Interfaces.Unsigned_32'Asm_Output (\"=r\", Raw), Inputs => [System.Address'Asm_Input (\"r\", Left'Address), System.Address'Asm_Input (\"r\", Right'Address), System.Address'Asm_Input (\"r\", Sign)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
+        "      Asm (Template => \"movdqa %7, %1\" & ASCII.LF & ASCII.HT & \"movdqa %8, %2\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"pmovmskb %1, %0\",",
+        "           Outputs => [Interfaces.Unsigned_32'Asm_Output (\"=&r\", Raw), Machine_Vector'Asm_Output (\"=&x\", Truths), Machine_Vector'Asm_Output (\"=&x\", Other), Machine_Vector'Asm_Output (\"=&x\", First), Machine_Vector'Asm_Output (\"=&x\", Second), Machine_Vector'Asm_Output (\"=&x\", Third), Machine_Vector'Asm_Output (\"=&x\", Fourth)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"x\", To_Machine (Left)), Machine_Vector'Asm_Input (\"x\", To_Machine (Right)), Machine_Vector'Asm_Input (\"x\", Sign)]);",
         "      case Lane_Bits is",
         "         when 8 => Packed := Raw and 16#FFFF#;",
         "         when 16 => Packed := Interfaces.Shift_Right (Raw, 1) and 16#5555#; Packed := (Packed or Interfaces.Shift_Right (Packed, 1)) and 16#3333#; Packed := (Packed or Interfaces.Shift_Right (Packed, 2)) and 16#0F0F#; Packed := (Packed or Interfaces.Shift_Right (Packed, 4)) and 16#00FF#;",
@@ -1344,24 +1581,43 @@ def x86_helpers() -> list[str]:
         "      Instruction : String;",
         "   function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type;",
         "   function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type is",
-        "      Result : Vector_Type; Local_Count : aliased Interfaces.Unsigned_32 := Count;",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Amount : Machine_Vector;",
+        "      First_Scratch : Machine_Vector;",
+        "      Second_Scratch : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movd (%2), %%xmm1\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Local_Count'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"movd %5, %1\" & ASCII.LF & ASCII.HT & Instruction,",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=x\", Result), Machine_Vector'Asm_Output (\"=&x\", Amount), Machine_Vector'Asm_Output (\"=&x\", First_Scratch), Machine_Vector'Asm_Output (\"=&x\", Second_Scratch)],",
+        "           Inputs => [Machine_Vector'Asm_Input (\"0\", To_Machine (Value)), Interfaces.Unsigned_32'Asm_Input (\"r\", Count)]);",
+        "      return To_Vector (Result);",
         "   end SSE2_Shift_128;",
         "",
         "   generic",
         "      type Vector_Type is private;",
         "      Lane_Bits : Positive;",
-        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;",
-        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is",
-        "      Result : Vector_Type; Local_Bits : aliased Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Bits);",
-        "      Expand : constant String := (case Lane_Bits is when 8 => \"punpcklbw %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"punpcklwd %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"punpckldq %%xmm2, %%xmm2\", when 16 => \"pshuflw $0, %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT & \"pshufd $0, %%xmm2, %%xmm2\", when 32 => \"pshufd $0, %%xmm2, %%xmm2\", when others => \"punpcklqdq %%xmm2, %%xmm2\");",
+        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type;",
+        "   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
+        "      Result : Machine_Vector;",
+        "      Spare : Machine_Vector;",
+        "      Local_Bits : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Bits);",
+        "      Expand : constant String := (case Lane_Bits is when 8 => \"punpcklbw %0, %0\" & ASCII.LF & ASCII.HT & \"punpcklwd %0, %0\" & ASCII.LF & ASCII.HT & \"punpckldq %0, %0\", when 16 => \"pshuflw $0, %0, %0\" & ASCII.LF & ASCII.HT & \"pshufd $0, %0, %0\", when 32 => \"pshufd $0, %0, %0\", when others => \"punpcklqdq %0, %0\");",
         "      Compare : constant String := (if Lane_Bits = 8 then \"pcmpeqb\" elsif Lane_Bits = 16 then \"pcmpeqw\" else \"pcmpeqd\");",
-        "      Replicate_64 : constant String := (if Lane_Bits = 64 then \"pshufd $0xA0, %%xmm2, %%xmm2\" & ASCII.LF & ASCII.HT else \"\");",
+        "      Replicate_64 : constant String := (if Lane_Bits = 64 then \"pshufd $0xA0, %0, %0\" & ASCII.LF & ASCII.HT else \"\");",
         "   begin",
-        "      Asm (Template => \"movd (%1), %%xmm2\" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT & \"pand (%2), %%xmm2\" & ASCII.LF & ASCII.HT & \"pxor %%xmm3, %%xmm3\" & ASCII.LF & ASCII.HT & Compare & \" %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & Replicate_64 & \"pcmpeqd %%xmm3, %%xmm3\" & ASCII.LF & ASCII.HT & \"pxor %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm2, %%xmm3\" & ASCII.LF & ASCII.HT & \"pand (%3), %%xmm3\" & ASCII.LF & ASCII.HT & \"pandn (%4), %%xmm2\" & ASCII.LF & ASCII.HT & \"por %%xmm3, %%xmm2\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm2, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Local_Bits'Address), System.Address'Asm_Input (\"r\", Weights), System.Address'Asm_Input (\"r\", If_True'Address), System.Address'Asm_Input (\"r\", If_False'Address)], Clobber => \"xmm2,xmm3,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"movd %2, %0\" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT &",
+        "           \"pand %3, %0\" & ASCII.LF & ASCII.HT & \"pxor %1, %1\" & ASCII.LF & ASCII.HT &",
+        "           Compare & \" %1, %0\" & ASCII.LF & ASCII.HT &",
+        "           \"pcmpeqd %1, %1\" & ASCII.LF & ASCII.HT & \"pxor %1, %0\" & ASCII.LF & ASCII.HT &",
+        "           Replicate_64 & \"movdqa %0, %1\" & ASCII.LF & ASCII.HT &",
+        "           \"pand %4, %1\" & ASCII.LF & ASCII.HT & \"pandn %5, %0\" & ASCII.LF & ASCII.HT &",
+        "           \"por %1, %0\",",
+        "           Outputs => [Machine_Vector'Asm_Output (\"=&x\", Result), Machine_Vector'Asm_Output (\"=&x\", Spare)],",
+        "           Inputs => [Interfaces.Unsigned_32'Asm_Input (\"r\", Local_Bits), Machine_Vector'Asm_Input (\"x\", Weights), Machine_Vector'Asm_Input (\"x\", To_Machine (If_True)), Machine_Vector'Asm_Input (\"x\", To_Machine (If_False))]);",
+        "      return To_Vector (Result);",
         "   end SSE2_Select_128;",
         "",
         "   generic",
@@ -2209,7 +2465,7 @@ def x86_convert_truncate_saturate_f32_instruction(signed_target: bool) -> str:
 
 
 def x86_body() -> str:
-    out = x86_helpers()
+    out: list[str] = []
     def select_steps(sources: list[str], selector: str) -> list[str]:
         steps = [
             "pxor %%xmm3, %%xmm3",
@@ -2454,8 +2710,8 @@ def x86_body() -> str:
             continue
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
-        sign = "Sign_8'Address" if bits == 8 else ("Sign_16'Address" if bits == 16 else "Sign_32'Address")
-        weights = f"Weights_X86_{bits}'Address"
+        sign = "Sign_Vector_8" if bits == 8 else ("Sign_Vector_16" if bits == 16 else "Sign_Vector_32")
+        weights = f"Weights_X86_Vector_{bits}"
         storage_cast = "" if lanes == 16 else "Interfaces.Unsigned_8"
         bit = lambda expression: expression if not storage_cast else f"{storage_cast} ({expression})"
         instructions = {
@@ -2495,8 +2751,11 @@ def x86_body() -> str:
             f"   function Native_Reverse_{vector} is new SSE2_Unary_128 ({vector}, \"{x86_ada_instruction(reverse[bits])}\");",
             f"   function Reverse_Lanes (Value : {vector}) return {vector} is (Native_Reverse_{vector} (Value));",
             f"   function Compare_Equal_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction(eq_instruction[bits])}\");",
+            f"   pragma Inline_Always (Compare_Equal_{vector});",
             f"   function Compare_Greater_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{x86_ada_instruction((signed_gt if signed else unsigned_gt)[bits])}\");",
+            f"   pragma Inline_Always (Compare_Greater_{vector});",
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
+            f"   pragma Inline_Always (Native_Select_{vector});",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
         ]
@@ -2566,7 +2825,7 @@ def x86_body() -> str:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
         suffix = "ps" if bits == 32 else "pd"
-        weights = f"Weights_X86_{bits}'Address"
+        weights = f"Weights_X86_Vector_{bits}"
         arithmetic = {"Add": "add", "Subtract": "sub", "Multiply": "mul", "Divide": "div"}
         for name, op in arithmetic.items():
             out += [f"   function Native_{name}_{vector} is new SSE2_Binary_128 ({vector}, \"{op}{suffix} %%xmm1, %%xmm0\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
@@ -2583,7 +2842,8 @@ def x86_body() -> str:
         for name, op in compare_ops:
             out += [
                 f"   function Compare_{name}_{vector} is new SSE2_Compare_128 ({vector}, {bits}, \"{op}{suffix} %%xmm1, %%xmm0\");",
-                f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_{name}_{vector} (Left, Right, Sign_32'Address))));",
+                f"   pragma Inline_Always (Compare_{name}_{vector});",
+                f"   function {name} (Left, Right : {vector}) return {mask} is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_{name}_{vector} (Left, Right, Sign_Vector_32))));",
             ]
         reduce_instruction = x86_ada_instruction(
             x86_float_reduce_add_instruction(bits, lanes)
@@ -2605,6 +2865,7 @@ def x86_body() -> str:
             f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Less_Than (Left => Right, Right => Left));",
             f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
             f"   function Native_Select_{vector} is new SSE2_Select_128 ({vector}, {bits});",
+            f"   pragma Inline_Always (Native_Select_{vector});",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), {weights}, If_True, If_False));",
             *target_construction_body("x86_64", vector, scalar, bits, lanes),
             *direct_lane_access_body(vector, scalar, vals, idx),
@@ -2627,7 +2888,8 @@ def x86_body() -> str:
         mask, idx, count = mask_for(bits, lanes), lane_index(bits, lanes), lane_count(bits, lanes)
         out += native_mask_body(bits, lanes, storage)
         out += [f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (To_Bit_Mask (Mask))));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));"]
-    return "\n".join(out)
+    body = registerise_sse("\n".join(out))
+    return "\n".join(x86_helpers() + sse_register_generics()) + "\n" + body
 
 
 def complete_memory_test_lines(

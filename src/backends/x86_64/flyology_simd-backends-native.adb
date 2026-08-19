@@ -73,136 +73,184 @@ package body Flyology_SIMD.Backends.Native is
    end Count_Set_Bits;
    pragma Inline_Always (Count_Set_Bits);
 
-   U8_Sign_Bits : aliased constant Lane_Values_8x16 := [others => 16#80#];
-   U8_Weights : aliased constant Lane_Values_8x16 :=
+   type Byte_Vector is array (0 .. 15) of Interfaces.Unsigned_8;
+   for Byte_Vector'Alignment use 16;
+   pragma Machine_Attribute (Byte_Vector, "vector_type");
+   --  A machine vector view of a 128-bit byte value. Assembly leaves take and
+   --  return this type so that operands stay in SSE registers across a chain
+   --  of operations instead of travelling through memory.
+
+   function To_Byte_Vector is new Ada.Unchecked_Conversion (U8x16, Byte_Vector);
+   pragma Inline_Always (To_Byte_Vector);
+   function To_U8x16 is new Ada.Unchecked_Conversion (Byte_Vector, U8x16);
+   pragma Inline_Always (To_U8x16);
+
+   U8_Sign_Vector : constant Byte_Vector := [others => 16#80#];
+   U8_Weight_Vector : constant Byte_Vector :=
      [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
 
    generic
       Instruction : String;
    function U8_Binary (Left, Right : U8x16) return U8x16;
    function U8_Binary (Left, Right : U8x16) return U8x16 is
-      Result : U8x16;
+      Result : Byte_Vector;
    begin
       Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           Instruction & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
+        (Template => Instruction,
+         Outputs => Byte_Vector'Asm_Output ("=x", Result),
          Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,memory",
-         Volatile => True);
-      return Result;
+           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
+      return To_U8x16 (Result);
    end U8_Binary;
 
    generic
       Instruction : String;
-   function U8_Unary (Value : U8x16) return U8x16;
-   function U8_Unary (Value : U8x16) return U8x16 is
-      Result : U8x16;
+   function U8_Binary_Scratch (Left, Right : U8x16) return U8x16;
+   function U8_Binary_Scratch (Left, Right : U8x16) return U8x16 is
+      Result : Byte_Vector;
+      First  : Byte_Vector;
+      Second : Byte_Vector;
+   begin
+      Asm
+        (Template => Instruction,
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=x", Result),
+            Byte_Vector'Asm_Output ("=&x", First),
+            Byte_Vector'Asm_Output ("=&x", Second)],
+         Inputs =>
+           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
+      return To_U8x16 (Result);
+   end U8_Binary_Scratch;
+
+   generic
+      Instruction : String;
+   function U8_Unary_Scratch (Value : U8x16) return U8x16;
+   function U8_Unary_Scratch (Value : U8x16) return U8x16 is
+      Result : Byte_Vector;
+      Spare  : Byte_Vector;
+   begin
+      Asm
+        (Template => Instruction,
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=x", Result),
+            Byte_Vector'Asm_Output ("=&x", Spare)],
+         Inputs => Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)));
+      return To_U8x16 (Result);
+   end U8_Unary_Scratch;
+
+   function U8_Add_Wrap is new U8_Binary ("paddb %2, %0");
+   function U8_Subtract_Wrap is new U8_Binary ("psubb %2, %0");
+   function U8_Multiply_Wrap (Left, Right : U8x16) return U8x16 is
+      Result : Byte_Vector;
+      High   : Byte_Vector;
+      Zero   : Byte_Vector;
+      Low_B  : Byte_Vector;
+      High_B : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           Instruction & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
+           "movdqa %0, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %6, %3" & ASCII.LF & ASCII.HT &
+           "movdqa %6, %4" & ASCII.LF & ASCII.HT &
+           "pxor %2, %2" & ASCII.LF & ASCII.HT &
+           "punpcklbw %2, %0" & ASCII.LF & ASCII.HT &
+           "punpckhbw %2, %1" & ASCII.LF & ASCII.HT &
+           "punpcklbw %2, %3" & ASCII.LF & ASCII.HT &
+           "punpckhbw %2, %4" & ASCII.LF & ASCII.HT &
+           "pmullw %3, %0" & ASCII.LF & ASCII.HT &
+           "pmullw %4, %1" & ASCII.LF & ASCII.HT &
+           "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
+           "pand %2, %0" & ASCII.LF & ASCII.HT &
+           "pand %2, %1" & ASCII.LF & ASCII.HT &
+           "packuswb %1, %0",
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=x", Result),
+            Byte_Vector'Asm_Output ("=&x", High),
+            Byte_Vector'Asm_Output ("=&x", Zero),
+            Byte_Vector'Asm_Output ("=&x", Low_B),
+            Byte_Vector'Asm_Output ("=&x", High_B)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
-      return Result;
-   end U8_Unary;
-
-   function U8_Add_Wrap is new U8_Binary ("paddb %%xmm1, %%xmm0");
-   function U8_Subtract_Wrap is new U8_Binary ("psubb %%xmm1, %%xmm0");
-   function U8_Multiply_Wrap is new U8_Binary
-     ("movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-      "movdqu %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT &
-      "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT &
-      "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-      "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
-      "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-      "punpcklbw %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT &
-      "punpckhbw %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT &
-      "pmullw %%xmm4, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pmullw %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT &
-      "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT &
-      "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pand %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-      "packuswb %%xmm2, %%xmm0");
-   function U8_Add_Saturate is new U8_Binary ("paddusb %%xmm1, %%xmm0");
-   function U8_Subtract_Saturate is new U8_Binary ("psubusb %%xmm1, %%xmm0");
-   function U8_And is new U8_Binary ("pand %%xmm1, %%xmm0");
+           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
+      return To_U8x16 (Result);
+   end U8_Multiply_Wrap;
+   function U8_Add_Saturate is new U8_Binary ("paddusb %2, %0");
+   function U8_Subtract_Saturate is new U8_Binary ("psubusb %2, %0");
+   function U8_And is new U8_Binary ("pand %2, %0");
    pragma Inline_Always (U8_And);
-   function U8_Or is new U8_Binary ("por %%xmm1, %%xmm0");
-   function U8_Xor is new U8_Binary ("pxor %%xmm1, %%xmm0");
-   function U8_Not is new U8_Unary
-     ("pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-      "pxor %%xmm1, %%xmm0");
-   function U8_Reverse is new U8_Unary
-     ("movdqu %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT &
-      "psllw $8, %%xmm1" & ASCII.LF & ASCII.HT &
-      "por %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pshuflw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pshufhw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pshufd $0x4E, %%xmm0, %%xmm0");
+   function U8_Or is new U8_Binary ("por %2, %0");
+   function U8_Xor is new U8_Binary ("pxor %2, %0");
+   function U8_Not is new U8_Unary_Scratch
+     ("pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
+      "pxor %1, %0");
+   function U8_Reverse is new U8_Unary_Scratch
+     ("movdqa %0, %1" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %0" & ASCII.LF & ASCII.HT &
+      "psllw $8, %1" & ASCII.LF & ASCII.HT &
+      "por %1, %0" & ASCII.LF & ASCII.HT &
+      "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT &
+      "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT &
+      "pshufd $0x4E, %0, %0");
    function U8_Interleave_Low is new U8_Binary
-     ("punpcklbw %%xmm1, %%xmm0");
+     ("punpcklbw %2, %0");
    function U8_Interleave_High is new U8_Binary
-     ("punpckhbw %%xmm1, %%xmm0");
-   function U8_Deinterleave_Even is new U8_Binary
-     ("pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT &
-      "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT &
-      "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
-      "packuswb %%xmm1, %%xmm0");
-   function U8_Deinterleave_Odd is new U8_Binary
-     ("psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
-      "packuswb %%xmm1, %%xmm0");
+     ("punpckhbw %2, %0");
+   function U8_Deinterleave_Even is new U8_Binary_Scratch
+     ("pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %1" & ASCII.LF & ASCII.HT &
+      "movdqa %4, %2" & ASCII.LF & ASCII.HT &
+      "pand %1, %0" & ASCII.LF & ASCII.HT &
+      "pand %1, %2" & ASCII.LF & ASCII.HT &
+      "packuswb %2, %0");
+   function U8_Deinterleave_Odd is new U8_Binary_Scratch
+     ("movdqa %4, %1" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %0" & ASCII.LF & ASCII.HT &
+      "psrlw $8, %1" & ASCII.LF & ASCII.HT &
+      "packuswb %1, %0");
 
    function Equal_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
       Result : Interfaces.Unsigned_32;
+      Truths : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "pcmpeqb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pmovmskb %%xmm0, %0",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+           "movdqa %2, %1" & ASCII.LF & ASCII.HT &
+           "pcmpeqb %3, %1" & ASCII.LF & ASCII.HT &
+           "pmovmskb %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Truths)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "xmm0,xmm1,memory",
-         Volatile => True);
+           [Byte_Vector'Asm_Input ("x", To_Byte_Vector (Left)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
       return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
    end Equal_Mask;
    pragma Inline_Always (Equal_Mask);
 
    function Greater_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
-      Result : Interfaces.Unsigned_32;
+      Result   : Interfaces.Unsigned_32;
+      Biased_L : Byte_Vector;
+      Biased_R : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "movdqu (%3), %%xmm2" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pcmpgtb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pmovmskb %%xmm0, %0",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %4, %2" & ASCII.LF & ASCII.HT &
+           "pxor %5, %1" & ASCII.LF & ASCII.HT &
+           "pxor %5, %2" & ASCII.LF & ASCII.HT &
+           "pcmpgtb %2, %1" & ASCII.LF & ASCII.HT &
+           "pmovmskb %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Biased_L),
+            Byte_Vector'Asm_Output ("=&x", Biased_R)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address),
-            System.Address'Asm_Input ("r", U8_Sign_Bits'Address)],
-         Clobber => "xmm0,xmm1,xmm2,memory", Volatile => True);
+           [Byte_Vector'Asm_Input ("x", To_Byte_Vector (Left)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right)),
+            Byte_Vector'Asm_Input ("x", U8_Sign_Vector)]);
       return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
    end Greater_Mask;
 
@@ -245,59 +293,67 @@ package body Flyology_SIMD.Backends.Native is
    function Shift_Left_Logical
      (Value : U8x16; Count : Natural) return U8x16
    is
-      Result : U8x16;
-      Local_Count : aliased Interfaces.Unsigned_32 :=
+      Result : Byte_Vector;
+      Amount : Byte_Vector;
+      High   : Byte_Vector;
+      Zero   : Byte_Vector;
+      Local_Count : constant Interfaces.Unsigned_32 :=
         Interfaces.Unsigned_32 (Natural'Min (Count, 8));
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-           "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
-           "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "psllw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "psllw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
-           "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT &
-           "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pand %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "packuswb %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
+           "movd %5, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %0, %2" & ASCII.LF & ASCII.HT &
+           "pxor %3, %3" & ASCII.LF & ASCII.HT &
+           "punpcklbw %3, %0" & ASCII.LF & ASCII.HT &
+           "punpckhbw %3, %2" & ASCII.LF & ASCII.HT &
+           "psllw %1, %0" & ASCII.LF & ASCII.HT &
+           "psllw %1, %2" & ASCII.LF & ASCII.HT &
+           "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %3" & ASCII.LF & ASCII.HT &
+           "pand %3, %0" & ASCII.LF & ASCII.HT &
+           "pand %3, %2" & ASCII.LF & ASCII.HT &
+           "packuswb %2, %0",
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=x", Result),
+            Byte_Vector'Asm_Output ("=&x", Amount),
+            Byte_Vector'Asm_Output ("=&x", High),
+            Byte_Vector'Asm_Output ("=&x", Zero)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address),
-            System.Address'Asm_Input ("r", Local_Count'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
-      return Result;
+           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)),
+            Interfaces.Unsigned_32'Asm_Input ("r", Local_Count)]);
+      return To_U8x16 (Result);
    end Shift_Left_Logical;
 
    function Shift_Right_Logical
      (Value : U8x16; Count : Natural) return U8x16
    is
-      Result : U8x16;
-      Local_Count : aliased Interfaces.Unsigned_32 :=
+      Result : Byte_Vector;
+      Amount : Byte_Vector;
+      High   : Byte_Vector;
+      Zero   : Byte_Vector;
+      Local_Count : constant Interfaces.Unsigned_32 :=
         Interfaces.Unsigned_32 (Natural'Min (Count, 8));
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-           "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT &
-           "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "psrlw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "psrlw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
-           "packuswb %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
+           "movd %5, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %0, %2" & ASCII.LF & ASCII.HT &
+           "pxor %3, %3" & ASCII.LF & ASCII.HT &
+           "punpcklbw %3, %0" & ASCII.LF & ASCII.HT &
+           "punpckhbw %3, %2" & ASCII.LF & ASCII.HT &
+           "psrlw %1, %0" & ASCII.LF & ASCII.HT &
+           "psrlw %1, %2" & ASCII.LF & ASCII.HT &
+           "packuswb %2, %0",
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=x", Result),
+            Byte_Vector'Asm_Output ("=&x", Amount),
+            Byte_Vector'Asm_Output ("=&x", High),
+            Byte_Vector'Asm_Output ("=&x", Zero)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address),
-            System.Address'Asm_Input ("r", Local_Count'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
-      return Result;
+           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)),
+            Interfaces.Unsigned_32'Asm_Input ("r", Local_Count)]);
+      return To_U8x16 (Result);
    end Shift_Right_Logical;
 
    function Equal (Left, Right : U8x16) return Mask_8x16 is
@@ -316,165 +372,154 @@ package body Flyology_SIMD.Backends.Native is
         (Greater_Mask (Left, Right) or Equal_Mask (Left, Right)));
    function Select_Value
      (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is
-      Result : U8x16;
-      Bits : aliased Interfaces.Unsigned_32 :=
+      Result : Byte_Vector;
+      Chosen : Byte_Vector;
+      Bits : constant Interfaces.Unsigned_32 :=
         Interfaces.Unsigned_32 (To_Bit_Mask (Mask));
    begin
       Asm
         (Template =>
-           "movd (%1), %%xmm2" & ASCII.LF & ASCII.HT &
-           "punpcklbw %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT &
-           "punpcklwd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT &
-           "punpckldq %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT &
-           "pand (%2), %%xmm2" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-           "pcmpeqb %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT &
-           "pand (%3), %%xmm3" & ASCII.LF & ASCII.HT &
-           "pandn (%4), %%xmm2" & ASCII.LF & ASCII.HT &
-           "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm2, (%0)",
+           "movd %2, %0" & ASCII.LF & ASCII.HT &
+           "punpcklbw %0, %0" & ASCII.LF & ASCII.HT &
+           "punpcklwd %0, %0" & ASCII.LF & ASCII.HT &
+           "punpckldq %0, %0" & ASCII.LF & ASCII.HT &
+           "pand %3, %0" & ASCII.LF & ASCII.HT &
+           "pxor %1, %1" & ASCII.LF & ASCII.HT &
+           "pcmpeqb %1, %0" & ASCII.LF & ASCII.HT &
+           "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
+           "pxor %1, %0" & ASCII.LF & ASCII.HT &
+           "movdqa %0, %1" & ASCII.LF & ASCII.HT &
+           "pand %4, %1" & ASCII.LF & ASCII.HT &
+           "pandn %5, %0" & ASCII.LF & ASCII.HT &
+           "por %1, %0",
+         Outputs =>
+           [Byte_Vector'Asm_Output ("=&x", Result),
+            Byte_Vector'Asm_Output ("=&x", Chosen)],
          Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Bits'Address),
-            System.Address'Asm_Input ("r", U8_Weights'Address),
-            System.Address'Asm_Input ("r", If_True'Address),
-            System.Address'Asm_Input ("r", If_False'Address)],
-         Clobber => "xmm2,xmm3,memory", Volatile => True);
-      return Result;
+           [Interfaces.Unsigned_32'Asm_Input ("r", Bits),
+            Byte_Vector'Asm_Input ("x", U8_Weight_Vector),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (If_True)),
+            Byte_Vector'Asm_Input ("x", To_Byte_Vector (If_False))]);
+      return To_U8x16 (Result);
    end Select_Value;
+   function U8_Min is new U8_Binary ("pminub %2, %0");
    function Min (Left, Right : U8x16) return U8x16 is
-      Result : U8x16;
-   begin
-      Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "xmm0,xmm1,memory", Volatile => True);
-      return Result;
-   end Min;
+     (U8_Min (Left, Right));
 
+   function U8_Max is new U8_Binary ("pmaxub %2, %0");
    function Max (Left, Right : U8x16) return U8x16 is
-      Result : U8x16;
-   begin
-      Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT &
-           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Left'Address),
-            System.Address'Asm_Input ("r", Right'Address)],
-         Clobber => "xmm0,xmm1,memory", Volatile => True);
-      return Result;
-   end Max;
+     (U8_Max (Left, Right));
    function Horizontal_Sum (Value : U8x16) return Natural is
       Result : Interfaces.Unsigned_32;
+      Sums   : Byte_Vector;
+      Upper  : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psadbw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movhlps %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "paddq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd %%xmm0, %0",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs => System.Address'Asm_Input ("r", Value'Address),
-         Clobber => "xmm0,xmm1,memory", Volatile => True);
+           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
+           "pxor %2, %2" & ASCII.LF & ASCII.HT &
+           "psadbw %2, %1" & ASCII.LF & ASCII.HT &
+           "movhlps %1, %2" & ASCII.LF & ASCII.HT &
+           "paddq %2, %1" & ASCII.LF & ASCII.HT &
+           "movd %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Sums),
+            Byte_Vector'Asm_Output ("=&x", Upper)],
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
       return Natural (Result);
    end Horizontal_Sum;
    function Reduce_Add_Wrap (Value : U8x16) return U8 is
-      Result : U8;
+      Result : Interfaces.Unsigned_32;
+      Totals : Byte_Vector;
+      Folded : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT &
-           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT &
-           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT &
-           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psrldq $1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
-           "movb %%al, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "eax,xmm0,xmm1,memory", Volatile => True);
-      return Result;
+           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "psrldq $8, %2" & ASCII.LF & ASCII.HT &
+           "paddb %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "psrldq $4, %2" & ASCII.LF & ASCII.HT &
+           "paddb %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "psrldq $2, %2" & ASCII.LF & ASCII.HT &
+           "paddb %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "psrldq $1, %2" & ASCII.LF & ASCII.HT &
+           "paddb %2, %1" & ASCII.LF & ASCII.HT &
+           "movd %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Totals),
+            Byte_Vector'Asm_Output ("=&x", Folded)],
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
+      return U8 (Result and 16#0000_00FF#);
    end Reduce_Add_Wrap;
    function Reduce_Min (Value : U8x16) return U8 is
-      Result : U8;
+      Result  : Interfaces.Unsigned_32;
+      Running : Byte_Vector;
+      Rotated : Byte_Vector;
+      Swapped : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "pshufd $0x4E, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pshufd $0xB1, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT &
-           "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pminub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
-           "movb %%al, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "eax,xmm0,xmm1,xmm2,memory", Volatile => True);
-      return Result;
+           "movdqa %4, %1" & ASCII.LF & ASCII.HT &
+           "pshufd $0x4E, %1, %2" & ASCII.LF & ASCII.HT &
+           "pminub %2, %1" & ASCII.LF & ASCII.HT &
+           "pshufd $0xB1, %1, %2" & ASCII.LF & ASCII.HT &
+           "pminub %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
+           "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
+           "pminub %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "movdqa %2, %3" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
+           "psllw $8, %3" & ASCII.LF & ASCII.HT &
+           "por %3, %2" & ASCII.LF & ASCII.HT &
+           "pminub %2, %1" & ASCII.LF & ASCII.HT &
+           "movd %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Running),
+            Byte_Vector'Asm_Output ("=&x", Rotated),
+            Byte_Vector'Asm_Output ("=&x", Swapped)],
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
+      return U8 (Result and 16#0000_00FF#);
    end Reduce_Min;
    function Reduce_Max (Value : U8x16) return U8 is
-      Result : U8;
+      Result  : Interfaces.Unsigned_32;
+      Running : Byte_Vector;
+      Rotated : Byte_Vector;
+      Swapped : Byte_Vector;
    begin
       Asm
         (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "pshufd $0x4E, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "pshufd $0xB1, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT &
-           "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT &
-           "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT &
-           "pmaxub %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT &
-           "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT &
-           "movb %%al, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "eax,xmm0,xmm1,xmm2,memory", Volatile => True);
-      return Result;
+           "movdqa %4, %1" & ASCII.LF & ASCII.HT &
+           "pshufd $0x4E, %1, %2" & ASCII.LF & ASCII.HT &
+           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
+           "pshufd $0xB1, %1, %2" & ASCII.LF & ASCII.HT &
+           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
+           "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
+           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
+           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
+           "movdqa %2, %3" & ASCII.LF & ASCII.HT &
+           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
+           "psllw $8, %3" & ASCII.LF & ASCII.HT &
+           "por %3, %2" & ASCII.LF & ASCII.HT &
+           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
+           "movd %1, %0",
+         Outputs =>
+           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+            Byte_Vector'Asm_Output ("=&x", Running),
+            Byte_Vector'Asm_Output ("=&x", Rotated),
+            Byte_Vector'Asm_Output ("=&x", Swapped)],
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
+      return U8 (Result and 16#0000_00FF#);
    end Reduce_Max;
    function Reverse_Bytes (Value : U8x16) return U8x16 is (U8_Reverse (Value));
    function Reverse_Lanes (Value : U8x16) return U8x16 is
@@ -516,56 +561,46 @@ package body Flyology_SIMD.Backends.Native is
    procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
 
    function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
-      Result : U8x16;
+      Source : constant Lane_Values_8x16
+        with Import, Address => Data (Start)'Address;
+      Result : Byte_Vector;
    begin
       Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Data (Start)'Address)],
-         Clobber => "xmm0,memory",
-         Volatile => True);
-      return Result;
+        (Template => "movdqu %1, %0",
+         Outputs => Byte_Vector'Asm_Output ("=x", Result),
+         Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
+      return To_U8x16 (Result);
    end Load_Unaligned;
    procedure Store_Unaligned
      (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+      Target : Lane_Values_8x16
+        with Import, Address => Data (Start)'Address;
    begin
       Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Data (Start)'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "xmm0,memory",
-         Volatile => True);
+        (Template => "movdqu %1, %0",
+         Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
-      Result : U8x16;
+      Source : constant Lane_Values_8x16
+        with Import, Address => Data (Start)'Address;
+      Result : Byte_Vector;
    begin
       Asm
-        (Template =>
-           "movdqa (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqu %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Result'Address),
-            System.Address'Asm_Input ("r", Data (Start)'Address)],
-         Clobber => "xmm0,memory", Volatile => True);
-      return Result;
+        (Template => "movdqa %1, %0",
+         Outputs => Byte_Vector'Asm_Output ("=x", Result),
+         Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
+      return To_U8x16 (Result);
    end Load_Aligned;
    procedure Store_Aligned
      (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+      Target : Lane_Values_8x16
+        with Import, Address => Data (Start)'Address;
    begin
       Asm
-        (Template =>
-           "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "movdqa %%xmm0, (%0)",
-         Inputs =>
-           [System.Address'Asm_Input ("r", Data (Start)'Address),
-            System.Address'Asm_Input ("r", Value'Address)],
-         Clobber => "xmm0,memory", Volatile => True);
+        (Template => "movdqa %1, %0",
+         Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
+         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
    end Store_Aligned;
    function Load_Partial
      (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
@@ -594,24 +629,27 @@ package body Flyology_SIMD.Backends.Native is
    end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY X86 BODIES
+   --  Assembly leaves below take and return this machine vector type so
+   --  that 128-bit values stay in SSE registers across a chain of
+   --  operations instead of spilling to memory between them.
+   type Machine_Vector is array (0 .. 15) of Interfaces.Unsigned_8;
+   for Machine_Vector'Alignment use 16;
+   pragma Machine_Attribute (Machine_Vector, "vector_type");
+
+   Sign_Vector_8 : constant Machine_Vector := [others => 16#80#];
    Sign_8 : aliased constant Lane_Values_8x16 := [others => 16#80#];
    Sign_16 : aliased constant Lane_Values_8x16 := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];
+   Sign_Vector_16 : constant Machine_Vector := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];
    Sign_32 : aliased constant Lane_Values_8x16 := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];
+   Sign_Vector_32 : constant Machine_Vector := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];
    Weights_X86_8 : aliased constant Lane_Values_8x16 := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
+   Weights_X86_Vector_8 : constant Machine_Vector := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
    Weights_X86_16 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];
+   Weights_X86_Vector_16 : constant Machine_Vector := [1, 0, 2, 0, 4, 0, 8, 0, 16, 0, 32, 0, 64, 0, 128, 0];
    Weights_X86_32 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
+   Weights_X86_Vector_32 : constant Machine_Vector := [1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 8, 0, 0, 0];
    Weights_X86_64 : aliased constant Lane_Values_U64x2 := [1, 2];
-
-   generic
-      type Vector_Type is private;
-      Instruction : String;
-   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type;
-   function SSE2_Binary_128 (Left, Right : Vector_Type) return Vector_Type is
-      Result : Vector_Type;
-   begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
-      return Result;
-   end SSE2_Binary_128;
+   Weights_X86_Vector_64 : constant Machine_Vector := [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
    generic
       type Vector_Type is private;
@@ -639,75 +677,62 @@ package body Flyology_SIMD.Backends.Native is
 
    generic
       type Vector_Type is private;
-      Instruction : String;
-   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type;
-   function SSE2_Unary_128 (Value : Vector_Type) return Vector_Type is
-      Result : Vector_Type;
-   begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "xmm0,xmm1,xmm2,memory", Volatile => True);
-      return Result;
-   end SSE2_Unary_128;
-
-   generic
-      type Vector_Type is private;
    function SSE2_Zero_128 return Vector_Type;
    function SSE2_Zero_128 return Vector_Type is
-      Result : Vector_Type;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
    begin
-      Asm (Template => "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",
-           Inputs => System.Address'Asm_Input ("r", Result'Address),
-           Clobber => "xmm0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "pxor %0, %0",
+           Outputs => Machine_Vector'Asm_Output ("=x", Result));
+      return To_Vector (Result);
    end SSE2_Zero_128;
 
    generic
       type Vector_Type is private;
       type Scalar_Type is private;
-      Load_Instruction : String;
       Duplicate_Instruction : String;
-   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type;
-   function SSE2_Splat_128 (Value : Scalar_Type) return Vector_Type is
-      Result : Vector_Type;
+   function SSE2_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type;
+   function SSE2_Splat_Integer_128 (Value : Scalar_Type) return Vector_Type is
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch : Interfaces.Unsigned_64;
    begin
-      Asm (Template => Load_Instruction & ASCII.LF & ASCII.HT & Duplicate_Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)",
-           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
-           Clobber => "rax,xmm0,memory", Volatile => True);
-      return Result;
-   end SSE2_Splat_128;
+      Asm (Template => Duplicate_Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=&x", Result), Interfaces.Unsigned_64'Asm_Output ("=&r", Scratch)],
+           Inputs => Scalar_Type'Asm_Input ("r", Value));
+      return To_Vector (Result);
+   end SSE2_Splat_Integer_128;
 
    generic
-      type Source_Type is private;
-      type Result_Type is private;
-      Instruction : String;
-   function SSE2_Convert_128 (Value : Source_Type) return Result_Type;
-   function SSE2_Convert_128 (Value : Source_Type) return Result_Type is
-      Result : Result_Type;
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Duplicate_Instruction : String;
+   function SSE2_Splat_Float_128 (Value : Scalar_Type) return Vector_Type;
+   function SSE2_Splat_Float_128 (Value : Scalar_Type) return Vector_Type is
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
    begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "rax,rcx,rdx,r8,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,cc,memory", Volatile => True);
-      return Result;
-   end SSE2_Convert_128;
+      Asm (Template => Duplicate_Instruction,
+           Outputs => Machine_Vector'Asm_Output ("=&x", Result),
+           Inputs => Scalar_Type'Asm_Input ("x", Value));
+      return To_Vector (Result);
+   end SSE2_Splat_Float_128;
 
-   generic
-      type Source_Type is private;
-      type Result_Type is private;
-      Instruction : String;
-   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type;
-   function SSE2_Convert_Pair_128 (Low, High : Source_Type) return Result_Type is
-      Result : Result_Type;
-   begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Low'Address), System.Address'Asm_Input ("r", High'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
-      return Result;
-   end SSE2_Convert_Pair_128;
 
    generic
       type Vector_Type is private;
       Lane_Bits : Positive;
       Instruction : String;
-   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16;
-   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : System.Address) return Interfaces.Unsigned_16 is
+   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : Machine_Vector) return Interfaces.Unsigned_16;
+   function SSE2_Compare_128 (Left, Right : Vector_Type; Sign : Machine_Vector) return Interfaces.Unsigned_16 is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
       Raw, Packed : Interfaces.Unsigned_32;
+      Truths, Other : Machine_Vector;
+      First, Second, Third, Fourth : Machine_Vector;
    begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movdqu (%2), %%xmm1" & ASCII.LF & ASCII.HT & "movdqu (%3), %%xmm7" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "pmovmskb %%xmm0, %0", Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Raw), Inputs => [System.Address'Asm_Input ("r", Left'Address), System.Address'Asm_Input ("r", Right'Address), System.Address'Asm_Input ("r", Sign)], Clobber => "xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory", Volatile => True);
+      Asm (Template => "movdqa %7, %1" & ASCII.LF & ASCII.HT & "movdqa %8, %2" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "pmovmskb %1, %0",
+           Outputs => [Interfaces.Unsigned_32'Asm_Output ("=&r", Raw), Machine_Vector'Asm_Output ("=&x", Truths), Machine_Vector'Asm_Output ("=&x", Other), Machine_Vector'Asm_Output ("=&x", First), Machine_Vector'Asm_Output ("=&x", Second), Machine_Vector'Asm_Output ("=&x", Third), Machine_Vector'Asm_Output ("=&x", Fourth)],
+           Inputs => [Machine_Vector'Asm_Input ("x", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right)), Machine_Vector'Asm_Input ("x", Sign)]);
       case Lane_Bits is
          when 8 => Packed := Raw and 16#FFFF#;
          when 16 => Packed := Interfaces.Shift_Right (Raw, 1) and 16#5555#; Packed := (Packed or Interfaces.Shift_Right (Packed, 1)) and 16#3333#; Packed := (Packed or Interfaces.Shift_Right (Packed, 2)) and 16#0F0F#; Packed := (Packed or Interfaces.Shift_Right (Packed, 4)) and 16#00FF#;
@@ -722,24 +747,43 @@ package body Flyology_SIMD.Backends.Native is
       Instruction : String;
    function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type;
    function SSE2_Shift_128 (Value : Vector_Type; Count : Interfaces.Unsigned_32) return Vector_Type is
-      Result : Vector_Type; Local_Count : aliased Interfaces.Unsigned_32 := Count;
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Amount : Machine_Vector;
+      First_Scratch : Machine_Vector;
+      Second_Scratch : Machine_Vector;
    begin
-      Asm (Template => "movdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT & "movd (%2), %%xmm1" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & "movdqu %%xmm0, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address), System.Address'Asm_Input ("r", Local_Count'Address)], Clobber => "xmm0,xmm1,xmm2,xmm3,memory", Volatile => True);
-      return Result;
+      Asm (Template => "movd %5, %1" & ASCII.LF & ASCII.HT & Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Amount), Machine_Vector'Asm_Output ("=&x", First_Scratch), Machine_Vector'Asm_Output ("=&x", Second_Scratch)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Value)), Interfaces.Unsigned_32'Asm_Input ("r", Count)]);
+      return To_Vector (Result);
    end SSE2_Shift_128;
 
    generic
       type Vector_Type is private;
       Lane_Bits : Positive;
-   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type;
-   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : System.Address; If_True, If_False : Vector_Type) return Vector_Type is
-      Result : Vector_Type; Local_Bits : aliased Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Bits);
-      Expand : constant String := (case Lane_Bits is when 8 => "punpcklbw %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "punpckldq %%xmm2, %%xmm2", when 16 => "pshuflw $0, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm2, %%xmm2", when 32 => "pshufd $0, %%xmm2, %%xmm2", when others => "punpcklqdq %%xmm2, %%xmm2");
+   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type;
+   function SSE2_Select_128 (Bits : Interfaces.Unsigned_16; Weights : Machine_Vector; If_True, If_False : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Spare : Machine_Vector;
+      Local_Bits : constant Interfaces.Unsigned_32 := Interfaces.Unsigned_32 (Bits);
+      Expand : constant String := (case Lane_Bits is when 8 => "punpcklbw %0, %0" & ASCII.LF & ASCII.HT & "punpcklwd %0, %0" & ASCII.LF & ASCII.HT & "punpckldq %0, %0", when 16 => "pshuflw $0, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0", when 32 => "pshufd $0, %0, %0", when others => "punpcklqdq %0, %0");
       Compare : constant String := (if Lane_Bits = 8 then "pcmpeqb" elsif Lane_Bits = 16 then "pcmpeqw" else "pcmpeqd");
-      Replicate_64 : constant String := (if Lane_Bits = 64 then "pshufd $0xA0, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT else "");
+      Replicate_64 : constant String := (if Lane_Bits = 64 then "pshufd $0xA0, %0, %0" & ASCII.LF & ASCII.HT else "");
    begin
-      Asm (Template => "movd (%1), %%xmm2" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT & "pand (%2), %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & Compare & " %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & Replicate_64 & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand (%3), %%xmm3" & ASCII.LF & ASCII.HT & "pandn (%4), %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, (%0)", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Local_Bits'Address), System.Address'Asm_Input ("r", Weights), System.Address'Asm_Input ("r", If_True'Address), System.Address'Asm_Input ("r", If_False'Address)], Clobber => "xmm2,xmm3,memory", Volatile => True);
-      return Result;
+      Asm (Template => "movd %2, %0" & ASCII.LF & ASCII.HT & Expand & ASCII.LF & ASCII.HT &
+           "pand %3, %0" & ASCII.LF & ASCII.HT & "pxor %1, %1" & ASCII.LF & ASCII.HT &
+           Compare & " %1, %0" & ASCII.LF & ASCII.HT &
+           "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0" & ASCII.LF & ASCII.HT &
+           Replicate_64 & "movdqa %0, %1" & ASCII.LF & ASCII.HT &
+           "pand %4, %1" & ASCII.LF & ASCII.HT & "pandn %5, %0" & ASCII.LF & ASCII.HT &
+           "por %1, %0",
+           Outputs => [Machine_Vector'Asm_Output ("=&x", Result), Machine_Vector'Asm_Output ("=&x", Spare)],
+           Inputs => [Interfaces.Unsigned_32'Asm_Input ("r", Local_Bits), Machine_Vector'Asm_Input ("x", Weights), Machine_Vector'Asm_Input ("x", To_Machine (If_True)), Machine_Vector'Asm_Input ("x", To_Machine (If_False))]);
+      return To_Vector (Result);
    end SSE2_Select_128;
 
    generic
@@ -769,7 +813,457 @@ package body Flyology_SIMD.Backends.Native is
       return Result;
    end SSE2_Float_Reduce_128;
 
-   function Native_Table_Lookup_U8x16 is new SSE2_Binary_128 (U8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S0 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S0 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S0;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S1 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S1 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S1;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S2 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S2 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S2;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S3 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S3 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S3;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S4 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S4 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S4;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S5 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S5 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S5;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S6 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S6 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+      Scratch_6 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5), Machine_Vector'Asm_Output ("=&x", Scratch_6)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S6;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Binary_128_S7 (Left, Right : Vector_Type) return Vector_Type;
+   function SSE2_Binary_128_S7 (Left, Right : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+      Scratch_6 : Machine_Vector;
+      Scratch_7 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5), Machine_Vector'Asm_Output ("=&x", Scratch_6), Machine_Vector'Asm_Output ("=&x", Scratch_7)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Left)), Machine_Vector'Asm_Input ("x", To_Machine (Right))],
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Binary_128_S7;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Unary_128_S0 (Value : Vector_Type) return Vector_Type;
+   function SSE2_Unary_128_S0 (Value : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Unary_128_S0;
+
+   generic
+      type Vector_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Unary_128_S1 (Value : Vector_Type) return Vector_Type;
+   function SSE2_Unary_128_S1 (Value : Vector_Type) return Vector_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Vector (Result);
+   end SSE2_Unary_128_S1;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S0 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S0 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S0;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S1 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S1 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S1;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S2 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S2 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S2;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S4 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S4 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S4;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S5 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S5 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S5;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_Pair_128_S6 (Low, High : Source_Type) return Result_Type;
+   function SSE2_Convert_Pair_128_S6 (Low, High : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+      Scratch_6 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5), Machine_Vector'Asm_Output ("=&x", Scratch_6)],
+           Inputs => [Machine_Vector'Asm_Input ("0", To_Machine (Low)), Machine_Vector'Asm_Input ("x", To_Machine (High))],
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_Pair_128_S6;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S0 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S0 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S0;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S1 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S1 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S1;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S2 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S2 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S2;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S3 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S3 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S3;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S4 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S4 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S4;
+
+   generic
+      type Source_Type is private;
+      type Result_Type is private;
+      Instruction : String;
+      Clobber_List : String;
+   function SSE2_Convert_128_S7 (Value : Source_Type) return Result_Type;
+   function SSE2_Convert_128_S7 (Value : Source_Type) return Result_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Source_Type, Machine_Vector);
+      function To_Result is new Ada.Unchecked_Conversion (Machine_Vector, Result_Type);
+      Result : Machine_Vector;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+      Scratch_5 : Machine_Vector;
+      Scratch_6 : Machine_Vector;
+      Scratch_7 : Machine_Vector;
+   begin
+      Asm (Template => Instruction,
+           Outputs => [Machine_Vector'Asm_Output ("=x", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4), Machine_Vector'Asm_Output ("=&x", Scratch_5), Machine_Vector'Asm_Output ("=&x", Scratch_6), Machine_Vector'Asm_Output ("=&x", Scratch_7)],
+           Inputs => Machine_Vector'Asm_Input ("0", To_Machine (Value)),
+           Clobber => Clobber_List);
+      return To_Result (Result);
+   end SSE2_Convert_128_S7;
+
+   function Native_Table_Lookup_U8x16 is new SSE2_Binary_128_S5 (U8x16, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pxor %2, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "psrlw $15, %5" & ASCII.LF & ASCII.HT & "packuswb %5, %5" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $1, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $2, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $4, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $5, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $6, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $7, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $8, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $9, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $10, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $11, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $12, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $13, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $14, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $15, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));
    function Native_Permute_U8x16 is new SSE2_Permute_128 (U8x16, Lane_Map_8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
    function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));
@@ -820,35 +1314,35 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_U8x16 (Value, Map);
    end Expand;
 
-   function Native_Slide_Lanes_Toward_Low_U8x16_1 is new SSE2_Unary_128 (U8x16, "psrldq $1, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_1 is new SSE2_Unary_128_S0 (U8x16, "psrldq $1, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_1);
-   function Native_Slide_Lanes_Toward_Low_U8x16_2 is new SSE2_Unary_128 (U8x16, "psrldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_2 is new SSE2_Unary_128_S0 (U8x16, "psrldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_2);
-   function Native_Slide_Lanes_Toward_Low_U8x16_3 is new SSE2_Unary_128 (U8x16, "psrldq $3, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_3 is new SSE2_Unary_128_S0 (U8x16, "psrldq $3, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_3);
-   function Native_Slide_Lanes_Toward_Low_U8x16_4 is new SSE2_Unary_128 (U8x16, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_4 is new SSE2_Unary_128_S0 (U8x16, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_4);
-   function Native_Slide_Lanes_Toward_Low_U8x16_5 is new SSE2_Unary_128 (U8x16, "psrldq $5, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_5 is new SSE2_Unary_128_S0 (U8x16, "psrldq $5, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_5);
-   function Native_Slide_Lanes_Toward_Low_U8x16_6 is new SSE2_Unary_128 (U8x16, "psrldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_6 is new SSE2_Unary_128_S0 (U8x16, "psrldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_6);
-   function Native_Slide_Lanes_Toward_Low_U8x16_7 is new SSE2_Unary_128 (U8x16, "psrldq $7, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_7 is new SSE2_Unary_128_S0 (U8x16, "psrldq $7, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_7);
-   function Native_Slide_Lanes_Toward_Low_U8x16_8 is new SSE2_Unary_128 (U8x16, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_8 is new SSE2_Unary_128_S0 (U8x16, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_8);
-   function Native_Slide_Lanes_Toward_Low_U8x16_9 is new SSE2_Unary_128 (U8x16, "psrldq $9, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_9 is new SSE2_Unary_128_S0 (U8x16, "psrldq $9, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_9);
-   function Native_Slide_Lanes_Toward_Low_U8x16_10 is new SSE2_Unary_128 (U8x16, "psrldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_10 is new SSE2_Unary_128_S0 (U8x16, "psrldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_10);
-   function Native_Slide_Lanes_Toward_Low_U8x16_11 is new SSE2_Unary_128 (U8x16, "psrldq $11, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_11 is new SSE2_Unary_128_S0 (U8x16, "psrldq $11, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_11);
-   function Native_Slide_Lanes_Toward_Low_U8x16_12 is new SSE2_Unary_128 (U8x16, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_12 is new SSE2_Unary_128_S0 (U8x16, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_12);
-   function Native_Slide_Lanes_Toward_Low_U8x16_13 is new SSE2_Unary_128 (U8x16, "psrldq $13, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_13 is new SSE2_Unary_128_S0 (U8x16, "psrldq $13, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_13);
-   function Native_Slide_Lanes_Toward_Low_U8x16_14 is new SSE2_Unary_128 (U8x16, "psrldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_14 is new SSE2_Unary_128_S0 (U8x16, "psrldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_14);
-   function Native_Slide_Lanes_Toward_Low_U8x16_15 is new SSE2_Unary_128 (U8x16, "psrldq $15, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U8x16_15 is new SSE2_Unary_128_S0 (U8x16, "psrldq $15, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_15);
    function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
      (if Count = 0 then Value
@@ -871,35 +1365,35 @@ package body Flyology_SIMD.Backends.Native is
          when 15 => Native_Slide_Lanes_Toward_Low_U8x16_15 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_U8x16_1 is new SSE2_Unary_128 (U8x16, "pslldq $1, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_1 is new SSE2_Unary_128_S0 (U8x16, "pslldq $1, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_1);
-   function Native_Slide_Lanes_Toward_High_U8x16_2 is new SSE2_Unary_128 (U8x16, "pslldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_2 is new SSE2_Unary_128_S0 (U8x16, "pslldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_2);
-   function Native_Slide_Lanes_Toward_High_U8x16_3 is new SSE2_Unary_128 (U8x16, "pslldq $3, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_3 is new SSE2_Unary_128_S0 (U8x16, "pslldq $3, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_3);
-   function Native_Slide_Lanes_Toward_High_U8x16_4 is new SSE2_Unary_128 (U8x16, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_4 is new SSE2_Unary_128_S0 (U8x16, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_4);
-   function Native_Slide_Lanes_Toward_High_U8x16_5 is new SSE2_Unary_128 (U8x16, "pslldq $5, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_5 is new SSE2_Unary_128_S0 (U8x16, "pslldq $5, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_5);
-   function Native_Slide_Lanes_Toward_High_U8x16_6 is new SSE2_Unary_128 (U8x16, "pslldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_6 is new SSE2_Unary_128_S0 (U8x16, "pslldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_6);
-   function Native_Slide_Lanes_Toward_High_U8x16_7 is new SSE2_Unary_128 (U8x16, "pslldq $7, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_7 is new SSE2_Unary_128_S0 (U8x16, "pslldq $7, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_7);
-   function Native_Slide_Lanes_Toward_High_U8x16_8 is new SSE2_Unary_128 (U8x16, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_8 is new SSE2_Unary_128_S0 (U8x16, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_8);
-   function Native_Slide_Lanes_Toward_High_U8x16_9 is new SSE2_Unary_128 (U8x16, "pslldq $9, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_9 is new SSE2_Unary_128_S0 (U8x16, "pslldq $9, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_9);
-   function Native_Slide_Lanes_Toward_High_U8x16_10 is new SSE2_Unary_128 (U8x16, "pslldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_10 is new SSE2_Unary_128_S0 (U8x16, "pslldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_10);
-   function Native_Slide_Lanes_Toward_High_U8x16_11 is new SSE2_Unary_128 (U8x16, "pslldq $11, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_11 is new SSE2_Unary_128_S0 (U8x16, "pslldq $11, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_11);
-   function Native_Slide_Lanes_Toward_High_U8x16_12 is new SSE2_Unary_128 (U8x16, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_12 is new SSE2_Unary_128_S0 (U8x16, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_12);
-   function Native_Slide_Lanes_Toward_High_U8x16_13 is new SSE2_Unary_128 (U8x16, "pslldq $13, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_13 is new SSE2_Unary_128_S0 (U8x16, "pslldq $13, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_13);
-   function Native_Slide_Lanes_Toward_High_U8x16_14 is new SSE2_Unary_128 (U8x16, "pslldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_14 is new SSE2_Unary_128_S0 (U8x16, "pslldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_14);
-   function Native_Slide_Lanes_Toward_High_U8x16_15 is new SSE2_Unary_128 (U8x16, "pslldq $15, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U8x16_15 is new SSE2_Unary_128_S0 (U8x16, "pslldq $15, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U8x16_15);
    function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
      (if Count = 0 then Value
@@ -922,35 +1416,35 @@ package body Flyology_SIMD.Backends.Native is
          when 15 => Native_Slide_Lanes_Toward_High_U8x16_15 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_I8x16_1 is new SSE2_Unary_128 (I8x16, "psrldq $1, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_1 is new SSE2_Unary_128_S0 (I8x16, "psrldq $1, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_1);
-   function Native_Slide_Lanes_Toward_Low_I8x16_2 is new SSE2_Unary_128 (I8x16, "psrldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_2 is new SSE2_Unary_128_S0 (I8x16, "psrldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_2);
-   function Native_Slide_Lanes_Toward_Low_I8x16_3 is new SSE2_Unary_128 (I8x16, "psrldq $3, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_3 is new SSE2_Unary_128_S0 (I8x16, "psrldq $3, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_3);
-   function Native_Slide_Lanes_Toward_Low_I8x16_4 is new SSE2_Unary_128 (I8x16, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_4 is new SSE2_Unary_128_S0 (I8x16, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_4);
-   function Native_Slide_Lanes_Toward_Low_I8x16_5 is new SSE2_Unary_128 (I8x16, "psrldq $5, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_5 is new SSE2_Unary_128_S0 (I8x16, "psrldq $5, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_5);
-   function Native_Slide_Lanes_Toward_Low_I8x16_6 is new SSE2_Unary_128 (I8x16, "psrldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_6 is new SSE2_Unary_128_S0 (I8x16, "psrldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_6);
-   function Native_Slide_Lanes_Toward_Low_I8x16_7 is new SSE2_Unary_128 (I8x16, "psrldq $7, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_7 is new SSE2_Unary_128_S0 (I8x16, "psrldq $7, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_7);
-   function Native_Slide_Lanes_Toward_Low_I8x16_8 is new SSE2_Unary_128 (I8x16, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_8 is new SSE2_Unary_128_S0 (I8x16, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_8);
-   function Native_Slide_Lanes_Toward_Low_I8x16_9 is new SSE2_Unary_128 (I8x16, "psrldq $9, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_9 is new SSE2_Unary_128_S0 (I8x16, "psrldq $9, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_9);
-   function Native_Slide_Lanes_Toward_Low_I8x16_10 is new SSE2_Unary_128 (I8x16, "psrldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_10 is new SSE2_Unary_128_S0 (I8x16, "psrldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_10);
-   function Native_Slide_Lanes_Toward_Low_I8x16_11 is new SSE2_Unary_128 (I8x16, "psrldq $11, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_11 is new SSE2_Unary_128_S0 (I8x16, "psrldq $11, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_11);
-   function Native_Slide_Lanes_Toward_Low_I8x16_12 is new SSE2_Unary_128 (I8x16, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_12 is new SSE2_Unary_128_S0 (I8x16, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_12);
-   function Native_Slide_Lanes_Toward_Low_I8x16_13 is new SSE2_Unary_128 (I8x16, "psrldq $13, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_13 is new SSE2_Unary_128_S0 (I8x16, "psrldq $13, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_13);
-   function Native_Slide_Lanes_Toward_Low_I8x16_14 is new SSE2_Unary_128 (I8x16, "psrldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_14 is new SSE2_Unary_128_S0 (I8x16, "psrldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_14);
-   function Native_Slide_Lanes_Toward_Low_I8x16_15 is new SSE2_Unary_128 (I8x16, "psrldq $15, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I8x16_15 is new SSE2_Unary_128_S0 (I8x16, "psrldq $15, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I8x16_15);
    function Slide_Lanes_Toward_Low (Value : I8x16; Count : Natural) return I8x16 is
      (if Count = 0 then Value
@@ -973,35 +1467,35 @@ package body Flyology_SIMD.Backends.Native is
          when 15 => Native_Slide_Lanes_Toward_Low_I8x16_15 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_I8x16_1 is new SSE2_Unary_128 (I8x16, "pslldq $1, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_1 is new SSE2_Unary_128_S0 (I8x16, "pslldq $1, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_1);
-   function Native_Slide_Lanes_Toward_High_I8x16_2 is new SSE2_Unary_128 (I8x16, "pslldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_2 is new SSE2_Unary_128_S0 (I8x16, "pslldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_2);
-   function Native_Slide_Lanes_Toward_High_I8x16_3 is new SSE2_Unary_128 (I8x16, "pslldq $3, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_3 is new SSE2_Unary_128_S0 (I8x16, "pslldq $3, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_3);
-   function Native_Slide_Lanes_Toward_High_I8x16_4 is new SSE2_Unary_128 (I8x16, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_4 is new SSE2_Unary_128_S0 (I8x16, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_4);
-   function Native_Slide_Lanes_Toward_High_I8x16_5 is new SSE2_Unary_128 (I8x16, "pslldq $5, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_5 is new SSE2_Unary_128_S0 (I8x16, "pslldq $5, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_5);
-   function Native_Slide_Lanes_Toward_High_I8x16_6 is new SSE2_Unary_128 (I8x16, "pslldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_6 is new SSE2_Unary_128_S0 (I8x16, "pslldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_6);
-   function Native_Slide_Lanes_Toward_High_I8x16_7 is new SSE2_Unary_128 (I8x16, "pslldq $7, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_7 is new SSE2_Unary_128_S0 (I8x16, "pslldq $7, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_7);
-   function Native_Slide_Lanes_Toward_High_I8x16_8 is new SSE2_Unary_128 (I8x16, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_8 is new SSE2_Unary_128_S0 (I8x16, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_8);
-   function Native_Slide_Lanes_Toward_High_I8x16_9 is new SSE2_Unary_128 (I8x16, "pslldq $9, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_9 is new SSE2_Unary_128_S0 (I8x16, "pslldq $9, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_9);
-   function Native_Slide_Lanes_Toward_High_I8x16_10 is new SSE2_Unary_128 (I8x16, "pslldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_10 is new SSE2_Unary_128_S0 (I8x16, "pslldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_10);
-   function Native_Slide_Lanes_Toward_High_I8x16_11 is new SSE2_Unary_128 (I8x16, "pslldq $11, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_11 is new SSE2_Unary_128_S0 (I8x16, "pslldq $11, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_11);
-   function Native_Slide_Lanes_Toward_High_I8x16_12 is new SSE2_Unary_128 (I8x16, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_12 is new SSE2_Unary_128_S0 (I8x16, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_12);
-   function Native_Slide_Lanes_Toward_High_I8x16_13 is new SSE2_Unary_128 (I8x16, "pslldq $13, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_13 is new SSE2_Unary_128_S0 (I8x16, "pslldq $13, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_13);
-   function Native_Slide_Lanes_Toward_High_I8x16_14 is new SSE2_Unary_128 (I8x16, "pslldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_14 is new SSE2_Unary_128_S0 (I8x16, "pslldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_14);
-   function Native_Slide_Lanes_Toward_High_I8x16_15 is new SSE2_Unary_128 (I8x16, "pslldq $15, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I8x16_15 is new SSE2_Unary_128_S0 (I8x16, "pslldq $15, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I8x16_15);
    function Slide_Lanes_Toward_High (Value : I8x16; Count : Natural) return I8x16 is
      (if Count = 0 then Value
@@ -1024,19 +1518,19 @@ package body Flyology_SIMD.Backends.Native is
          when 15 => Native_Slide_Lanes_Toward_High_I8x16_15 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_U16x8_1 is new SSE2_Unary_128 (U16x8, "psrldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_1 is new SSE2_Unary_128_S0 (U16x8, "psrldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_1);
-   function Native_Slide_Lanes_Toward_Low_U16x8_2 is new SSE2_Unary_128 (U16x8, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_2 is new SSE2_Unary_128_S0 (U16x8, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_2);
-   function Native_Slide_Lanes_Toward_Low_U16x8_3 is new SSE2_Unary_128 (U16x8, "psrldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_3 is new SSE2_Unary_128_S0 (U16x8, "psrldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_3);
-   function Native_Slide_Lanes_Toward_Low_U16x8_4 is new SSE2_Unary_128 (U16x8, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_4 is new SSE2_Unary_128_S0 (U16x8, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_4);
-   function Native_Slide_Lanes_Toward_Low_U16x8_5 is new SSE2_Unary_128 (U16x8, "psrldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_5 is new SSE2_Unary_128_S0 (U16x8, "psrldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_5);
-   function Native_Slide_Lanes_Toward_Low_U16x8_6 is new SSE2_Unary_128 (U16x8, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_6 is new SSE2_Unary_128_S0 (U16x8, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_6);
-   function Native_Slide_Lanes_Toward_Low_U16x8_7 is new SSE2_Unary_128 (U16x8, "psrldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U16x8_7 is new SSE2_Unary_128_S0 (U16x8, "psrldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U16x8_7);
    function Slide_Lanes_Toward_Low (Value : U16x8; Count : Natural) return U16x8 is
      (if Count = 0 then Value
@@ -1051,19 +1545,19 @@ package body Flyology_SIMD.Backends.Native is
          when 7 => Native_Slide_Lanes_Toward_Low_U16x8_7 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_U16x8_1 is new SSE2_Unary_128 (U16x8, "pslldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_1 is new SSE2_Unary_128_S0 (U16x8, "pslldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_1);
-   function Native_Slide_Lanes_Toward_High_U16x8_2 is new SSE2_Unary_128 (U16x8, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_2 is new SSE2_Unary_128_S0 (U16x8, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_2);
-   function Native_Slide_Lanes_Toward_High_U16x8_3 is new SSE2_Unary_128 (U16x8, "pslldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_3 is new SSE2_Unary_128_S0 (U16x8, "pslldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_3);
-   function Native_Slide_Lanes_Toward_High_U16x8_4 is new SSE2_Unary_128 (U16x8, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_4 is new SSE2_Unary_128_S0 (U16x8, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_4);
-   function Native_Slide_Lanes_Toward_High_U16x8_5 is new SSE2_Unary_128 (U16x8, "pslldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_5 is new SSE2_Unary_128_S0 (U16x8, "pslldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_5);
-   function Native_Slide_Lanes_Toward_High_U16x8_6 is new SSE2_Unary_128 (U16x8, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_6 is new SSE2_Unary_128_S0 (U16x8, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_6);
-   function Native_Slide_Lanes_Toward_High_U16x8_7 is new SSE2_Unary_128 (U16x8, "pslldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U16x8_7 is new SSE2_Unary_128_S0 (U16x8, "pslldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U16x8_7);
    function Slide_Lanes_Toward_High (Value : U16x8; Count : Natural) return U16x8 is
      (if Count = 0 then Value
@@ -1078,19 +1572,19 @@ package body Flyology_SIMD.Backends.Native is
          when 7 => Native_Slide_Lanes_Toward_High_U16x8_7 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_I16x8_1 is new SSE2_Unary_128 (I16x8, "psrldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_1 is new SSE2_Unary_128_S0 (I16x8, "psrldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_1);
-   function Native_Slide_Lanes_Toward_Low_I16x8_2 is new SSE2_Unary_128 (I16x8, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_2 is new SSE2_Unary_128_S0 (I16x8, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_2);
-   function Native_Slide_Lanes_Toward_Low_I16x8_3 is new SSE2_Unary_128 (I16x8, "psrldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_3 is new SSE2_Unary_128_S0 (I16x8, "psrldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_3);
-   function Native_Slide_Lanes_Toward_Low_I16x8_4 is new SSE2_Unary_128 (I16x8, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_4 is new SSE2_Unary_128_S0 (I16x8, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_4);
-   function Native_Slide_Lanes_Toward_Low_I16x8_5 is new SSE2_Unary_128 (I16x8, "psrldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_5 is new SSE2_Unary_128_S0 (I16x8, "psrldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_5);
-   function Native_Slide_Lanes_Toward_Low_I16x8_6 is new SSE2_Unary_128 (I16x8, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_6 is new SSE2_Unary_128_S0 (I16x8, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_6);
-   function Native_Slide_Lanes_Toward_Low_I16x8_7 is new SSE2_Unary_128 (I16x8, "psrldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I16x8_7 is new SSE2_Unary_128_S0 (I16x8, "psrldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I16x8_7);
    function Slide_Lanes_Toward_Low (Value : I16x8; Count : Natural) return I16x8 is
      (if Count = 0 then Value
@@ -1105,19 +1599,19 @@ package body Flyology_SIMD.Backends.Native is
          when 7 => Native_Slide_Lanes_Toward_Low_I16x8_7 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_I16x8_1 is new SSE2_Unary_128 (I16x8, "pslldq $2, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_1 is new SSE2_Unary_128_S0 (I16x8, "pslldq $2, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_1);
-   function Native_Slide_Lanes_Toward_High_I16x8_2 is new SSE2_Unary_128 (I16x8, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_2 is new SSE2_Unary_128_S0 (I16x8, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_2);
-   function Native_Slide_Lanes_Toward_High_I16x8_3 is new SSE2_Unary_128 (I16x8, "pslldq $6, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_3 is new SSE2_Unary_128_S0 (I16x8, "pslldq $6, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_3);
-   function Native_Slide_Lanes_Toward_High_I16x8_4 is new SSE2_Unary_128 (I16x8, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_4 is new SSE2_Unary_128_S0 (I16x8, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_4);
-   function Native_Slide_Lanes_Toward_High_I16x8_5 is new SSE2_Unary_128 (I16x8, "pslldq $10, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_5 is new SSE2_Unary_128_S0 (I16x8, "pslldq $10, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_5);
-   function Native_Slide_Lanes_Toward_High_I16x8_6 is new SSE2_Unary_128 (I16x8, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_6 is new SSE2_Unary_128_S0 (I16x8, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_6);
-   function Native_Slide_Lanes_Toward_High_I16x8_7 is new SSE2_Unary_128 (I16x8, "pslldq $14, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I16x8_7 is new SSE2_Unary_128_S0 (I16x8, "pslldq $14, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I16x8_7);
    function Slide_Lanes_Toward_High (Value : I16x8; Count : Natural) return I16x8 is
      (if Count = 0 then Value
@@ -1132,11 +1626,11 @@ package body Flyology_SIMD.Backends.Native is
          when 7 => Native_Slide_Lanes_Toward_High_I16x8_7 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_U32x4_1 is new SSE2_Unary_128 (U32x4, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U32x4_1 is new SSE2_Unary_128_S0 (U32x4, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_1);
-   function Native_Slide_Lanes_Toward_Low_U32x4_2 is new SSE2_Unary_128 (U32x4, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U32x4_2 is new SSE2_Unary_128_S0 (U32x4, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_2);
-   function Native_Slide_Lanes_Toward_Low_U32x4_3 is new SSE2_Unary_128 (U32x4, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U32x4_3 is new SSE2_Unary_128_S0 (U32x4, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U32x4_3);
    function Slide_Lanes_Toward_Low (Value : U32x4; Count : Natural) return U32x4 is
      (if Count = 0 then Value
@@ -1147,11 +1641,11 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_Low_U32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_U32x4_1 is new SSE2_Unary_128 (U32x4, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U32x4_1 is new SSE2_Unary_128_S0 (U32x4, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_1);
-   function Native_Slide_Lanes_Toward_High_U32x4_2 is new SSE2_Unary_128 (U32x4, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U32x4_2 is new SSE2_Unary_128_S0 (U32x4, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_2);
-   function Native_Slide_Lanes_Toward_High_U32x4_3 is new SSE2_Unary_128 (U32x4, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U32x4_3 is new SSE2_Unary_128_S0 (U32x4, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U32x4_3);
    function Slide_Lanes_Toward_High (Value : U32x4; Count : Natural) return U32x4 is
      (if Count = 0 then Value
@@ -1162,11 +1656,11 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_High_U32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_I32x4_1 is new SSE2_Unary_128 (I32x4, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I32x4_1 is new SSE2_Unary_128_S0 (I32x4, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_1);
-   function Native_Slide_Lanes_Toward_Low_I32x4_2 is new SSE2_Unary_128 (I32x4, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I32x4_2 is new SSE2_Unary_128_S0 (I32x4, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_2);
-   function Native_Slide_Lanes_Toward_Low_I32x4_3 is new SSE2_Unary_128 (I32x4, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I32x4_3 is new SSE2_Unary_128_S0 (I32x4, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I32x4_3);
    function Slide_Lanes_Toward_Low (Value : I32x4; Count : Natural) return I32x4 is
      (if Count = 0 then Value
@@ -1177,11 +1671,11 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_Low_I32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_I32x4_1 is new SSE2_Unary_128 (I32x4, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I32x4_1 is new SSE2_Unary_128_S0 (I32x4, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_1);
-   function Native_Slide_Lanes_Toward_High_I32x4_2 is new SSE2_Unary_128 (I32x4, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I32x4_2 is new SSE2_Unary_128_S0 (I32x4, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_2);
-   function Native_Slide_Lanes_Toward_High_I32x4_3 is new SSE2_Unary_128 (I32x4, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I32x4_3 is new SSE2_Unary_128_S0 (I32x4, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I32x4_3);
    function Slide_Lanes_Toward_High (Value : I32x4; Count : Natural) return I32x4 is
      (if Count = 0 then Value
@@ -1192,7 +1686,7 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_High_I32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_U64x2_1 is new SSE2_Unary_128 (U64x2, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_U64x2_1 is new SSE2_Unary_128_S0 (U64x2, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U64x2_1);
    function Slide_Lanes_Toward_Low (Value : U64x2; Count : Natural) return U64x2 is
      (if Count = 0 then Value
@@ -1201,7 +1695,7 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_Low_U64x2_1 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_U64x2_1 is new SSE2_Unary_128 (U64x2, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_U64x2_1 is new SSE2_Unary_128_S0 (U64x2, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_U64x2_1);
    function Slide_Lanes_Toward_High (Value : U64x2; Count : Natural) return U64x2 is
      (if Count = 0 then Value
@@ -1210,7 +1704,7 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_High_U64x2_1 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_I64x2_1 is new SSE2_Unary_128 (I64x2, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_I64x2_1 is new SSE2_Unary_128_S0 (I64x2, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_I64x2_1);
    function Slide_Lanes_Toward_Low (Value : I64x2; Count : Natural) return I64x2 is
      (if Count = 0 then Value
@@ -1219,7 +1713,7 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_Low_I64x2_1 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_I64x2_1 is new SSE2_Unary_128 (I64x2, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_I64x2_1 is new SSE2_Unary_128_S0 (I64x2, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_I64x2_1);
    function Slide_Lanes_Toward_High (Value : I64x2; Count : Natural) return I64x2 is
      (if Count = 0 then Value
@@ -1228,11 +1722,11 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_High_I64x2_1 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_F32x4_1 is new SSE2_Unary_128 (F32x4, "psrldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_F32x4_1 is new SSE2_Unary_128_S0 (F32x4, "psrldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_1);
-   function Native_Slide_Lanes_Toward_Low_F32x4_2 is new SSE2_Unary_128 (F32x4, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_F32x4_2 is new SSE2_Unary_128_S0 (F32x4, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_2);
-   function Native_Slide_Lanes_Toward_Low_F32x4_3 is new SSE2_Unary_128 (F32x4, "psrldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_F32x4_3 is new SSE2_Unary_128_S0 (F32x4, "psrldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F32x4_3);
    function Slide_Lanes_Toward_Low (Value : F32x4; Count : Natural) return F32x4 is
      (if Count = 0 then Value
@@ -1243,11 +1737,11 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_Low_F32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_F32x4_1 is new SSE2_Unary_128 (F32x4, "pslldq $4, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_F32x4_1 is new SSE2_Unary_128_S0 (F32x4, "pslldq $4, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_1);
-   function Native_Slide_Lanes_Toward_High_F32x4_2 is new SSE2_Unary_128 (F32x4, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_F32x4_2 is new SSE2_Unary_128_S0 (F32x4, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_2);
-   function Native_Slide_Lanes_Toward_High_F32x4_3 is new SSE2_Unary_128 (F32x4, "pslldq $12, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_F32x4_3 is new SSE2_Unary_128_S0 (F32x4, "pslldq $12, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_F32x4_3);
    function Slide_Lanes_Toward_High (Value : F32x4; Count : Natural) return F32x4 is
      (if Count = 0 then Value
@@ -1258,7 +1752,7 @@ package body Flyology_SIMD.Backends.Native is
          when 3 => Native_Slide_Lanes_Toward_High_F32x4_3 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_Low_F64x2_1 is new SSE2_Unary_128 (F64x2, "psrldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_Low_F64x2_1 is new SSE2_Unary_128_S0 (F64x2, "psrldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_F64x2_1);
    function Slide_Lanes_Toward_Low (Value : F64x2; Count : Natural) return F64x2 is
      (if Count = 0 then Value
@@ -1267,7 +1761,7 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_Low_F64x2_1 (Value),
          when others => Zero));
 
-   function Native_Slide_Lanes_Toward_High_F64x2_1 is new SSE2_Unary_128 (F64x2, "pslldq $8, %%xmm0");
+   function Native_Slide_Lanes_Toward_High_F64x2_1 is new SSE2_Unary_128_S0 (F64x2, "pslldq $8, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_High_F64x2_1);
    function Slide_Lanes_Toward_High (Value : F64x2; Count : Natural) return F64x2 is
      (if Count = 0 then Value
@@ -1340,132 +1834,180 @@ package body Flyology_SIMD.Backends.Native is
    pragma Inline_Always (Native_Bit_Cast_F64x2_To_I64x2);
    function Bit_Cast (Value : F64x2) return I64x2 is
      (Native_Bit_Cast_F64x2_To_I64x2 (Value));
-   function Native_Widen_Low_U8x16_To_U16x8 is new SSE2_Convert_128 (U8x16, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm1, %%xmm0");
+   function Native_Widen_Low_U8x16_To_U16x8 is new SSE2_Convert_128_S1 (U8x16, U16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpcklbw %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_U8x16_To_U16x8);
    function Widen_Low (Value : U8x16) return U16x8 is (Native_Widen_Low_U8x16_To_U16x8 (Value));
-   function Native_Widen_High_U8x16_To_U16x8 is new SSE2_Convert_128 (U8x16, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm1, %%xmm0");
+   function Native_Widen_High_U8x16_To_U16x8 is new SSE2_Convert_128_S1 (U8x16, U16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpckhbw %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_U8x16_To_U16x8);
    function Widen_High (Value : U8x16) return U16x8 is (Native_Widen_High_U8x16_To_U16x8 (Value));
-   function Native_Widen_Low_I8x16_To_I16x8 is new SSE2_Convert_128 (I8x16, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm1, %%xmm0");
+   function Native_Widen_Low_I8x16_To_I16x8 is new SSE2_Convert_128_S1 (I8x16, I16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtb %0, %1" & ASCII.LF & ASCII.HT & "punpcklbw %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_I8x16_To_I16x8);
    function Widen_Low (Value : I8x16) return I16x8 is (Native_Widen_Low_I8x16_To_I16x8 (Value));
-   function Native_Widen_High_I8x16_To_I16x8 is new SSE2_Convert_128 (I8x16, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm1, %%xmm0");
+   function Native_Widen_High_I8x16_To_I16x8 is new SSE2_Convert_128_S1 (I8x16, I16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtb %0, %1" & ASCII.LF & ASCII.HT & "punpckhbw %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_I8x16_To_I16x8);
    function Widen_High (Value : I8x16) return I16x8 is (Native_Widen_High_I8x16_To_I16x8 (Value));
-   function Native_Widen_Low_U16x8_To_U32x4 is new SSE2_Convert_128 (U16x8, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm1, %%xmm0");
+   function Native_Widen_Low_U16x8_To_U32x4 is new SSE2_Convert_128_S1 (U16x8, U32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpcklwd %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_U16x8_To_U32x4);
    function Widen_Low (Value : U16x8) return U32x4 is (Native_Widen_Low_U16x8_To_U32x4 (Value));
-   function Native_Widen_High_U16x8_To_U32x4 is new SSE2_Convert_128 (U16x8, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhwd %%xmm1, %%xmm0");
+   function Native_Widen_High_U16x8_To_U32x4 is new SSE2_Convert_128_S1 (U16x8, U32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpckhwd %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_U16x8_To_U32x4);
    function Widen_High (Value : U16x8) return U32x4 is (Native_Widen_High_U16x8_To_U32x4 (Value));
-   function Native_Widen_Low_I16x8_To_I32x4 is new SSE2_Convert_128 (I16x8, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm1, %%xmm0");
+   function Native_Widen_Low_I16x8_To_I32x4 is new SSE2_Convert_128_S1 (I16x8, I32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtw %0, %1" & ASCII.LF & ASCII.HT & "punpcklwd %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_I16x8_To_I32x4);
    function Widen_Low (Value : I16x8) return I32x4 is (Native_Widen_Low_I16x8_To_I32x4 (Value));
-   function Native_Widen_High_I16x8_To_I32x4 is new SSE2_Convert_128 (I16x8, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhwd %%xmm1, %%xmm0");
+   function Native_Widen_High_I16x8_To_I32x4 is new SSE2_Convert_128_S1 (I16x8, I32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtw %0, %1" & ASCII.LF & ASCII.HT & "punpckhwd %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_I16x8_To_I32x4);
    function Widen_High (Value : I16x8) return I32x4 is (Native_Widen_High_I16x8_To_I32x4 (Value));
-   function Native_Widen_Low_U32x4_To_U64x2 is new SSE2_Convert_128 (U32x4, U64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckldq %%xmm1, %%xmm0");
+   function Native_Widen_Low_U32x4_To_U64x2 is new SSE2_Convert_128_S1 (U32x4, U64x2, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpckldq %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_U32x4_To_U64x2);
    function Widen_Low (Value : U32x4) return U64x2 is (Native_Widen_Low_U32x4_To_U64x2 (Value));
-   function Native_Widen_High_U32x4_To_U64x2 is new SSE2_Convert_128 (U32x4, U64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhdq %%xmm1, %%xmm0");
+   function Native_Widen_High_U32x4_To_U64x2 is new SSE2_Convert_128_S1 (U32x4, U64x2, "pxor %1, %1" & ASCII.LF & ASCII.HT & "punpckhdq %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_U32x4_To_U64x2);
    function Widen_High (Value : U32x4) return U64x2 is (Native_Widen_High_U32x4_To_U64x2 (Value));
-   function Native_Widen_Low_I32x4_To_I64x2 is new SSE2_Convert_128 (I32x4, I64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckldq %%xmm1, %%xmm0");
+   function Native_Widen_Low_I32x4_To_I64x2 is new SSE2_Convert_128_S1 (I32x4, I64x2, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %1" & ASCII.LF & ASCII.HT & "punpckldq %1, %0", "");
+   pragma Inline_Always (Native_Widen_Low_I32x4_To_I64x2);
    function Widen_Low (Value : I32x4) return I64x2 is (Native_Widen_Low_I32x4_To_I64x2 (Value));
-   function Native_Widen_High_I32x4_To_I64x2 is new SSE2_Convert_128 (I32x4, I64x2, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "punpckhdq %%xmm1, %%xmm0");
+   function Native_Widen_High_I32x4_To_I64x2 is new SSE2_Convert_128_S1 (I32x4, I64x2, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %1" & ASCII.LF & ASCII.HT & "punpckhdq %1, %0", "");
+   pragma Inline_Always (Native_Widen_High_I32x4_To_I64x2);
    function Widen_High (Value : I32x4) return I64x2 is (Native_Widen_High_I32x4_To_I64x2 (Value));
-   function Native_Widen_Low_F32x4_To_F64x2 is new SSE2_Convert_128 (F32x4, F64x2, "cvtps2pd %%xmm0, %%xmm0");
+   function Native_Widen_Low_F32x4_To_F64x2 is new SSE2_Convert_128_S0 (F32x4, F64x2, "cvtps2pd %0, %0", "");
+   pragma Inline_Always (Native_Widen_Low_F32x4_To_F64x2);
    function Widen_Low (Value : F32x4) return F64x2 is (Native_Widen_Low_F32x4_To_F64x2 (Value));
-   function Native_Widen_High_F32x4_To_F64x2 is new SSE2_Convert_128 (F32x4, F64x2, "pshufd $0xEE, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "cvtps2pd %%xmm0, %%xmm0");
+   function Native_Widen_High_F32x4_To_F64x2 is new SSE2_Convert_128_S0 (F32x4, F64x2, "pshufd $0xEE, %0, %0" & ASCII.LF & ASCII.HT & "cvtps2pd %0, %0", "");
+   pragma Inline_Always (Native_Widen_High_F32x4_To_F64x2);
    function Widen_High (Value : F32x4) return F64x2 is (Native_Widen_High_F32x4_To_F64x2 (Value));
-   function Native_Narrow_Truncate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128_S2 (U16x8, U8x16, "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pand %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_U16x8_To_U8x16);
    function Narrow_Truncate (Low, High : U16x8) return U8x16 is (Native_Narrow_Truncate_U16x8_To_U8x16 (Low, High));
-   function Native_Narrow_Saturate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128 (U16x8, U8x16, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqw %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_U16x8_To_U8x16 is new SSE2_Convert_Pair_128_S5 (U16x8, U8x16, "movdqa %7, %5" & ASCII.LF & ASCII.HT & "pxor %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrlw $8, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "pcmpeqw %4, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pandn %3, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "psrlw $8, %2" & ASCII.LF & ASCII.HT & "pcmpeqw %4, %2" & ASCII.LF & ASCII.HT & "pand %2, %5" & ASCII.LF & ASCII.HT & "pandn %3, %2" & ASCII.LF & ASCII.HT & "por %2, %5" & ASCII.LF & ASCII.HT & "packuswb %5, %0", "");
    function Narrow_Saturate (Low, High : U16x8) return U8x16 is (Native_Narrow_Saturate_U16x8_To_U8x16 (Low, High));
-   function Native_Narrow_Truncate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128 (I16x8, I8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128_S2 (I16x8, I8x16, "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pand %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_I16x8_To_I8x16);
    function Narrow_Truncate (Low, High : I16x8) return I8x16 is (Native_Narrow_Truncate_I16x8_To_I8x16 (Low, High));
-   function Native_Narrow_Saturate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128 (I16x8, I8x16, "packsswb %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I16x8_To_I8x16 is new SSE2_Convert_Pair_128_S0 (I16x8, I8x16, "packsswb %2, %0", "");
+   pragma Inline_Always (Native_Narrow_Saturate_I16x8_To_I8x16);
    function Narrow_Saturate (Low, High : I16x8) return I8x16 is (Native_Narrow_Saturate_I16x8_To_I8x16 (Low, High));
-   function Native_Narrow_Truncate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128 (U32x4, U16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128_S1 (U32x4, U16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_U32x4_To_U16x8);
    function Narrow_Truncate (Low, High : U32x4) return U16x8 is (Native_Narrow_Truncate_U32x4_To_U16x8 (Low, High));
-   function Native_Narrow_Saturate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128 (U32x4, U16x8, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_U32x4_To_U16x8 is new SSE2_Convert_Pair_128_S5 (U32x4, U16x8, "movdqa %7, %5" & ASCII.LF & ASCII.HT & "pxor %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $16, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "psrld $16, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pandn %3, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "psrld $16, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %2" & ASCII.LF & ASCII.HT & "pand %2, %5" & ASCII.LF & ASCII.HT & "pandn %3, %2" & ASCII.LF & ASCII.HT & "por %2, %5" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %5, %5" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %5, %5" & ASCII.LF & ASCII.HT & "pshufd $0x88, %5, %5" & ASCII.LF & ASCII.HT & "punpcklqdq %5, %0", "");
    function Narrow_Saturate (Low, High : U32x4) return U16x8 is (Native_Narrow_Saturate_U32x4_To_U16x8 (Low, High));
-   function Native_Narrow_Truncate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128 (I32x4, I16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128_S1 (I32x4, I16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_I32x4_To_I16x8);
    function Narrow_Truncate (Low, High : I32x4) return I16x8 is (Native_Narrow_Truncate_I32x4_To_I16x8 (Low, High));
-   function Native_Narrow_Saturate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128 (I32x4, I16x8, "packssdw %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I32x4_To_I16x8 is new SSE2_Convert_Pair_128_S0 (I32x4, I16x8, "packssdw %2, %0", "");
+   pragma Inline_Always (Native_Narrow_Saturate_I32x4_To_I16x8);
    function Narrow_Saturate (Low, High : I32x4) return I16x8 is (Native_Narrow_Saturate_I32x4_To_I16x8 (Low, High));
-   function Native_Narrow_Truncate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128 (U64x2, U32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128_S1 (U64x2, U32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_U64x2_To_U32x4);
    function Narrow_Truncate (Low, High : U64x2) return U32x4 is (Native_Narrow_Truncate_U64x2_To_U32x4 (Low, High));
-   function Native_Narrow_Saturate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128 (U64x2, U32x4, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $32, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $32, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_U64x2_To_U32x4 is new SSE2_Convert_Pair_128_S5 (U64x2, U32x4, "movdqa %7, %5" & ASCII.LF & ASCII.HT & "pxor %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "psrlq $32, %1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %1, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pandn %3, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "psrlq $32, %2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %2, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %2" & ASCII.LF & ASCII.HT & "pand %2, %5" & ASCII.LF & ASCII.HT & "pandn %3, %2" & ASCII.LF & ASCII.HT & "por %2, %5" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %5, %5" & ASCII.LF & ASCII.HT & "punpcklqdq %5, %0", "");
    function Narrow_Saturate (Low, High : U64x2) return U32x4 is (Native_Narrow_Saturate_U64x2_To_U32x4 (Low, High));
-   function Native_Narrow_Truncate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128 (I64x2, I32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Truncate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128_S1 (I64x2, I32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Narrow_Truncate_I64x2_To_I32x4);
    function Narrow_Truncate (Low, High : I64x2) return I32x4 is (Native_Narrow_Truncate_I64x2_To_I32x4 (Low, High));
-   function Native_Narrow_Saturate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128 (I64x2, I32x4, "pcmpeqd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I64x2_To_I32x4 is new SSE2_Convert_Pair_128_S4 (I64x2, I32x4, "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "movdqa %0, %2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %1" & ASCII.LF & ASCII.HT & "movdqa %0, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pxor %3, %2" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pandn %2, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "movdqa %4, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pxor %3, %2" & ASCII.LF & ASCII.HT & "pand %1, %4" & ASCII.LF & ASCII.HT & "pandn %2, %1" & ASCII.LF & ASCII.HT & "por %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %4, %4" & ASCII.LF & ASCII.HT & "punpcklqdq %4, %0", "");
    function Narrow_Saturate (Low, High : I64x2) return I32x4 is (Native_Narrow_Saturate_I64x2_To_I32x4 (Low, High));
-   function Native_Narrow_Saturate_I16x8_To_U8x16 is new SSE2_Convert_Pair_128 (I16x8, U8x16, "packuswb %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I16x8_To_U8x16 is new SSE2_Convert_Pair_128_S0 (I16x8, U8x16, "packuswb %2, %0", "");
+   pragma Inline_Always (Native_Narrow_Saturate_I16x8_To_U8x16);
    function Narrow_Saturate (Low, High : I16x8) return U8x16 is (Native_Narrow_Saturate_I16x8_To_U8x16 (Low, High));
-   function Native_Narrow_Saturate_I32x4_To_U16x8 is new SSE2_Convert_Pair_128 (I32x4, U16x8, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrld $16, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I32x4_To_U16x8 is new SSE2_Convert_Pair_128_S6 (I32x4, U16x8, "movdqa %8, %6" & ASCII.LF & ASCII.HT & "pxor %5, %5" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %4" & ASCII.LF & ASCII.HT & "psrld $16, %4" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %1" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %4, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %3" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "pandn %1, %2" & ASCII.LF & ASCII.HT & "por %3, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %6, %1" & ASCII.LF & ASCII.HT & "pandn %6, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %4, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %3" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "pandn %1, %2" & ASCII.LF & ASCII.HT & "por %3, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %6" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %6, %6" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %6, %6" & ASCII.LF & ASCII.HT & "pshufd $0x88, %6, %6" & ASCII.LF & ASCII.HT & "punpcklqdq %6, %0", "");
    function Narrow_Saturate (Low, High : I32x4) return U16x8 is (Native_Narrow_Saturate_I32x4_To_U16x8 (Low, High));
-   function Native_Narrow_Saturate_I64x2_To_U32x4 is new SSE2_Convert_Pair_128 (I64x2, U32x4, "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Narrow_Saturate_I64x2_To_U32x4 is new SSE2_Convert_Pair_128_S5 (I64x2, U32x4, "movdqa %7, %5" & ASCII.LF & ASCII.HT & "pxor %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "pandn %3, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %1" & ASCII.LF & ASCII.HT & "pand %1, %5" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "pandn %3, %1" & ASCII.LF & ASCII.HT & "por %1, %5" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %5, %5" & ASCII.LF & ASCII.HT & "punpcklqdq %5, %0", "");
    function Narrow_Saturate (Low, High : I64x2) return U32x4 is (Native_Narrow_Saturate_I64x2_To_U32x4 (Low, High));
-   function Native_Narrow_Round_F64x2_To_F32x4 is new SSE2_Convert_Pair_128 (F64x2, F32x4, "cvtpd2ps %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "cvtpd2ps %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "movlhps %%xmm1, %%xmm0");
+   function Native_Narrow_Round_F64x2_To_F32x4 is new SSE2_Convert_Pair_128_S1 (F64x2, F32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "cvtpd2ps %0, %0" & ASCII.LF & ASCII.HT & "cvtpd2ps %1, %1" & ASCII.LF & ASCII.HT & "movlhps %1, %0", "");
+   pragma Inline_Always (Native_Narrow_Round_F64x2_To_F32x4);
    function Narrow_Round (Low, High : F64x2) return F32x4 is (Native_Narrow_Round_F64x2_To_F32x4 (Low, High));
-   function Native_Convert_Round_I32x4_To_F32x4 is new SSE2_Convert_128 (I32x4, F32x4, "cvtdq2ps %%xmm0, %%xmm0");
+   function Native_Convert_Round_I32x4_To_F32x4 is new SSE2_Convert_128_S0 (I32x4, F32x4, "cvtdq2ps %0, %0", "");
+   pragma Inline_Always (Native_Convert_Round_I32x4_To_F32x4);
    function Convert_Round (Value : I32x4) return F32x4 is (Native_Convert_Round_I32x4_To_F32x4 (Value));
-   function Native_Convert_Round_U32x4_To_F32x4 is new SSE2_Convert_128 (U32x4, F32x4, "pxor %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $31, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm1" & ASCII.LF & ASCII.HT & "cvtdq2ps %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "addps %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "cvtdq2ps %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0");
+   function Native_Convert_Round_U32x4_To_F32x4 is new SSE2_Convert_128_S4 (U32x4, F32x4, "pxor %2, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "psrld $1, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $31, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %4" & ASCII.LF & ASCII.HT & "pand %3, %4" & ASCII.LF & ASCII.HT & "por %4, %1" & ASCII.LF & ASCII.HT & "cvtdq2ps %1, %1" & ASCII.LF & ASCII.HT & "addps %1, %1" & ASCII.LF & ASCII.HT & "cvtdq2ps %0, %0" & ASCII.LF & ASCII.HT & "movdqa %2, %4" & ASCII.LF & ASCII.HT & "pand %1, %4" & ASCII.LF & ASCII.HT & "pandn %0, %2" & ASCII.LF & ASCII.HT & "por %4, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0", "");
    function Convert_Round (Value : U32x4) return F32x4 is (Native_Convert_Round_U32x4_To_F32x4 (Value));
-   function Native_Convert_Round_I64x2_To_F64x2 is new SSE2_Convert_128 (I64x2, F64x2, "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %%xmm2" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm0" & ASCII.LF & ASCII.HT & "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %%xmm3" & ASCII.LF & ASCII.HT & "unpcklpd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0");
+   function Native_Convert_Round_I64x2_To_F64x2 is new SSE2_Convert_128_S2 (I64x2, F64x2, "movq %0, %%rax" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %1" & ASCII.LF & ASCII.HT & "psrldq $8, %0" & ASCII.LF & ASCII.HT & "movq %0, %%rax" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %2" & ASCII.LF & ASCII.HT & "unpcklpd %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "rax,cc");
+   pragma Inline_Always (Native_Convert_Round_I64x2_To_F64x2);
    function Convert_Round (Value : I64x2) return F64x2 is (Native_Convert_Round_I64x2_To_F64x2 (Value));
-   function Native_Convert_Round_U64x2_To_F64x2 is new SSE2_Convert_128 (U64x2, F64x2, "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 1f" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %%xmm2" & ASCII.LF & ASCII.HT & "jmp 2f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "movq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "shrq $1, %%rcx" & ASCII.LF & ASCII.HT & "andq $1, %%rax" & ASCII.LF & ASCII.HT & "orq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rcx, %%xmm2" & ASCII.LF & ASCII.HT & "addsd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "2:" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm0" & ASCII.LF & ASCII.HT & "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 3f" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %%xmm3" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "shrq $1, %%rcx" & ASCII.LF & ASCII.HT & "andq $1, %%rax" & ASCII.LF & ASCII.HT & "orq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rcx, %%xmm3" & ASCII.LF & ASCII.HT & "addsd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "4:" & ASCII.LF & ASCII.HT & "unpcklpd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0");
+   function Native_Convert_Round_U64x2_To_F64x2 is new SSE2_Convert_128_S2 (U64x2, F64x2, "movq %0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 1f" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %1" & ASCII.LF & ASCII.HT & "jmp 2f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "movq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "shrq $1, %%rcx" & ASCII.LF & ASCII.HT & "andq $1, %%rax" & ASCII.LF & ASCII.HT & "orq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rcx, %1" & ASCII.LF & ASCII.HT & "addsd %1, %1" & ASCII.LF & ASCII.HT & "2:" & ASCII.LF & ASCII.HT & "psrldq $8, %0" & ASCII.LF & ASCII.HT & "movq %0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 3f" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rax, %2" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "shrq $1, %%rcx" & ASCII.LF & ASCII.HT & "andq $1, %%rax" & ASCII.LF & ASCII.HT & "orq %%rax, %%rcx" & ASCII.LF & ASCII.HT & "cvtsi2sdq %%rcx, %2" & ASCII.LF & ASCII.HT & "addsd %2, %2" & ASCII.LF & ASCII.HT & "4:" & ASCII.LF & ASCII.HT & "unpcklpd %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "rax,rcx,cc");
    function Convert_Round (Value : U64x2) return F64x2 is (Native_Convert_Round_U64x2_To_F64x2 (Value));
-   function Native_Convert_Truncate_Saturate_F32x4_To_I32x4 is new SSE2_Convert_128 (F32x4, I32x4, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "cvttps2dq %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $28, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $31, %%xmm6" & ASCII.LF & ASCII.HT & "pslld $30, %%xmm6" & ASCII.LF & ASCII.HT & "por %%xmm7, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "cmpleps %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "cmpleps %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "cmpunordps %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm0");
+   function Native_Convert_Truncate_Saturate_F32x4_To_I32x4 is new SSE2_Convert_128_S7 (F32x4, I32x4, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "cvttps2dq %1, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %6, %6" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "psrld $28, %7" & ASCII.LF & ASCII.HT & "pslld $24, %7" & ASCII.LF & ASCII.HT & "psrld $31, %6" & ASCII.LF & ASCII.HT & "pslld $30, %6" & ASCII.LF & ASCII.HT & "por %7, %6" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "cmpleps %0, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %7, %7" & ASCII.LF & ASCII.HT & "pslld $31, %7" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %4" & ASCII.LF & ASCII.HT & "cmpleps %3, %4" & ASCII.LF & ASCII.HT & "movdqa %0, %5" & ASCII.LF & ASCII.HT & "cmpunordps %5, %5" & ASCII.LF & ASCII.HT & "pcmpeqd %6, %6" & ASCII.LF & ASCII.HT & "psrld $1, %6" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "pandn %1, %2" & ASCII.LF & ASCII.HT & "por %3, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "pandn %2, %4" & ASCII.LF & ASCII.HT & "por %3, %4" & ASCII.LF & ASCII.HT & "pandn %4, %5" & ASCII.LF & ASCII.HT & "movdqa %5, %0", "");
    function Convert_Truncate_Saturate (Value : F32x4) return I32x4 is (Native_Convert_Truncate_Saturate_F32x4_To_I32x4 (Value));
-   function Native_Convert_Truncate_Saturate_F32x4_To_U32x4 is new SSE2_Convert_128 (F32x4, U32x4, "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $28, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $31, %%xmm6" & ASCII.LF & ASCII.HT & "pslld $30, %%xmm6" & ASCII.LF & ASCII.HT & "por %%xmm7, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "cmpleps %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "addps %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "cmpleps %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "cmpunordps %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "cmpltps %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "cvttps2dq %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "subps %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "cvttps2dq %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "paddd %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm6" & ASCII.LF & ASCII.HT & "pandn %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm6" & ASCII.LF & ASCII.HT & "pandn %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Convert_Truncate_Saturate_F32x4_To_U32x4 is new SSE2_Convert_128_S7 (F32x4, U32x4, "pcmpeqd %6, %6" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "psrld $28, %7" & ASCII.LF & ASCII.HT & "pslld $24, %7" & ASCII.LF & ASCII.HT & "psrld $31, %6" & ASCII.LF & ASCII.HT & "pslld $30, %6" & ASCII.LF & ASCII.HT & "por %7, %6" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "cmpleps %0, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "addps %3, %3" & ASCII.LF & ASCII.HT & "cmpleps %0, %3" & ASCII.LF & ASCII.HT & "movdqa %0, %4" & ASCII.LF & ASCII.HT & "cmpunordps %4, %4" & ASCII.LF & ASCII.HT & "pxor %7, %7" & ASCII.LF & ASCII.HT & "movdqa %0, %5" & ASCII.LF & ASCII.HT & "cmpltps %7, %5" & ASCII.LF & ASCII.HT & "por %5, %4" & ASCII.LF & ASCII.HT & "movdqa %0, %1" & ASCII.LF & ASCII.HT & "cvttps2dq %1, %1" & ASCII.LF & ASCII.HT & "movdqa %0, %5" & ASCII.LF & ASCII.HT & "subps %6, %5" & ASCII.LF & ASCII.HT & "cvttps2dq %5, %5" & ASCII.LF & ASCII.HT & "pcmpeqd %7, %7" & ASCII.LF & ASCII.HT & "pslld $31, %7" & ASCII.LF & ASCII.HT & "paddd %7, %5" & ASCII.LF & ASCII.HT & "movdqa %2, %6" & ASCII.LF & ASCII.HT & "pand %5, %6" & ASCII.LF & ASCII.HT & "pandn %1, %2" & ASCII.LF & ASCII.HT & "por %6, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %6, %6" & ASCII.LF & ASCII.HT & "pand %3, %6" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "por %6, %3" & ASCII.LF & ASCII.HT & "pandn %3, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %0", "");
    function Convert_Truncate_Saturate (Value : F32x4) return U32x4 is (Native_Convert_Truncate_Saturate_F32x4_To_U32x4 (Value));
-   function Native_Convert_Truncate_Saturate_F64x2_To_I64x2 is new SSE2_Convert_128 (F64x2, I64x2, "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm0, %%rcx" & ASCII.LF & ASCII.HT & "movq %%rax, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rdx" & ASCII.LF & ASCII.HT & "andq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "ja 1f" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jne 3f" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 3f" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 3f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movq %%rcx, %%xmm4" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm0" & ASCII.LF & ASCII.HT & "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm0, %%rcx" & ASCII.LF & ASCII.HT & "movq %%rax, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rdx" & ASCII.LF & ASCII.HT & "andq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "ja 5f" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jne 7f" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 7f" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 7f" & ASCII.LF & ASCII.HT & "5:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "7:" & ASCII.LF & ASCII.HT & "movq %%rcx, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Convert_Truncate_Saturate_F64x2_To_I64x2 is new SSE2_Convert_128_S2 (F64x2, I64x2, "movq %0, %%rax" & ASCII.LF & ASCII.HT & "cvttsd2siq %0, %%rcx" & ASCII.LF & ASCII.HT & "movq %%rax, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rdx" & ASCII.LF & ASCII.HT & "andq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "ja 1f" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jne 3f" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 3f" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 3f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movq %%rcx, %1" & ASCII.LF & ASCII.HT & "psrldq $8, %0" & ASCII.LF & ASCII.HT & "movq %0, %%rax" & ASCII.LF & ASCII.HT & "cvttsd2siq %0, %%rcx" & ASCII.LF & ASCII.HT & "movq %%rax, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rdx" & ASCII.LF & ASCII.HT & "andq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%r8" & ASCII.LF & ASCII.HT & "ja 5f" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jne 7f" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 7f" & ASCII.LF & ASCII.HT & "movabsq $0x7fffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 7f" & ASCII.LF & ASCII.HT & "5:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "7:" & ASCII.LF & ASCII.HT & "movq %%rcx, %2" & ASCII.LF & ASCII.HT & "punpcklqdq %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "r8,rax,rcx,rdx,cc");
    function Convert_Truncate_Saturate (Value : F64x2) return I64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_I64x2 (Value));
-   function Native_Convert_Truncate_Saturate_F64x2_To_U64x2 is new SSE2_Convert_128 (F64x2, U64x2, "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 1f" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "ja 1f" & ASCII.LF & ASCII.HT & "movabsq $0x43f0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 2f" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 3f" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm0, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "movq %%rdx, %%xmm2" & ASCII.LF & ASCII.HT & "movapd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "subsd %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm1, %%rcx" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "orq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "2:" & ASCII.LF & ASCII.HT & "movabsq $0xffffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "4:" & ASCII.LF & ASCII.HT & "movq %%rcx, %%xmm4" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm0" & ASCII.LF & ASCII.HT & "movq %%xmm0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 6f" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "ja 6f" & ASCII.LF & ASCII.HT & "movabsq $0x43f0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 7f" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 8f" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm0, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "8:" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "movq %%rdx, %%xmm2" & ASCII.LF & ASCII.HT & "movapd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "subsd %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "cvttsd2siq %%xmm1, %%rcx" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "orq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "7:" & ASCII.LF & ASCII.HT & "movabsq $0xffffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "6:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "9:" & ASCII.LF & ASCII.HT & "movq %%rcx, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Convert_Truncate_Saturate_F64x2_To_U64x2 is new SSE2_Convert_128_S4 (F64x2, U64x2, "movq %0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 1f" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "ja 1f" & ASCII.LF & ASCII.HT & "movabsq $0x43f0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 2f" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 3f" & ASCII.LF & ASCII.HT & "cvttsd2siq %0, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "3:" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "movq %%rdx, %2" & ASCII.LF & ASCII.HT & "movapd %0, %1" & ASCII.LF & ASCII.HT & "subsd %2, %1" & ASCII.LF & ASCII.HT & "cvttsd2siq %1, %%rcx" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "orq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "2:" & ASCII.LF & ASCII.HT & "movabsq $0xffffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 4f" & ASCII.LF & ASCII.HT & "1:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "4:" & ASCII.LF & ASCII.HT & "movq %%rcx, %3" & ASCII.LF & ASCII.HT & "psrldq $8, %0" & ASCII.LF & ASCII.HT & "movq %0, %%rax" & ASCII.LF & ASCII.HT & "testq %%rax, %%rax" & ASCII.LF & ASCII.HT & "js 6f" & ASCII.LF & ASCII.HT & "movabsq $0x7ff0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "ja 6f" & ASCII.LF & ASCII.HT & "movabsq $0x43f0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 7f" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "cmpq %%rdx, %%rax" & ASCII.LF & ASCII.HT & "jae 8f" & ASCII.LF & ASCII.HT & "cvttsd2siq %0, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "8:" & ASCII.LF & ASCII.HT & "movabsq $0x43e0000000000000, %%rdx" & ASCII.LF & ASCII.HT & "movq %%rdx, %2" & ASCII.LF & ASCII.HT & "movapd %0, %1" & ASCII.LF & ASCII.HT & "subsd %2, %1" & ASCII.LF & ASCII.HT & "cvttsd2siq %1, %%rcx" & ASCII.LF & ASCII.HT & "movabsq $0x8000000000000000, %%rdx" & ASCII.LF & ASCII.HT & "orq %%rdx, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "7:" & ASCII.LF & ASCII.HT & "movabsq $0xffffffffffffffff, %%rcx" & ASCII.LF & ASCII.HT & "jmp 9f" & ASCII.LF & ASCII.HT & "6:" & ASCII.LF & ASCII.HT & "xorq %%rcx, %%rcx" & ASCII.LF & ASCII.HT & "9:" & ASCII.LF & ASCII.HT & "movq %%rcx, %4" & ASCII.LF & ASCII.HT & "punpcklqdq %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "rax,rcx,rdx,cc");
    function Convert_Truncate_Saturate (Value : F64x2) return U64x2 is (Native_Convert_Truncate_Saturate_F64x2_To_U64x2 (Value));
-   function Native_Convert_Saturate_I8x16_To_U8x16 is new SSE2_Convert_128 (I8x16, U8x16, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Native_Convert_Saturate_I8x16_To_U8x16 is new SSE2_Convert_128_S1 (I8x16, U8x16, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtb %0, %1" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
+   pragma Inline_Always (Native_Convert_Saturate_I8x16_To_U8x16);
    function Convert_Saturate (Value : I8x16) return U8x16 is (Native_Convert_Saturate_I8x16_To_U8x16 (Value));
-   function Native_Convert_Saturate_U8x16_To_I8x16 is new SSE2_Convert_128 (U8x16, I8x16, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtb %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $9, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Convert_Saturate_U8x16_To_I8x16 is new SSE2_Convert_128_S3 (U8x16, I8x16, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtb %0, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psrlw $9, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %1" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Convert_Saturate (Value : U8x16) return I8x16 is (Native_Convert_Saturate_U8x16_To_I8x16 (Value));
-   function Native_Convert_Saturate_I16x8_To_U16x8 is new SSE2_Convert_128 (I16x8, U16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Native_Convert_Saturate_I16x8_To_U16x8 is new SSE2_Convert_128_S1 (I16x8, U16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtw %0, %1" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
+   pragma Inline_Always (Native_Convert_Saturate_I16x8_To_U16x8);
    function Convert_Saturate (Value : I16x8) return U16x8 is (Native_Convert_Saturate_I16x8_To_U16x8 (Value));
-   function Native_Convert_Saturate_U16x8_To_I16x8 is new SSE2_Convert_128 (U16x8, I16x8, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Convert_Saturate_U16x8_To_I16x8 is new SSE2_Convert_128_S3 (U16x8, I16x8, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtw %0, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psrlw $1, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %1" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Convert_Saturate (Value : U16x8) return I16x8 is (Native_Convert_Saturate_U16x8_To_I16x8 (Value));
-   function Native_Convert_Saturate_I32x4_To_U32x4 is new SSE2_Convert_128 (I32x4, U32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Native_Convert_Saturate_I32x4_To_U32x4 is new SSE2_Convert_128_S1 (I32x4, U32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %1" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
+   pragma Inline_Always (Native_Convert_Saturate_I32x4_To_U32x4);
    function Convert_Saturate (Value : I32x4) return U32x4 is (Native_Convert_Saturate_I32x4_To_U32x4 (Value));
-   function Native_Convert_Saturate_U32x4_To_I32x4 is new SSE2_Convert_128 (U32x4, I32x4, "pxor %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Convert_Saturate_U32x4_To_I32x4 is new SSE2_Convert_128_S3 (U32x4, I32x4, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pcmpgtd %0, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psrld $1, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %1" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Convert_Saturate (Value : U32x4) return I32x4 is (Native_Convert_Saturate_U32x4_To_I32x4 (Value));
-   function Native_Convert_Saturate_I64x2_To_U64x2 is new SSE2_Convert_128 (I64x2, U64x2, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm0");
+   function Native_Convert_Saturate_I64x2_To_U64x2 is new SSE2_Convert_128_S1 (I64x2, U64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "psrad $31, %1" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
+   pragma Inline_Always (Native_Convert_Saturate_I64x2_To_U64x2);
    function Convert_Saturate (Value : I64x2) return U64x2 is (Native_Convert_Saturate_I64x2_To_U64x2 (Value));
-   function Native_Convert_Saturate_U64x2_To_I64x2 is new SSE2_Convert_128 (U64x2, I64x2, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Convert_Saturate_U64x2_To_I64x2 is new SSE2_Convert_128_S3 (U64x2, I64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "psrad $31, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %1" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
-   function Native_Add_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "paddb %%xmm1, %%xmm0");
+   function Native_Add_Wrap_I8x16 is new SSE2_Binary_128_S0 (I8x16, "paddb %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_I8x16);
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
-   function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "psubb %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_I8x16 is new SSE2_Binary_128_S0 (I8x16, "psubb %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_I8x16);
    function Subtract_Wrap (Left, Right : I8x16) return I8x16 is (Native_Subtract_Wrap_I8x16 (Left, Right));
-   function Native_Multiply_Wrap_I8x16 is new SSE2_Binary_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pmullw %%xmm4, %%xmm0" & ASCII.LF & ASCII.HT & "pmullw %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm0");
+   function Native_Multiply_Wrap_I8x16 is new SSE2_Binary_128_S5 (I8x16, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "movdqu %7, %3" & ASCII.LF & ASCII.HT & "movdqu %7, %4" & ASCII.LF & ASCII.HT & "pxor %2, %2" & ASCII.LF & ASCII.HT & "punpcklbw %2, %0" & ASCII.LF & ASCII.HT & "punpckhbw %2, %1" & ASCII.LF & ASCII.HT & "punpcklbw %2, %3" & ASCII.LF & ASCII.HT & "punpckhbw %2, %4" & ASCII.LF & ASCII.HT & "pmullw %3, %0" & ASCII.LF & ASCII.HT & "pmullw %4, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "psrlw $8, %5" & ASCII.LF & ASCII.HT & "pand %5, %0" & ASCII.LF & ASCII.HT & "pand %5, %1" & ASCII.LF & ASCII.HT & "packuswb %1, %0", "");
    function Multiply_Wrap (Left, Right : I8x16) return I8x16 is (Native_Multiply_Wrap_I8x16 (Left, Right));
-   function Native_Bitwise_And_I8x16 is new SSE2_Binary_128 (I8x16, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_I8x16 is new SSE2_Binary_128_S0 (I8x16, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_I8x16);
    function Bitwise_And (Left, Right : I8x16) return I8x16 is (Native_Bitwise_And_I8x16 (Left, Right));
-   function Native_Bitwise_Or_I8x16 is new SSE2_Binary_128 (I8x16, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_I8x16 is new SSE2_Binary_128_S0 (I8x16, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_I8x16);
    function Bitwise_Or (Left, Right : I8x16) return I8x16 is (Native_Bitwise_Or_I8x16 (Left, Right));
-   function Native_Bitwise_Xor_I8x16 is new SSE2_Binary_128 (I8x16, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_I8x16 is new SSE2_Binary_128_S0 (I8x16, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_I8x16);
    function Bitwise_Xor (Left, Right : I8x16) return I8x16 is (Native_Bitwise_Xor_I8x16 (Left, Right));
-   function Native_Interleave_Low_I8x16 is new SSE2_Binary_128 (I8x16, "punpcklbw %%xmm1, %%xmm0");
+   function Native_Interleave_Low_I8x16 is new SSE2_Binary_128_S0 (I8x16, "punpcklbw %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_I8x16);
    function Interleave_Low (Left, Right : I8x16) return I8x16 is (Native_Interleave_Low_I8x16 (Left, Right));
-   function Native_Interleave_High_I8x16 is new SSE2_Binary_128 (I8x16, "punpckhbw %%xmm1, %%xmm0");
+   function Native_Interleave_High_I8x16 is new SSE2_Binary_128_S0 (I8x16, "punpckhbw %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_I8x16);
    function Interleave_High (Left, Right : I8x16) return I8x16 is (Native_Interleave_High_I8x16 (Left, Right));
-   function Native_Deinterleave_Even_I8x16 is new SSE2_Binary_128 (I8x16, "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_I8x16 is new SSE2_Binary_128_S2 (I8x16, "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pand %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_I8x16);
    function Deinterleave_Even (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Even_I8x16 (Left, Right));
-   function Native_Deinterleave_Odd_I8x16 is new SSE2_Binary_128 (I8x16, "psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm1" & ASCII.LF & ASCII.HT & "packuswb %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_I8x16 is new SSE2_Binary_128_S1 (I8x16, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %0" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "packuswb %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_I8x16);
    function Deinterleave_Odd (Left, Right : I8x16) return I8x16 is (Native_Deinterleave_Odd_I8x16 (Left, Right));
-   function Native_Add_Saturate_I8x16 is new SSE2_Binary_128 (I8x16, "paddsb %%xmm1, %%xmm0");
+   function Native_Add_Saturate_I8x16 is new SSE2_Binary_128_S0 (I8x16, "paddsb %2, %0", "");
+   pragma Inline_Always (Native_Add_Saturate_I8x16);
    function Add_Saturate (Left, Right : I8x16) return I8x16 is (Native_Add_Saturate_I8x16 (Left, Right));
-   function Native_Subtract_Saturate_I8x16 is new SSE2_Binary_128 (I8x16, "psubsb %%xmm1, %%xmm0");
+   function Native_Subtract_Saturate_I8x16 is new SSE2_Binary_128_S0 (I8x16, "psubsb %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Saturate_I8x16);
    function Subtract_Saturate (Left, Right : I8x16) return I8x16 is (Native_Subtract_Saturate_I8x16 (Left, Right));
-   function Native_Not_I8x16 is new SSE2_Unary_128 (I8x16, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_I8x16 is new SSE2_Unary_128_S1 (I8x16, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_I8x16);
    function Bitwise_Not (Value : I8x16) return I8x16 is (Native_Not_I8x16 (Value));
-   function Native_Reverse_I8x16 is new SSE2_Unary_128 (I8x16, "movdqu %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_I8x16 is new SSE2_Unary_128_S1 (I8x16, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %0" & ASCII.LF & ASCII.HT & "psllw $8, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_I8x16);
    function Reverse_Lanes (Value : I8x16) return I8x16 is (Native_Reverse_I8x16 (Value));
-   function Compare_Equal_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpeqb %%xmm1, %%xmm0");
-   function Compare_Greater_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpgtb %%xmm1, %%xmm0");
+   function Compare_Equal_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpeqb %2, %1");
+   pragma Inline_Always (Compare_Equal_I8x16);
+   function Compare_Greater_I8x16 is new SSE2_Compare_128 (I8x16, 8, "pcmpgtb %2, %1");
+   pragma Inline_Always (Compare_Greater_I8x16);
    function Native_Select_I8x16 is new SSE2_Select_128 (I8x16, 8);
+   pragma Inline_Always (Native_Select_I8x16);
    function Native_Zero_I8x16 is new SSE2_Zero_128 (I8x16);
+   pragma Inline_Always (Native_Zero_I8x16);
    function Zero return I8x16 is (Native_Zero_I8x16);
-   function Native_Splat_I8x16 is new SSE2_Splat_128 (I8x16, I8, "movzbl (%1), %%eax", "imull $0x01010101, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_I8x16 is new SSE2_Splat_Integer_128 (I8x16, I8, "movzbl %b2, %k1" & ASCII.LF & ASCII.HT & "imull $0x01010101, %k1, %k1" & ASCII.LF & ASCII.HT & "movd %k1, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_I8x16);
    function Splat (Value : I8) return I8x16 is (Native_Splat_I8x16 (Value));
    function From_Lanes (Values : Lane_Values_I8x16) return I8x16 is
      (Lanes => Values);
@@ -1528,18 +2070,18 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_I8x16 (Value, Map);
    end Expand;
 
-   function Native_SHL_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psllw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psllw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrlw $8, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm0");
-   function Native_SHR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psrlw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psrlw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "packuswb %%xmm2, %%xmm0");
+   function Native_SHL_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %0, %2" & ASCII.LF & ASCII.HT & "pxor %3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %0" & ASCII.LF & ASCII.HT & "punpckhbw %3, %2" & ASCII.LF & ASCII.HT & "psllw %1, %0" & ASCII.LF & ASCII.HT & "psllw %1, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrlw $8, %3" & ASCII.LF & ASCII.HT & "pand %3, %0" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0");
+   function Native_SHR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %0, %2" & ASCII.LF & ASCII.HT & "pxor %3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %0" & ASCII.LF & ASCII.HT & "punpckhbw %3, %2" & ASCII.LF & ASCII.HT & "psrlw %1, %0" & ASCII.LF & ASCII.HT & "psrlw %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0");
    function Shift_Left_Logical (Value : I8x16; Count : Natural) return I8x16 is (Native_SHL_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
    function Shift_Right_Logical (Value : I8x16; Count : Natural) return I8x16 is (Native_SHR_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
-   function Native_SAR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "punpckhbw %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psllw $8, %%xmm2" & ASCII.LF & ASCII.HT & "psraw $8, %%xmm0" & ASCII.LF & ASCII.HT & "psraw $8, %%xmm2" & ASCII.LF & ASCII.HT & "psraw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "psraw %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "packsswb %%xmm2, %%xmm0");
+   function Native_SAR_I8x16 is new SSE2_Shift_128 (I8x16, "movdqu %0, %2" & ASCII.LF & ASCII.HT & "pxor %3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %0" & ASCII.LF & ASCII.HT & "punpckhbw %3, %2" & ASCII.LF & ASCII.HT & "psllw $8, %0" & ASCII.LF & ASCII.HT & "psllw $8, %2" & ASCII.LF & ASCII.HT & "psraw $8, %0" & ASCII.LF & ASCII.HT & "psraw $8, %2" & ASCII.LF & ASCII.HT & "psraw %1, %0" & ASCII.LF & ASCII.HT & "psraw %1, %2" & ASCII.LF & ASCII.HT & "packsswb %2, %0");
    function Shift_Right_Arithmetic (Value : I8x16; Count : Natural) return I8x16 is (Native_SAR_I8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
-   function Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Equal_I8x16 (Left, Right, Sign_8'Address)));
-   function Greater_Than (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_I8x16 (Left, Right, Sign_8'Address)));
-   function Greater_Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_I8x16 (Left, Right, Sign_8'Address) or Compare_Equal_I8x16 (Left, Right, Sign_8'Address)));
+   function Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Equal_I8x16 (Left, Right, Sign_Vector_8)));
+   function Greater_Than (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_I8x16 (Left, Right, Sign_Vector_8)));
+   function Greater_Equal (Left, Right : I8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_I8x16 (Left, Right, Sign_Vector_8) or Compare_Equal_I8x16 (Left, Right, Sign_Vector_8)));
    function Less_Than (Left, Right : I8x16) return Mask_8x16 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is (Native_Select_I8x16 (To_Bit_Mask (Mask), Weights_X86_8'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is (Native_Select_I8x16 (To_Bit_Mask (Mask), Weights_X86_Vector_8, If_True, If_False));
    function Min (Left, Right : I8x16) return I8x16 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I8x16) return I8x16 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_I8x16 is new SSE2_Integer_Reduce_128 (I8x16, I8, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm1" & ASCII.LF & ASCII.HT & "paddb %%xmm1, %%xmm0", "movd %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movb %%al, (%0)", False);
@@ -1582,40 +2124,59 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_U16x8 is new SSE2_Binary_128 (U16x8, "paddw %%xmm1, %%xmm0");
+   function Native_Add_Wrap_U16x8 is new SSE2_Binary_128_S0 (U16x8, "paddw %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_U16x8);
    function Add_Wrap (Left, Right : U16x8) return U16x8 is (Native_Add_Wrap_U16x8 (Left, Right));
-   function Native_Subtract_Wrap_U16x8 is new SSE2_Binary_128 (U16x8, "psubw %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_U16x8 is new SSE2_Binary_128_S0 (U16x8, "psubw %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_U16x8);
    function Subtract_Wrap (Left, Right : U16x8) return U16x8 is (Native_Subtract_Wrap_U16x8 (Left, Right));
-   function Native_Multiply_Wrap_U16x8 is new SSE2_Binary_128 (U16x8, "pmullw %%xmm1, %%xmm0");
+   function Native_Multiply_Wrap_U16x8 is new SSE2_Binary_128_S0 (U16x8, "pmullw %2, %0", "");
+   pragma Inline_Always (Native_Multiply_Wrap_U16x8);
    function Multiply_Wrap (Left, Right : U16x8) return U16x8 is (Native_Multiply_Wrap_U16x8 (Left, Right));
-   function Native_Bitwise_And_U16x8 is new SSE2_Binary_128 (U16x8, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_U16x8 is new SSE2_Binary_128_S0 (U16x8, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_U16x8);
    function Bitwise_And (Left, Right : U16x8) return U16x8 is (Native_Bitwise_And_U16x8 (Left, Right));
-   function Native_Bitwise_Or_U16x8 is new SSE2_Binary_128 (U16x8, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_U16x8 is new SSE2_Binary_128_S0 (U16x8, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_U16x8);
    function Bitwise_Or (Left, Right : U16x8) return U16x8 is (Native_Bitwise_Or_U16x8 (Left, Right));
-   function Native_Bitwise_Xor_U16x8 is new SSE2_Binary_128 (U16x8, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_U16x8 is new SSE2_Binary_128_S0 (U16x8, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_U16x8);
    function Bitwise_Xor (Left, Right : U16x8) return U16x8 is (Native_Bitwise_Xor_U16x8 (Left, Right));
-   function Native_Interleave_Low_U16x8 is new SSE2_Binary_128 (U16x8, "punpcklwd %%xmm1, %%xmm0");
+   function Native_Interleave_Low_U16x8 is new SSE2_Binary_128_S0 (U16x8, "punpcklwd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_U16x8);
    function Interleave_Low (Left, Right : U16x8) return U16x8 is (Native_Interleave_Low_U16x8 (Left, Right));
-   function Native_Interleave_High_U16x8 is new SSE2_Binary_128 (U16x8, "punpckhwd %%xmm1, %%xmm0");
+   function Native_Interleave_High_U16x8 is new SSE2_Binary_128_S0 (U16x8, "punpckhwd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_U16x8);
    function Interleave_High (Left, Right : U16x8) return U16x8 is (Native_Interleave_High_U16x8 (Left, Right));
-   function Native_Deinterleave_Even_U16x8 is new SSE2_Binary_128 (U16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_U16x8 is new SSE2_Binary_128_S1 (U16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_U16x8);
    function Deinterleave_Even (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Even_U16x8 (Left, Right));
-   function Native_Deinterleave_Odd_U16x8 is new SSE2_Binary_128 (U16x8, "pshuflw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_U16x8 is new SSE2_Binary_128_S1 (U16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_U16x8);
    function Deinterleave_Odd (Left, Right : U16x8) return U16x8 is (Native_Deinterleave_Odd_U16x8 (Left, Right));
-   function Native_Add_Saturate_U16x8 is new SSE2_Binary_128 (U16x8, "paddusw %%xmm1, %%xmm0");
+   function Native_Add_Saturate_U16x8 is new SSE2_Binary_128_S0 (U16x8, "paddusw %2, %0", "");
+   pragma Inline_Always (Native_Add_Saturate_U16x8);
    function Add_Saturate (Left, Right : U16x8) return U16x8 is (Native_Add_Saturate_U16x8 (Left, Right));
-   function Native_Subtract_Saturate_U16x8 is new SSE2_Binary_128 (U16x8, "psubusw %%xmm1, %%xmm0");
+   function Native_Subtract_Saturate_U16x8 is new SSE2_Binary_128_S0 (U16x8, "psubusw %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Saturate_U16x8);
    function Subtract_Saturate (Left, Right : U16x8) return U16x8 is (Native_Subtract_Saturate_U16x8 (Left, Right));
-   function Native_Not_U16x8 is new SSE2_Unary_128 (U16x8, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_U16x8 is new SSE2_Unary_128_S1 (U16x8, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_U16x8);
    function Bitwise_Not (Value : U16x8) return U16x8 is (Native_Not_U16x8 (Value));
-   function Native_Reverse_U16x8 is new SSE2_Unary_128 (U16x8, "pshuflw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_U16x8 is new SSE2_Unary_128_S0 (U16x8, "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_U16x8);
    function Reverse_Lanes (Value : U16x8) return U16x8 is (Native_Reverse_U16x8 (Value));
-   function Compare_Equal_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pcmpeqw %%xmm1, %%xmm0");
-   function Compare_Greater_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtw %%xmm1, %%xmm0");
+   function Compare_Equal_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pcmpeqw %2, %1");
+   pragma Inline_Always (Compare_Equal_U16x8);
+   function Compare_Greater_U16x8 is new SSE2_Compare_128 (U16x8, 16, "pxor %9, %1" & ASCII.LF & ASCII.HT & "pxor %9, %2" & ASCII.LF & ASCII.HT & "pcmpgtw %2, %1");
+   pragma Inline_Always (Compare_Greater_U16x8);
    function Native_Select_U16x8 is new SSE2_Select_128 (U16x8, 16);
+   pragma Inline_Always (Native_Select_U16x8);
    function Native_Zero_U16x8 is new SSE2_Zero_128 (U16x8);
+   pragma Inline_Always (Native_Zero_U16x8);
    function Zero return U16x8 is (Native_Zero_U16x8);
-   function Native_Splat_U16x8 is new SSE2_Splat_128 (U16x8, U16, "movzwl (%1), %%eax", "imull $0x00010001, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_U16x8 is new SSE2_Splat_Integer_128 (U16x8, U16, "movzwl %w2, %k1" & ASCII.LF & ASCII.HT & "imull $0x00010001, %k1, %k1" & ASCII.LF & ASCII.HT & "movd %k1, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_U16x8);
    function Splat (Value : U16) return U16x8 is (Native_Splat_U16x8 (Value));
    function From_Lanes (Values : Lane_Values_U16x8) return U16x8 is
      (Lanes => Values);
@@ -1678,16 +2239,16 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_U16x8 (Value, Map);
    end Expand;
 
-   function Native_SHL_U16x8 is new SSE2_Shift_128 (U16x8, "psllw %%xmm1, %%xmm0");
-   function Native_SHR_U16x8 is new SSE2_Shift_128 (U16x8, "psrlw %%xmm1, %%xmm0");
+   function Native_SHL_U16x8 is new SSE2_Shift_128 (U16x8, "psllw %1, %0");
+   function Native_SHR_U16x8 is new SSE2_Shift_128 (U16x8, "psrlw %1, %0");
    function Shift_Left_Logical (Value : U16x8; Count : Natural) return U16x8 is (Native_SHL_U16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
    function Shift_Right_Logical (Value : U16x8; Count : Natural) return U16x8 is (Native_SHR_U16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
-   function Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U16x8 (Left, Right, Sign_16'Address))));
-   function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_16'Address))));
-   function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_16'Address) or Compare_Equal_U16x8 (Left, Right, Sign_16'Address))));
+   function Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U16x8 (Left, Right, Sign_Vector_16))));
+   function Greater_Than (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_Vector_16))));
+   function Greater_Equal (Left, Right : U16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U16x8 (Left, Right, Sign_Vector_16) or Compare_Equal_U16x8 (Left, Right, Sign_Vector_16))));
    function Less_Than (Left, Right : U16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is (Native_Select_U16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_16'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is (Native_Select_U16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_16, If_True, If_False));
    function Min (Left, Right : U16x8) return U16x8 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U16x8) return U16x8 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_U16x8 is new SSE2_Integer_Reduce_128 (U16x8, U16, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
@@ -1730,44 +2291,65 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_I16x8 is new SSE2_Binary_128 (I16x8, "paddw %%xmm1, %%xmm0");
+   function Native_Add_Wrap_I16x8 is new SSE2_Binary_128_S0 (I16x8, "paddw %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_I16x8);
    function Add_Wrap (Left, Right : I16x8) return I16x8 is (Native_Add_Wrap_I16x8 (Left, Right));
-   function Native_Subtract_Wrap_I16x8 is new SSE2_Binary_128 (I16x8, "psubw %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_I16x8 is new SSE2_Binary_128_S0 (I16x8, "psubw %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_I16x8);
    function Subtract_Wrap (Left, Right : I16x8) return I16x8 is (Native_Subtract_Wrap_I16x8 (Left, Right));
-   function Native_Multiply_Wrap_I16x8 is new SSE2_Binary_128 (I16x8, "pmullw %%xmm1, %%xmm0");
+   function Native_Multiply_Wrap_I16x8 is new SSE2_Binary_128_S0 (I16x8, "pmullw %2, %0", "");
+   pragma Inline_Always (Native_Multiply_Wrap_I16x8);
    function Multiply_Wrap (Left, Right : I16x8) return I16x8 is (Native_Multiply_Wrap_I16x8 (Left, Right));
-   function Native_Bitwise_And_I16x8 is new SSE2_Binary_128 (I16x8, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_I16x8 is new SSE2_Binary_128_S0 (I16x8, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_I16x8);
    function Bitwise_And (Left, Right : I16x8) return I16x8 is (Native_Bitwise_And_I16x8 (Left, Right));
-   function Native_Bitwise_Or_I16x8 is new SSE2_Binary_128 (I16x8, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_I16x8 is new SSE2_Binary_128_S0 (I16x8, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_I16x8);
    function Bitwise_Or (Left, Right : I16x8) return I16x8 is (Native_Bitwise_Or_I16x8 (Left, Right));
-   function Native_Bitwise_Xor_I16x8 is new SSE2_Binary_128 (I16x8, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_I16x8 is new SSE2_Binary_128_S0 (I16x8, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_I16x8);
    function Bitwise_Xor (Left, Right : I16x8) return I16x8 is (Native_Bitwise_Xor_I16x8 (Left, Right));
-   function Native_Interleave_Low_I16x8 is new SSE2_Binary_128 (I16x8, "punpcklwd %%xmm1, %%xmm0");
+   function Native_Interleave_Low_I16x8 is new SSE2_Binary_128_S0 (I16x8, "punpcklwd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_I16x8);
    function Interleave_Low (Left, Right : I16x8) return I16x8 is (Native_Interleave_Low_I16x8 (Left, Right));
-   function Native_Interleave_High_I16x8 is new SSE2_Binary_128 (I16x8, "punpckhwd %%xmm1, %%xmm0");
+   function Native_Interleave_High_I16x8 is new SSE2_Binary_128_S0 (I16x8, "punpckhwd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_I16x8);
    function Interleave_High (Left, Right : I16x8) return I16x8 is (Native_Interleave_High_I16x8 (Left, Right));
-   function Native_Deinterleave_Even_I16x8 is new SSE2_Binary_128 (I16x8, "pshuflw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_I16x8 is new SSE2_Binary_128_S1 (I16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0x88, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_I16x8);
    function Deinterleave_Even (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Even_I16x8 (Left, Right));
-   function Native_Deinterleave_Odd_I16x8 is new SSE2_Binary_128 (I16x8, "pshuflw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_I16x8 is new SSE2_Binary_128_S1 (I16x8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshuflw $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "pshufhw $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_I16x8);
    function Deinterleave_Odd (Left, Right : I16x8) return I16x8 is (Native_Deinterleave_Odd_I16x8 (Left, Right));
-   function Native_Add_Saturate_I16x8 is new SSE2_Binary_128 (I16x8, "paddsw %%xmm1, %%xmm0");
+   function Native_Add_Saturate_I16x8 is new SSE2_Binary_128_S0 (I16x8, "paddsw %2, %0", "");
+   pragma Inline_Always (Native_Add_Saturate_I16x8);
    function Add_Saturate (Left, Right : I16x8) return I16x8 is (Native_Add_Saturate_I16x8 (Left, Right));
-   function Native_Subtract_Saturate_I16x8 is new SSE2_Binary_128 (I16x8, "psubsw %%xmm1, %%xmm0");
+   function Native_Subtract_Saturate_I16x8 is new SSE2_Binary_128_S0 (I16x8, "psubsw %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Saturate_I16x8);
    function Subtract_Saturate (Left, Right : I16x8) return I16x8 is (Native_Subtract_Saturate_I16x8 (Left, Right));
-   function Native_Min_I16x8 is new SSE2_Binary_128 (I16x8, "pminsw %%xmm1, %%xmm0");
+   function Native_Min_I16x8 is new SSE2_Binary_128_S0 (I16x8, "pminsw %2, %0", "");
+   pragma Inline_Always (Native_Min_I16x8);
    function Min (Left, Right : I16x8) return I16x8 is (Native_Min_I16x8 (Left, Right));
-   function Native_Max_I16x8 is new SSE2_Binary_128 (I16x8, "pmaxsw %%xmm1, %%xmm0");
+   function Native_Max_I16x8 is new SSE2_Binary_128_S0 (I16x8, "pmaxsw %2, %0", "");
+   pragma Inline_Always (Native_Max_I16x8);
    function Max (Left, Right : I16x8) return I16x8 is (Native_Max_I16x8 (Left, Right));
-   function Native_Not_I16x8 is new SSE2_Unary_128 (I16x8, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_I16x8 is new SSE2_Unary_128_S1 (I16x8, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_I16x8);
    function Bitwise_Not (Value : I16x8) return I16x8 is (Native_Not_I16x8 (Value));
-   function Native_Reverse_I16x8 is new SSE2_Unary_128 (I16x8, "pshuflw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_I16x8 is new SSE2_Unary_128_S0 (I16x8, "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_I16x8);
    function Reverse_Lanes (Value : I16x8) return I16x8 is (Native_Reverse_I16x8 (Value));
-   function Compare_Equal_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpeqw %%xmm1, %%xmm0");
-   function Compare_Greater_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpgtw %%xmm1, %%xmm0");
+   function Compare_Equal_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpeqw %2, %1");
+   pragma Inline_Always (Compare_Equal_I16x8);
+   function Compare_Greater_I16x8 is new SSE2_Compare_128 (I16x8, 16, "pcmpgtw %2, %1");
+   pragma Inline_Always (Compare_Greater_I16x8);
    function Native_Select_I16x8 is new SSE2_Select_128 (I16x8, 16);
+   pragma Inline_Always (Native_Select_I16x8);
    function Native_Zero_I16x8 is new SSE2_Zero_128 (I16x8);
+   pragma Inline_Always (Native_Zero_I16x8);
    function Zero return I16x8 is (Native_Zero_I16x8);
-   function Native_Splat_I16x8 is new SSE2_Splat_128 (I16x8, I16, "movzwl (%1), %%eax", "imull $0x00010001, %%eax, %%eax" & ASCII.LF & ASCII.HT & "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_I16x8 is new SSE2_Splat_Integer_128 (I16x8, I16, "movzwl %w2, %k1" & ASCII.LF & ASCII.HT & "imull $0x00010001, %k1, %k1" & ASCII.LF & ASCII.HT & "movd %k1, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_I16x8);
    function Splat (Value : I16) return I16x8 is (Native_Splat_I16x8 (Value));
    function From_Lanes (Values : Lane_Values_I16x8) return I16x8 is
      (Lanes => Values);
@@ -1830,18 +2412,18 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_I16x8 (Value, Map);
    end Expand;
 
-   function Native_SHL_I16x8 is new SSE2_Shift_128 (I16x8, "psllw %%xmm1, %%xmm0");
-   function Native_SHR_I16x8 is new SSE2_Shift_128 (I16x8, "psrlw %%xmm1, %%xmm0");
+   function Native_SHL_I16x8 is new SSE2_Shift_128 (I16x8, "psllw %1, %0");
+   function Native_SHR_I16x8 is new SSE2_Shift_128 (I16x8, "psrlw %1, %0");
    function Shift_Left_Logical (Value : I16x8; Count : Natural) return I16x8 is (Native_SHL_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
    function Shift_Right_Logical (Value : I16x8; Count : Natural) return I16x8 is (Native_SHR_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
-   function Native_SAR_I16x8 is new SSE2_Shift_128 (I16x8, "psraw %%xmm1, %%xmm0");
+   function Native_SAR_I16x8 is new SSE2_Shift_128 (I16x8, "psraw %1, %0");
    function Shift_Right_Arithmetic (Value : I16x8; Count : Natural) return I16x8 is (Native_SAR_I16x8 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 16))));
-   function Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I16x8 (Left, Right, Sign_16'Address))));
-   function Greater_Than (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I16x8 (Left, Right, Sign_16'Address))));
-   function Greater_Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I16x8 (Left, Right, Sign_16'Address) or Compare_Equal_I16x8 (Left, Right, Sign_16'Address))));
+   function Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I16x8 (Left, Right, Sign_Vector_16))));
+   function Greater_Than (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I16x8 (Left, Right, Sign_Vector_16))));
+   function Greater_Equal (Left, Right : I16x8) return Mask_16x8 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I16x8 (Left, Right, Sign_Vector_16) or Compare_Equal_I16x8 (Left, Right, Sign_Vector_16))));
    function Less_Than (Left, Right : I16x8) return Mask_16x8 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I16x8) return Mask_16x8 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is (Native_Select_I16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_16'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is (Native_Select_I16x8 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_16, If_True, If_False));
    function Native_Reduce_Add_Wrap_I16x8 is new SSE2_Integer_Reduce_128 (I16x8, I16, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm1" & ASCII.LF & ASCII.HT & "paddw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
    function Reduce_Add_Wrap (Value : I16x8) return I16 is (Native_Reduce_Add_Wrap_I16x8 (Value, Sign_16'Address));
    function Native_Reduce_Min_I16x8 is new SSE2_Integer_Reduce_128 (I16x8, I16, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pminsw %%xmm1, %%xmm0", "pextrw $0, %%xmm0, %%eax" & ASCII.LF & ASCII.HT & "movw %%ax, (%0)", False);
@@ -1882,40 +2464,56 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_U32x4 is new SSE2_Binary_128 (U32x4, "paddd %%xmm1, %%xmm0");
+   function Native_Add_Wrap_U32x4 is new SSE2_Binary_128_S0 (U32x4, "paddd %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_U32x4);
    function Add_Wrap (Left, Right : U32x4) return U32x4 is (Native_Add_Wrap_U32x4 (Left, Right));
-   function Native_Subtract_Wrap_U32x4 is new SSE2_Binary_128 (U32x4, "psubd %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_U32x4 is new SSE2_Binary_128_S0 (U32x4, "psubd %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_U32x4);
    function Subtract_Wrap (Left, Right : U32x4) return U32x4 is (Native_Subtract_Wrap_U32x4 (Left, Right));
-   function Native_Multiply_Wrap_U32x4 is new SSE2_Binary_128 (U32x4, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm3" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pmuludq %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "punpckldq %%xmm2, %%xmm0");
+   function Native_Multiply_Wrap_U32x4 is new SSE2_Binary_128_S2 (U32x4, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "movdqu %4, %2" & ASCII.LF & ASCII.HT & "psrldq $4, %1" & ASCII.LF & ASCII.HT & "psrldq $4, %2" & ASCII.LF & ASCII.HT & "pmuludq %4, %0" & ASCII.LF & ASCII.HT & "pmuludq %2, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpckldq %1, %0", "");
    function Multiply_Wrap (Left, Right : U32x4) return U32x4 is (Native_Multiply_Wrap_U32x4 (Left, Right));
-   function Native_Bitwise_And_U32x4 is new SSE2_Binary_128 (U32x4, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_U32x4 is new SSE2_Binary_128_S0 (U32x4, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_U32x4);
    function Bitwise_And (Left, Right : U32x4) return U32x4 is (Native_Bitwise_And_U32x4 (Left, Right));
-   function Native_Bitwise_Or_U32x4 is new SSE2_Binary_128 (U32x4, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_U32x4 is new SSE2_Binary_128_S0 (U32x4, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_U32x4);
    function Bitwise_Or (Left, Right : U32x4) return U32x4 is (Native_Bitwise_Or_U32x4 (Left, Right));
-   function Native_Bitwise_Xor_U32x4 is new SSE2_Binary_128 (U32x4, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_U32x4 is new SSE2_Binary_128_S0 (U32x4, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_U32x4);
    function Bitwise_Xor (Left, Right : U32x4) return U32x4 is (Native_Bitwise_Xor_U32x4 (Left, Right));
-   function Native_Interleave_Low_U32x4 is new SSE2_Binary_128 (U32x4, "punpckldq %%xmm1, %%xmm0");
+   function Native_Interleave_Low_U32x4 is new SSE2_Binary_128_S0 (U32x4, "punpckldq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_U32x4);
    function Interleave_Low (Left, Right : U32x4) return U32x4 is (Native_Interleave_Low_U32x4 (Left, Right));
-   function Native_Interleave_High_U32x4 is new SSE2_Binary_128 (U32x4, "punpckhdq %%xmm1, %%xmm0");
+   function Native_Interleave_High_U32x4 is new SSE2_Binary_128_S0 (U32x4, "punpckhdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_U32x4);
    function Interleave_High (Left, Right : U32x4) return U32x4 is (Native_Interleave_High_U32x4 (Left, Right));
-   function Native_Deinterleave_Even_U32x4 is new SSE2_Binary_128 (U32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_U32x4 is new SSE2_Binary_128_S1 (U32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_U32x4);
    function Deinterleave_Even (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Even_U32x4 (Left, Right));
-   function Native_Deinterleave_Odd_U32x4 is new SSE2_Binary_128 (U32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_U32x4 is new SSE2_Binary_128_S1 (U32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_U32x4);
    function Deinterleave_Odd (Left, Right : U32x4) return U32x4 is (Native_Deinterleave_Odd_U32x4 (Left, Right));
-   function Native_Add_Saturate_U32x4 is new SSE2_Binary_128 (U32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm0");
+   function Native_Add_Saturate_U32x4 is new SSE2_Binary_128_S5 (U32x4, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %7, %2" & ASCII.LF & ASCII.HT & "paddd %7, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %0, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "pxor %5, %4" & ASCII.LF & ASCII.HT & "pand %4, %1" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "por %3, %0", "");
    function Add_Saturate (Left, Right : U32x4) return U32x4 is (Native_Add_Saturate_U32x4 (Left, Right));
-   function Native_Subtract_Saturate_U32x4 is new SSE2_Binary_128 (U32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Subtract_Saturate_U32x4 is new SSE2_Binary_128_S4 (U32x4, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "psubd %6, %0" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %4" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "pxor %4, %1" & ASCII.LF & ASCII.HT & "pand %0, %1" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Subtract_Saturate (Left, Right : U32x4) return U32x4 is (Native_Subtract_Saturate_U32x4 (Left, Right));
-   function Native_Not_U32x4 is new SSE2_Unary_128 (U32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_U32x4 is new SSE2_Unary_128_S1 (U32x4, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_U32x4);
    function Bitwise_Not (Value : U32x4) return U32x4 is (Native_Not_U32x4 (Value));
-   function Native_Reverse_U32x4 is new SSE2_Unary_128 (U32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
+   function Native_Reverse_U32x4 is new SSE2_Unary_128_S0 (U32x4, "pshufd $0x1B, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_U32x4);
    function Reverse_Lanes (Value : U32x4) return U32x4 is (Native_Reverse_U32x4 (Value));
-   function Compare_Equal_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pcmpeqd %%xmm1, %%xmm0");
-   function Compare_Greater_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0");
+   function Compare_Equal_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pcmpeqd %2, %1");
+   pragma Inline_Always (Compare_Equal_U32x4);
+   function Compare_Greater_U32x4 is new SSE2_Compare_128 (U32x4, 32, "pxor %9, %1" & ASCII.LF & ASCII.HT & "pxor %9, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %1");
+   pragma Inline_Always (Compare_Greater_U32x4);
    function Native_Select_U32x4 is new SSE2_Select_128 (U32x4, 32);
+   pragma Inline_Always (Native_Select_U32x4);
    function Native_Zero_U32x4 is new SSE2_Zero_128 (U32x4);
+   pragma Inline_Always (Native_Zero_U32x4);
    function Zero return U32x4 is (Native_Zero_U32x4);
-   function Native_Splat_U32x4 is new SSE2_Splat_128 (U32x4, U32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_U32x4 is new SSE2_Splat_Integer_128 (U32x4, U32, "movd %k2, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_U32x4);
    function Splat (Value : U32) return U32x4 is (Native_Splat_U32x4 (Value));
    function From_Lanes (Values : Lane_Values_U32x4) return U32x4 is
      (Lanes => Values);
@@ -1978,16 +2576,16 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_U32x4 (Value, Map);
    end Expand;
 
-   function Native_SHL_U32x4 is new SSE2_Shift_128 (U32x4, "pslld %%xmm1, %%xmm0");
-   function Native_SHR_U32x4 is new SSE2_Shift_128 (U32x4, "psrld %%xmm1, %%xmm0");
+   function Native_SHL_U32x4 is new SSE2_Shift_128 (U32x4, "pslld %1, %0");
+   function Native_SHR_U32x4 is new SSE2_Shift_128 (U32x4, "psrld %1, %0");
    function Shift_Left_Logical (Value : U32x4; Count : Natural) return U32x4 is (Native_SHL_U32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
    function Shift_Right_Logical (Value : U32x4; Count : Natural) return U32x4 is (Native_SHR_U32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
-   function Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U32x4 (Left, Right, Sign_32'Address))));
-   function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_32'Address))));
-   function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_32'Address) or Compare_Equal_U32x4 (Left, Right, Sign_32'Address))));
+   function Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U32x4 (Left, Right, Sign_Vector_32))));
+   function Greater_Than (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_Vector_32))));
+   function Greater_Equal (Left, Right : U32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U32x4 (Left, Right, Sign_Vector_32) or Compare_Equal_U32x4 (Left, Right, Sign_Vector_32))));
    function Less_Than (Left, Right : U32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is (Native_Select_U32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is (Native_Select_U32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_32, If_True, If_False));
    function Min (Left, Right : U32x4) return U32x4 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U32x4) return U32x4 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_U32x4 is new SSE2_Integer_Reduce_128 (U32x4, U32, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0", "movd %%xmm0, (%0)", False);
@@ -2030,40 +2628,56 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_I32x4 is new SSE2_Binary_128 (I32x4, "paddd %%xmm1, %%xmm0");
+   function Native_Add_Wrap_I32x4 is new SSE2_Binary_128_S0 (I32x4, "paddd %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_I32x4);
    function Add_Wrap (Left, Right : I32x4) return I32x4 is (Native_Add_Wrap_I32x4 (Left, Right));
-   function Native_Subtract_Wrap_I32x4 is new SSE2_Binary_128 (I32x4, "psubd %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_I32x4 is new SSE2_Binary_128_S0 (I32x4, "psubd %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_I32x4);
    function Subtract_Wrap (Left, Right : I32x4) return I32x4 is (Native_Subtract_Wrap_I32x4 (Left, Right));
-   function Native_Multiply_Wrap_I32x4 is new SSE2_Binary_128 (I32x4, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm3" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pmuludq %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "punpckldq %%xmm2, %%xmm0");
+   function Native_Multiply_Wrap_I32x4 is new SSE2_Binary_128_S2 (I32x4, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "movdqu %4, %2" & ASCII.LF & ASCII.HT & "psrldq $4, %1" & ASCII.LF & ASCII.HT & "psrldq $4, %2" & ASCII.LF & ASCII.HT & "pmuludq %4, %0" & ASCII.LF & ASCII.HT & "pmuludq %2, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpckldq %1, %0", "");
    function Multiply_Wrap (Left, Right : I32x4) return I32x4 is (Native_Multiply_Wrap_I32x4 (Left, Right));
-   function Native_Bitwise_And_I32x4 is new SSE2_Binary_128 (I32x4, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_I32x4 is new SSE2_Binary_128_S0 (I32x4, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_I32x4);
    function Bitwise_And (Left, Right : I32x4) return I32x4 is (Native_Bitwise_And_I32x4 (Left, Right));
-   function Native_Bitwise_Or_I32x4 is new SSE2_Binary_128 (I32x4, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_I32x4 is new SSE2_Binary_128_S0 (I32x4, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_I32x4);
    function Bitwise_Or (Left, Right : I32x4) return I32x4 is (Native_Bitwise_Or_I32x4 (Left, Right));
-   function Native_Bitwise_Xor_I32x4 is new SSE2_Binary_128 (I32x4, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_I32x4 is new SSE2_Binary_128_S0 (I32x4, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_I32x4);
    function Bitwise_Xor (Left, Right : I32x4) return I32x4 is (Native_Bitwise_Xor_I32x4 (Left, Right));
-   function Native_Interleave_Low_I32x4 is new SSE2_Binary_128 (I32x4, "punpckldq %%xmm1, %%xmm0");
+   function Native_Interleave_Low_I32x4 is new SSE2_Binary_128_S0 (I32x4, "punpckldq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_I32x4);
    function Interleave_Low (Left, Right : I32x4) return I32x4 is (Native_Interleave_Low_I32x4 (Left, Right));
-   function Native_Interleave_High_I32x4 is new SSE2_Binary_128 (I32x4, "punpckhdq %%xmm1, %%xmm0");
+   function Native_Interleave_High_I32x4 is new SSE2_Binary_128_S0 (I32x4, "punpckhdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_I32x4);
    function Interleave_High (Left, Right : I32x4) return I32x4 is (Native_Interleave_High_I32x4 (Left, Right));
-   function Native_Deinterleave_Even_I32x4 is new SSE2_Binary_128 (I32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_I32x4 is new SSE2_Binary_128_S1 (I32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_I32x4);
    function Deinterleave_Even (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Even_I32x4 (Left, Right));
-   function Native_Deinterleave_Odd_I32x4 is new SSE2_Binary_128 (I32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_I32x4 is new SSE2_Binary_128_S1 (I32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_I32x4);
    function Deinterleave_Odd (Left, Right : I32x4) return I32x4 is (Native_Deinterleave_Odd_I32x4 (Left, Right));
-   function Native_Add_Saturate_I32x4 is new SSE2_Binary_128 (I32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Add_Saturate_I32x4 is new SSE2_Binary_128_S6 (I32x4, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %8, %2" & ASCII.LF & ASCII.HT & "paddd %8, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %2, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "pxor %5, %3" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pxor %0, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "movdqa %5, %6" & ASCII.LF & ASCII.HT & "pslld $31, %6" & ASCII.LF & ASCII.HT & "psrld $1, %5" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %1" & ASCII.LF & ASCII.HT & "pand %6, %1" & ASCII.LF & ASCII.HT & "pandn %5, %4" & ASCII.LF & ASCII.HT & "por %1, %4" & ASCII.LF & ASCII.HT & "pand %3, %4" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Add_Saturate (Left, Right : I32x4) return I32x4 is (Native_Add_Saturate_I32x4 (Left, Right));
-   function Native_Subtract_Saturate_I32x4 is new SSE2_Binary_128 (I32x4, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm7" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Subtract_Saturate_I32x4 is new SSE2_Binary_128_S6 (I32x4, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %8, %2" & ASCII.LF & ASCII.HT & "psubd %8, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %2, %3" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pxor %0, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "movdqa %5, %6" & ASCII.LF & ASCII.HT & "pslld $31, %6" & ASCII.LF & ASCII.HT & "psrld $1, %5" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %1" & ASCII.LF & ASCII.HT & "pand %6, %1" & ASCII.LF & ASCII.HT & "pandn %5, %4" & ASCII.LF & ASCII.HT & "por %1, %4" & ASCII.LF & ASCII.HT & "pand %3, %4" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Subtract_Saturate (Left, Right : I32x4) return I32x4 is (Native_Subtract_Saturate_I32x4 (Left, Right));
-   function Native_Not_I32x4 is new SSE2_Unary_128 (I32x4, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_I32x4 is new SSE2_Unary_128_S1 (I32x4, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_I32x4);
    function Bitwise_Not (Value : I32x4) return I32x4 is (Native_Not_I32x4 (Value));
-   function Native_Reverse_I32x4 is new SSE2_Unary_128 (I32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
+   function Native_Reverse_I32x4 is new SSE2_Unary_128_S0 (I32x4, "pshufd $0x1B, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_I32x4);
    function Reverse_Lanes (Value : I32x4) return I32x4 is (Native_Reverse_I32x4 (Value));
-   function Compare_Equal_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpeqd %%xmm1, %%xmm0");
-   function Compare_Greater_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpgtd %%xmm1, %%xmm0");
+   function Compare_Equal_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpeqd %2, %1");
+   pragma Inline_Always (Compare_Equal_I32x4);
+   function Compare_Greater_I32x4 is new SSE2_Compare_128 (I32x4, 32, "pcmpgtd %2, %1");
+   pragma Inline_Always (Compare_Greater_I32x4);
    function Native_Select_I32x4 is new SSE2_Select_128 (I32x4, 32);
+   pragma Inline_Always (Native_Select_I32x4);
    function Native_Zero_I32x4 is new SSE2_Zero_128 (I32x4);
+   pragma Inline_Always (Native_Zero_I32x4);
    function Zero return I32x4 is (Native_Zero_I32x4);
-   function Native_Splat_I32x4 is new SSE2_Splat_128 (I32x4, I32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_I32x4 is new SSE2_Splat_Integer_128 (I32x4, I32, "movd %k2, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_I32x4);
    function Splat (Value : I32) return I32x4 is (Native_Splat_I32x4 (Value));
    function From_Lanes (Values : Lane_Values_I32x4) return I32x4 is
      (Lanes => Values);
@@ -2126,18 +2740,18 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_I32x4 (Value, Map);
    end Expand;
 
-   function Native_SHL_I32x4 is new SSE2_Shift_128 (I32x4, "pslld %%xmm1, %%xmm0");
-   function Native_SHR_I32x4 is new SSE2_Shift_128 (I32x4, "psrld %%xmm1, %%xmm0");
+   function Native_SHL_I32x4 is new SSE2_Shift_128 (I32x4, "pslld %1, %0");
+   function Native_SHR_I32x4 is new SSE2_Shift_128 (I32x4, "psrld %1, %0");
    function Shift_Left_Logical (Value : I32x4; Count : Natural) return I32x4 is (Native_SHL_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
    function Shift_Right_Logical (Value : I32x4; Count : Natural) return I32x4 is (Native_SHR_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
-   function Native_SAR_I32x4 is new SSE2_Shift_128 (I32x4, "psrad %%xmm1, %%xmm0");
+   function Native_SAR_I32x4 is new SSE2_Shift_128 (I32x4, "psrad %1, %0");
    function Shift_Right_Arithmetic (Value : I32x4; Count : Natural) return I32x4 is (Native_SAR_I32x4 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 32))));
-   function Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I32x4 (Left, Right, Sign_32'Address))));
-   function Greater_Than (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I32x4 (Left, Right, Sign_32'Address))));
-   function Greater_Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I32x4 (Left, Right, Sign_32'Address) or Compare_Equal_I32x4 (Left, Right, Sign_32'Address))));
+   function Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I32x4 (Left, Right, Sign_Vector_32))));
+   function Greater_Than (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I32x4 (Left, Right, Sign_Vector_32))));
+   function Greater_Equal (Left, Right : I32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I32x4 (Left, Right, Sign_Vector_32) or Compare_Equal_I32x4 (Left, Right, Sign_Vector_32))));
    function Less_Than (Left, Right : I32x4) return Mask_32x4 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I32x4) return Mask_32x4 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is (Native_Select_I32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is (Native_Select_I32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_32, If_True, If_False));
    function Min (Left, Right : I32x4) return I32x4 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I32x4) return I32x4 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_I32x4 is new SSE2_Integer_Reduce_128 (I32x4, I32, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm1" & ASCII.LF & ASCII.HT & "paddd %%xmm1, %%xmm0", "movd %%xmm0, (%0)", False);
@@ -2180,40 +2794,56 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_U64x2 is new SSE2_Binary_128 (U64x2, "paddq %%xmm1, %%xmm0");
+   function Native_Add_Wrap_U64x2 is new SSE2_Binary_128_S0 (U64x2, "paddq %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_U64x2);
    function Add_Wrap (Left, Right : U64x2) return U64x2 is (Native_Add_Wrap_U64x2 (Left, Right));
-   function Native_Subtract_Wrap_U64x2 is new SSE2_Binary_128 (U64x2, "psubq %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_U64x2 is new SSE2_Binary_128_S0 (U64x2, "psubq %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_U64x2);
    function Subtract_Wrap (Left, Right : U64x2) return U64x2 is (Native_Subtract_Wrap_U64x2 (Left, Right));
-   function Native_Multiply_Wrap_U64x2 is new SSE2_Binary_128 (U64x2, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pmuludq %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "paddq %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "psllq $32, %%xmm2" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "paddq %%xmm2, %%xmm0");
+   function Native_Multiply_Wrap_U64x2 is new SSE2_Binary_128_S3 (U64x2, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %1, %1" & ASCII.LF & ASCII.HT & "pmuludq %5, %1" & ASCII.LF & ASCII.HT & "movdqu %5, %2" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "movdqu %0, %3" & ASCII.LF & ASCII.HT & "pmuludq %2, %3" & ASCII.LF & ASCII.HT & "paddq %3, %1" & ASCII.LF & ASCII.HT & "psllq $32, %1" & ASCII.LF & ASCII.HT & "pmuludq %5, %0" & ASCII.LF & ASCII.HT & "paddq %1, %0", "");
    function Multiply_Wrap (Left, Right : U64x2) return U64x2 is (Native_Multiply_Wrap_U64x2 (Left, Right));
-   function Native_Bitwise_And_U64x2 is new SSE2_Binary_128 (U64x2, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_U64x2 is new SSE2_Binary_128_S0 (U64x2, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_U64x2);
    function Bitwise_And (Left, Right : U64x2) return U64x2 is (Native_Bitwise_And_U64x2 (Left, Right));
-   function Native_Bitwise_Or_U64x2 is new SSE2_Binary_128 (U64x2, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_U64x2 is new SSE2_Binary_128_S0 (U64x2, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_U64x2);
    function Bitwise_Or (Left, Right : U64x2) return U64x2 is (Native_Bitwise_Or_U64x2 (Left, Right));
-   function Native_Bitwise_Xor_U64x2 is new SSE2_Binary_128 (U64x2, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_U64x2 is new SSE2_Binary_128_S0 (U64x2, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_U64x2);
    function Bitwise_Xor (Left, Right : U64x2) return U64x2 is (Native_Bitwise_Xor_U64x2 (Left, Right));
-   function Native_Interleave_Low_U64x2 is new SSE2_Binary_128 (U64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Interleave_Low_U64x2 is new SSE2_Binary_128_S0 (U64x2, "punpcklqdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_U64x2);
    function Interleave_Low (Left, Right : U64x2) return U64x2 is (Native_Interleave_Low_U64x2 (Left, Right));
-   function Native_Interleave_High_U64x2 is new SSE2_Binary_128 (U64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Native_Interleave_High_U64x2 is new SSE2_Binary_128_S0 (U64x2, "punpckhqdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_U64x2);
    function Interleave_High (Left, Right : U64x2) return U64x2 is (Native_Interleave_High_U64x2 (Left, Right));
-   function Native_Deinterleave_Even_U64x2 is new SSE2_Binary_128 (U64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_U64x2 is new SSE2_Binary_128_S0 (U64x2, "punpcklqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_U64x2);
    function Deinterleave_Even (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Even_U64x2 (Left, Right));
-   function Native_Deinterleave_Odd_U64x2 is new SSE2_Binary_128 (U64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_U64x2 is new SSE2_Binary_128_S0 (U64x2, "punpckhqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_U64x2);
    function Deinterleave_Odd (Left, Right : U64x2) return U64x2 is (Native_Deinterleave_Odd_U64x2 (Left, Right));
-   function Native_Add_Saturate_U64x2 is new SSE2_Binary_128 (U64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm0");
+   function Native_Add_Saturate_U64x2 is new SSE2_Binary_128_S5 (U64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %7, %2" & ASCII.LF & ASCII.HT & "paddq %7, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %0, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "pxor %5, %4" & ASCII.LF & ASCII.HT & "pand %4, %1" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "por %3, %0", "");
    function Add_Saturate (Left, Right : U64x2) return U64x2 is (Native_Add_Saturate_U64x2 (Left, Right));
-   function Native_Subtract_Saturate_U64x2 is new SSE2_Binary_128 (U64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Subtract_Saturate_U64x2 is new SSE2_Binary_128_S4 (U64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "psubq %6, %0" & ASCII.LF & ASCII.HT & "pcmpeqd %4, %4" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "pxor %4, %1" & ASCII.LF & ASCII.HT & "pand %0, %1" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Subtract_Saturate (Left, Right : U64x2) return U64x2 is (Native_Subtract_Saturate_U64x2 (Left, Right));
-   function Native_Not_U64x2 is new SSE2_Unary_128 (U64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_U64x2 is new SSE2_Unary_128_S1 (U64x2, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_U64x2);
    function Bitwise_Not (Value : U64x2) return U64x2 is (Native_Not_U64x2 (Value));
-   function Native_Reverse_U64x2 is new SSE2_Unary_128 (U64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_U64x2 is new SSE2_Unary_128_S0 (U64x2, "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_U64x2);
    function Reverse_Lanes (Value : U64x2) return U64x2 is (Native_Reverse_U64x2 (Value));
-   function Compare_Equal_U64x2 is new SSE2_Compare_128 (U64x2, 64, "pcmpeqd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0");
-   function Compare_Greater_U64x2 is new SSE2_Compare_128 (U64x2, 64, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm0");
+   function Compare_Equal_U64x2 is new SSE2_Compare_128 (U64x2, 64, "pcmpeqd %2, %1" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %1, %3" & ASCII.LF & ASCII.HT & "pand %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %1, %1");
+   pragma Inline_Always (Compare_Equal_U64x2);
+   function Compare_Greater_U64x2 is new SSE2_Compare_128 (U64x2, 64, "movdqu %1, %3" & ASCII.LF & ASCII.HT & "movdqu %2, %4" & ASCII.LF & ASCII.HT & "pxor %9, %3" & ASCII.LF & ASCII.HT & "pxor %9, %4" & ASCII.LF & ASCII.HT & "pcmpgtd %4, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqu %1, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pxor %9, %1" & ASCII.LF & ASCII.HT & "pxor %9, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %1, %1" & ASCII.LF & ASCII.HT & "pand %4, %1" & ASCII.LF & ASCII.HT & "por %3, %1");
+   pragma Inline_Always (Compare_Greater_U64x2);
    function Native_Select_U64x2 is new SSE2_Select_128 (U64x2, 64);
+   pragma Inline_Always (Native_Select_U64x2);
    function Native_Zero_U64x2 is new SSE2_Zero_128 (U64x2);
+   pragma Inline_Always (Native_Zero_U64x2);
    function Zero return U64x2 is (Native_Zero_U64x2);
-   function Native_Splat_U64x2 is new SSE2_Splat_128 (U64x2, U64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Native_Splat_U64x2 is new SSE2_Splat_Integer_128 (U64x2, U64, "movq %q2, %0" & ASCII.LF & ASCII.HT & "punpcklqdq %0, %0");
+   pragma Inline_Always (Native_Splat_U64x2);
    function Splat (Value : U64) return U64x2 is (Native_Splat_U64x2 (Value));
    function From_Lanes (Values : Lane_Values_U64x2) return U64x2 is
      (Lanes => Values);
@@ -2276,16 +2906,16 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_U64x2 (Value, Map);
    end Expand;
 
-   function Native_SHL_U64x2 is new SSE2_Shift_128 (U64x2, "psllq %%xmm1, %%xmm0");
-   function Native_SHR_U64x2 is new SSE2_Shift_128 (U64x2, "psrlq %%xmm1, %%xmm0");
+   function Native_SHL_U64x2 is new SSE2_Shift_128 (U64x2, "psllq %1, %0");
+   function Native_SHR_U64x2 is new SSE2_Shift_128 (U64x2, "psrlq %1, %0");
    function Shift_Left_Logical (Value : U64x2; Count : Natural) return U64x2 is (Native_SHL_U64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Shift_Right_Logical (Value : U64x2; Count : Natural) return U64x2 is (Native_SHR_U64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
-   function Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U64x2 (Left, Right, Sign_32'Address))));
-   function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_32'Address))));
-   function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_32'Address) or Compare_Equal_U64x2 (Left, Right, Sign_32'Address))));
+   function Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_U64x2 (Left, Right, Sign_Vector_32))));
+   function Greater_Than (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_Vector_32))));
+   function Greater_Equal (Left, Right : U64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_U64x2 (Left, Right, Sign_Vector_32) or Compare_Equal_U64x2 (Left, Right, Sign_Vector_32))));
    function Less_Than (Left, Right : U64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : U64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is (Native_Select_U64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is (Native_Select_U64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_64, If_True, If_False));
    function Min (Left, Right : U64x2) return U64x2 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : U64x2) return U64x2 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_U64x2 is new SSE2_Integer_Reduce_128 (U64x2, U64, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0", "movq %%xmm0, (%0)", False);
@@ -2328,40 +2958,56 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_Wrap_I64x2 is new SSE2_Binary_128 (I64x2, "paddq %%xmm1, %%xmm0");
+   function Native_Add_Wrap_I64x2 is new SSE2_Binary_128_S0 (I64x2, "paddq %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_I64x2);
    function Add_Wrap (Left, Right : I64x2) return I64x2 is (Native_Add_Wrap_I64x2 (Left, Right));
-   function Native_Subtract_Wrap_I64x2 is new SSE2_Binary_128 (I64x2, "psubq %%xmm1, %%xmm0");
+   function Native_Subtract_Wrap_I64x2 is new SSE2_Binary_128_S0 (I64x2, "psubq %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_I64x2);
    function Subtract_Wrap (Left, Right : I64x2) return I64x2 is (Native_Subtract_Wrap_I64x2 (Left, Right));
-   function Native_Multiply_Wrap_I64x2 is new SSE2_Binary_128 (I64x2, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pmuludq %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "paddq %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "psllq $32, %%xmm2" & ASCII.LF & ASCII.HT & "pmuludq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "paddq %%xmm2, %%xmm0");
+   function Native_Multiply_Wrap_I64x2 is new SSE2_Binary_128_S3 (I64x2, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %1, %1" & ASCII.LF & ASCII.HT & "pmuludq %5, %1" & ASCII.LF & ASCII.HT & "movdqu %5, %2" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "movdqu %0, %3" & ASCII.LF & ASCII.HT & "pmuludq %2, %3" & ASCII.LF & ASCII.HT & "paddq %3, %1" & ASCII.LF & ASCII.HT & "psllq $32, %1" & ASCII.LF & ASCII.HT & "pmuludq %5, %0" & ASCII.LF & ASCII.HT & "paddq %1, %0", "");
    function Multiply_Wrap (Left, Right : I64x2) return I64x2 is (Native_Multiply_Wrap_I64x2 (Left, Right));
-   function Native_Bitwise_And_I64x2 is new SSE2_Binary_128 (I64x2, "pand %%xmm1, %%xmm0");
+   function Native_Bitwise_And_I64x2 is new SSE2_Binary_128_S0 (I64x2, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_I64x2);
    function Bitwise_And (Left, Right : I64x2) return I64x2 is (Native_Bitwise_And_I64x2 (Left, Right));
-   function Native_Bitwise_Or_I64x2 is new SSE2_Binary_128 (I64x2, "por %%xmm1, %%xmm0");
+   function Native_Bitwise_Or_I64x2 is new SSE2_Binary_128_S0 (I64x2, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_I64x2);
    function Bitwise_Or (Left, Right : I64x2) return I64x2 is (Native_Bitwise_Or_I64x2 (Left, Right));
-   function Native_Bitwise_Xor_I64x2 is new SSE2_Binary_128 (I64x2, "pxor %%xmm1, %%xmm0");
+   function Native_Bitwise_Xor_I64x2 is new SSE2_Binary_128_S0 (I64x2, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_I64x2);
    function Bitwise_Xor (Left, Right : I64x2) return I64x2 is (Native_Bitwise_Xor_I64x2 (Left, Right));
-   function Native_Interleave_Low_I64x2 is new SSE2_Binary_128 (I64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Interleave_Low_I64x2 is new SSE2_Binary_128_S0 (I64x2, "punpcklqdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_I64x2);
    function Interleave_Low (Left, Right : I64x2) return I64x2 is (Native_Interleave_Low_I64x2 (Left, Right));
-   function Native_Interleave_High_I64x2 is new SSE2_Binary_128 (I64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Native_Interleave_High_I64x2 is new SSE2_Binary_128_S0 (I64x2, "punpckhqdq %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_I64x2);
    function Interleave_High (Left, Right : I64x2) return I64x2 is (Native_Interleave_High_I64x2 (Left, Right));
-   function Native_Deinterleave_Even_I64x2 is new SSE2_Binary_128 (I64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_I64x2 is new SSE2_Binary_128_S0 (I64x2, "punpcklqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_I64x2);
    function Deinterleave_Even (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Even_I64x2 (Left, Right));
-   function Native_Deinterleave_Odd_I64x2 is new SSE2_Binary_128 (I64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_I64x2 is new SSE2_Binary_128_S0 (I64x2, "punpckhqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_I64x2);
    function Deinterleave_Odd (Left, Right : I64x2) return I64x2 is (Native_Deinterleave_Odd_I64x2 (Left, Right));
-   function Native_Add_Saturate_I64x2 is new SSE2_Binary_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "pxor %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm7" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Add_Saturate_I64x2 is new SSE2_Binary_128_S6 (I64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %8, %2" & ASCII.LF & ASCII.HT & "paddq %8, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %2, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "pxor %5, %3" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pxor %0, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "movdqa %5, %6" & ASCII.LF & ASCII.HT & "psllq $63, %6" & ASCII.LF & ASCII.HT & "psrlq $1, %5" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %1" & ASCII.LF & ASCII.HT & "pand %6, %1" & ASCII.LF & ASCII.HT & "pandn %5, %4" & ASCII.LF & ASCII.HT & "por %1, %4" & ASCII.LF & ASCII.HT & "pand %3, %4" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Add_Saturate (Left, Right : I64x2) return I64x2 is (Native_Add_Saturate_I64x2 (Left, Right));
-   function Native_Subtract_Saturate_I64x2 is new SSE2_Binary_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "psubq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm6, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm7" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm7" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "pandn %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm0");
+   function Native_Subtract_Saturate_I64x2 is new SSE2_Binary_128_S6 (I64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "movdqa %8, %2" & ASCII.LF & ASCII.HT & "psubq %8, %0" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pxor %2, %3" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pxor %0, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "movdqa %5, %6" & ASCII.LF & ASCII.HT & "psllq $63, %6" & ASCII.LF & ASCII.HT & "psrlq $1, %5" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %1" & ASCII.LF & ASCII.HT & "pand %6, %1" & ASCII.LF & ASCII.HT & "pandn %5, %4" & ASCII.LF & ASCII.HT & "por %1, %4" & ASCII.LF & ASCII.HT & "pand %3, %4" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Subtract_Saturate (Left, Right : I64x2) return I64x2 is (Native_Subtract_Saturate_I64x2 (Left, Right));
-   function Native_Not_I64x2 is new SSE2_Unary_128 (I64x2, "pcmpeqd %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm1, %%xmm0");
+   function Native_Not_I64x2 is new SSE2_Unary_128_S1 (I64x2, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_I64x2);
    function Bitwise_Not (Value : I64x2) return I64x2 is (Native_Not_I64x2 (Value));
-   function Native_Reverse_I64x2 is new SSE2_Unary_128 (I64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_I64x2 is new SSE2_Unary_128_S0 (I64x2, "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_I64x2);
    function Reverse_Lanes (Value : I64x2) return I64x2 is (Native_Reverse_I64x2 (Value));
-   function Compare_Equal_I64x2 is new SSE2_Compare_128 (I64x2, 64, "pcmpeqd %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm0, %%xmm0");
-   function Compare_Greater_I64x2 is new SSE2_Compare_128 (I64x2, 64, "movdqu %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm1, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqu %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "movdqu %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pxor %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "por %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqu %%xmm2, %%xmm0");
+   function Compare_Equal_I64x2 is new SSE2_Compare_128 (I64x2, 64, "pcmpeqd %2, %1" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %1, %3" & ASCII.LF & ASCII.HT & "pand %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %1, %1");
+   pragma Inline_Always (Compare_Equal_I64x2);
+   function Compare_Greater_I64x2 is new SSE2_Compare_128 (I64x2, 64, "movdqu %1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqu %1, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "movdqu %1, %5" & ASCII.LF & ASCII.HT & "movdqu %2, %6" & ASCII.LF & ASCII.HT & "pxor %9, %5" & ASCII.LF & ASCII.HT & "pxor %9, %6" & ASCII.LF & ASCII.HT & "pcmpgtd %6, %5" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %5, %5" & ASCII.LF & ASCII.HT & "pand %4, %5" & ASCII.LF & ASCII.HT & "por %5, %3" & ASCII.LF & ASCII.HT & "movdqu %3, %1");
+   pragma Inline_Always (Compare_Greater_I64x2);
    function Native_Select_I64x2 is new SSE2_Select_128 (I64x2, 64);
+   pragma Inline_Always (Native_Select_I64x2);
    function Native_Zero_I64x2 is new SSE2_Zero_128 (I64x2);
+   pragma Inline_Always (Native_Zero_I64x2);
    function Zero return I64x2 is (Native_Zero_I64x2);
-   function Native_Splat_I64x2 is new SSE2_Splat_128 (I64x2, I64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Native_Splat_I64x2 is new SSE2_Splat_Integer_128 (I64x2, I64, "movq %q2, %0" & ASCII.LF & ASCII.HT & "punpcklqdq %0, %0");
+   pragma Inline_Always (Native_Splat_I64x2);
    function Splat (Value : I64) return I64x2 is (Native_Splat_I64x2 (Value));
    function From_Lanes (Values : Lane_Values_I64x2) return I64x2 is
      (Lanes => Values);
@@ -2424,18 +3070,18 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_I64x2 (Value, Map);
    end Expand;
 
-   function Native_SHL_I64x2 is new SSE2_Shift_128 (I64x2, "psllq %%xmm1, %%xmm0");
-   function Native_SHR_I64x2 is new SSE2_Shift_128 (I64x2, "psrlq %%xmm1, %%xmm0");
+   function Native_SHL_I64x2 is new SSE2_Shift_128 (I64x2, "psllq %1, %0");
+   function Native_SHR_I64x2 is new SSE2_Shift_128 (I64x2, "psrlq %1, %0");
    function Shift_Left_Logical (Value : I64x2; Count : Natural) return I64x2 is (Native_SHL_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
    function Shift_Right_Logical (Value : I64x2; Count : Natural) return I64x2 is (Native_SHR_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
-   function Native_SAR_I64x2 is new SSE2_Shift_128 (I64x2, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq %%xmm1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm0");
+   function Native_SAR_I64x2 is new SSE2_Shift_128 (I64x2, "movdqa %0, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "psrlq %1, %0" & ASCII.LF & ASCII.HT & "movdqa %2, %3" & ASCII.LF & ASCII.HT & "psrlq %1, %3" & ASCII.LF & ASCII.HT & "pxor %2, %3" & ASCII.LF & ASCII.HT & "por %3, %0");
    function Shift_Right_Arithmetic (Value : I64x2; Count : Natural) return I64x2 is (Native_SAR_I64x2 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 64))));
-   function Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I64x2 (Left, Right, Sign_32'Address))));
-   function Greater_Than (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_32'Address))));
-   function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_32'Address) or Compare_Equal_I64x2 (Left, Right, Sign_32'Address))));
+   function Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_I64x2 (Left, Right, Sign_Vector_32))));
+   function Greater_Than (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_Vector_32))));
+   function Greater_Equal (Left, Right : I64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Greater_I64x2 (Left, Right, Sign_Vector_32) or Compare_Equal_I64x2 (Left, Right, Sign_Vector_32))));
    function Less_Than (Left, Right : I64x2) return Mask_64x2 is (Greater_Than (Left => Right, Right => Left));
    function Less_Equal (Left, Right : I64x2) return Mask_64x2 is (Greater_Equal (Left => Right, Right => Left));
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is (Native_Select_I64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is (Native_Select_I64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_64, If_True, If_False));
    function Min (Left, Right : I64x2) return I64x2 is (Select_Value (Less_Than (Left, Right), Left, Right));
    function Max (Left, Right : I64x2) return I64x2 is (Select_Value (Greater_Than (Left, Right), Left, Right));
    function Native_Reduce_Add_Wrap_I64x2 is new SSE2_Integer_Reduce_128 (I64x2, I64, "movdqa %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm1" & ASCII.LF & ASCII.HT & "paddq %%xmm1, %%xmm0", "movq %%xmm0, (%0)", False);
@@ -2478,39 +3124,55 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_F32x4 is new SSE2_Binary_128 (F32x4, "addps %%xmm1, %%xmm0");
+   function Native_Add_F32x4 is new SSE2_Binary_128_S0 (F32x4, "addps %2, %0", "");
+   pragma Inline_Always (Native_Add_F32x4);
    function Add (Left, Right : F32x4) return F32x4 is (Native_Add_F32x4 (Left, Right));
-   function Native_Subtract_F32x4 is new SSE2_Binary_128 (F32x4, "subps %%xmm1, %%xmm0");
+   function Native_Subtract_F32x4 is new SSE2_Binary_128_S0 (F32x4, "subps %2, %0", "");
+   pragma Inline_Always (Native_Subtract_F32x4);
    function Subtract (Left, Right : F32x4) return F32x4 is (Native_Subtract_F32x4 (Left, Right));
-   function Native_Multiply_F32x4 is new SSE2_Binary_128 (F32x4, "mulps %%xmm1, %%xmm0");
+   function Native_Multiply_F32x4 is new SSE2_Binary_128_S0 (F32x4, "mulps %2, %0", "");
+   pragma Inline_Always (Native_Multiply_F32x4);
    function Multiply (Left, Right : F32x4) return F32x4 is (Native_Multiply_F32x4 (Left, Right));
-   function Native_Divide_F32x4 is new SSE2_Binary_128 (F32x4, "divps %%xmm1, %%xmm0");
+   function Native_Divide_F32x4 is new SSE2_Binary_128_S0 (F32x4, "divps %2, %0", "");
+   pragma Inline_Always (Native_Divide_F32x4);
    function Divide (Left, Right : F32x4) return F32x4 is (Native_Divide_F32x4 (Left, Right));
-   function Native_Interleave_Low_F32x4 is new SSE2_Binary_128 (F32x4, "unpcklps %%xmm1, %%xmm0");
+   function Native_Interleave_Low_F32x4 is new SSE2_Binary_128_S0 (F32x4, "unpcklps %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_F32x4);
    function Interleave_Low (Left, Right : F32x4) return F32x4 is (Native_Interleave_Low_F32x4 (Left, Right));
-   function Native_Interleave_High_F32x4 is new SSE2_Binary_128 (F32x4, "unpckhps %%xmm1, %%xmm0");
+   function Native_Interleave_High_F32x4 is new SSE2_Binary_128_S0 (F32x4, "unpckhps %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_F32x4);
    function Interleave_High (Left, Right : F32x4) return F32x4 is (Native_Interleave_High_F32x4 (Left, Right));
-   function Native_Deinterleave_Even_F32x4 is new SSE2_Binary_128 (F32x4, "pshufd $0x88, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_F32x4 is new SSE2_Binary_128_S1 (F32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0x88, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x88, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_F32x4);
    function Deinterleave_Even (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Even_F32x4 (Left, Right));
-   function Native_Deinterleave_Odd_F32x4 is new SSE2_Binary_128 (F32x4, "pshufd $0xDD, %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_F32x4 is new SSE2_Binary_128_S1 (F32x4, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0xDD, %1, %1" & ASCII.LF & ASCII.HT & "punpcklqdq %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_F32x4);
    function Deinterleave_Odd (Left, Right : F32x4) return F32x4 is (Native_Deinterleave_Odd_F32x4 (Left, Right));
-   function Native_Reverse_F32x4 is new SSE2_Unary_128 (F32x4, "pshufd $0x1B, %%xmm0, %%xmm0");
+   function Native_Reverse_F32x4 is new SSE2_Unary_128_S0 (F32x4, "pshufd $0x1B, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_F32x4);
    function Reverse_Lanes (Value : F32x4) return F32x4 is (Native_Reverse_F32x4 (Value));
-   function Compare_Equal_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpeqps %%xmm1, %%xmm0");
-   function Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_F32x4 (Left, Right, Sign_32'Address))));
-   function Compare_Less_Than_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpltps %%xmm1, %%xmm0");
-   function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Than_F32x4 (Left, Right, Sign_32'Address))));
-   function Compare_Less_Equal_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpleps %%xmm1, %%xmm0");
-   function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Equal_F32x4 (Left, Right, Sign_32'Address))));
-   function Compare_Unordered_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpunordps %%xmm1, %%xmm0");
-   function Unordered (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Unordered_F32x4 (Left, Right, Sign_32'Address))));
+   function Compare_Equal_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpeqps %2, %1");
+   pragma Inline_Always (Compare_Equal_F32x4);
+   function Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_F32x4 (Left, Right, Sign_Vector_32))));
+   function Compare_Less_Than_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpltps %2, %1");
+   pragma Inline_Always (Compare_Less_Than_F32x4);
+   function Less_Than (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Than_F32x4 (Left, Right, Sign_Vector_32))));
+   function Compare_Less_Equal_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpleps %2, %1");
+   pragma Inline_Always (Compare_Less_Equal_F32x4);
+   function Less_Equal (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Equal_F32x4 (Left, Right, Sign_Vector_32))));
+   function Compare_Unordered_F32x4 is new SSE2_Compare_128 (F32x4, 32, "cmpunordps %2, %1");
+   pragma Inline_Always (Compare_Unordered_F32x4);
+   function Unordered (Left, Right : F32x4) return Mask_32x4 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Unordered_F32x4 (Left, Right, Sign_Vector_32))));
    function Greater_Than (Left, Right : F32x4) return Mask_32x4 is (Less_Than (Left => Right, Right => Left));
    function Greater_Equal (Left, Right : F32x4) return Mask_32x4 is (Less_Equal (Left => Right, Right => Left));
    function Native_Select_F32x4 is new SSE2_Select_128 (F32x4, 32);
-   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_32'Address, If_True, If_False));
+   pragma Inline_Always (Native_Select_F32x4);
+   function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_32, If_True, If_False));
    function Native_Zero_F32x4 is new SSE2_Zero_128 (F32x4);
+   pragma Inline_Always (Native_Zero_F32x4);
    function Zero return F32x4 is (Native_Zero_F32x4);
-   function Native_Splat_F32x4 is new SSE2_Splat_128 (F32x4, F32, "movl (%1), %%eax", "movd %%eax, %%xmm0" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm0, %%xmm0");
+   function Native_Splat_F32x4 is new SSE2_Splat_Float_128 (F32x4, F32, "movaps %1, %0" & ASCII.LF & ASCII.HT & "shufps $0, %0, %0");
+   pragma Inline_Always (Native_Splat_F32x4);
    function Splat (Value : F32) return F32x4 is (Native_Splat_F32x4 (Value));
    function From_Lanes (Values : Lane_Values_F32x4) return F32x4 is
      (Lanes => Values);
@@ -2524,9 +3186,9 @@ package body Flyology_SIMD.Backends.Native is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
-   function Native_Min_Number_F32x4 is new SSE2_Binary_128 (F32x4, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $9, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $9, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Min_Number_F32x4 is new SSE2_Binary_128_S6 (F32x4, "movdqa %0, %5" & ASCII.LF & ASCII.HT & "movdqa %8, %6" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "psrld $1, %2" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "psrld $1, %4" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pand %5, %2" & ASCII.LF & ASCII.HT & "pandn %6, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "pslld $31, %2" & ASCII.LF & ASCII.HT & "psrld $9, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %5, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "pslld $31, %2" & ASCII.LF & ASCII.HT & "psrld $9, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0", "");
    function Min_Number (Left, Right : F32x4) return F32x4 is (Native_Min_Number_F32x4 (Left, Right));
-   function Native_Max_Number_F32x4 is new SSE2_Binary_128 (F32x4, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $9, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $24, %%xmm4" & ASCII.LF & ASCII.HT & "psrld $1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "pslld $9, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrld $9, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Max_Number_F32x4 is new SSE2_Binary_128_S6 (F32x4, "movdqa %0, %5" & ASCII.LF & ASCII.HT & "movdqa %8, %6" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "psrld $1, %2" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "psrld $1, %4" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pand %5, %2" & ASCII.LF & ASCII.HT & "pandn %6, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "pslld $31, %2" & ASCII.LF & ASCII.HT & "psrld $9, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "pslld $24, %3" & ASCII.LF & ASCII.HT & "psrld $1, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "pslld $9, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %5, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "pslld $31, %2" & ASCII.LF & ASCII.HT & "psrld $9, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0", "");
    function Max_Number (Left, Right : F32x4) return F32x4 is (Native_Max_Number_F32x4 (Left, Right));
    function Native_Reduce_Add_F32x4 is new SSE2_Float_Reduce_128 (F32x4, F32, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm2" & ASCII.LF & ASCII.HT & "addss %%xmm2, %%xmm0", "movss %%xmm0, (%0)");
    function Reduce_Add (Value : F32x4) return F32 is (Native_Reduce_Add_F32x4 (Value));
@@ -2617,39 +3279,55 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
-   function Native_Add_F64x2 is new SSE2_Binary_128 (F64x2, "addpd %%xmm1, %%xmm0");
+   function Native_Add_F64x2 is new SSE2_Binary_128_S0 (F64x2, "addpd %2, %0", "");
+   pragma Inline_Always (Native_Add_F64x2);
    function Add (Left, Right : F64x2) return F64x2 is (Native_Add_F64x2 (Left, Right));
-   function Native_Subtract_F64x2 is new SSE2_Binary_128 (F64x2, "subpd %%xmm1, %%xmm0");
+   function Native_Subtract_F64x2 is new SSE2_Binary_128_S0 (F64x2, "subpd %2, %0", "");
+   pragma Inline_Always (Native_Subtract_F64x2);
    function Subtract (Left, Right : F64x2) return F64x2 is (Native_Subtract_F64x2 (Left, Right));
-   function Native_Multiply_F64x2 is new SSE2_Binary_128 (F64x2, "mulpd %%xmm1, %%xmm0");
+   function Native_Multiply_F64x2 is new SSE2_Binary_128_S0 (F64x2, "mulpd %2, %0", "");
+   pragma Inline_Always (Native_Multiply_F64x2);
    function Multiply (Left, Right : F64x2) return F64x2 is (Native_Multiply_F64x2 (Left, Right));
-   function Native_Divide_F64x2 is new SSE2_Binary_128 (F64x2, "divpd %%xmm1, %%xmm0");
+   function Native_Divide_F64x2 is new SSE2_Binary_128_S0 (F64x2, "divpd %2, %0", "");
+   pragma Inline_Always (Native_Divide_F64x2);
    function Divide (Left, Right : F64x2) return F64x2 is (Native_Divide_F64x2 (Left, Right));
-   function Native_Interleave_Low_F64x2 is new SSE2_Binary_128 (F64x2, "unpcklpd %%xmm1, %%xmm0");
+   function Native_Interleave_Low_F64x2 is new SSE2_Binary_128_S0 (F64x2, "unpcklpd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_F64x2);
    function Interleave_Low (Left, Right : F64x2) return F64x2 is (Native_Interleave_Low_F64x2 (Left, Right));
-   function Native_Interleave_High_F64x2 is new SSE2_Binary_128 (F64x2, "unpckhpd %%xmm1, %%xmm0");
+   function Native_Interleave_High_F64x2 is new SSE2_Binary_128_S0 (F64x2, "unpckhpd %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_F64x2);
    function Interleave_High (Left, Right : F64x2) return F64x2 is (Native_Interleave_High_F64x2 (Left, Right));
-   function Native_Deinterleave_Even_F64x2 is new SSE2_Binary_128 (F64x2, "punpcklqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Even_F64x2 is new SSE2_Binary_128_S0 (F64x2, "punpcklqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_F64x2);
    function Deinterleave_Even (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Even_F64x2 (Left, Right));
-   function Native_Deinterleave_Odd_F64x2 is new SSE2_Binary_128 (F64x2, "punpckhqdq %%xmm1, %%xmm0");
+   function Native_Deinterleave_Odd_F64x2 is new SSE2_Binary_128_S0 (F64x2, "punpckhqdq %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_F64x2);
    function Deinterleave_Odd (Left, Right : F64x2) return F64x2 is (Native_Deinterleave_Odd_F64x2 (Left, Right));
-   function Native_Reverse_F64x2 is new SSE2_Unary_128 (F64x2, "pshufd $0x4E, %%xmm0, %%xmm0");
+   function Native_Reverse_F64x2 is new SSE2_Unary_128_S0 (F64x2, "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_F64x2);
    function Reverse_Lanes (Value : F64x2) return F64x2 is (Native_Reverse_F64x2 (Value));
-   function Compare_Equal_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpeqpd %%xmm1, %%xmm0");
-   function Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_F64x2 (Left, Right, Sign_32'Address))));
-   function Compare_Less_Than_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpltpd %%xmm1, %%xmm0");
-   function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Than_F64x2 (Left, Right, Sign_32'Address))));
-   function Compare_Less_Equal_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmplepd %%xmm1, %%xmm0");
-   function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Equal_F64x2 (Left, Right, Sign_32'Address))));
-   function Compare_Unordered_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpunordpd %%xmm1, %%xmm0");
-   function Unordered (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Unordered_F64x2 (Left, Right, Sign_32'Address))));
+   function Compare_Equal_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpeqpd %2, %1");
+   pragma Inline_Always (Compare_Equal_F64x2);
+   function Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Equal_F64x2 (Left, Right, Sign_Vector_32))));
+   function Compare_Less_Than_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpltpd %2, %1");
+   pragma Inline_Always (Compare_Less_Than_F64x2);
+   function Less_Than (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Than_F64x2 (Left, Right, Sign_Vector_32))));
+   function Compare_Less_Equal_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmplepd %2, %1");
+   pragma Inline_Always (Compare_Less_Equal_F64x2);
+   function Less_Equal (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Less_Equal_F64x2 (Left, Right, Sign_Vector_32))));
+   function Compare_Unordered_F64x2 is new SSE2_Compare_128 (F64x2, 64, "cmpunordpd %2, %1");
+   pragma Inline_Always (Compare_Unordered_F64x2);
+   function Unordered (Left, Right : F64x2) return Mask_64x2 is (Mask_From_Bit_Mask (Interfaces.Unsigned_8 (Compare_Unordered_F64x2 (Left, Right, Sign_Vector_32))));
    function Greater_Than (Left, Right : F64x2) return Mask_64x2 is (Less_Than (Left => Right, Right => Left));
    function Greater_Equal (Left, Right : F64x2) return Mask_64x2 is (Less_Equal (Left => Right, Right => Left));
    function Native_Select_F64x2 is new SSE2_Select_128 (F64x2, 64);
-   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_64'Address, If_True, If_False));
+   pragma Inline_Always (Native_Select_F64x2);
+   function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_16 (To_Bit_Mask (Mask)), Weights_X86_Vector_64, If_True, If_False));
    function Native_Zero_F64x2 is new SSE2_Zero_128 (F64x2);
+   pragma Inline_Always (Native_Zero_F64x2);
    function Zero return F64x2 is (Native_Zero_F64x2);
-   function Native_Splat_F64x2 is new SSE2_Splat_128 (F64x2, F64, "movq (%1), %%rax", "movq %%rax, %%xmm0" & ASCII.LF & ASCII.HT & "punpcklqdq %%xmm0, %%xmm0");
+   function Native_Splat_F64x2 is new SSE2_Splat_Float_128 (F64x2, F64, "movapd %1, %0" & ASCII.LF & ASCII.HT & "unpcklpd %0, %0");
+   pragma Inline_Always (Native_Splat_F64x2);
    function Splat (Value : F64) return F64x2 is (Native_Splat_F64x2 (Value));
    function From_Lanes (Values : Lane_Values_F64x2) return F64x2 is
      (Lanes => Values);
@@ -2663,9 +3341,9 @@ package body Flyology_SIMD.Backends.Native is
       Result.Lanes (Lane) := With_Value;
       return Result;
    end Replace;
-   function Native_Min_Number_F64x2 is new SSE2_Binary_128 (F64x2, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm2, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $12, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $12, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Min_Number_F64x2 is new SSE2_Binary_128_S7 (F64x2, "movdqa %9, %7" & ASCII.LF & ASCII.HT & "movdqa %0, %5" & ASCII.LF & ASCII.HT & "movdqa %7, %6" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "psrlq $1, %4" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %1, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "movdqa %3, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %0, %0" & ASCII.LF & ASCII.HT & "pslld $31, %0" & ASCII.LF & ASCII.HT & "pxor %0, %1" & ASCII.LF & ASCII.HT & "pxor %0, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %1, %3" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "pand %4, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pand %5, %2" & ASCII.LF & ASCII.HT & "pandn %6, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $63, %2" & ASCII.LF & ASCII.HT & "psrlq $12, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %5, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $63, %2" & ASCII.LF & ASCII.HT & "psrlq $12, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0", "");
    function Min_Number (Left, Right : F64x2) return F64x2 is (Native_Min_Number_F64x2 (Left, Right));
-   function Native_Max_Number_F64x2 is new SSE2_Binary_128 (F64x2, "movdqa %%xmm0, %%xmm6" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm5" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm5" & ASCII.LF & ASCII.HT & "pxor %%xmm5, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm4, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm0" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm7, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pand %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm7, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $12, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm2" & ASCII.LF & ASCII.HT & "pand %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $53, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $1, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm2, %%xmm2" & ASCII.LF & ASCII.HT & "pslld $31, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm1" & ASCII.LF & ASCII.HT & "pxor %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "pcmpgtd %%xmm3, %%xmm1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT & "pand %%xmm5, %%xmm1" & ASCII.LF & ASCII.HT & "por %%xmm1, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm4" & ASCII.LF & ASCII.HT & "psllq $12, %%xmm4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "psrad $31, %%xmm4" & ASCII.LF & ASCII.HT & "pandn %%xmm3, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "psllq $63, %%xmm3" & ASCII.LF & ASCII.HT & "psrlq $12, %%xmm3" & ASCII.LF & ASCII.HT & "por %%xmm3, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm4, %%xmm2" & ASCII.LF & ASCII.HT & "movdqa %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "pand %%xmm4, %%xmm3" & ASCII.LF & ASCII.HT & "pandn %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "por %%xmm2, %%xmm3" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Native_Max_Number_F64x2 is new SSE2_Binary_128_S7 (F64x2, "movdqa %9, %7" & ASCII.LF & ASCII.HT & "movdqa %0, %5" & ASCII.LF & ASCII.HT & "movdqa %7, %6" & ASCII.LF & ASCII.HT & "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "psrad $31, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "pxor %2, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "psrad $31, %4" & ASCII.LF & ASCII.HT & "psrlq $1, %4" & ASCII.LF & ASCII.HT & "pxor %4, %3" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %2" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %2, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %0, %0" & ASCII.LF & ASCII.HT & "pslld $31, %0" & ASCII.LF & ASCII.HT & "pxor %0, %1" & ASCII.LF & ASCII.HT & "pxor %0, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %3, %1" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %1, %1" & ASCII.LF & ASCII.HT & "pand %4, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "pand %5, %2" & ASCII.LF & ASCII.HT & "pandn %6, %1" & ASCII.LF & ASCII.HT & "por %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %5, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pand %2, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %6, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %6, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %6, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %6, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $63, %2" & ASCII.LF & ASCII.HT & "psrlq $12, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0" & ASCII.LF & ASCII.HT & "movdqa %5, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlq $1, %1" & ASCII.LF & ASCII.HT & "pand %1, %7" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $53, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %7, %3" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %4" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %4, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pslld $31, %1" & ASCII.LF & ASCII.HT & "pxor %1, %7" & ASCII.LF & ASCII.HT & "pxor %1, %2" & ASCII.LF & ASCII.HT & "pcmpgtd %2, %7" & ASCII.LF & ASCII.HT & "pshufd $0xA0, %7, %7" & ASCII.LF & ASCII.HT & "pand %4, %7" & ASCII.LF & ASCII.HT & "por %7, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %2" & ASCII.LF & ASCII.HT & "movdqa %5, %3" & ASCII.LF & ASCII.HT & "psllq $12, %3" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %3, %3" & ASCII.LF & ASCII.HT & "psrad $31, %3" & ASCII.LF & ASCII.HT & "pandn %2, %3" & ASCII.LF & ASCII.HT & "movdqa %5, %4" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psllq $63, %2" & ASCII.LF & ASCII.HT & "psrlq $12, %2" & ASCII.LF & ASCII.HT & "por %2, %4" & ASCII.LF & ASCII.HT & "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "pandn %0, %1" & ASCII.LF & ASCII.HT & "por %1, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %0", "");
    function Max_Number (Left, Right : F64x2) return F64x2 is (Native_Max_Number_F64x2 (Left, Right));
    function Native_Reduce_Add_F64x2 is new SSE2_Float_Reduce_128 (F64x2, F64, "movdqa %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT & "pxor %%xmm0, %%xmm0" & ASCII.LF & ASCII.HT & "addsd %%xmm2, %%xmm0" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm2" & ASCII.LF & ASCII.HT & "addsd %%xmm2, %%xmm0", "movsd %%xmm0, (%0)");
    function Reduce_Add (Value : F64x2) return F64 is (Native_Reduce_Add_F64x2 (Value));
