@@ -7,7 +7,7 @@ project Benchmarks is
    for Exec_Dir use "bin";
    for Main use
      ("simd_benchmark.adb", "class_scan_benchmark.adb",
-      "dot_product_benchmark.adb");
+      "dot_product_benchmark.adb", "family_chain_benchmark.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use
