@@ -818,8 +818,7 @@ def invalid_support(path: Path) -> list[str]:
         ]
         if (
             len(zero_blocks) != 10
-            or sum("directly in result registers" in block for block in zero_blocks) != 1
-            or sum("NEON movi instruction" in block and "SSE2 pxor instruction" in block for block in zero_blocks) != 9
+            or sum("NEON movi instruction" in block and "SSE2 pxor instruction" in block for block in zero_blocks) != 10
         ):
             invalid.append(
                 f"{path.relative_to(ROOT)}: incorrect exact Zero target classifications"
@@ -831,8 +830,7 @@ def invalid_support(path: Path) -> list[str]:
         if (
             len(splat_blocks) != 10
             or sum("NEON dup instruction" in block for block in splat_blocks) != 10
-            or sum("unpacks the input byte through word width" in block for block in splat_blocks) != 1
-            or sum("replicates the input bits through 32-bit width" in block for block in splat_blocks) != 3
+            or sum("replicates the input bits through 32-bit width" in block for block in splat_blocks) != 4
             or sum("broadcasts the input bits with the SSE2 pshufd instruction" in block for block in splat_blocks) != 3
             or sum("SSE2 punpcklqdq instruction" in block for block in splat_blocks) != 3
         ):

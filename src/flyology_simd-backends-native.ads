@@ -344,11 +344,11 @@ is
    --  @return The operation result.
    function Zero return U8x16 with Inline_Always;
    --  Return a vector in which each lane is zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends construct the all-zero U8x16 result directly in result registers. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
    --  @return The operation result.
    function Splat (Value : U8) return U8x16 with Inline_Always;
    --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: The AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend unpacks the input byte through word width and broadcasts the result with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
+   --  Cross-platform support: The AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend replicates the input bits through 32-bit width and broadcasts them with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
    function From_Lanes (Values : Lane_Values_8x16) return U8x16;

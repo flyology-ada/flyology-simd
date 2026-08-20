@@ -182,16 +182,17 @@ out-of-line branch. Caller and Native-object gates reject root, Scalar, Wide,
 and mismatched mask-operation routes.
 
 For all ten 128-bit value types, `Zero` and `Splat` construct the result
-directly in the selected backend. AArch64 constructs zero in target registers and uses
-NEON `dup` to broadcast a lane's complete bit encoding. x86-64 uses direct
-result-register zeroing for `U8x16` and SSE2 `pxor` for the other zero
-overloads. It broadcasts with SSE2 unpack-and-shuffle, `pshufd`, or
-`punpcklqdq` sequences selected by lane width. A scalar build uses the
-portable scalar implementation. Fixed integer cases cover the minimum and
-maximum lane values. Floating cases bit-compare signed zero, infinity,
-subnormal values, and quiet and signaling NaNs. Deterministic full-width
-inputs check every result lane. A public caller probe and exact-symbol gates
-cover all ten types and reject calls to portable construction operations.
+directly in the selected backend. AArch64 constructs zero with NEON `movi`
+and uses NEON `dup` to broadcast a lane's complete bit encoding. x86-64
+zeroes every overload with SSE2 `pxor`. It broadcasts a byte or word lane by
+replicating it through 32-bit width in a general register before `movd` and
+`pshufd`, and broadcasts wider lanes with `pshufd` or `punpcklqdq` selected
+by lane width. A scalar build uses the portable scalar implementation. Fixed
+integer cases cover the minimum and maximum lane values. Floating cases
+bit-compare signed zero, infinity, subnormal values, and quiet and signaling
+NaNs. Deterministic full-width inputs check every result lane. A public
+caller probe and exact-symbol gates cover all ten types and reject calls to
+portable construction operations.
 
 For all ten 128-bit value types, `From_Lanes`, `To_Lanes`, `Extract`, and
 `Replace` access private fixed-width lane storage directly in the selected

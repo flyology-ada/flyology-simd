@@ -754,28 +754,18 @@ def native_support_doc(name: str, declaration: str) -> str:
             "operation. A scalar build uses the portable scalar implementation."
         )
     if name == "Zero":
-        if "U8x16" in declaration:
-            target = (
-                "The AArch64 and x86-64 backends construct the all-zero "
-                "U8x16 result directly in result registers."
-            )
-        else:
-            target = (
-                "The AArch64 backend constructs the all-zero result with "
-                "the NEON movi instruction. The x86-64 backend uses the "
-                "SSE2 pxor instruction."
-            )
+        target = (
+            "The AArch64 backend constructs the all-zero result with "
+            "the NEON movi instruction. The x86-64 backend uses the "
+            "SSE2 pxor instruction."
+        )
         return (
             f"Cross-platform support: {target} A scalar build uses the "
             "portable scalar implementation."
         )
     if name == "Splat":
-        if "U8x16" in declaration:
-            x86 = (
-                "unpacks the input byte through word width and broadcasts "
-                "the result with the SSE2 pshufd instruction"
-            )
-        elif "I8x16" in declaration or "U16x8" in declaration or "I16x8" in declaration:
+        if any(vector in declaration
+               for vector in ("U8x16", "I8x16", "U16x8", "I16x8")):
             x86 = (
                 "replicates the input bits through 32-bit width and "
                 "broadcasts them with the SSE2 pshufd instruction"
@@ -795,7 +785,7 @@ def native_support_doc(name: str, declaration: str) -> str:
         )
     if name in {"Slide_Lanes_Toward_Low", "Slide_Lanes_Toward_High"}:
         entry = next(
-            candidate for candidate in [("U8x16", "U8", 8, 16)] + INTEGER_TYPES + FLOAT_TYPES
+            candidate for candidate in INTEGER_TYPES + FLOAT_TYPES
             if candidate[0] in declaration
         )
         vector, _, bits, lanes = entry[:4]
