@@ -448,12 +448,44 @@ conversion_probe_symbol() {
       "${1%%x*}" "${2%%x*}" "$3"
 }
 
+#  GNU AArch64 objdump -dr can name one external branch on both its
+#  instruction line and its relocation line.  They have the same address and
+#  represent one route.  Apple objdump usually names only the relocation.
+#  Count distinct addresses so both renderings enforce the same limits while
+#  separate calls at separate addresses remain separate.
+count_matches() {
+    pattern=$1
+    file=$2
+    if [ "$architecture" != aarch64 ]; then
+        grep -Eic "$pattern" "$file" || true
+        return
+    fi
+    grep -Ei "$pattern" "$file" 2>/dev/null | awk '
+        {
+            line = $0
+            sub(/^[[:space:]]*/, "", line)
+            split(line, fields, /[[:space:]]+/)
+            address = fields[1]
+            sub(/:$/, "", address)
+            if (address ~ /^[[:xdigit:]]+$/) {
+                if (!(address in seen)) {
+                    seen[address] = 1
+                    count++
+                }
+            } else {
+                count++
+            }
+        }
+        END { print count + 0 }
+    '
+}
+
 require_at_most() {
     pattern=$1
     limit=$2
     file=$3
     description=$4
-    actual=$(grep -Eic "$pattern" "$file" || true)
+    actual=$(count_matches "$pattern" "$file")
     if [ "$actual" -gt "$limit" ]; then
         echo "code-generation count mismatch: $description ($actual > $limit)" >&2
         exit 1
@@ -505,7 +537,7 @@ require_at_least() {
         #  instruction itself is asserted against the combined disassembly.
         return 0
     fi
-    actual=$(grep -Eic "$pattern" "$file" || true)
+    actual=$(count_matches "$pattern" "$file")
     if [ "$actual" -lt "$minimum" ]; then
         echo "code-generation count mismatch: $description ($actual < $minimum)" >&2
         exit 1
@@ -659,7 +691,7 @@ require_count() {
         #  instruction itself is asserted against the combined disassembly.
         return 0
     fi
-    actual=$(grep -Eic "$pattern" "$file" || true)
+    actual=$(count_matches "$pattern" "$file")
     if [ "$actual" -ne "$expected" ]; then
         echo "code-generation count mismatch: $description ($actual != $expected)" >&2
         exit 1
