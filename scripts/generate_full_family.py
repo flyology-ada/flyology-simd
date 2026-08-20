@@ -9,6 +9,7 @@ SPEC = ROOT / "src" / "flyology_simd.ads"
 BODY = ROOT / "src" / "flyology_simd.adb"
 
 INTEGER_TYPES = [
+    ("U8x16", "U8", 8, 16, False),
     ("I8x16", "I8", 8, 16, True),
     ("U16x8", "U16", 16, 8, False),
     ("I16x8", "I16", 16, 8, True),
@@ -21,7 +22,7 @@ FLOAT_TYPES = [
     ("F32x4", "F32", 32, 4),
     ("F64x2", "F64", 64, 2),
 ]
-MASKS = [(16, 8, "Unsigned_8"), (32, 4, "Unsigned_8"), (64, 2, "Unsigned_8")]
+MASKS = [(8, 16, "Unsigned_16"), (16, 8, "Unsigned_8"), (32, 4, "Unsigned_8"), (64, 2, "Unsigned_8")]
 
 # Bit casts preserve one lane's bits and therefore only connect vector types
 # with the same lane width and lane count.  Width-changing operations have
@@ -1476,7 +1477,9 @@ def lane_count(bits: int, lanes: int) -> str:
 
 
 def lane_values(vector: str) -> str:
-    return f"Lane_Values_{vector}"
+    #  The byte lane array is named for its shape rather than its vector type,
+    #  for the same reason as Byte_Array.
+    return "Lane_Values_8x16" if vector == "U8x16" else f"Lane_Values_{vector}"
 
 
 def lane_selectors(bits: int, lanes: int) -> str:
@@ -1499,8 +1502,24 @@ def two_source_lane_map(bits: int, lanes: int) -> str:
     return f"Two_Source_Lane_Map_{bits}x{lanes}"
 
 
+def memory_preconditions(vector: str, lanes: int) -> tuple[str, str]:
+    """Return the complete and partial extent preconditions for one family.
+
+    The byte family states them through Has_Extent, which the complete-buffer
+    algorithms are written against; the others spell the same test out.
+    """
+    if vector == "U8x16":
+        return "Has_Extent (Data, Start, 16)", "Count = 0 or else Has_Extent (Data, Start, Count)"
+    return (
+        f"Start in Data'Range and then {lanes - 1} <= Natural (Data'Last - Start)",
+        "Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start))",
+    )
+
+
 def array_name(scalar: str) -> str:
-    return f"{scalar}_Array"
+    #  The byte array is public under its own name, which predates the family
+    #  generator and every algorithm written against it.
+    return "Byte_Array" if scalar == "U8" else f"{scalar}_Array"
 
 
 def bit_cast_pairs():
@@ -1590,13 +1609,18 @@ def emit_spec() -> str:
                 f"   function Make_Two_Source_Lane_Map (Selectors : {two_source_lane_selectors(bits, lanes)}) return {two_source_lane_map(bits, lanes)};",
             ]
             seen_shapes.add(shape)
-        out += [
-            f"   type {lane_values(vector)} is array ({lane_index(bits, lanes)}) of {scalar};",
-            f"   type {array_name(scalar)} is array (Natural range <>) of aliased {scalar};",
-            f"   type {vector} is private;",
-            "",
-        ]
+        if vector != "U8x16":
+            #  The byte types are declared above the generated block, because
+            #  Has_Extent and the search results are written in terms of them.
+            out += [
+                f"   type {lane_values(vector)} is array ({lane_index(bits, lanes)}) of {scalar};",
+                f"   type {array_name(scalar)} is array (Natural range <>) of aliased {scalar};",
+                f"   type {vector} is private;",
+                "",
+            ]
     for bits, lanes, _ in MASKS:
+        if (bits, lanes) == (8, 16):
+            continue
         out.append(f"   type {mask_for(bits, lanes)} is private;")
     out.append("")
 
@@ -1609,8 +1633,7 @@ def emit_spec() -> str:
         vals = lane_values(vector)
         count = lane_count(bits, lanes)
         arr = array_name(scalar)
-        extent = f"Start in Data'Range and then {lanes - 1} <= Natural (Data'Last - Start)"
-        partial = "Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start))"
+        extent, partial = memory_preconditions(vector, lanes)
         out += [
             f"   function Zero return {vector};",
             f"   function Splat (Value : {scalar}) return {vector};",
@@ -1665,8 +1688,18 @@ def emit_spec() -> str:
             f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) with Pre => {extent} and then Is_Aligned_16 (Data, Start);",
             f"   function Load_Partial (Data : {arr}; Start : Natural; Count : {count}) return {vector} with Pre => {partial};",
             f"   procedure Store_Partial (Data : in out {arr}; Start : Natural; Count : {count}; Value : {vector}) with Pre => {partial};",
-            "",
         ]
+        if vector == "U8x16":
+            #  Byte-only operations: a shuffle with no counterpart at wider
+            #  lanes, an exact widening sum, and the compatibility spelling of
+            #  Reverse_Lanes.
+            out += [
+                f"   function Table_Lookup (Table, Indices : {vector}) return {vector};",
+                f"   function Horizontal_Sum (Value : {vector}) return Natural",
+                f"     with Post => Horizontal_Sum'Result <= {lanes} * 255;",
+                f"   function Reverse_Bytes (Value : {vector}) return {vector};",
+            ]
+        out.append("")
 
     for vector, scalar, bits, lanes in FLOAT_TYPES:
         mask = mask_for(bits, lanes)
@@ -1674,8 +1707,7 @@ def emit_spec() -> str:
         vals = lane_values(vector)
         count = lane_count(bits, lanes)
         arr = array_name(scalar)
-        extent = f"Start in Data'Range and then {lanes - 1} <= Natural (Data'Last - Start)"
-        partial = "Count = 0 or else (Start in Data'Range and then Count - 1 <= Natural (Data'Last - Start))"
+        extent, partial = memory_preconditions(vector, lanes)
         out += [
             f"   function Zero return {vector};",
             f"   function Splat (Value : {scalar}) return {vector};",
@@ -1787,7 +1819,7 @@ def emit_private() -> str:
             f"   type {mask} is record",
             f"      Bits : Interfaces.{storage};",
             "   end record;",
-            f"   for {mask}'Size use 8;",
+            f"   for {mask}'Size use {storage.rsplit('_', 1)[-1]};",
             "",
         ]
     return "\n".join(out)

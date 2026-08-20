@@ -64,399 +64,6 @@ package body Flyology_SIMD.Backends.Native is
    end Count_Set_Bits;
    pragma Inline_Always (Count_Set_Bits);
 
-   type Byte_Vector is array (0 .. 15) of Interfaces.Unsigned_8;
-   for Byte_Vector'Alignment use 16;
-   pragma Machine_Attribute (Byte_Vector, "vector_type");
-   --  A machine vector view of a 128-bit byte value. Assembly leaves take and
-   --  return this type so that operands stay in NEON registers across a chain
-   --  of operations instead of travelling through memory.
-
-   function To_Byte_Vector is new Ada.Unchecked_Conversion (U8x16, Byte_Vector);
-   pragma Inline_Always (To_Byte_Vector);
-   function To_U8x16 is new Ada.Unchecked_Conversion (Byte_Vector, U8x16);
-   pragma Inline_Always (To_U8x16);
-
-   Weights_Vector : constant Byte_Vector :=
-     [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
-
-   generic
-      Instruction : String;
-   function Binary_Operation (Left, Right : U8x16) return U8x16;
-
-   function Binary_Operation (Left, Right : U8x16) return U8x16 is
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => Instruction,
-         Outputs => Byte_Vector'Asm_Output ("=w", Result),
-         Inputs =>
-           [Byte_Vector'Asm_Input ("w", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("w", To_Byte_Vector (Right))]);
-      return To_U8x16 (Result);
-   end Binary_Operation;
-
-   generic
-      Instruction : String;
-   function Unary_Operation (Value : U8x16) return U8x16;
-
-   function Unary_Operation (Value : U8x16) return U8x16 is
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => Instruction,
-         Outputs => Byte_Vector'Asm_Output ("=w", Result),
-         Inputs => Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)));
-      return To_U8x16 (Result);
-   end Unary_Operation;
-
-   generic
-      Instruction : String;
-   function Comparison_Bits
-     (Left, Right : U8x16) return Interfaces.Unsigned_16;
-
-   function Comparison_Bits
-     (Left, Right : U8x16) return Interfaces.Unsigned_16
-   is
-      Result : Interfaces.Unsigned_32;
-      Half   : Interfaces.Unsigned_32;
-      Low    : Byte_Vector;
-      High   : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           Instruction & ASCII.LF & ASCII.HT &
-           "and %1.16b, %1.16b, %6.16b" & ASCII.LF & ASCII.HT &
-           "ext %2.16b, %1.16b, %1.16b, #8" & ASCII.LF & ASCII.HT &
-           "uaddlv %h1, %1.8b" & ASCII.LF & ASCII.HT &
-           "uaddlv %h2, %2.8b" & ASCII.LF & ASCII.HT &
-           "umov %w0, %1.h[0]" & ASCII.LF & ASCII.HT &
-           "umov %w3, %2.h[0]" & ASCII.LF & ASCII.HT &
-           "orr %w0, %w0, %w3, lsl #8",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=&r", Result),
-            Byte_Vector'Asm_Output ("=&w", Low),
-            Byte_Vector'Asm_Output ("=&w", High),
-            Interfaces.Unsigned_32'Asm_Output ("=&r", Half)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("w", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("w", To_Byte_Vector (Right)),
-            Byte_Vector'Asm_Input ("w", Weights_Vector)]);
-      return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
-   end Comparison_Bits;
-
-   function NEON_Add_Wrap is new Binary_Operation
-     ("add %0.16b, %1.16b, %2.16b");
-   function NEON_Subtract_Wrap is new Binary_Operation
-     ("sub %0.16b, %1.16b, %2.16b");
-   function NEON_Multiply_Wrap is new Binary_Operation
-     ("mul %0.16b, %1.16b, %2.16b");
-   function NEON_Add_Saturate is new Binary_Operation
-     ("uqadd %0.16b, %1.16b, %2.16b");
-   function NEON_Subtract_Saturate is new Binary_Operation
-     ("uqsub %0.16b, %1.16b, %2.16b");
-   function NEON_Bitwise_And is new Binary_Operation
-     ("and %0.16b, %1.16b, %2.16b");
-   pragma Inline_Always (NEON_Bitwise_And);
-   function NEON_Bitwise_Or is new Binary_Operation
-     ("orr %0.16b, %1.16b, %2.16b");
-   function NEON_Bitwise_Xor is new Binary_Operation
-     ("eor %0.16b, %1.16b, %2.16b");
-   function NEON_Bitwise_Not is new Unary_Operation ("mvn %0.16b, %1.16b");
-   function NEON_Reverse_Bytes is new Unary_Operation
-     ("rev64 %0.16b, %1.16b" & ASCII.LF & ASCII.HT &
-      "ext %0.16b, %0.16b, %0.16b, #8");
-   function NEON_Interleave_Low is new Binary_Operation
-     ("zip1 %0.16b, %1.16b, %2.16b");
-   function NEON_Interleave_High is new Binary_Operation
-     ("zip2 %0.16b, %1.16b, %2.16b");
-   function NEON_Deinterleave_Even is new Binary_Operation
-     ("uzp1 %0.16b, %1.16b, %2.16b");
-   function NEON_Deinterleave_Odd is new Binary_Operation
-     ("uzp2 %0.16b, %1.16b, %2.16b");
-
-   function Equal_Bits is new Comparison_Bits
-     ("cmeq %1.16b, %4.16b, %5.16b");
-   pragma Inline_Always (Equal_Bits);
-   function Greater_Bits is new Comparison_Bits
-     ("cmhi %1.16b, %4.16b, %5.16b");
-   function Greater_Equal_Bits is new Comparison_Bits
-     ("cmhs %1.16b, %4.16b, %5.16b");
-
-   function Zero return U8x16 is (Lanes => [others => 0]);
-   function Splat (Value : U8) return U8x16 is (Lanes => [others => Value]);
-   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
-     (Lanes => Values);
-   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
-     (Value.Lanes);
-   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
-     (Value.Lanes (Lane));
-   function Replace
-     (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16
-   is
-      Result : U8x16 := Value;
-   begin
-      Result.Lanes (Lane) := With_Value;
-      return Result;
-   end Replace;
-
-   function Add_Wrap (Left, Right : U8x16) return U8x16 is
-     (NEON_Add_Wrap (Left, Right));
-   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
-     (NEON_Subtract_Wrap (Left, Right));
-   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
-     (NEON_Multiply_Wrap (Left, Right));
-   function Add_Saturate (Left, Right : U8x16) return U8x16 is
-     (NEON_Add_Saturate (Left, Right));
-   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
-     (NEON_Subtract_Saturate (Left, Right));
-   function Bitwise_And (Left, Right : U8x16) return U8x16 is
-     (NEON_Bitwise_And (Left, Right));
-   function Bitwise_Or (Left, Right : U8x16) return U8x16 is
-     (NEON_Bitwise_Or (Left, Right));
-   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is
-     (NEON_Bitwise_Xor (Left, Right));
-   function Bitwise_Not (Value : U8x16) return U8x16 is
-     (NEON_Bitwise_Not (Value));
-
-   function Shift_Left_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
-      Result : Byte_Vector;
-      Amount : Byte_Vector;
-      Local_Count : constant Natural := Natural'Min (Count, 8);
-   begin
-      Asm
-        (Template =>
-           "dup %1.16b, %w3" & ASCII.LF & ASCII.HT &
-           "ushl %0.16b, %2.16b, %1.16b",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=w", Result),
-            Byte_Vector'Asm_Output ("=&w", Amount)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)),
-            Natural'Asm_Input ("r", Local_Count)]);
-      return To_U8x16 (Result);
-   end Shift_Left_Logical;
-
-   function Shift_Right_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
-      Result : Byte_Vector;
-      Amount : Byte_Vector;
-      Negated : Interfaces.Unsigned_32;
-      Local_Count : constant Natural := Natural'Min (Count, 8);
-   begin
-      Asm
-        (Template =>
-           "neg %w1, %w4" & ASCII.LF & ASCII.HT &
-           "dup %2.16b, %w1" & ASCII.LF & ASCII.HT &
-           "ushl %0.16b, %3.16b, %2.16b",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=w", Result),
-            Interfaces.Unsigned_32'Asm_Output ("=&r", Negated),
-            Byte_Vector'Asm_Output ("=&w", Amount)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)),
-            Natural'Asm_Input ("r", Local_Count)]);
-      return To_U8x16 (Result);
-   end Shift_Right_Logical;
-
-   function Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Equal_Bits (Left, Right)));
-   function Less_Than (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Greater_Bits (Left => Right, Right => Left)));
-   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask
-        (Greater_Equal_Bits (Left => Right, Right => Left)));
-   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Greater_Bits (Left, Right)));
-   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Greater_Equal_Bits (Left, Right)));
-
-   function Select_Value
-     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16
-   is
-      Result : Byte_Vector;
-      Spread : Byte_Vector;
-      Upper  : Interfaces.Unsigned_32;
-   begin
-      Asm
-        (Template =>
-           "dup %0.16b, %w3" & ASCII.LF & ASCII.HT &
-           "lsr %w2, %w3, #8" & ASCII.LF & ASCII.HT &
-           "dup %1.16b, %w2" & ASCII.LF & ASCII.HT &
-           "ins %0.d[1], %1.d[0]" & ASCII.LF & ASCII.HT &
-           "cmtst %0.16b, %0.16b, %6.16b" & ASCII.LF & ASCII.HT &
-           "bsl %0.16b, %4.16b, %5.16b",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=&w", Result),
-            Byte_Vector'Asm_Output ("=&w", Spread),
-            Interfaces.Unsigned_32'Asm_Output ("=&r", Upper)],
-         Inputs =>
-           [Interfaces.Unsigned_16'Asm_Input ("r", Mask.Bits),
-            Byte_Vector'Asm_Input ("w", To_Byte_Vector (If_True)),
-            Byte_Vector'Asm_Input ("w", To_Byte_Vector (If_False)),
-            Byte_Vector'Asm_Input ("w", Weights_Vector)]);
-      return To_U8x16 (Result);
-   end Select_Value;
-
-   function NEON_Min is new Binary_Operation
-     ("umin %0.16b, %1.16b, %2.16b");
-   function NEON_Max is new Binary_Operation
-     ("umax %0.16b, %1.16b, %2.16b");
-   function Min (Left, Right : U8x16) return U8x16 is
-     (NEON_Min (Left, Right));
-   function Max (Left, Right : U8x16) return U8x16 is
-     (NEON_Max (Left, Right));
-
-   function Horizontal_Sum (Value : U8x16) return Natural is
-      Result : Interfaces.Unsigned_32;
-      Total  : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "uaddlv %h1, %2.16b" & ASCII.LF & ASCII.HT &
-           "umov %w0, %1.h[0]",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&w", Total)],
-         Inputs => Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)));
-      return Natural (Result);
-   end Horizontal_Sum;
-
-   function Reduce_Add_Wrap (Value : U8x16) return U8 is
-     (U8 (Horizontal_Sum (Value) mod 256));
-   function Reduce_Min (Value : U8x16) return U8 is
-      Result : Interfaces.Unsigned_32;
-      Least  : Byte_Vector;
-   begin
-      Asm
-        (Template => "uminv %b1, %2.16b" & ASCII.LF & ASCII.HT &
-           "umov %w0, %1.b[0]",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&w", Least)],
-         Inputs => Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)));
-      return U8 (Result and 16#0000_00FF#);
-   end Reduce_Min;
-   function Reduce_Max (Value : U8x16) return U8 is
-      Result   : Interfaces.Unsigned_32;
-      Greatest : Byte_Vector;
-   begin
-      Asm
-        (Template => "umaxv %b1, %2.16b" & ASCII.LF & ASCII.HT &
-           "umov %w0, %1.b[0]",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&w", Greatest)],
-         Inputs => Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)));
-      return U8 (Result and 16#0000_00FF#);
-   end Reduce_Max;
-
-   function Reverse_Bytes (Value : U8x16) return U8x16 is
-     (NEON_Reverse_Bytes (Value));
-   function Reverse_Lanes (Value : U8x16) return U8x16 is
-     (Reverse_Bytes (Value));
-   function Interleave_Low (Left, Right : U8x16) return U8x16 is
-     (NEON_Interleave_Low (Left, Right));
-   function Interleave_High (Left, Right : U8x16) return U8x16 is
-     (NEON_Interleave_High (Left, Right));
-   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
-     (NEON_Deinterleave_Even (Left, Right));
-   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
-     (NEON_Deinterleave_Odd (Left, Right));
-
-   function Mask_From_Bit_Mask
-     (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
-     (Bits => Bits);
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
-     (Mask.Bits);
-   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits and Right.Bits);
-   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits or Right.Bits);
-   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits xor Right.Bits);
-   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is
-     (Bits => not Value.Bits);
-   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
-     ((Mask.Bits and Interfaces.Shift_Left
-         (Interfaces.Unsigned_16'(1), Lane)) /= 0);
-   function Any_True (Mask : Mask_8x16) return Boolean is (Mask.Bits /= 0);
-   function All_True (Mask : Mask_8x16) return Boolean is
-     (Mask.Bits = Interfaces.Unsigned_16'Last);
-   function None_True (Mask : Mask_8x16) return Boolean is (Mask.Bits = 0);
-   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
-   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
-   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
-
-   function Load (Data : Byte_Array; Start : Natural) return U8x16 is
-     (Load_Unaligned (Data, Start));
-   procedure Store
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-   begin
-      Store_Unaligned (Data, Start, Value);
-   end Store;
-
-   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
-      Source : constant Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => "ldr %q0, %1",
-         Outputs => Byte_Vector'Asm_Output ("=w", Result),
-         Inputs => Lane_Values_8x16'Asm_Input ("Q", Source));
-      return To_U8x16 (Result);
-   end Load_Unaligned;
-
-   procedure Store_Unaligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-      Target : Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-   begin
-      Asm
-        (Template => "str %q1, %0",
-         Outputs => Lane_Values_8x16'Asm_Output ("=Q", Target),
-         Inputs => Byte_Vector'Asm_Input ("w", To_Byte_Vector (Value)));
-   end Store_Unaligned;
-
-   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
-     (Load_Unaligned (Data, Start));
-   procedure Store_Aligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-   begin
-      Store_Unaligned (Data, Start, Value);
-   end Store_Aligned;
-
-   function Load_Partial
-     (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
-      return U8x16
-   is
-      Result : U8x16 := (Lanes => [others => 0]);
-   begin
-      if Count > 0 then
-         for Lane in Natural range 0 .. Count - 1 loop
-            Result.Lanes (Lane) := Data (Start + Lane);
-         end loop;
-      end if;
-      return Result;
-   end Load_Partial;
-   procedure Store_Partial
-     (Data  : in out Byte_Array;
-      Start : Natural;
-      Count : Lane_Count_8x16;
-      Value : U8x16) is
-   begin
-      if Count > 0 then
-         for Lane in Natural range 0 .. Count - 1 loop
-            Data (Start + Lane) := Value.Lanes (Lane);
-         end loop;
-      end if;
-   end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY NEON BODIES
    --  Assembly leaves below take and return this machine vector type so
@@ -1041,57 +648,6 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Table_Lookup_U8x16 is new NEON_Binary_128_S0 (U8x16, "tbl %0.16b, {%1.16b}, %2.16b");
    pragma Inline_Always (Native_Table_Lookup_U8x16);
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));
-   function Native_Permute_U8x16 is new NEON_Permute_128 (U8x16, Lane_Map_8x16);
-   pragma Inline_Always (Native_Permute_U8x16);
-   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));
-   function Native_Permute_2_U8x16 is new NEON_Permute_2_128 (U8x16, Two_Source_Lane_Map_8x16);
-   pragma Inline_Always (Native_Permute_2_U8x16);
-   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));
-   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-      Map : Lane_Map_8x16;
-      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
-      Result_Lane : Natural := 0;
-   begin
-      for Source_Lane in Lane_Index_8x16 loop
-         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Source_Lane)) /= 0 then
-            for Byte in Natural range 0 .. 0 loop
-               Map.Byte_Indices
-                 (Result_Lane * 1 + Byte) :=
-                   U8 (Source_Lane * 1 + Byte);
-            end loop;
-            Result_Lane := Result_Lane + 1;
-         end if;
-      end loop;
-      while Result_Lane < 16 loop
-         for Byte in Natural range 0 .. 0 loop
-            Map.Byte_Indices
-              (Result_Lane * 1 + Byte) := 16;
-         end loop;
-         Result_Lane := Result_Lane + 1;
-      end loop;
-      return Native_Permute_U8x16 (Value, Map);
-   end Compress;
-
-   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-      Map : Lane_Map_8x16;
-      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
-      Source_Lane : Natural := 0;
-   begin
-      for Result_Lane in Lane_Index_8x16 loop
-         for Byte in Natural range 0 .. 0 loop
-            Map.Byte_Indices
-              (Result_Lane * 1 + Byte) :=
-                (if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
-                    U8 (Source_Lane * 1 + Byte)
-                 else 16);
-         end loop;
-         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
-            Source_Lane := Source_Lane + 1;
-         end if;
-      end loop;
-      return Native_Permute_U8x16 (Value, Map);
-   end Expand;
-
 
    function Native_Slide_Lanes_Toward_Low_U8x16_1 is new NEON_Unary_128_S1 (U8x16, "movi %1.16b, #0" & ASCII.LF & ASCII.HT & "ext %0.16b, %2.16b, %1.16b, #1");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_1);
@@ -1549,6 +1105,212 @@ package body Flyology_SIMD.Backends.Native is
          when 1 => Native_Slide_Lanes_Toward_High_F64x2_1 (Value),
          when others => Zero));
 
+   function Native_Add_Wrap_U8x16 is new NEON_Binary_128_S0 (U8x16, "add %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Add_Wrap_U8x16);
+   function Add_Wrap (Left, Right : U8x16) return U8x16 is (Native_Add_Wrap_U8x16 (Left, Right));
+   function Native_Subtract_Wrap_U8x16 is new NEON_Binary_128_S0 (U8x16, "sub %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Subtract_Wrap_U8x16);
+   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is (Native_Subtract_Wrap_U8x16 (Left, Right));
+   function Native_Add_Saturate_U8x16 is new NEON_Binary_128_S0 (U8x16, "uqadd %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Add_Saturate_U8x16);
+   function Add_Saturate (Left, Right : U8x16) return U8x16 is (Native_Add_Saturate_U8x16 (Left, Right));
+   function Native_Subtract_Saturate_U8x16 is new NEON_Binary_128_S0 (U8x16, "uqsub %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Subtract_Saturate_U8x16);
+   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is (Native_Subtract_Saturate_U8x16 (Left, Right));
+   function Native_Bitwise_And_U8x16 is new NEON_Binary_128_S0 (U8x16, "and %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Bitwise_And_U8x16);
+   function Bitwise_And (Left, Right : U8x16) return U8x16 is (Native_Bitwise_And_U8x16 (Left, Right));
+   function Native_Bitwise_Or_U8x16 is new NEON_Binary_128_S0 (U8x16, "orr %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Bitwise_Or_U8x16);
+   function Bitwise_Or (Left, Right : U8x16) return U8x16 is (Native_Bitwise_Or_U8x16 (Left, Right));
+   function Native_Bitwise_Xor_U8x16 is new NEON_Binary_128_S0 (U8x16, "eor %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Bitwise_Xor_U8x16);
+   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is (Native_Bitwise_Xor_U8x16 (Left, Right));
+   function Native_Min_U8x16 is new NEON_Binary_128_S0 (U8x16, "umin %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Min_U8x16);
+   function Min (Left, Right : U8x16) return U8x16 is (Native_Min_U8x16 (Left, Right));
+   function Native_Max_U8x16 is new NEON_Binary_128_S0 (U8x16, "umax %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Max_U8x16);
+   function Max (Left, Right : U8x16) return U8x16 is (Native_Max_U8x16 (Left, Right));
+   function Native_Interleave_Low_U8x16 is new NEON_Binary_128_S0 (U8x16, "zip1 %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Interleave_Low_U8x16);
+   function Interleave_Low (Left, Right : U8x16) return U8x16 is (Native_Interleave_Low_U8x16 (Left, Right));
+   function Native_Interleave_High_U8x16 is new NEON_Binary_128_S0 (U8x16, "zip2 %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Interleave_High_U8x16);
+   function Interleave_High (Left, Right : U8x16) return U8x16 is (Native_Interleave_High_U8x16 (Left, Right));
+   function Native_Deinterleave_Even_U8x16 is new NEON_Binary_128_S0 (U8x16, "uzp1 %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Deinterleave_Even_U8x16);
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is (Native_Deinterleave_Even_U8x16 (Left, Right));
+   function Native_Deinterleave_Odd_U8x16 is new NEON_Binary_128_S0 (U8x16, "uzp2 %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Deinterleave_Odd_U8x16);
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is (Native_Deinterleave_Odd_U8x16 (Left, Right));
+   function Native_Multiply_Wrap_U8x16 is new NEON_Binary_128_S0 (U8x16, "mul %0.16b, %1.16b, %2.16b");
+   pragma Inline_Always (Native_Multiply_Wrap_U8x16);
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is (Native_Multiply_Wrap_U8x16 (Left, Right));
+   function Native_Not_U8x16 is new NEON_Unary_128_S0 (U8x16, "mvn %0.16b, %1.16b");
+   pragma Inline_Always (Native_Not_U8x16);
+   function Bitwise_Not (Value : U8x16) return U8x16 is (Native_Not_U8x16 (Value));
+   function Native_Reverse_U8x16 is new NEON_Unary_128_S0 (U8x16, "rev64 %0.16b, %1.16b" & ASCII.LF & ASCII.HT & "ext %0.16b, %0.16b, %0.16b, #8");
+   pragma Inline_Always (Native_Reverse_U8x16);
+   function Reverse_Lanes (Value : U8x16) return U8x16 is (Native_Reverse_U8x16 (Value));
+   function Native_Zero_U8x16 is new NEON_Zero_128 (U8x16);
+   pragma Inline_Always (Native_Zero_U8x16);
+   function Zero return U8x16 is (Native_Zero_U8x16);
+   function Native_Splat_U8x16 is new NEON_Splat_Integer_128 (U8x16, U8, "dup %0.16b, %w1");
+   pragma Inline_Always (Native_Splat_U8x16);
+   function Splat (Value : U8) return U8x16 is (Native_Splat_U8x16 (Value));
+   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
+     (Lanes => Values);
+   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
+     (Value.Lanes);
+   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
+     (Value.Lanes (Lane));
+   function Replace (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16 is
+      Result : U8x16 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+   function Native_Permute_U8x16 is new NEON_Permute_128 (U8x16, Lane_Map_8x16);
+   pragma Inline_Always (Native_Permute_U8x16);
+   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));
+   function Native_Permute_2_U8x16 is new NEON_Permute_2_128 (U8x16, Two_Source_Lane_Map_8x16);
+   pragma Inline_Always (Native_Permute_2_U8x16);
+   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Map : Lane_Map_8x16;
+      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Source_Lane)) /= 0 then
+            for Byte in Natural range 0 .. 0 loop
+               Map.Byte_Indices
+                 (Result_Lane * 1 + Byte) :=
+                   U8 (Source_Lane * 1 + Byte);
+            end loop;
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      while Result_Lane < 16 loop
+         for Byte in Natural range 0 .. 0 loop
+            Map.Byte_Indices
+              (Result_Lane * 1 + Byte) := 16;
+         end loop;
+         Result_Lane := Result_Lane + 1;
+      end loop;
+      return Native_Permute_U8x16 (Value, Map);
+   end Compress;
+
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Map : Lane_Map_8x16;
+      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         for Byte in Natural range 0 .. 0 loop
+            Map.Byte_Indices
+              (Result_Lane * 1 + Byte) :=
+                (if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
+                    U8 (Source_Lane * 1 + Byte)
+                 else 16);
+         end loop;
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Native_Permute_U8x16 (Value, Map);
+   end Expand;
+
+   function Native_Shift_Left_Logical_U8x16 is new NEON_Shift_128 (U8x16, "dup %1.16b, %w3", "ushl %0.16b, %2.16b, %1.16b");
+   pragma Inline_Always (Native_Shift_Left_Logical_U8x16);
+   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 is
+     (Native_Shift_Left_Logical_U8x16 (Value, Interfaces.Integer_64 (Natural'Min (Count, 8))));
+   function Native_Shift_Right_Logical_U8x16 is new NEON_Shift_128 (U8x16, "dup %1.16b, %w3", "ushl %0.16b, %2.16b, %1.16b");
+   pragma Inline_Always (Native_Shift_Right_Logical_U8x16);
+   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 is
+     (Native_Shift_Right_Logical_U8x16 (Value, -Interfaces.Integer_64 (Natural'Min (Count, 8))));
+   function Compare_U8x16 is new NEON_Compare_16_Lanes (U8x16, "cmeq %2.16b, %4.16b, %5.16b");
+   pragma Inline_Always (Compare_U8x16);
+   function Compare_Greater_U8x16 is new NEON_Compare_16_Lanes (U8x16, "cmhi %2.16b, %4.16b, %5.16b");
+   pragma Inline_Always (Compare_Greater_U8x16);
+   function Compare_Greater_Equal_U8x16 is new NEON_Compare_16_Lanes (U8x16, "cmhs %2.16b, %4.16b, %5.16b");
+   pragma Inline_Always (Compare_Greater_Equal_U8x16);
+   function Equal (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_U8x16 (Left, Right, Weights_Vector_8x16)));
+   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_U8x16 (Left, Right, Weights_Vector_8x16)));
+   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_Equal_U8x16 (Left, Right, Weights_Vector_8x16)));
+   function Less_Than (Left, Right : U8x16) return Mask_8x16 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
+   function Native_Select_U8x16 is new NEON_Select_16_Lanes_128 (U8x16);
+   pragma Inline_Always (Native_Select_U8x16);
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is (Native_Select_U8x16 (Mask.Bits, Weights_Vector_8x16, If_True, If_False));
+   function Native_Reduce_Add_Wrap_U8x16 is new NEON_Integer_Reduce_128 (U8x16, U8, "addv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_U8x16);
+   function Reduce_Add_Wrap (Value : U8x16) return U8 is (Native_Reduce_Add_Wrap_U8x16 (Value));
+   function Native_Reduce_Min_U8x16 is new NEON_Integer_Reduce_128 (U8x16, U8, "uminv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Min_U8x16);
+   function Reduce_Min (Value : U8x16) return U8 is (Native_Reduce_Min_U8x16 (Value));
+   function Native_Reduce_Max_U8x16 is new NEON_Integer_Reduce_128 (U8x16, U8, "umaxv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Max_U8x16);
+   function Reduce_Max (Value : U8x16) return U8 is (Native_Reduce_Max_U8x16 (Value));
+   function Is_Aligned_16 (Data : Byte_Array; Start : Natural) return Boolean is
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
+   function Load (Data : Byte_Array; Start : Natural) return U8x16 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U8x16);
+      Source : constant Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
+   begin
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_8x16'Asm_Input ("Q", Source));
+      return To_Vector (Result);
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+      function To_Machine is new Ada.Unchecked_Conversion (U8x16, Machine_Vector);
+      Target : Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+   begin
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_8x16'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
+   end Store_Unaligned;
+   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is (Load_Unaligned (Data, Start));
+   procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16) return U8x16 is
+      Result : U8x16 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_8x16 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out Byte_Array; Start : Natural; Count : Lane_Count_8x16; Value : U8x16) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_8x16 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
+   function Horizontal_Sum (Value : U8x16) return Natural is
+      function To_Machine is new Ada.Unchecked_Conversion (U8x16, Machine_Vector);
+      Result : Interfaces.Unsigned_32;
+      Total : Machine_Vector;
+   begin
+      Asm
+        (Template =>
+           "uaddlv %h1, %2.16b" & ASCII.LF & ASCII.HT &
+                   "umov %w0, %1.h[0]",
+         Outputs => [Interfaces.Unsigned_32'Asm_Output ("=r", Result), Machine_Vector'Asm_Output ("=&w", Total)],
+         Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
+      return Natural (Result);
+   end Horizontal_Sum;
+   function Reverse_Bytes (Value : U8x16) return U8x16 is (Reverse_Lanes (Value));
    function Native_Add_Wrap_I8x16 is new NEON_Binary_128_S0 (I8x16, "add %0.16b, %1.16b, %2.16b");
    pragma Inline_Always (Native_Add_Wrap_I8x16);
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
@@ -3250,6 +3012,29 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
+     (Bits => Bits and 65535);
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
+     (Mask.Bits and 65535);
+   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits and Right.Bits) and 65535);
+   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits or Right.Bits) and 65535);
+   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits xor Right.Bits) and 65535);
+   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is
+     (Bits => (not Value.Bits) and 65535);
+   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
+     ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_8x16) return Boolean is
+     (Mask.Bits /= 0);
+   function All_True (Mask : Mask_8x16) return Boolean is
+     ((Mask.Bits and 65535) = 65535);
+   function None_True (Mask : Mask_8x16) return Boolean is
+     (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
      (Bits => Bits and 255);
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is

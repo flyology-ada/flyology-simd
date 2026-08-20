@@ -73,560 +73,6 @@ package body Flyology_SIMD.Backends.Native is
    end Count_Set_Bits;
    pragma Inline_Always (Count_Set_Bits);
 
-   type Byte_Vector is array (0 .. 15) of Interfaces.Unsigned_8;
-   for Byte_Vector'Alignment use 16;
-   pragma Machine_Attribute (Byte_Vector, "vector_type");
-   --  A machine vector view of a 128-bit byte value. Assembly leaves take and
-   --  return this type so that operands stay in SSE registers across a chain
-   --  of operations instead of travelling through memory.
-
-   function To_Byte_Vector is new Ada.Unchecked_Conversion (U8x16, Byte_Vector);
-   pragma Inline_Always (To_Byte_Vector);
-   function To_U8x16 is new Ada.Unchecked_Conversion (Byte_Vector, U8x16);
-   pragma Inline_Always (To_U8x16);
-
-   U8_Sign_Vector : constant Byte_Vector := [others => 16#80#];
-   U8_Weight_Vector : constant Byte_Vector :=
-     [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
-
-   generic
-      Instruction : String;
-   function U8_Binary (Left, Right : U8x16) return U8x16;
-   function U8_Binary (Left, Right : U8x16) return U8x16 is
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => Instruction,
-         Outputs => Byte_Vector'Asm_Output ("=x", Result),
-         Inputs =>
-           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
-      return To_U8x16 (Result);
-   end U8_Binary;
-
-   generic
-      Instruction : String;
-   function U8_Binary_Scratch (Left, Right : U8x16) return U8x16;
-   function U8_Binary_Scratch (Left, Right : U8x16) return U8x16 is
-      Result : Byte_Vector;
-      First  : Byte_Vector;
-      Second : Byte_Vector;
-   begin
-      Asm
-        (Template => Instruction,
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=x", Result),
-            Byte_Vector'Asm_Output ("=&x", First),
-            Byte_Vector'Asm_Output ("=&x", Second)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
-      return To_U8x16 (Result);
-   end U8_Binary_Scratch;
-
-   generic
-      Instruction : String;
-   function U8_Unary_Scratch (Value : U8x16) return U8x16;
-   function U8_Unary_Scratch (Value : U8x16) return U8x16 is
-      Result : Byte_Vector;
-      Spare  : Byte_Vector;
-   begin
-      Asm
-        (Template => Instruction,
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=x", Result),
-            Byte_Vector'Asm_Output ("=&x", Spare)],
-         Inputs => Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)));
-      return To_U8x16 (Result);
-   end U8_Unary_Scratch;
-
-   function U8_Add_Wrap is new U8_Binary ("paddb %2, %0");
-   function U8_Subtract_Wrap is new U8_Binary ("psubb %2, %0");
-   function U8_Multiply_Wrap (Left, Right : U8x16) return U8x16 is
-      Result : Byte_Vector;
-      High   : Byte_Vector;
-      Zero   : Byte_Vector;
-      Low_B  : Byte_Vector;
-      High_B : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %0, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %6, %3" & ASCII.LF & ASCII.HT &
-           "movdqa %6, %4" & ASCII.LF & ASCII.HT &
-           "pxor %2, %2" & ASCII.LF & ASCII.HT &
-           "punpcklbw %2, %0" & ASCII.LF & ASCII.HT &
-           "punpckhbw %2, %1" & ASCII.LF & ASCII.HT &
-           "punpcklbw %2, %3" & ASCII.LF & ASCII.HT &
-           "punpckhbw %2, %4" & ASCII.LF & ASCII.HT &
-           "pmullw %3, %0" & ASCII.LF & ASCII.HT &
-           "pmullw %4, %1" & ASCII.LF & ASCII.HT &
-           "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
-           "pand %2, %0" & ASCII.LF & ASCII.HT &
-           "pand %2, %1" & ASCII.LF & ASCII.HT &
-           "packuswb %1, %0",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=x", Result),
-            Byte_Vector'Asm_Output ("=&x", High),
-            Byte_Vector'Asm_Output ("=&x", Zero),
-            Byte_Vector'Asm_Output ("=&x", Low_B),
-            Byte_Vector'Asm_Output ("=&x", High_B)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
-      return To_U8x16 (Result);
-   end U8_Multiply_Wrap;
-   function U8_Add_Saturate is new U8_Binary ("paddusb %2, %0");
-   function U8_Subtract_Saturate is new U8_Binary ("psubusb %2, %0");
-   function U8_And is new U8_Binary ("pand %2, %0");
-   pragma Inline_Always (U8_And);
-   function U8_Or is new U8_Binary ("por %2, %0");
-   function U8_Xor is new U8_Binary ("pxor %2, %0");
-   function U8_Not is new U8_Unary_Scratch
-     ("pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
-      "pxor %1, %0");
-   function U8_Reverse is new U8_Unary_Scratch
-     ("movdqa %0, %1" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %0" & ASCII.LF & ASCII.HT &
-      "psllw $8, %1" & ASCII.LF & ASCII.HT &
-      "por %1, %0" & ASCII.LF & ASCII.HT &
-      "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT &
-      "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT &
-      "pshufd $0x4E, %0, %0");
-   function U8_Interleave_Low is new U8_Binary
-     ("punpcklbw %2, %0");
-   function U8_Interleave_High is new U8_Binary
-     ("punpckhbw %2, %0");
-   function U8_Deinterleave_Even is new U8_Binary_Scratch
-     ("pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %1" & ASCII.LF & ASCII.HT &
-      "movdqa %4, %2" & ASCII.LF & ASCII.HT &
-      "pand %1, %0" & ASCII.LF & ASCII.HT &
-      "pand %1, %2" & ASCII.LF & ASCII.HT &
-      "packuswb %2, %0");
-   function U8_Deinterleave_Odd is new U8_Binary_Scratch
-     ("movdqa %4, %1" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %0" & ASCII.LF & ASCII.HT &
-      "psrlw $8, %1" & ASCII.LF & ASCII.HT &
-      "packuswb %1, %0");
-
-   function Equal_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
-      Result : Interfaces.Unsigned_32;
-      Truths : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %2, %1" & ASCII.LF & ASCII.HT &
-           "pcmpeqb %3, %1" & ASCII.LF & ASCII.HT &
-           "pmovmskb %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Truths)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("x", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right))]);
-      return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
-   end Equal_Mask;
-   pragma Inline_Always (Equal_Mask);
-
-   function Greater_Mask (Left, Right : U8x16) return Interfaces.Unsigned_16 is
-      Result   : Interfaces.Unsigned_32;
-      Biased_L : Byte_Vector;
-      Biased_R : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %4, %2" & ASCII.LF & ASCII.HT &
-           "pxor %5, %1" & ASCII.LF & ASCII.HT &
-           "pxor %5, %2" & ASCII.LF & ASCII.HT &
-           "pcmpgtb %2, %1" & ASCII.LF & ASCII.HT &
-           "pmovmskb %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Biased_L),
-            Byte_Vector'Asm_Output ("=&x", Biased_R)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("x", To_Byte_Vector (Left)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (Right)),
-            Byte_Vector'Asm_Input ("x", U8_Sign_Vector)]);
-      return Interfaces.Unsigned_16 (Result and 16#0000_FFFF#);
-   end Greater_Mask;
-
-   function Zero return U8x16 is (Lanes => [others => 0]);
-   function Splat (Value : U8) return U8x16 is (Lanes => [others => Value]);
-   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
-     (Lanes => Values);
-   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
-     (Value.Lanes);
-   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
-     (Value.Lanes (Lane));
-   function Replace
-     (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16
-   is
-      Result : U8x16 := Value;
-   begin
-      Result.Lanes (Lane) := With_Value;
-      return Result;
-   end Replace;
-
-   function Add_Wrap (Left, Right : U8x16) return U8x16 is
-     (U8_Add_Wrap (Left, Right));
-
-   function Add_Saturate (Left, Right : U8x16) return U8x16 is
-     (U8_Add_Saturate (Left, Right));
-   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
-     (U8_Subtract_Wrap (Left, Right));
-   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
-     (U8_Multiply_Wrap (Left, Right));
-   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
-     (U8_Subtract_Saturate (Left, Right));
-
-   function Bitwise_And (Left, Right : U8x16) return U8x16 is
-     (U8_And (Left, Right));
-   function Bitwise_Or (Left, Right : U8x16) return U8x16 is
-     (U8_Or (Left, Right));
-   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is
-     (U8_Xor (Left, Right));
-   function Bitwise_Not (Value : U8x16) return U8x16 is (U8_Not (Value));
-   function Shift_Left_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
-      Result : Byte_Vector;
-      Amount : Byte_Vector;
-      High   : Byte_Vector;
-      Zero   : Byte_Vector;
-      Local_Count : constant Interfaces.Unsigned_32 :=
-        Interfaces.Unsigned_32 (Natural'Min (Count, 8));
-   begin
-      Asm
-        (Template =>
-           "movd %5, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %0, %2" & ASCII.LF & ASCII.HT &
-           "pxor %3, %3" & ASCII.LF & ASCII.HT &
-           "punpcklbw %3, %0" & ASCII.LF & ASCII.HT &
-           "punpckhbw %3, %2" & ASCII.LF & ASCII.HT &
-           "psllw %1, %0" & ASCII.LF & ASCII.HT &
-           "psllw %1, %2" & ASCII.LF & ASCII.HT &
-           "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %3" & ASCII.LF & ASCII.HT &
-           "pand %3, %0" & ASCII.LF & ASCII.HT &
-           "pand %3, %2" & ASCII.LF & ASCII.HT &
-           "packuswb %2, %0",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=x", Result),
-            Byte_Vector'Asm_Output ("=&x", Amount),
-            Byte_Vector'Asm_Output ("=&x", High),
-            Byte_Vector'Asm_Output ("=&x", Zero)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)),
-            Interfaces.Unsigned_32'Asm_Input ("r", Local_Count)]);
-      return To_U8x16 (Result);
-   end Shift_Left_Logical;
-
-   function Shift_Right_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
-      Result : Byte_Vector;
-      Amount : Byte_Vector;
-      High   : Byte_Vector;
-      Zero   : Byte_Vector;
-      Local_Count : constant Interfaces.Unsigned_32 :=
-        Interfaces.Unsigned_32 (Natural'Min (Count, 8));
-   begin
-      Asm
-        (Template =>
-           "movd %5, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %0, %2" & ASCII.LF & ASCII.HT &
-           "pxor %3, %3" & ASCII.LF & ASCII.HT &
-           "punpcklbw %3, %0" & ASCII.LF & ASCII.HT &
-           "punpckhbw %3, %2" & ASCII.LF & ASCII.HT &
-           "psrlw %1, %0" & ASCII.LF & ASCII.HT &
-           "psrlw %1, %2" & ASCII.LF & ASCII.HT &
-           "packuswb %2, %0",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=x", Result),
-            Byte_Vector'Asm_Output ("=&x", Amount),
-            Byte_Vector'Asm_Output ("=&x", High),
-            Byte_Vector'Asm_Output ("=&x", Zero)],
-         Inputs =>
-           [Byte_Vector'Asm_Input ("0", To_Byte_Vector (Value)),
-            Interfaces.Unsigned_32'Asm_Input ("r", Local_Count)]);
-      return To_U8x16 (Result);
-   end Shift_Right_Logical;
-
-   function Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Equal_Mask (Left, Right)));
-   function Less_Than (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask
-        (Greater_Mask (Left => Right, Right => Left)));
-   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask
-        (Greater_Mask (Left => Right, Right => Left)
-         or Equal_Mask (Left, Right)));
-   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask (Greater_Mask (Left, Right)));
-   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Mask_From_Bit_Mask
-        (Greater_Mask (Left, Right) or Equal_Mask (Left, Right)));
-   function Select_Value
-     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is
-      Result : Byte_Vector;
-      Chosen : Byte_Vector;
-      Bits : constant Interfaces.Unsigned_32 :=
-        Interfaces.Unsigned_32 (To_Bit_Mask (Mask));
-   begin
-      Asm
-        (Template =>
-           "movd %2, %0" & ASCII.LF & ASCII.HT &
-           "punpcklbw %0, %0" & ASCII.LF & ASCII.HT &
-           "punpcklwd %0, %0" & ASCII.LF & ASCII.HT &
-           "punpckldq %0, %0" & ASCII.LF & ASCII.HT &
-           "pand %3, %0" & ASCII.LF & ASCII.HT &
-           "pxor %1, %1" & ASCII.LF & ASCII.HT &
-           "pcmpeqb %1, %0" & ASCII.LF & ASCII.HT &
-           "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT &
-           "pxor %1, %0" & ASCII.LF & ASCII.HT &
-           "movdqa %0, %1" & ASCII.LF & ASCII.HT &
-           "pand %4, %1" & ASCII.LF & ASCII.HT &
-           "pandn %5, %0" & ASCII.LF & ASCII.HT &
-           "por %1, %0",
-         Outputs =>
-           [Byte_Vector'Asm_Output ("=&x", Result),
-            Byte_Vector'Asm_Output ("=&x", Chosen)],
-         Inputs =>
-           [Interfaces.Unsigned_32'Asm_Input ("r", Bits),
-            Byte_Vector'Asm_Input ("x", U8_Weight_Vector),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (If_True)),
-            Byte_Vector'Asm_Input ("x", To_Byte_Vector (If_False))]);
-      return To_U8x16 (Result);
-   end Select_Value;
-   function U8_Min is new U8_Binary ("pminub %2, %0");
-   function Min (Left, Right : U8x16) return U8x16 is
-     (U8_Min (Left, Right));
-
-   function U8_Max is new U8_Binary ("pmaxub %2, %0");
-   function Max (Left, Right : U8x16) return U8x16 is
-     (U8_Max (Left, Right));
-   function Horizontal_Sum (Value : U8x16) return Natural is
-      Result : Interfaces.Unsigned_32;
-      Sums   : Byte_Vector;
-      Upper  : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
-           "pxor %2, %2" & ASCII.LF & ASCII.HT &
-           "psadbw %2, %1" & ASCII.LF & ASCII.HT &
-           "movhlps %1, %2" & ASCII.LF & ASCII.HT &
-           "paddq %2, %1" & ASCII.LF & ASCII.HT &
-           "movd %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Sums),
-            Byte_Vector'Asm_Output ("=&x", Upper)],
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-      return Natural (Result);
-   end Horizontal_Sum;
-   function Reduce_Add_Wrap (Value : U8x16) return U8 is
-      Result : Interfaces.Unsigned_32;
-      Totals : Byte_Vector;
-      Folded : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "psrldq $8, %2" & ASCII.LF & ASCII.HT &
-           "paddb %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "psrldq $4, %2" & ASCII.LF & ASCII.HT &
-           "paddb %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "psrldq $2, %2" & ASCII.LF & ASCII.HT &
-           "paddb %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "psrldq $1, %2" & ASCII.LF & ASCII.HT &
-           "paddb %2, %1" & ASCII.LF & ASCII.HT &
-           "movd %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Totals),
-            Byte_Vector'Asm_Output ("=&x", Folded)],
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-      return U8 (Result and 16#0000_00FF#);
-   end Reduce_Add_Wrap;
-   function Reduce_Min (Value : U8x16) return U8 is
-      Result  : Interfaces.Unsigned_32;
-      Running : Byte_Vector;
-      Rotated : Byte_Vector;
-      Swapped : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %4, %1" & ASCII.LF & ASCII.HT &
-           "pshufd $0x4E, %1, %2" & ASCII.LF & ASCII.HT &
-           "pminub %2, %1" & ASCII.LF & ASCII.HT &
-           "pshufd $0xB1, %1, %2" & ASCII.LF & ASCII.HT &
-           "pminub %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
-           "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
-           "pminub %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "movdqa %2, %3" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
-           "psllw $8, %3" & ASCII.LF & ASCII.HT &
-           "por %3, %2" & ASCII.LF & ASCII.HT &
-           "pminub %2, %1" & ASCII.LF & ASCII.HT &
-           "movd %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Running),
-            Byte_Vector'Asm_Output ("=&x", Rotated),
-            Byte_Vector'Asm_Output ("=&x", Swapped)],
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-      return U8 (Result and 16#0000_00FF#);
-   end Reduce_Min;
-   function Reduce_Max (Value : U8x16) return U8 is
-      Result  : Interfaces.Unsigned_32;
-      Running : Byte_Vector;
-      Rotated : Byte_Vector;
-      Swapped : Byte_Vector;
-   begin
-      Asm
-        (Template =>
-           "movdqa %4, %1" & ASCII.LF & ASCII.HT &
-           "pshufd $0x4E, %1, %2" & ASCII.LF & ASCII.HT &
-           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
-           "pshufd $0xB1, %1, %2" & ASCII.LF & ASCII.HT &
-           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
-           "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT &
-           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
-           "movdqa %1, %2" & ASCII.LF & ASCII.HT &
-           "movdqa %2, %3" & ASCII.LF & ASCII.HT &
-           "psrlw $8, %2" & ASCII.LF & ASCII.HT &
-           "psllw $8, %3" & ASCII.LF & ASCII.HT &
-           "por %3, %2" & ASCII.LF & ASCII.HT &
-           "pmaxub %2, %1" & ASCII.LF & ASCII.HT &
-           "movd %1, %0",
-         Outputs =>
-           [Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-            Byte_Vector'Asm_Output ("=&x", Running),
-            Byte_Vector'Asm_Output ("=&x", Rotated),
-            Byte_Vector'Asm_Output ("=&x", Swapped)],
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-      return U8 (Result and 16#0000_00FF#);
-   end Reduce_Max;
-   function Reverse_Bytes (Value : U8x16) return U8x16 is (U8_Reverse (Value));
-   function Reverse_Lanes (Value : U8x16) return U8x16 is
-     (Reverse_Bytes (Value));
-   function Interleave_Low (Left, Right : U8x16) return U8x16 is
-     (U8_Interleave_Low (Left, Right));
-   function Interleave_High (Left, Right : U8x16) return U8x16 is
-     (U8_Interleave_High (Left, Right));
-   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
-     (U8_Deinterleave_Even (Left, Right));
-   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
-     (U8_Deinterleave_Odd (Left, Right));
-   function Mask_From_Bit_Mask
-     (Bits : Interfaces.Unsigned_16) return Mask_8x16 is (Bits => Bits);
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
-     (Mask.Bits);
-   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits and Right.Bits);
-   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits or Right.Bits);
-   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is
-     (Bits => Left.Bits xor Right.Bits);
-   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is
-     (Bits => not Value.Bits);
-   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
-     ((Mask.Bits and Interfaces.Shift_Left
-         (Interfaces.Unsigned_16'(1), Lane)) /= 0);
-   function Any_True (Mask : Mask_8x16) return Boolean is (Mask.Bits /= 0);
-   function All_True (Mask : Mask_8x16) return Boolean is
-     (Mask.Bits = Interfaces.Unsigned_16'Last);
-   function None_True (Mask : Mask_8x16) return Boolean is (Mask.Bits = 0);
-   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Count_Set_Bits (Interfaces.Unsigned_32 (Mask.Bits)));
-   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Find_First_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
-   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
-     (Find_Last_Set_Bit (Interfaces.Unsigned_32 (Mask.Bits), 16));
-   function Load (Data : Byte_Array; Start : Natural) return U8x16 is (Load_Unaligned (Data, Start));
-   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
-
-   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
-      Source : constant Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => "movdqu %1, %0",
-         Outputs => Byte_Vector'Asm_Output ("=x", Result),
-         Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
-      return To_U8x16 (Result);
-   end Load_Unaligned;
-   procedure Store_Unaligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-      Target : Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-   begin
-      Asm
-        (Template => "movdqu %1, %0",
-         Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-   end Store_Unaligned;
-   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
-      Source : constant Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-      Result : Byte_Vector;
-   begin
-      Asm
-        (Template => "movdqa %1, %0",
-         Outputs => Byte_Vector'Asm_Output ("=x", Result),
-         Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
-      return To_U8x16 (Result);
-   end Load_Aligned;
-   procedure Store_Aligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-      Target : Lane_Values_8x16
-        with Import, Address => Data (Start)'Address;
-   begin
-      Asm
-        (Template => "movdqa %1, %0",
-         Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
-         Inputs => Byte_Vector'Asm_Input ("x", To_Byte_Vector (Value)));
-   end Store_Aligned;
-   function Load_Partial
-     (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
-      return U8x16
-   is
-      Result : U8x16 := (Lanes => [others => 0]);
-   begin
-      if Count > 0 then
-         for Lane in Natural range 0 .. Count - 1 loop
-            Result.Lanes (Lane) := Data (Start + Lane);
-         end loop;
-      end if;
-      return Result;
-   end Load_Partial;
-   procedure Store_Partial
-     (Data  : in out Byte_Array;
-      Start : Natural;
-      Count : Lane_Count_8x16;
-      Value : U8x16) is
-   begin
-      if Count > 0 then
-         for Lane in Natural range 0 .. Count - 1 loop
-            Data (Start + Lane) := Value.Lanes (Lane);
-         end loop;
-      end if;
-   end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY X86 BODIES
    --  Assembly leaves below take and return this machine vector type so
@@ -1274,6 +720,26 @@ package body Flyology_SIMD.Backends.Native is
       type Scalar_Type is private;
       Instruction : String;
       Extract_Instruction : String;
+   function SSE2_Integer_Reduce_128_S4 (Value : Vector_Type) return Scalar_Type;
+   function SSE2_Integer_Reduce_128_S4 (Value : Vector_Type) return Scalar_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
+      Result : Scalar_Type;
+      Scratch_1 : Machine_Vector;
+      Scratch_2 : Machine_Vector;
+      Scratch_3 : Machine_Vector;
+      Scratch_4 : Machine_Vector;
+   begin
+      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,
+           Outputs => [Scalar_Type'Asm_Output ("=r", Result), Machine_Vector'Asm_Output ("=&x", Scratch_1), Machine_Vector'Asm_Output ("=&x", Scratch_2), Machine_Vector'Asm_Output ("=&x", Scratch_3), Machine_Vector'Asm_Output ("=&x", Scratch_4)],
+           Inputs => [Machine_Vector'Asm_Input ("x", To_Machine (Value))]);
+      return Result;
+   end SSE2_Integer_Reduce_128_S4;
+
+   generic
+      type Vector_Type is private;
+      type Scalar_Type is private;
+      Instruction : String;
+      Extract_Instruction : String;
    function SSE2_Integer_Reduce_128_S5 (Value : Vector_Type) return Scalar_Type;
    function SSE2_Integer_Reduce_128_S5 (Value : Vector_Type) return Scalar_Type is
       function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
@@ -1423,55 +889,6 @@ package body Flyology_SIMD.Backends.Native is
 
    function Native_Table_Lookup_U8x16 is new SSE2_Binary_128_S5 (U8x16, "pxor %1, %1" & ASCII.LF & ASCII.HT & "pxor %2, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "psrlw $15, %5" & ASCII.LF & ASCII.HT & "packuswb %5, %5" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $1, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $2, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $4, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $5, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $6, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $7, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $8, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $9, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $10, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $11, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $12, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $13, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $14, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %0, %3" & ASCII.LF & ASCII.HT & "psrldq $15, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %3" & ASCII.LF & ASCII.HT & "punpcklwd %3, %3" & ASCII.LF & ASCII.HT & "pshufd $0, %3, %3" & ASCII.LF & ASCII.HT & "movdqa %7, %4" & ASCII.LF & ASCII.HT & "pcmpeqb %2, %4" & ASCII.LF & ASCII.HT & "pand %4, %3" & ASCII.LF & ASCII.HT & "por %3, %1" & ASCII.LF & ASCII.HT & "paddb %5, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %0", "");
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));
-   function Native_Permute_U8x16 is new SSE2_Permute_128 (U8x16, Lane_Map_8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
-   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));
-   function Native_Permute_2_U8x16 is new SSE2_Permute_2_128 (U8x16, Two_Source_Lane_Map_8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
-   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));
-   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-      Map : Lane_Map_8x16;
-      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
-      Result_Lane : Natural := 0;
-   begin
-      for Source_Lane in Lane_Index_8x16 loop
-         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Source_Lane)) /= 0 then
-            for Byte in Natural range 0 .. 0 loop
-               Map.Byte_Indices
-                 (Result_Lane * 1 + Byte) :=
-                   U8 (Source_Lane * 1 + Byte);
-            end loop;
-            Result_Lane := Result_Lane + 1;
-         end if;
-      end loop;
-      while Result_Lane < 16 loop
-         for Byte in Natural range 0 .. 0 loop
-            Map.Byte_Indices
-              (Result_Lane * 1 + Byte) := 16;
-         end loop;
-         Result_Lane := Result_Lane + 1;
-      end loop;
-      return Native_Permute_U8x16 (Value, Map);
-   end Compress;
-
-   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-      Map : Lane_Map_8x16;
-      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
-      Source_Lane : Natural := 0;
-   begin
-      for Result_Lane in Lane_Index_8x16 loop
-         for Byte in Natural range 0 .. 0 loop
-            Map.Byte_Indices
-              (Result_Lane * 1 + Byte) :=
-                (if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
-                    U8 (Source_Lane * 1 + Byte)
-                 else 16);
-         end loop;
-         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
-            Source_Lane := Source_Lane + 1;
-         end if;
-      end loop;
-      return Native_Permute_U8x16 (Value, Map);
-   end Expand;
-
    function Native_Slide_Lanes_Toward_Low_U8x16_1 is new SSE2_Unary_128_S0 (U8x16, "psrldq $1, %0", "");
    pragma Inline_Always (Native_Slide_Lanes_Toward_Low_U8x16_1);
    function Native_Slide_Lanes_Toward_Low_U8x16_2 is new SSE2_Unary_128_S0 (U8x16, "psrldq $2, %0", "");
@@ -2114,6 +1531,221 @@ package body Flyology_SIMD.Backends.Native is
    function Convert_Saturate (Value : I64x2) return U64x2 is (Native_Convert_Saturate_I64x2_To_U64x2 (Value));
    function Native_Convert_Saturate_U64x2_To_I64x2 is new SSE2_Convert_128_S3 (U64x2, I64x2, "movdqa %0, %1" & ASCII.LF & ASCII.HT & "pshufd $0xF5, %1, %1" & ASCII.LF & ASCII.HT & "psrad $31, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %2, %2" & ASCII.LF & ASCII.HT & "psrlq $1, %2" & ASCII.LF & ASCII.HT & "movdqa %1, %3" & ASCII.LF & ASCII.HT & "pand %2, %1" & ASCII.LF & ASCII.HT & "pandn %0, %3" & ASCII.LF & ASCII.HT & "por %1, %3" & ASCII.LF & ASCII.HT & "movdqa %3, %0", "");
    function Convert_Saturate (Value : U64x2) return I64x2 is (Native_Convert_Saturate_U64x2_To_I64x2 (Value));
+   function Native_Add_Wrap_U8x16 is new SSE2_Binary_128_S0 (U8x16, "paddb %2, %0", "");
+   pragma Inline_Always (Native_Add_Wrap_U8x16);
+   function Add_Wrap (Left, Right : U8x16) return U8x16 is (Native_Add_Wrap_U8x16 (Left, Right));
+   function Native_Subtract_Wrap_U8x16 is new SSE2_Binary_128_S0 (U8x16, "psubb %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Wrap_U8x16);
+   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is (Native_Subtract_Wrap_U8x16 (Left, Right));
+   function Native_Multiply_Wrap_U8x16 is new SSE2_Binary_128_S5 (U8x16, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "movdqu %7, %3" & ASCII.LF & ASCII.HT & "movdqu %7, %4" & ASCII.LF & ASCII.HT & "pxor %2, %2" & ASCII.LF & ASCII.HT & "punpcklbw %2, %0" & ASCII.LF & ASCII.HT & "punpckhbw %2, %1" & ASCII.LF & ASCII.HT & "punpcklbw %2, %3" & ASCII.LF & ASCII.HT & "punpckhbw %2, %4" & ASCII.LF & ASCII.HT & "pmullw %3, %0" & ASCII.LF & ASCII.HT & "pmullw %4, %1" & ASCII.LF & ASCII.HT & "pcmpeqd %5, %5" & ASCII.LF & ASCII.HT & "psrlw $8, %5" & ASCII.LF & ASCII.HT & "pand %5, %0" & ASCII.LF & ASCII.HT & "pand %5, %1" & ASCII.LF & ASCII.HT & "packuswb %1, %0", "");
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is (Native_Multiply_Wrap_U8x16 (Left, Right));
+   function Native_Bitwise_And_U8x16 is new SSE2_Binary_128_S0 (U8x16, "pand %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_And_U8x16);
+   function Bitwise_And (Left, Right : U8x16) return U8x16 is (Native_Bitwise_And_U8x16 (Left, Right));
+   function Native_Bitwise_Or_U8x16 is new SSE2_Binary_128_S0 (U8x16, "por %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Or_U8x16);
+   function Bitwise_Or (Left, Right : U8x16) return U8x16 is (Native_Bitwise_Or_U8x16 (Left, Right));
+   function Native_Bitwise_Xor_U8x16 is new SSE2_Binary_128_S0 (U8x16, "pxor %2, %0", "");
+   pragma Inline_Always (Native_Bitwise_Xor_U8x16);
+   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is (Native_Bitwise_Xor_U8x16 (Left, Right));
+   function Native_Interleave_Low_U8x16 is new SSE2_Binary_128_S0 (U8x16, "punpcklbw %2, %0", "");
+   pragma Inline_Always (Native_Interleave_Low_U8x16);
+   function Interleave_Low (Left, Right : U8x16) return U8x16 is (Native_Interleave_Low_U8x16 (Left, Right));
+   function Native_Interleave_High_U8x16 is new SSE2_Binary_128_S0 (U8x16, "punpckhbw %2, %0", "");
+   pragma Inline_Always (Native_Interleave_High_U8x16);
+   function Interleave_High (Left, Right : U8x16) return U8x16 is (Native_Interleave_High_U8x16 (Left, Right));
+   function Native_Deinterleave_Even_U8x16 is new SSE2_Binary_128_S2 (U8x16, "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "pand %1, %0" & ASCII.LF & ASCII.HT & "pand %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Even_U8x16);
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is (Native_Deinterleave_Even_U8x16 (Left, Right));
+   function Native_Deinterleave_Odd_U8x16 is new SSE2_Binary_128_S1 (U8x16, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %0" & ASCII.LF & ASCII.HT & "psrlw $8, %1" & ASCII.LF & ASCII.HT & "packuswb %1, %0", "");
+   pragma Inline_Always (Native_Deinterleave_Odd_U8x16);
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is (Native_Deinterleave_Odd_U8x16 (Left, Right));
+   function Native_Add_Saturate_U8x16 is new SSE2_Binary_128_S0 (U8x16, "paddusb %2, %0", "");
+   pragma Inline_Always (Native_Add_Saturate_U8x16);
+   function Add_Saturate (Left, Right : U8x16) return U8x16 is (Native_Add_Saturate_U8x16 (Left, Right));
+   function Native_Subtract_Saturate_U8x16 is new SSE2_Binary_128_S0 (U8x16, "psubusb %2, %0", "");
+   pragma Inline_Always (Native_Subtract_Saturate_U8x16);
+   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is (Native_Subtract_Saturate_U8x16 (Left, Right));
+   function Native_Min_U8x16 is new SSE2_Binary_128_S0 (U8x16, "pminub %2, %0", "");
+   pragma Inline_Always (Native_Min_U8x16);
+   function Min (Left, Right : U8x16) return U8x16 is (Native_Min_U8x16 (Left, Right));
+   function Native_Max_U8x16 is new SSE2_Binary_128_S0 (U8x16, "pmaxub %2, %0", "");
+   pragma Inline_Always (Native_Max_U8x16);
+   function Max (Left, Right : U8x16) return U8x16 is (Native_Max_U8x16 (Left, Right));
+   function Native_Not_U8x16 is new SSE2_Unary_128_S1 (U8x16, "pcmpeqd %1, %1" & ASCII.LF & ASCII.HT & "pxor %1, %0", "");
+   pragma Inline_Always (Native_Not_U8x16);
+   function Bitwise_Not (Value : U8x16) return U8x16 is (Native_Not_U8x16 (Value));
+   function Native_Reverse_U8x16 is new SSE2_Unary_128_S1 (U8x16, "movdqu %0, %1" & ASCII.LF & ASCII.HT & "psrlw $8, %0" & ASCII.LF & ASCII.HT & "psllw $8, %1" & ASCII.LF & ASCII.HT & "por %1, %0" & ASCII.LF & ASCII.HT & "pshuflw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufhw $0x1B, %0, %0" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %0, %0", "");
+   pragma Inline_Always (Native_Reverse_U8x16);
+   function Reverse_Lanes (Value : U8x16) return U8x16 is (Native_Reverse_U8x16 (Value));
+   function Compare_Equal_U8x16 is new SSE2_Compare_128 (U8x16, 8, "pcmpeqb %2, %1");
+   pragma Inline_Always (Compare_Equal_U8x16);
+   function Compare_Greater_U8x16 is new SSE2_Compare_128 (U8x16, 8, "pxor %9, %1" & ASCII.LF & ASCII.HT & "pxor %9, %2" & ASCII.LF & ASCII.HT & "pcmpgtb %2, %1");
+   pragma Inline_Always (Compare_Greater_U8x16);
+   function Native_Select_U8x16 is new SSE2_Select_128 (U8x16, 8);
+   pragma Inline_Always (Native_Select_U8x16);
+   function Native_Zero_U8x16 is new SSE2_Zero_128 (U8x16);
+   pragma Inline_Always (Native_Zero_U8x16);
+   function Zero return U8x16 is (Native_Zero_U8x16);
+   function Native_Splat_U8x16 is new SSE2_Splat_Integer_128 (U8x16, U8, "movzbl %b2, %k1" & ASCII.LF & ASCII.HT & "imull $0x01010101, %k1, %k1" & ASCII.LF & ASCII.HT & "movd %k1, %0" & ASCII.LF & ASCII.HT & "pshufd $0, %0, %0");
+   pragma Inline_Always (Native_Splat_U8x16);
+   function Splat (Value : U8) return U8x16 is (Native_Splat_U8x16 (Value));
+   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
+     (Lanes => Values);
+   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
+     (Value.Lanes);
+   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
+     (Value.Lanes (Lane));
+   function Replace (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16 is
+      Result : U8x16 := Value;
+   begin
+      Result.Lanes (Lane) := With_Value;
+      return Result;
+   end Replace;
+   function Native_Permute_U8x16 is new SSE2_Permute_128 (U8x16, Lane_Map_8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));
+   function Native_Permute_2_U8x16 is new SSE2_Permute_2_128 (U8x16, Two_Source_Lane_Map_8x16, "pxor %%xmm3, %%xmm3" & ASCII.LF & ASCII.HT & "pxor %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT & "pcmpeqd %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "psrlw $15, %%xmm7" & ASCII.LF & ASCII.HT & "packuswb %%xmm7, %%xmm7" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm0, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $1, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $2, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $3, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $4, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $6, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $7, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $8, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $9, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $10, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $11, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $12, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $13, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $14, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm1, %%xmm5" & ASCII.LF & ASCII.HT & "psrldq $15, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklbw %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "punpcklwd %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "pshufd $0, %%xmm5, %%xmm5" & ASCII.LF & ASCII.HT & "movdqa %%xmm2, %%xmm6" & ASCII.LF & ASCII.HT & "pcmpeqb %%xmm4, %%xmm6" & ASCII.LF & ASCII.HT & "pand %%xmm6, %%xmm5" & ASCII.LF & ASCII.HT & "por %%xmm5, %%xmm3" & ASCII.LF & ASCII.HT & "paddb %%xmm7, %%xmm4" & ASCII.LF & ASCII.HT & "movdqa %%xmm3, %%xmm0");
+   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Map : Lane_Map_8x16;
+      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Source_Lane)) /= 0 then
+            for Byte in Natural range 0 .. 0 loop
+               Map.Byte_Indices
+                 (Result_Lane * 1 + Byte) :=
+                   U8 (Source_Lane * 1 + Byte);
+            end loop;
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      while Result_Lane < 16 loop
+         for Byte in Natural range 0 .. 0 loop
+            Map.Byte_Indices
+              (Result_Lane * 1 + Byte) := 16;
+         end loop;
+         Result_Lane := Result_Lane + 1;
+      end loop;
+      return Native_Permute_U8x16 (Value, Map);
+   end Compress;
+
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Map : Lane_Map_8x16;
+      Bits : constant Interfaces.Unsigned_16 := Mask.Bits;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         for Byte in Natural range 0 .. 0 loop
+            Map.Byte_Indices
+              (Result_Lane * 1 + Byte) :=
+                (if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
+                    U8 (Source_Lane * 1 + Byte)
+                 else 16);
+         end loop;
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Result_Lane)) /= 0 then
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Native_Permute_U8x16 (Value, Map);
+   end Expand;
+
+   function Native_SHL_U8x16 is new SSE2_Shift_128 (U8x16, "movdqu %0, %2" & ASCII.LF & ASCII.HT & "pxor %3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %0" & ASCII.LF & ASCII.HT & "punpckhbw %3, %2" & ASCII.LF & ASCII.HT & "psllw %1, %0" & ASCII.LF & ASCII.HT & "psllw %1, %2" & ASCII.LF & ASCII.HT & "pcmpeqd %3, %3" & ASCII.LF & ASCII.HT & "psrlw $8, %3" & ASCII.LF & ASCII.HT & "pand %3, %0" & ASCII.LF & ASCII.HT & "pand %3, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0");
+   function Native_SHR_U8x16 is new SSE2_Shift_128 (U8x16, "movdqu %0, %2" & ASCII.LF & ASCII.HT & "pxor %3, %3" & ASCII.LF & ASCII.HT & "punpcklbw %3, %0" & ASCII.LF & ASCII.HT & "punpckhbw %3, %2" & ASCII.LF & ASCII.HT & "psrlw %1, %0" & ASCII.LF & ASCII.HT & "psrlw %1, %2" & ASCII.LF & ASCII.HT & "packuswb %2, %0");
+   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 is (Native_SHL_U8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
+   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 is (Native_SHR_U8x16 (Value, Interfaces.Unsigned_32 (Natural'Min (Count, 8))));
+   function Equal (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Equal_U8x16 (Left, Right, Sign_Vector_8)));
+   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_U8x16 (Left, Right, Sign_Vector_8)));
+   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is (Mask_From_Bit_Mask (Compare_Greater_U8x16 (Left, Right, Sign_Vector_8) or Compare_Equal_U8x16 (Left, Right, Sign_Vector_8)));
+   function Less_Than (Left, Right : U8x16) return Mask_8x16 is (Greater_Than (Left => Right, Right => Left));
+   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is (Greater_Equal (Left => Right, Right => Left));
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is (Native_Select_U8x16 (To_Bit_Mask (Mask), Weights_X86_Vector_8, If_True, If_False));
+   function Native_Reduce_Add_Wrap_U8x16 is new SSE2_Integer_Reduce_128_S2 (U8x16, U8, "movdqa %3, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrldq $8, %2" & ASCII.LF & ASCII.HT & "paddb %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrldq $4, %2" & ASCII.LF & ASCII.HT & "paddb %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrldq $2, %2" & ASCII.LF & ASCII.HT & "paddb %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %2" & ASCII.LF & ASCII.HT & "psrldq $1, %2" & ASCII.LF & ASCII.HT & "paddb %2, %1", "movd %1, %k0" & ASCII.LF & ASCII.HT & "movzbl %b0, %k0");
+   function Reduce_Add_Wrap (Value : U8x16) return U8 is (Native_Reduce_Add_Wrap_U8x16 (Value));
+   function Native_Reduce_Min_U8x16 is new SSE2_Integer_Reduce_128_S4 (U8x16, U8, "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %4, %2" & ASCII.LF & ASCII.HT & "pminub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %4, %2" & ASCII.LF & ASCII.HT & "pminub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "pminub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %3" & ASCII.LF & ASCII.HT & "psrlw $8, %2" & ASCII.LF & ASCII.HT & "psllw $8, %3" & ASCII.LF & ASCII.HT & "por %3, %2" & ASCII.LF & ASCII.HT & "pminub %2, %1", "movd %1, %k0" & ASCII.LF & ASCII.HT & "movzbl %b0, %k0");
+   function Reduce_Min (Value : U8x16) return U8 is (Native_Reduce_Min_U8x16 (Value));
+   function Native_Reduce_Max_U8x16 is new SSE2_Integer_Reduce_128_S4 (U8x16, U8, "movdqa %5, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0x4E, %4, %2" & ASCII.LF & ASCII.HT & "pmaxub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "pshufd $0xB1, %4, %2" & ASCII.LF & ASCII.HT & "pmaxub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "pshuflw $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "pshufhw $0xB1, %2, %2" & ASCII.LF & ASCII.HT & "pmaxub %2, %1" & ASCII.LF & ASCII.HT & "movdqa %1, %4" & ASCII.LF & ASCII.HT & "movdqa %4, %2" & ASCII.LF & ASCII.HT & "movdqa %2, %3" & ASCII.LF & ASCII.HT & "psrlw $8, %2" & ASCII.LF & ASCII.HT & "psllw $8, %3" & ASCII.LF & ASCII.HT & "por %3, %2" & ASCII.LF & ASCII.HT & "pmaxub %2, %1", "movd %1, %k0" & ASCII.LF & ASCII.HT & "movzbl %b0, %k0");
+   function Reduce_Max (Value : U8x16) return U8 is (Native_Reduce_Max_U8x16 (Value));
+   function Is_Aligned_16 (Data : Byte_Array; Start : Natural) return Boolean is
+     (Start in Data'Range and then
+      System.Storage_Elements.To_Integer (Data (Start)'Address) mod
+        System.Storage_Elements.Integer_Address (16) = 0);
+   function Load (Data : Byte_Array; Start : Natural) return U8x16 is (Load_Unaligned (Data, Start));
+   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U8x16);
+      Source : constant Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
+   begin
+      Asm (Template => "movdqu %1, %0",
+           Outputs => Machine_Vector'Asm_Output ("=x", Result),
+           Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
+      return To_Vector (Result);
+   end Load_Unaligned;
+   procedure Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+      function To_Machine is new Ada.Unchecked_Conversion (U8x16, Machine_Vector);
+      Target : Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+   begin
+      Asm (Template => "movdqu %1, %0",
+           Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
+           Inputs => Machine_Vector'Asm_Input ("x", To_Machine (Value)));
+   end Store_Unaligned;
+   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U8x16);
+      Source : constant Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
+   begin
+      Asm (Template => "movdqa %1, %0",
+           Outputs => Machine_Vector'Asm_Output ("=x", Result),
+           Inputs => Lane_Values_8x16'Asm_Input ("m", Source));
+      return To_Vector (Result);
+   end Load_Aligned;
+   procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+      function To_Machine is new Ada.Unchecked_Conversion (U8x16, Machine_Vector);
+      Target : Lane_Values_8x16 with Import, Address => Data (Start)'Address;
+   begin
+      Asm (Template => "movdqa %1, %0",
+           Outputs => Lane_Values_8x16'Asm_Output ("=m", Target),
+           Inputs => Machine_Vector'Asm_Input ("x", To_Machine (Value)));
+   end Store_Aligned;
+   function Load_Partial (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16) return U8x16 is
+      Result : U8x16 := (Lanes => [others => 0]);
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Result.Lanes (Lane_Index_8x16 (Lane)) := Data (Start + Lane);
+         end loop;
+      end if;
+      return Result;
+   end Load_Partial;
+   procedure Store_Partial (Data : in out Byte_Array; Start : Natural; Count : Lane_Count_8x16; Value : U8x16) is
+   begin
+      if Count > 0 then
+         for Lane in Natural range 0 .. Count - 1 loop
+            Data (Start + Lane) := Value.Lanes (Lane_Index_8x16 (Lane));
+         end loop;
+      end if;
+   end Store_Partial;
+   function Horizontal_Sum (Value : U8x16) return Natural is
+      function To_Machine is new Ada.Unchecked_Conversion (U8x16, Machine_Vector);
+      Result : Interfaces.Unsigned_32;
+      Sums : Machine_Vector;
+      Upper : Machine_Vector;
+   begin
+      Asm
+        (Template =>
+           "movdqa %3, %1" & ASCII.LF & ASCII.HT &
+                   "pxor %2, %2" & ASCII.LF & ASCII.HT &
+                   "psadbw %2, %1" & ASCII.LF & ASCII.HT &
+                   "movhlps %1, %2" & ASCII.LF & ASCII.HT &
+                   "paddq %2, %1" & ASCII.LF & ASCII.HT &
+                   "movd %1, %0",
+         Outputs => [Interfaces.Unsigned_32'Asm_Output ("=r", Result), Machine_Vector'Asm_Output ("=&x", Sums), Machine_Vector'Asm_Output ("=&x", Upper)],
+         Inputs => Machine_Vector'Asm_Input ("x", To_Machine (Value)));
+      return Natural (Result);
+   end Horizontal_Sum;
+   function Reverse_Bytes (Value : U8x16) return U8x16 is (Reverse_Lanes (Value));
    function Native_Add_Wrap_I8x16 is new SSE2_Binary_128_S0 (I8x16, "paddb %2, %0", "");
    pragma Inline_Always (Native_Add_Wrap_I8x16);
    function Add_Wrap (Left, Right : I8x16) return I8x16 is (Native_Add_Wrap_I8x16 (Left, Right));
@@ -3831,6 +3463,29 @@ package body Flyology_SIMD.Backends.Native is
          end loop;
       end if;
    end Store_Partial;
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
+     (Bits => Bits and 65535);
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
+     (Mask.Bits and 65535);
+   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits and Right.Bits) and 65535);
+   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits or Right.Bits) and 65535);
+   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Bits => (Left.Bits xor Right.Bits) and 65535);
+   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is
+     (Bits => (not Value.Bits) and 65535);
+   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
+     ((Mask.Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0);
+   function Any_True (Mask : Mask_8x16) return Boolean is
+     (Mask.Bits /= 0);
+   function All_True (Mask : Mask_8x16) return Boolean is
+     ((Mask.Bits and 65535) = 65535);
+   function None_True (Mask : Mask_8x16) return Boolean is
+     (Mask.Bits = 0);
+   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is (Count_Set_Bits (Interfaces.Unsigned_32 (To_Bit_Mask (Mask))));
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Find_First_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), 16));
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), 16));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
      (Bits => Bits and 255);
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is

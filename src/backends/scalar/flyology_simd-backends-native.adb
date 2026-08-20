@@ -1,100 +1,12 @@
 package body Flyology_SIMD.Backends.Native is
-   function Zero return U8x16 is (Flyology_SIMD.Zero);
-   function Splat (Value : U8) return U8x16 is (Flyology_SIMD.Splat (Value));
-   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is (Flyology_SIMD.From_Lanes (Values));
-   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is (Flyology_SIMD.To_Lanes (Value));
-   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is (Flyology_SIMD.Extract (Value, Lane));
-   function Replace (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16 is (Flyology_SIMD.Replace (Value, Lane, With_Value));
-   function Add_Wrap (Left, Right : U8x16) return U8x16 is
-     (Flyology_SIMD.Add_Wrap (Left, Right));
-   function Add_Saturate (Left, Right : U8x16) return U8x16 is
-     (Flyology_SIMD.Add_Saturate (Left, Right));
-   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Subtract_Wrap (Left, Right));
-   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Multiply_Wrap (Left, Right));
-   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Subtract_Saturate (Left, Right));
-   function Bitwise_And (Left, Right : U8x16) return U8x16 is
-     (Flyology_SIMD.Bitwise_And (Left, Right));
-   function Bitwise_Or (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Bitwise_Or (Left, Right));
-   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Bitwise_Xor (Left, Right));
-   function Bitwise_Not (Value : U8x16) return U8x16 is (Flyology_SIMD.Bitwise_Not (Value));
-   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 is (Flyology_SIMD.Shift_Left_Logical (Value, Count));
-   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 is (Flyology_SIMD.Shift_Right_Logical (Value, Count));
-   function Equal (Left, Right : U8x16) return Mask_8x16 is
-     (Flyology_SIMD.Equal (Left, Right));
-   function Less_Than (Left, Right : U8x16) return Mask_8x16 is (Flyology_SIMD.Less_Than (Left, Right));
-   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is (Flyology_SIMD.Less_Equal (Left, Right));
-   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is (Flyology_SIMD.Greater_Than (Left, Right));
-   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is (Flyology_SIMD.Greater_Equal (Left, Right));
-   function Select_Value
-     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is
-     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
-   function Min (Left, Right : U8x16) return U8x16 is
-     (Flyology_SIMD.Min (Left, Right));
-   function Max (Left, Right : U8x16) return U8x16 is
-     (Flyology_SIMD.Max (Left, Right));
-   function Horizontal_Sum (Value : U8x16) return Natural is (Flyology_SIMD.Horizontal_Sum (Value));
-   function Reduce_Add_Wrap (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Add_Wrap (Value));
-   function Reduce_Min (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Min (Value));
-   function Reduce_Max (Value : U8x16) return U8 is (Flyology_SIMD.Reduce_Max (Value));
-   function Reverse_Bytes (Value : U8x16) return U8x16 is (Flyology_SIMD.Reverse_Bytes (Value));
-   function Reverse_Lanes (Value : U8x16) return U8x16 is (Flyology_SIMD.Reverse_Lanes (Value));
-   function Interleave_Low (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_Low (Left, Right));
-   function Interleave_High (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Interleave_High (Left, Right));
-   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Deinterleave_Even (Left, Right));
-   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is (Flyology_SIMD.Deinterleave_Odd (Left, Right));
-   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
-     (Flyology_SIMD.To_Bit_Mask (Mask));
-   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_And (Left, Right));
-   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Or (Left, Right));
-   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Xor (Left, Right));
-   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is (Flyology_SIMD.Mask_Not (Value));
-   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is (Flyology_SIMD.Test (Mask, Lane));
-   function Any_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.Any_True (Mask));
-   function All_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.All_True (Mask));
-   function None_True (Mask : Mask_8x16) return Boolean is (Flyology_SIMD.None_True (Mask));
-   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.Population_Count (Mask));
-   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.First_True (Mask));
-   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is (Flyology_SIMD.Last_True (Mask));
-   function Load (Data : Byte_Array; Start : Natural) return U8x16 is (Flyology_SIMD.Load (Data, Start));
-   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Flyology_SIMD.Store (Data, Start, Value); end Store;
-   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
-     (Flyology_SIMD.Load_Unaligned (Data, Start));
-   procedure Store_Unaligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
-   begin
-      Flyology_SIMD.Store_Unaligned (Data, Start, Value);
-   end Store_Unaligned;
-   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is (Flyology_SIMD.Load_Aligned (Data, Start));
-   procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is begin Flyology_SIMD.Store_Aligned (Data, Start, Value); end Store_Aligned;
-   function Load_Partial
-     (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
-      return U8x16 is
-     (Flyology_SIMD.Load_Partial (Data, Start, Count));
-   procedure Store_Partial
-     (Data  : in out Byte_Array;
-      Start : Natural;
-      Count : Lane_Count_8x16;
-      Value : U8x16) is
-   begin
-      Flyology_SIMD.Store_Partial (Data, Start, Count, Value);
-   end Store_Partial;
 
    --  BEGIN GENERATED FULL-FAMILY FALLBACK BODIES
    function Table_Lookup (Table, Indices : U8x16) return U8x16 is
      (Flyology_SIMD.Table_Lookup (Table, Indices));
-   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is
-     (Flyology_SIMD.Permute_Lanes (Value, Map));
-   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is
-     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
-   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-     (Flyology_SIMD.Compress (Value, Mask));
-   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
-     (Flyology_SIMD.Expand (Value, Mask));
-   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
-     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
-   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
-     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
+   function Horizontal_Sum (Value : U8x16) return Natural is
+     (Flyology_SIMD.Horizontal_Sum (Value));
+   function Reverse_Bytes (Value : U8x16) return U8x16 is
+     (Flyology_SIMD.Reverse_Bytes (Value));
    function Bit_Cast (Value : U8x16) return I8x16 is
      (Flyology_SIMD.Bit_Cast (Value));
    function Bit_Cast (Value : I8x16) return U8x16 is
@@ -219,6 +131,101 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Convert_Saturate (Value));
    function Convert_Saturate (Value : U64x2) return I64x2 is
      (Flyology_SIMD.Convert_Saturate (Value));
+   function Zero return U8x16 is (Lanes => [others => 0]);
+   function Splat (Value : U8) return U8x16 is
+     (Lanes => [others => Value]);
+   function From_Lanes (Values : Lane_Values_8x16) return U8x16 is
+     (Flyology_SIMD.From_Lanes (Values));
+   function To_Lanes (Value : U8x16) return Lane_Values_8x16 is
+     (Flyology_SIMD.To_Lanes (Value));
+   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8 is
+     (Flyology_SIMD.Extract (Value, Lane));
+   function Replace (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16 is
+     (Flyology_SIMD.Replace (Value, Lane, With_Value));
+   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is
+     (Flyology_SIMD.Permute_Lanes (Value, Map));
+   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is
+     (Flyology_SIMD.Permute_Lanes (Left, Right, Map));
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+     (Flyology_SIMD.Compress (Value, Mask));
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+     (Flyology_SIMD.Expand (Value, Mask));
+   function Add_Wrap (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Add_Wrap (Left, Right));
+   function Subtract_Wrap (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Subtract_Wrap (Left, Right));
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Multiply_Wrap (Left, Right));
+   function Add_Saturate (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Add_Saturate (Left, Right));
+   function Subtract_Saturate (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Subtract_Saturate (Left, Right));
+   function Bitwise_And (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Bitwise_And (Left, Right));
+   function Bitwise_Or (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Bitwise_Or (Left, Right));
+   function Bitwise_Xor (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Bitwise_Xor (Left, Right));
+   function Min (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Min (Left, Right));
+   function Max (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Max (Left, Right));
+   function Interleave_Low (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Interleave_Low (Left, Right));
+   function Interleave_High (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Interleave_High (Left, Right));
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Deinterleave_Even (Left, Right));
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 is
+     (Flyology_SIMD.Deinterleave_Odd (Left, Right));
+   function Bitwise_Not (Value : U8x16) return U8x16 is
+     (Flyology_SIMD.Bitwise_Not (Value));
+   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_Low (Value, Count));
+   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Slide_Lanes_Toward_High (Value, Count));
+   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Shift_Left_Logical (Value, Count));
+   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 is
+     (Flyology_SIMD.Shift_Right_Logical (Value, Count));
+   function Equal (Left, Right : U8x16) return Mask_8x16 is
+     (Flyology_SIMD.Equal (Left, Right));
+   function Less_Than (Left, Right : U8x16) return Mask_8x16 is
+     (Flyology_SIMD.Less_Than (Left, Right));
+   function Less_Equal (Left, Right : U8x16) return Mask_8x16 is
+     (Flyology_SIMD.Less_Equal (Left, Right));
+   function Greater_Than (Left, Right : U8x16) return Mask_8x16 is
+     (Flyology_SIMD.Greater_Than (Left, Right));
+   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 is
+     (Flyology_SIMD.Greater_Equal (Left, Right));
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 is
+     (Flyology_SIMD.Select_Value (Mask, If_True, If_False));
+   function Reduce_Add_Wrap (Value : U8x16) return U8 is
+     (Flyology_SIMD.Reduce_Add_Wrap (Value));
+   function Reduce_Min (Value : U8x16) return U8 is
+     (Flyology_SIMD.Reduce_Min (Value));
+   function Reduce_Max (Value : U8x16) return U8 is
+     (Flyology_SIMD.Reduce_Max (Value));
+   function Reverse_Lanes (Value : U8x16) return U8x16 is
+     (Flyology_SIMD.Reverse_Lanes (Value));
+   function Is_Aligned_16 (Data : Byte_Array; Start : Natural) return Boolean is
+     (Flyology_SIMD.Is_Aligned_16 (Data, Start));
+   function Load (Data : Byte_Array; Start : Natural) return U8x16 is
+     (Flyology_SIMD.Load (Data, Start));
+   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+   begin Flyology_SIMD.Store (Data, Start, Value); end Store;
+   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 is
+     (Flyology_SIMD.Load_Unaligned (Data, Start));
+   procedure Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+   begin Flyology_SIMD.Store_Unaligned (Data, Start, Value); end Store_Unaligned;
+   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 is
+     (Flyology_SIMD.Load_Aligned (Data, Start));
+   procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) is
+   begin Flyology_SIMD.Store_Aligned (Data, Start, Value); end Store_Aligned;
+   function Load_Partial (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16) return U8x16 is
+     (Flyology_SIMD.Load_Partial (Data, Start, Count));
+   procedure Store_Partial (Data : in out Byte_Array; Start : Natural; Count : Lane_Count_8x16; Value : U8x16) is
+   begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
    function Zero return I8x16 is (Lanes => [others => 0]);
    function Splat (Value : I8) return I8x16 is
      (Lanes => [others => Value]);
@@ -1058,6 +1065,32 @@ package body Flyology_SIMD.Backends.Native is
      (Flyology_SIMD.Load_Partial (Data, Start, Count));
    procedure Store_Partial (Data : in out F64_Array; Start : Natural; Count : Lane_Count_64x2; Value : F64x2) is
    begin Flyology_SIMD.Store_Partial (Data, Start, Count, Value); end Store_Partial;
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 is
+     (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 is
+     (Flyology_SIMD.To_Bit_Mask (Mask));
+   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Flyology_SIMD.Mask_And (Left, Right));
+   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Flyology_SIMD.Mask_Or (Left, Right));
+   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 is
+     (Flyology_SIMD.Mask_Xor (Left, Right));
+   function Mask_Not (Value : Mask_8x16) return Mask_8x16 is
+     (Flyology_SIMD.Mask_Not (Value));
+   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean is
+     (Flyology_SIMD.Test (Mask, Lane));
+   function Any_True (Mask : Mask_8x16) return Boolean is
+     (Flyology_SIMD.Any_True (Mask));
+   function All_True (Mask : Mask_8x16) return Boolean is
+     (Flyology_SIMD.All_True (Mask));
+   function None_True (Mask : Mask_8x16) return Boolean is
+     (Flyology_SIMD.None_True (Mask));
+   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16 is
+     (Flyology_SIMD.Population_Count (Mask));
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+     (Flyology_SIMD.First_True (Mask));
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16 is
+     (Flyology_SIMD.Last_True (Mask));
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 is
      (Flyology_SIMD.Mask_From_Bit_Mask (Bits));
    function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 is

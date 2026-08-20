@@ -58,6 +58,357 @@ procedure Family_Tests is
       return Lanes;
    end Reference_Last_True;
 
+   function Reference_Add_Saturate_U8x16 (Left, Right : U8) return U8 is
+   begin
+      if Left > U8'Last - Right then return U8'Last;
+      else return Left + Right; end if;
+   end Reference_Add_Saturate_U8x16;
+   function Reference_Subtract_Saturate_U8x16 (Left, Right : U8) return U8 is
+   begin
+      if Left < Right then return 0;
+      else return Left - Right; end if;
+   end Reference_Subtract_Saturate_U8x16;
+   function Reference_Reduce_Add_U8x16 (Value : U8x16) return U8 is
+      Accumulator : Interfaces.Unsigned_8 := 0;
+   begin
+      for Lane in Lane_Index_8x16 loop Accumulator := Accumulator + Interfaces.Unsigned_8 (Extract (Value, Lane)); end loop;
+      return U8 (Accumulator);
+   end Reference_Reduce_Add_U8x16;
+   function Reference_Reduce_Min_U8x16 (Value : U8x16) return U8 is
+      Result : U8 := Extract (Value, Lane_Index_8x16'First);
+   begin
+      for Lane in Lane_Index_8x16 loop if Extract (Value, Lane) < Result then Result := Extract (Value, Lane); end if; end loop;
+      return Result;
+   end Reference_Reduce_Min_U8x16;
+   function Reference_Reduce_Max_U8x16 (Value : U8x16) return U8 is
+      Result : U8 := Extract (Value, Lane_Index_8x16'First);
+   begin
+      for Lane in Lane_Index_8x16 loop if Extract (Value, Lane) > Result then Result := Extract (Value, Lane); end if; end loop;
+      return Result;
+   end Reference_Reduce_Max_U8x16;
+   function Reference_Comparison_U8x16 (Left, Right : U8x16; Relation : Natural) return Interfaces.Unsigned_16 is
+      Result : Interfaces.Unsigned_16 := 0;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         if (case Relation is
+                when 0 => Extract (Left, Lane) = Extract (Right, Lane),
+                when 1 => Extract (Left, Lane) < Extract (Right, Lane),
+                when 2 => Extract (Left, Lane) <= Extract (Right, Lane),
+                when 3 => Extract (Left, Lane) > Extract (Right, Lane),
+                when others => Extract (Left, Lane) >= Extract (Right, Lane)) then
+            Result := Result or Interfaces.Shift_Left (Interfaces.Unsigned_16 (1), Lane);
+         end if;
+      end loop;
+      return Result;
+   end Reference_Comparison_U8x16;
+   function Random_U8x16_Lanes return Lane_Values_8x16 is
+      Result : Lane_Values_8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result (Lane) := Interfaces.Unsigned_8 (Next_U64 and 16#FF#); end loop;
+      return Result;
+   end Random_U8x16_Lanes;
+   function Random_U8x16_Selectors return Lane_Selectors_8x16 is
+      Result : Lane_Selectors_8x16;
+   begin
+      for Lane in Lane_Index_8x16 loop Result (Lane) := Lane_Index_8x16 (Next_U64 mod 16); end loop;
+      return Result;
+   end Random_U8x16_Selectors;
+   function Same (Left, Right : U8x16) return Boolean is (To_Lanes (Left) = To_Lanes (Right));
+   function Reference_Compress_U8x16 (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Result : U8x16 := Zero;
+      Result_Lane : Natural := 0;
+   begin
+      for Source_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Source_Lane) then
+            Result := Replace (Result, Lane_Index_8x16 (Result_Lane), Extract (Value, Source_Lane));
+            Result_Lane := Result_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Compress_U8x16;
+   function Reference_Expand_U8x16 (Value : U8x16; Mask : Mask_8x16) return U8x16 is
+      Result : U8x16 := Zero;
+      Source_Lane : Natural := 0;
+   begin
+      for Result_Lane in Lane_Index_8x16 loop
+         if Test (Mask, Result_Lane) then
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_8x16 (Source_Lane)));
+            Source_Lane := Source_Lane + 1;
+         end if;
+      end loop;
+      return Result;
+   end Reference_Expand_U8x16;
+   function Reference_Shift_Left_Logical_U8x16 (Value : U8x16; Count : Natural) return U8x16 is
+      Result : U8x16 := Zero;
+      Raw : Interfaces.Unsigned_8;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Raw := Interfaces.Unsigned_8 (Extract (Value, Lane));
+         Result := Replace (Result, Lane, U8 ((if Count >= 8 then 0 else Interfaces.Shift_Left (Raw, Count))));
+      end loop;
+      return Result;
+   end Reference_Shift_Left_Logical_U8x16;
+   function Reference_Shift_Right_Logical_U8x16 (Value : U8x16; Count : Natural) return U8x16 is
+      Result : U8x16 := Zero;
+      Raw : Interfaces.Unsigned_8;
+   begin
+      for Lane in Lane_Index_8x16 loop
+         Raw := Interfaces.Unsigned_8 (Extract (Value, Lane));
+         Result := Replace (Result, Lane, U8 ((if Count >= 8 then 0 else Interfaces.Shift_Right (Raw, Count))));
+      end loop;
+      return Result;
+   end Reference_Shift_Right_Logical_U8x16;
+   procedure Check_Complete_Memory_U8x16 (Values : Lane_Values_8x16; Label_Text : String) is
+      Value : constant U8x16 := From_Lanes (Values);
+      Source : Byte_Array (0 .. 17) := [others => U8 (17)] with Alignment => 16;
+      Root_Data, Scalar_Data, Native_Data : Byte_Array (0 .. 17) := [others => U8 (17)];
+      Aligned_Source : Byte_Array (0 .. 15) := Byte_Array (Values) with Alignment => 16;
+      Root_Aligned, Scalar_Aligned, Native_Aligned : Byte_Array (0 .. 16) := [others => U8 (17)] with Alignment => 16;
+   begin
+      for Lane in Lane_Index_8x16 loop Source (1 + Lane) := Values (Lane); end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load (Source, 1), Lane) = Values (Lane), "U8x16 independent root scalar native Load" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Unaligned (Source, 1), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Unaligned (Source, 1), Lane) = Values (Lane), "U8x16 independent root scalar native Load_Unaligned" & Label_Text & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Scalar.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane) and then Extract (Backends.Native.Load_Aligned (Aligned_Source, 0), Lane) = Values (Lane), "U8x16 independent root scalar native Load_Aligned" & Label_Text & Lane'Image);
+      end loop;
+      Root_Data := [others => U8 (17)]; Scalar_Data := [others => U8 (17)]; Native_Data := [others => U8 (17)];
+      Store (Root_Data, 1, Value); Backends.Scalar.Store (Scalar_Data, 1, Value); Backends.Native.Store (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U8 := (if Index in 1 .. 16 then Values (Lane_Index_8x16 (Index - 1)) else U8 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U8x16 independent root scalar native Store" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Data := [others => U8 (17)]; Scalar_Data := [others => U8 (17)]; Native_Data := [others => U8 (17)];
+      Store_Unaligned (Root_Data, 1, Value); Backends.Scalar.Store_Unaligned (Scalar_Data, 1, Value); Backends.Native.Store_Unaligned (Native_Data, 1, Value);
+      for Index in Root_Data'Range loop
+         declare Expected : constant U8 := (if Index in 1 .. 16 then Values (Lane_Index_8x16 (Index - 1)) else U8 (17)); begin
+            Check (Root_Data (Index) = Expected and then Scalar_Data (Index) = Expected and then Native_Data (Index) = Expected, "U8x16 independent root scalar native Store_Unaligned" & Label_Text & Index'Image);
+         end;
+      end loop;
+      Root_Aligned := [others => U8 (17)]; Scalar_Aligned := [others => U8 (17)]; Native_Aligned := [others => U8 (17)];
+      Store_Aligned (Root_Aligned, 0, Value); Backends.Scalar.Store_Aligned (Scalar_Aligned, 0, Value); Backends.Native.Store_Aligned (Native_Aligned, 0, Value);
+      for Index in Root_Aligned'Range loop
+         Check (Root_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else U8 (17)) and then Scalar_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else U8 (17)) and then Native_Aligned (Index) = (if Index < 16 then Values (Lane_Index_8x16 (Index)) else U8 (17)), "U8x16 independent root scalar native Store_Aligned" & Label_Text & Index'Image);
+      end loop;
+   end Check_Complete_Memory_U8x16;
+
+   procedure Test_U8x16 is
+      A : constant U8x16 := From_Lanes ([0, 1, U8'Last, 2 ** (7), 17, 0, 1, U8'Last, 2 ** (7), 17, 0, 1, U8'Last, 2 ** (7), 17, 0]);
+      B : constant U8x16 := From_Lanes ([1, U8'Last, 2, 2 ** (7) - 1, 9, 1, U8'Last, 2, 2 ** (7) - 1, 9, 1, U8'Last, 2, 2 ** (7) - 1, 9, 1]);
+      Bitwise_Left : constant U8x16 := From_Lanes ([U8 (16#00#), U8 (16#FF#), U8 (16#AA#), U8 (16#80#), U8 (16#00#), U8 (16#FF#), U8 (16#AA#), U8 (16#80#), U8 (16#00#), U8 (16#FF#), U8 (16#AA#), U8 (16#80#), U8 (16#00#), U8 (16#FF#), U8 (16#AA#), U8 (16#80#)]);
+      Bitwise_Right : constant U8x16 := From_Lanes ([U8 (16#FF#), U8 (16#00#), U8 (16#55#), U8 (16#7F#), U8 (16#FF#), U8 (16#00#), U8 (16#55#), U8 (16#7F#), U8 (16#FF#), U8 (16#00#), U8 (16#55#), U8 (16#7F#), U8 (16#FF#), U8 (16#00#), U8 (16#55#), U8 (16#7F#)]);
+      Bitwise_Left_2 : constant U8x16 := From_Lanes ([U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#), U8 (16#AA#), U8 (16#80#)]);
+      Bitwise_Right_2 : constant U8x16 := From_Lanes ([U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#), U8 (16#55#), U8 (16#7F#)]);
+      Fixed_Selectors : constant Lane_Selectors_8x16 := [1, 4, 7, 10, 13, 0, 3, 6, 9, 12, 15, 2, 5, 8, 11, 14];
+      Fixed_Map : constant Lane_Map_8x16 := Make_Lane_Map (Fixed_Selectors);
+      Broadcast_Map : constant Lane_Map_8x16 := Make_Lane_Map ([others => 15]);
+      Default_Map : Lane_Map_8x16;
+      Fixed_Two_Source_Map : constant Two_Source_Lane_Map_8x16 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_8x16 => (if Lane mod 2 = 0 then Select_Left_Lane (Lane_Index_8x16 ((Lane * 3 + 1) mod 16)) else Select_Right_Lane (Lane_Index_8x16 ((Lane * 3 + 1) mod 16)))]);
+      Default_Two_Source_Map : Two_Source_Lane_Map_8x16;
+      Data, Reference : Byte_Array (0 .. 21) := [others => 0];
+      Aligned_Data : Byte_Array (0 .. 15) := [others => 0] with Alignment => 16;
+      Maximum_Index_Data : Byte_Array (Natural'Last .. Natural'Last) := [others => U8 (1)];
+      Saturation_Left : constant U8x16 := From_Lanes ([U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0, U8'Last, 0]);
+      Saturation_Right : constant U8x16 := From_Lanes ([1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last, 1, 1, U8'Last, U8'Last]);
+      Saturating_Add_Expected : constant Lane_Values_8x16 := [U8'Last, 1, U8'Last, U8'Last, U8'Last, 1, U8'Last, U8'Last, U8'Last, 1, U8'Last, U8'Last, U8'Last, 1, U8'Last, U8'Last];
+      Saturating_Subtract_Expected : constant Lane_Values_8x16 := [U8'Last - 1, 0, 0, 0, U8'Last - 1, 0, 0, 0, U8'Last - 1, 0, 0, 0, U8'Last - 1, 0, 0, 0];
+   begin
+      Check_Complete_Memory_U8x16 (To_Lanes (A), " fixed");
+      Check (To_Lanes (A) = [0, 1, U8'Last, 2 ** (7), 17, 0, 1, U8'Last, 2 ** (7), 17, 0, 1, U8'Last, 2 ** (7), 17, 0], "U8x16 scalar lane construction");
+      for Lane in Lane_Index_8x16 loop Check (Extract (U8x16'(Backends.Native.Zero), Lane) = 0 and then Extract (Backends.Native.Splat (To_Lanes (A) (0)), Lane) = To_Lanes (A) (0), "U8x16 independent native construction" & Lane'Image); end loop;
+      for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (U8'Last), Lane) = U8'Last, "U8x16 maximum-value native splat" & Lane'Image); end loop;
+      Check (To_Lanes (Backends.Native.From_Lanes (To_Lanes (A))) = To_Lanes (A) and then Backends.Native.To_Lanes (A) = To_Lanes (A), "U8x16 independent native lane construction");
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (A, Lane) = To_Lanes (A) (Lane), "U8x16 scalar extract" & Lane'Image);
+         Check (Extract (Replace (A, Lane, To_Lanes (B) (Lane)), Lane) = To_Lanes (B) (Lane), "U8x16 scalar replace" & Lane'Image);
+         Check (Backends.Native.Extract (A, Lane) = To_Lanes (A) (Lane), "U8x16 independent native extract" & Lane'Image);
+         for Result_Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Replace (A, Lane, To_Lanes (B) (Lane)), Result_Lane) = (if Result_Lane = Lane then To_Lanes (B) (Lane) else To_Lanes (A) (Result_Lane)), "U8x16 independent native replace" & Lane'Image & Result_Lane'Image); end loop;
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Add_Wrap (A, B), Lane) = Extract (A, Lane) + Extract (B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (A, B), Lane) = Extract (A, Lane) + Extract (B, Lane) and then Backends.Native.Extract (Backends.Native.Add_Wrap (A, B), Lane) = Extract (A, Lane) + Extract (B, Lane), "U8x16 independent fixed root, Scalar, and Native add oracle" & Lane'Image);
+         Check (Extract (Subtract_Wrap (A, B), Lane) = Extract (A, Lane) - Extract (B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (A, B), Lane) = Extract (A, Lane) - Extract (B, Lane) and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (A, B), Lane) = Extract (A, Lane) - Extract (B, Lane), "U8x16 independent fixed root, Scalar, and Native subtract oracle" & Lane'Image);
+         Check (Extract (Multiply_Wrap (A, B), Lane) = Extract (A, Lane) * Extract (B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (A, B), Lane) = Extract (A, Lane) * Extract (B, Lane) and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (A, B), Lane) = Extract (A, Lane) * Extract (B, Lane), "U8x16 independent fixed root, Scalar, and Native multiply oracle" & Lane'Image);
+         Check (Extract (Bitwise_And (A, B), Lane) = (Extract (A, Lane) and Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (A, B), Lane) = (Extract (A, Lane) and Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_And (A, B), Lane) = (Extract (A, Lane) and Extract (B, Lane)), "U8x16 independent fixed root, Scalar, and Native AND oracle" & Lane'Image);
+         Check (Extract (Bitwise_Or (A, B), Lane) = (Extract (A, Lane) or Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (A, B), Lane) = (Extract (A, Lane) or Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Or (A, B), Lane) = (Extract (A, Lane) or Extract (B, Lane)), "U8x16 independent fixed root, Scalar, and Native OR oracle" & Lane'Image);
+         Check (Extract (Bitwise_Xor (A, B), Lane) = (Extract (A, Lane) xor Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (A, B), Lane) = (Extract (A, Lane) xor Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (A, B), Lane) = (Extract (A, Lane) xor Extract (B, Lane)), "U8x16 independent fixed root, Scalar, and Native XOR oracle" & Lane'Image);
+         Check (Extract (Bitwise_Not (A), Lane) = (not Extract (A, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (A), Lane) = (not Extract (A, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Not (A), Lane) = (not Extract (A, Lane)), "U8x16 independent fixed root, Scalar, and Native NOT oracle" & Lane'Image);
+         Check (Extract (Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Min (A, B), Lane) = (if Extract (A, Lane) < Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Extract (Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Max (A, B), Lane) = (if Extract (A, Lane) > Extract (B, Lane) then Extract (A, Lane) else Extract (B, Lane)), "U8x16 independent fixed root, Scalar, and Native min/max oracle" & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) and Extract (Bitwise_Right, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) and Extract (Bitwise_Right, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_And (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) and Extract (Bitwise_Right, Lane)), "U8x16 directed zero, one, alternating, and sign-bit AND" & Lane'Image);
+         Check (Extract (Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) or Extract (Bitwise_Right, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) or Extract (Bitwise_Right, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Or (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) or Extract (Bitwise_Right, Lane)), "U8x16 directed zero, one, alternating, and sign-bit OR" & Lane'Image);
+         Check (Extract (Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) xor Extract (Bitwise_Right, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) xor Extract (Bitwise_Right, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (Bitwise_Left, Bitwise_Right), Lane) = (Extract (Bitwise_Left, Lane) xor Extract (Bitwise_Right, Lane)), "U8x16 directed zero, one, alternating, and sign-bit XOR" & Lane'Image);
+         Check (Extract (Bitwise_Not (Bitwise_Left), Lane) = (not Extract (Bitwise_Left, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (Bitwise_Left), Lane) = (not Extract (Bitwise_Left, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Not (Bitwise_Left), Lane) = (not Extract (Bitwise_Left, Lane)), "U8x16 directed zero, one, alternating, and sign-bit NOT" & Lane'Image);
+      end loop;
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) and Extract (Bitwise_Right_2, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) and Extract (Bitwise_Right_2, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_And (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) and Extract (Bitwise_Right_2, Lane)), "U8x16 directed alternating and sign-bit AND" & Lane'Image);
+         Check (Extract (Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) or Extract (Bitwise_Right_2, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) or Extract (Bitwise_Right_2, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Or (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) or Extract (Bitwise_Right_2, Lane)), "U8x16 directed alternating and sign-bit OR" & Lane'Image);
+         Check (Extract (Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) xor Extract (Bitwise_Right_2, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) xor Extract (Bitwise_Right_2, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (Bitwise_Left_2, Bitwise_Right_2), Lane) = (Extract (Bitwise_Left_2, Lane) xor Extract (Bitwise_Right_2, Lane)), "U8x16 directed alternating and sign-bit XOR" & Lane'Image);
+         Check (Extract (Bitwise_Not (Bitwise_Left_2), Lane) = (not Extract (Bitwise_Left_2, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (Bitwise_Left_2), Lane) = (not Extract (Bitwise_Left_2, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Not (Bitwise_Left_2), Lane) = (not Extract (Bitwise_Left_2, Lane)), "U8x16 directed alternating and sign-bit NOT" & Lane'Image);
+      end loop;
+      Check (Same (Backends.Native.Add_Wrap (A, B), Add_Wrap (A, B)), "U8x16 Add_Wrap");
+      Check (Same (Backends.Native.Subtract_Wrap (A, B), Subtract_Wrap (A, B)), "U8x16 Subtract_Wrap");
+      Check (Same (Backends.Native.Multiply_Wrap (A, B), Multiply_Wrap (A, B)), "U8x16 Multiply_Wrap");
+      Check (Same (Backends.Native.Add_Saturate (A, B), Add_Saturate (A, B)), "U8x16 Add_Saturate");
+      Check (Same (Backends.Native.Subtract_Saturate (A, B), Subtract_Saturate (A, B)), "U8x16 Subtract_Saturate");
+      Check (Same (Backends.Native.Bitwise_And (A, B), Bitwise_And (A, B)), "U8x16 Bitwise_And");
+      Check (Same (Backends.Native.Bitwise_Or (A, B), Bitwise_Or (A, B)), "U8x16 Bitwise_Or");
+      Check (Same (Backends.Native.Bitwise_Xor (A, B), Bitwise_Xor (A, B)), "U8x16 Bitwise_Xor");
+      Check (Same (Backends.Native.Min (A, B), Min (A, B)), "U8x16 Min");
+      Check (Same (Backends.Native.Max (A, B), Max (A, B)), "U8x16 Max");
+      Check (Same (Backends.Native.Interleave_Low (A, B), Interleave_Low (A, B)), "U8x16 Interleave_Low");
+      Check (Same (Backends.Native.Interleave_High (A, B), Interleave_High (A, B)), "U8x16 Interleave_High");
+      Check (Same (Backends.Native.Deinterleave_Even (A, B), Deinterleave_Even (A, B)), "U8x16 Deinterleave_Even");
+      Check (Same (Backends.Native.Deinterleave_Odd (A, B), Deinterleave_Odd (A, B)), "U8x16 Deinterleave_Odd");
+      Check (To_Lanes (Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then Backends.Native.To_Lanes (Backends.Native.Add_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Add_Expected and then To_Lanes (Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected and then Backends.Scalar.To_Lanes (Backends.Scalar.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected and then Backends.Native.To_Lanes (Backends.Native.Subtract_Saturate (Saturation_Left, Saturation_Right)) = Saturating_Subtract_Expected, "U8x16 independent fixed root, Scalar, and Native saturation boundaries");
+      Check (Same (Backends.Native.Bitwise_Not (A), Bitwise_Not (A)), "U8x16 not");
+      Check (Same (Backends.Native.Reverse_Lanes (A), Reverse_Lanes (A)), "U8x16 reverse");
+      Check (Same (Backends.Native.Permute_Lanes (A, Fixed_Map), Permute_Lanes (A, Fixed_Map)), "U8x16 native fixed lane permutation");
+      for Lane in Lane_Index_8x16 loop Check (Extract (Permute_Lanes (A, Fixed_Map), Lane) = Extract (A, Fixed_Selectors (Lane)), "U8x16 independent fixed lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 15))) and then Same (Backends.Native.Permute_Lanes (A, Broadcast_Map), Splat (Extract (A, 15))), "U8x16 repeated-selector broadcast");
+      Check (Same (Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, Default_Map), Splat (Extract (A, 0))), "U8x16 default lane map");
+      Check (Same (Backends.Native.Permute_Lanes (A, B, Fixed_Two_Source_Map), Permute_Lanes (A, B, Fixed_Two_Source_Map)), "U8x16 native fixed two-source lane permutation");
+      for Lane in Lane_Index_8x16 loop Check (Extract (Permute_Lanes (A, B, Fixed_Two_Source_Map), Lane) = Extract ((if Lane mod 2 = 0 then A else B), Lane_Index_8x16 ((Lane * 3 + 1) mod 16)), "U8x16 independent fixed two-source lane permutation" & Lane'Image); end loop;
+      Check (Same (Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))) and then Same (Backends.Native.Permute_Lanes (A, B, Default_Two_Source_Map), Splat (Extract (A, 0))), "U8x16 default two-source lane map");
+      for Shift in Natural range 0 .. 10 loop
+         Check (Same (Shift_Left_Logical (A, Shift), Reference_Shift_Left_Logical_U8x16 (A, Shift)) and then Same (Backends.Native.Shift_Left_Logical (A, Shift), Reference_Shift_Left_Logical_U8x16 (A, Shift)), "U8x16 independent logical left shift" & Shift'Image);
+         Check (Same (Shift_Right_Logical (A, Shift), Reference_Shift_Right_Logical_U8x16 (A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (A, Shift), Reference_Shift_Right_Logical_U8x16 (A, Shift)), "U8x16 independent logical right shift" & Shift'Image);
+      end loop;
+      Check (Same (Shift_Left_Logical (A, 8), Zero) and then Same (Shift_Right_Logical (A, 8), Zero), "U8x16 independent oversized logical shifts");
+      Check (Same (Shift_Left_Logical (A, Natural'Last), Reference_Shift_Left_Logical_U8x16 (A, Natural'Last)) and then Same (Backends.Native.Shift_Left_Logical (A, Natural'Last), Reference_Shift_Left_Logical_U8x16 (A, Natural'Last)) and then Same (Shift_Right_Logical (A, Natural'Last), Reference_Shift_Right_Logical_U8x16 (A, Natural'Last)) and then Same (Backends.Native.Shift_Right_Logical (A, Natural'Last), Reference_Shift_Right_Logical_U8x16 (A, Natural'Last)), "U8x16 maximum-count independent logical shifts");
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Shift_Left_Logical (A, 1), Lane) = U8 (Interfaces.Shift_Left (Interfaces.Unsigned_8 (Extract (A, Lane)), 1)) and then Extract (Shift_Right_Logical (A, 1), Lane) = U8 (Interfaces.Shift_Right (Interfaces.Unsigned_8 (Extract (A, Lane)), 1)), "U8x16 independent logical shift" & Lane'Image);
+      end loop;
+      for Slide in Natural range 0 .. 18 loop
+         Check (Same (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Slide_Lanes_Toward_Low (A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Slide_Lanes_Toward_High (A, Slide)), "U8x16 native lane slides" & Slide'Image);
+         for Lane in Lane_Index_8x16 loop
+            Check (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 16 and then Lane < 16 - Slide then Extract (A, Lane_Index_8x16 (Lane + Slide)) else 0) and then Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Lane) = (if Slide < 16 and then Lane < 16 - Slide then Extract (A, Lane_Index_8x16 (Lane + Slide)) else 0), "U8x16 independent scalar and native slide toward low" & Slide'Image & Lane'Image);
+            Check (Extract (Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 16 and then Lane >= Slide then Extract (A, Lane_Index_8x16 (Lane - Slide)) else 0) and then Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_High (A, Slide), Lane) = (if Slide < 16 and then Lane >= Slide then Extract (A, Lane_Index_8x16 (Lane - Slide)) else 0), "U8x16 independent scalar and native slide toward high" & Slide'Image & Lane'Image);
+         end loop;
+      end loop;
+      Check (Same (Slide_Lanes_Toward_Low (A, Natural'Last), Zero) and then Same (Backends.Native.Slide_Lanes_Toward_Low (A, Natural'Last), Zero) and then Same (Slide_Lanes_Toward_High (A, Natural'Last), Zero) and then Same (Backends.Native.Slide_Lanes_Toward_High (A, Natural'Last), Zero), "U8x16 maximum-count lane slides");
+      for Lane in Lane_Index_8x16 loop
+         Check (Extract (Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_8x16 (15 - Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_8x16 (15 - Lane)) and then Backends.Native.Extract (Backends.Native.Reverse_Lanes (A), Lane) = Extract (A, Lane_Index_8x16 (15 - Lane)), "U8x16 independent root, Scalar, and Native reverse" & Lane'Image);
+         Check (Extract (Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (Lane / 2)) else Extract (B, Lane_Index_8x16 (Lane / 2))) and then Backends.Scalar.Extract (Backends.Scalar.Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (Lane / 2)) else Extract (B, Lane_Index_8x16 (Lane / 2))) and then Backends.Native.Extract (Backends.Native.Interleave_Low (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (Lane / 2)) else Extract (B, Lane_Index_8x16 (Lane / 2))), "U8x16 independent root, Scalar, and Native interleave low" & Lane'Image);
+         Check (Extract (Interleave_High (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (B, Lane_Index_8x16 (8 + Lane / 2))) and then Backends.Scalar.Extract (Backends.Scalar.Interleave_High (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (B, Lane_Index_8x16 (8 + Lane / 2))) and then Backends.Native.Extract (Backends.Native.Interleave_High (A, B), Lane) = (if Lane mod 2 = 0 then Extract (A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (B, Lane_Index_8x16 (8 + Lane / 2))), "U8x16 independent root, Scalar, and Native interleave high" & Lane'Image);
+         Check (Extract (Deinterleave_Even (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8)))) and then Backends.Scalar.Extract (Backends.Scalar.Deinterleave_Even (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8)))) and then Backends.Native.Extract (Backends.Native.Deinterleave_Even (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8)))), "U8x16 independent root, Scalar, and Native deinterleave even" & Lane'Image);
+         Check (Extract (Deinterleave_Odd (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8) + 1))) and then Backends.Scalar.Extract (Backends.Scalar.Deinterleave_Odd (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8) + 1))) and then Backends.Native.Extract (Backends.Native.Deinterleave_Odd (A, B), Lane) = (if Lane < 8 then Extract (A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (B, Lane_Index_8x16 (2 * (Lane - 8) + 1))), "U8x16 independent root, Scalar, and Native deinterleave odd" & Lane'Image);
+      end loop;
+      Check (To_Bit_Mask (Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 0) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 0) and then Backends.Native.To_Bit_Mask (Backends.Native.Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 0), "U8x16 independent root, Scalar, and Native Equal");
+      Check (To_Bit_Mask (Less_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 1) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Less_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 1), "U8x16 independent root, Scalar, and Native Less_Than");
+      Check (To_Bit_Mask (Less_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 2) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Less_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 2) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 2), "U8x16 independent root, Scalar, and Native Less_Equal");
+      Check (To_Bit_Mask (Greater_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 3) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Greater_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 3) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (A, B)) = Reference_Comparison_U8x16 (A, B, 3), "U8x16 independent root, Scalar, and Native Greater_Than");
+      Check (To_Bit_Mask (Greater_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 4) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Greater_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 4) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (A, B)) = Reference_Comparison_U8x16 (A, B, 4), "U8x16 independent root, Scalar, and Native Greater_Equal");
+      Check (Same (Backends.Scalar.Select_Value (Backends.Scalar.Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)) and then Same (Backends.Native.Select_Value (Equal (A, B), A, B), Select_Value (Equal (A, B), A, B)), "U8x16 scalar and native select");
+      for Pattern in Natural range 0 .. 2 ** 16 - 1 loop
+         Check (Backends.Native.To_Bit_Mask (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Interfaces.Unsigned_16 (Pattern), "U8x16 mask roundtrip" & Pattern'Image);
+         Check (Any_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern /= 0) and then None_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 0) and then All_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 2 ** 16 - 1), "U8x16 scalar mask predicates" & Pattern'Image);
+         Check (Population_Count (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Popcount (Pattern), "U8x16 scalar mask population" & Pattern'Image);
+         Check (First_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_First_True (Pattern, 16) and then Last_True (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Last_True (Pattern, 16), "U8x16 scalar mask positions" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_Not (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))))) = Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern), "U8x16 scalar mask not" & Pattern'Image);
+         Check (To_Bit_Mask (Mask_And (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = 0 and then To_Bit_Mask (Mask_Or (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1) and then To_Bit_Mask (Mask_Xor (Mask_8x16'(Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "U8x16 scalar mask algebra" & Pattern'Image);
+         Check (Backends.Native.Any_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern /= 0) and then Backends.Native.None_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 0) and then Backends.Native.All_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = (Pattern = 2 ** 16 - 1) and then Backends.Native.Population_Count (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Popcount (Pattern), "U8x16 native mask reductions" & Pattern'Image);
+         Check (Backends.Native.First_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_First_True (Pattern, 16) and then Backends.Native.Last_True (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) = Reference_Last_True (Pattern, 16), "U8x16 native mask positions" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_Not (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))))) = Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern), "U8x16 native mask not" & Pattern'Image);
+         Check (Backends.Native.To_Bit_Mask (Backends.Native.Mask_And (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = 0 and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Or (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Mask_Xor (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (2 ** 16 - 1 - Pattern)))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "U8x16 native mask algebra" & Pattern'Image);
+         for Lane in Lane_Index_8x16 loop Check (Backends.Native.Test (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Lane) = ((Pattern / 2 ** Lane) mod 2 = 1), "U8x16 independent native mask lane" & Pattern'Image & Lane'Image); end loop;
+         Check (Same (Backends.Scalar.Select_Value (Backends.Scalar.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B)) and then Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B)), "U8x16 exhaustive scalar and native select" & Pattern'Image);
+         Check (Same (Compress (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Compress_U8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) and then Same (Backends.Native.Compress (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Compress_U8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))), "U8x16 exhaustive compress" & Pattern'Image);
+         Check (Same (Expand (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Expand_U8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))) and then Same (Backends.Native.Expand (A, Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern))), Reference_Expand_U8x16 (A, Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)))), "U8x16 exhaustive expand" & Pattern'Image);
+         for Lane in Lane_Index_8x16 loop Check (Extract (Select_Value (Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Select_Value (Backends.Scalar.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)) and then Backends.Native.Extract (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16 (Pattern)), A, B), Lane) = (if (Pattern / 2 ** Lane) mod 2 = 1 then Extract (A, Lane) else Extract (B, Lane)), "U8x16 independent root, Scalar, and Native select" & Pattern'Image & Lane'Image); end loop;
+      end loop;
+      Check (Backends.Native.To_Bit_Mask (Mask_8x16'(Backends.Native.Mask_From_Bit_Mask (Interfaces.Unsigned_16'Last))) = Interfaces.Unsigned_16 (2 ** 16 - 1), "U8x16 native masks unused storage bits");
+      Check (Reduce_Add_Wrap (A) = Reference_Reduce_Add_U8x16 (A) and then Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U8x16 (A) and then Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add_U8x16 (A), "U8x16 independent reduce add");
+      Check (Reduce_Min (A) = Reference_Reduce_Min_U8x16 (A) and then Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min_U8x16 (A) and then Backends.Native.Reduce_Min (A) = Reference_Reduce_Min_U8x16 (A), "U8x16 independent reduce min");
+      Check (Reduce_Max (A) = Reference_Reduce_Max_U8x16 (A) and then Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max_U8x16 (A) and then Backends.Native.Reduce_Max (A) = Reference_Reduce_Max_U8x16 (A), "U8x16 independent reduce max");
+      Backends.Native.Store_Unaligned (Data, 1, A); Store_Unaligned (Reference, 1, A);
+      Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), Load_Unaligned (Data, 1)), "U8x16 full memory");
+      for Lane in Lane_Index_8x16 loop Check (Data (1 + Lane) = Extract (A, Lane), "U8x16 independent full store" & Lane'Image); end loop;
+      Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store (Data, 1, B); Store (Reference, 1, B);
+      Check (Data = Reference and then Same (Backends.Native.Load (Data, 1), Load (Data, 1)), "U8x16 ordinary memory");
+      Check (Is_Aligned_16 (Aligned_Data, 0) and then Backends.Native.Is_Aligned_16 (Aligned_Data, 0), "U8x16 aligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, 1) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, 1), "U8x16 misaligned address predicate");
+      Check (not Is_Aligned_16 (Aligned_Data, Natural'Last) and then not Backends.Native.Is_Aligned_16 (Aligned_Data, Natural'Last), "U8x16 out-of-range maximum-index alignment predicate");
+      Backends.Native.Store_Aligned (Aligned_Data, 0, A);
+      Check (Same (Backends.Native.Load_Aligned (Aligned_Data, 0), A), "U8x16 aligned memory");
+      for N in Lane_Count_8x16 loop
+         Data := [others => 0]; Reference := [others => 0];
+         Backends.Native.Store_Partial (Data, 2, N, B); Store_Partial (Reference, 2, N, B);
+         for Index in Data'Range loop Check (Data (Index) = (if Index in 2 .. 2 + N - 1 then Extract (B, Lane_Index_8x16 (Index - 2)) else 0), "U8x16 independent partial store" & N'Image & Index'Image); end loop;
+         for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, N), Lane) = (if Lane < N then Extract (B, Lane) else 0), "U8x16 independent partial load" & N'Image & Lane'Image); end loop;
+         declare
+            Exact : Byte_Array (1 .. N) := [others => 0];
+         begin
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Exact, 1, N), Lane) = 0, "U8x16 exact-extent partial load" & N'Image & Lane'Image); end loop;
+            Backends.Native.Store_Partial (Exact, 1, N, B);
+         end;
+      end loop;
+      for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Lane) = 0, "U8x16 maximum-index zero-count partial load" & Lane'Image); end loop;
+      Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, A);
+      Check (Maximum_Index_Data (Natural'Last) = U8 (1), "U8x16 maximum-index zero-count partial store");
+      for Iteration in 1 .. 250 loop
+         declare
+            R_Lanes : constant Lane_Values_8x16 := Random_U8x16_Lanes;
+            R_A : constant U8x16 := From_Lanes (R_Lanes);
+            R_B : constant U8x16 := From_Lanes (Random_U8x16_Lanes);
+            Shift : constant Natural := Natural (Next_U64 mod 11);
+            Tail : constant Lane_Count_8x16 := Lane_Count_8x16 (Next_U64 mod 17);
+            Slide : constant Natural := Natural (Next_U64 mod 19);
+            Pattern : constant Interfaces.Unsigned_16 := Interfaces.Unsigned_16 (Next_U64 mod 2 ** 16);
+            R_Selectors : constant Lane_Selectors_8x16 := Random_U8x16_Selectors;
+            R_Map : constant Lane_Map_8x16 := Make_Lane_Map (R_Selectors);
+            R_Two_Source_Map : constant Two_Source_Lane_Map_8x16 := Make_Two_Source_Lane_Map ([for Lane in Lane_Index_8x16 => (if (Iteration + Lane) mod 2 = 0 then Select_Left_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)) else Select_Right_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)))]);
+         begin
+            Check (To_Lanes (Backends.Native.From_Lanes (R_Lanes)) = R_Lanes and then Backends.Native.To_Lanes (R_A) = R_Lanes, "U8x16 randomized independent native lane construction");
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Splat (R_Lanes (0)), Lane) = R_Lanes (0), "U8x16 randomized independent native splat" & Lane'Image); end loop;
+            Check (Same (Backends.Native.Add_Wrap (R_A, R_B), Add_Wrap (R_A, R_B)) and then Same (Backends.Native.Subtract_Wrap (R_A, R_B), Subtract_Wrap (R_A, R_B)) and then Same (Backends.Native.Multiply_Wrap (R_A, R_B), Multiply_Wrap (R_A, R_B)), "U8x16 randomized arithmetic");
+            Check (Same (Backends.Native.Add_Saturate (R_A, R_B), Add_Saturate (R_A, R_B)) and then Same (Backends.Native.Subtract_Saturate (R_A, R_B), Subtract_Saturate (R_A, R_B)), "U8x16 randomized native saturation");
+            Check (Same (Backends.Native.Bitwise_And (R_A, R_B), Bitwise_And (R_A, R_B)) and then Same (Backends.Native.Bitwise_Or (R_A, R_B), Bitwise_Or (R_A, R_B)) and then Same (Backends.Native.Bitwise_Xor (R_A, R_B), Bitwise_Xor (R_A, R_B)) and then Same (Backends.Native.Bitwise_Not (R_A), Bitwise_Not (R_A)), "U8x16 randomized native bitwise");
+            Check (Same (Backends.Native.Min (R_A, R_B), Min (R_A, R_B)) and then Same (Backends.Native.Max (R_A, R_B), Max (R_A, R_B)), "U8x16 randomized native min/max");
+            Check (To_Bit_Mask (Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 0) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 0) and then Backends.Native.To_Bit_Mask (Backends.Native.Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 0) and then To_Bit_Mask (Less_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 1) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Less_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 1) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 1) and then To_Bit_Mask (Less_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 2) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Less_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 2) and then Backends.Native.To_Bit_Mask (Backends.Native.Less_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 2) and then To_Bit_Mask (Greater_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 3) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Greater_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 3) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Than (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 3) and then To_Bit_Mask (Greater_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 4) and then Backends.Scalar.To_Bit_Mask (Backends.Scalar.Greater_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 4) and then Backends.Native.To_Bit_Mask (Backends.Native.Greater_Equal (R_A, R_B)) = Reference_Comparison_U8x16 (R_A, R_B, 4), "U8x16 randomized independent root, Scalar, and Native comparisons");
+            Check (Same (Shift_Left_Logical (R_A, Shift), Reference_Shift_Left_Logical_U8x16 (R_A, Shift)) and then Same (Backends.Native.Shift_Left_Logical (R_A, Shift), Reference_Shift_Left_Logical_U8x16 (R_A, Shift)) and then Same (Shift_Right_Logical (R_A, Shift), Reference_Shift_Right_Logical_U8x16 (R_A, Shift)) and then Same (Backends.Native.Shift_Right_Logical (R_A, Shift), Reference_Shift_Right_Logical_U8x16 (R_A, Shift)), "U8x16 randomized independent logical shifts");
+            Check (Same (Backends.Native.Reverse_Lanes (R_A), Reverse_Lanes (R_A)) and then Same (Backends.Native.Interleave_Low (R_A, R_B), Interleave_Low (R_A, R_B)) and then Same (Backends.Native.Interleave_High (R_A, R_B), Interleave_High (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Even (R_A, R_B), Deinterleave_Even (R_A, R_B)) and then Same (Backends.Native.Deinterleave_Odd (R_A, R_B), Deinterleave_Odd (R_A, R_B)), "U8x16 randomized native permutations");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_Map), Permute_Lanes (R_A, R_Map)), "U8x16 randomized native lane permutation");
+            Check (Same (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Permute_Lanes (R_A, R_B, R_Two_Source_Map)), "U8x16 randomized native two-source lane permutation");
+            Check (Same (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Slide_Lanes_Toward_Low (R_A, Slide)) and then Same (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Slide_Lanes_Toward_High (R_A, Slide)), "U8x16 randomized native lane slides");
+            Check (Same (Backends.Scalar.Select_Value (Backends.Scalar.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)) and then Same (Backends.Native.Select_Value (Backends.Native.Mask_From_Bit_Mask (Pattern), R_A, R_B), Select_Value (Mask_From_Bit_Mask (Pattern), R_A, R_B)), "U8x16 randomized scalar and native select");
+            Check (Same (Backends.Native.Compress (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Compress_U8x16 (R_A, Mask_From_Bit_Mask (Pattern))) and then Same (Backends.Native.Expand (R_A, Backends.Native.Mask_From_Bit_Mask (Pattern)), Reference_Expand_U8x16 (R_A, Mask_From_Bit_Mask (Pattern))), "U8x16 randomized native compression");
+            Check (Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U8x16 (R_A) and then Reduce_Min (R_A) = Reference_Reduce_Min_U8x16 (R_A) and then Reduce_Max (R_A) = Reference_Reduce_Max_U8x16 (R_A) and then Backends.Scalar.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U8x16 (R_A) and then Backends.Scalar.Reduce_Min (R_A) = Reference_Reduce_Min_U8x16 (R_A) and then Backends.Scalar.Reduce_Max (R_A) = Reference_Reduce_Max_U8x16 (R_A) and then Backends.Native.Reduce_Add_Wrap (R_A) = Reference_Reduce_Add_U8x16 (R_A) and then Backends.Native.Reduce_Min (R_A) = Reference_Reduce_Min_U8x16 (R_A) and then Backends.Native.Reduce_Max (R_A) = Reference_Reduce_Max_U8x16 (R_A), "U8x16 randomized root, scalar, and native reductions");
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Unaligned (Data, 1, R_A); Store_Unaligned (Reference, 1, R_A);
+            Check (Data = Reference and then Same (Backends.Native.Load_Unaligned (Data, 1), R_A), "U8x16 randomized native full memory");
+            Check_Complete_Memory_U8x16 (R_Lanes, " random" & Iteration'Image);
+            Data := [others => 0]; Reference := [others => 0]; Backends.Native.Store_Partial (Data, 2, Tail, R_B); Store_Partial (Reference, 2, Tail, R_B);
+            Check (Data = Reference, "U8x16 randomized native partial store");
+            for Lane in Lane_Index_8x16 loop Check (Extract (Backends.Native.Load_Partial (Data, 2, Tail), Lane) = (if Lane < Tail then Extract (R_B, Lane) else 0), "U8x16 randomized independent partial load" & Lane'Image); end loop;
+            for Lane in Lane_Index_8x16 loop
+               Check (Extract (Reverse_Lanes (R_A), Lane) = R_Lanes (Lane_Index_8x16 (15 - Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Reverse_Lanes (R_A), Lane) = R_Lanes (Lane_Index_8x16 (15 - Lane)) and then Backends.Native.Extract (Backends.Native.Reverse_Lanes (R_A), Lane) = R_Lanes (Lane_Index_8x16 (15 - Lane)), "U8x16 randomized independent root, Scalar, and Native reverse" & Lane'Image);
+               Check (Extract (Interleave_Low (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (Lane / 2)) else Extract (R_B, Lane_Index_8x16 (Lane / 2))) and then Backends.Scalar.Extract (Backends.Scalar.Interleave_Low (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (Lane / 2)) else Extract (R_B, Lane_Index_8x16 (Lane / 2))) and then Backends.Native.Extract (Backends.Native.Interleave_Low (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (Lane / 2)) else Extract (R_B, Lane_Index_8x16 (Lane / 2))), "U8x16 randomized independent root, Scalar, and Native interleave low" & Lane'Image);
+               Check (Extract (Interleave_High (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (R_B, Lane_Index_8x16 (8 + Lane / 2))) and then Backends.Scalar.Extract (Backends.Scalar.Interleave_High (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (R_B, Lane_Index_8x16 (8 + Lane / 2))) and then Backends.Native.Extract (Backends.Native.Interleave_High (R_A, R_B), Lane) = (if Lane mod 2 = 0 then Extract (R_A, Lane_Index_8x16 (8 + Lane / 2)) else Extract (R_B, Lane_Index_8x16 (8 + Lane / 2))), "U8x16 randomized independent root, Scalar, and Native interleave high" & Lane'Image);
+               Check (Extract (Deinterleave_Even (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8)))) and then Backends.Scalar.Extract (Backends.Scalar.Deinterleave_Even (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8)))) and then Backends.Native.Extract (Backends.Native.Deinterleave_Even (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8)))), "U8x16 randomized independent root, Scalar, and Native deinterleave even" & Lane'Image);
+               Check (Extract (Deinterleave_Odd (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8) + 1))) and then Backends.Scalar.Extract (Backends.Scalar.Deinterleave_Odd (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8) + 1))) and then Backends.Native.Extract (Backends.Native.Deinterleave_Odd (R_A, R_B), Lane) = (if Lane < 8 then Extract (R_A, Lane_Index_8x16 (2 * Lane + 1)) else Extract (R_B, Lane_Index_8x16 (2 * (Lane - 8) + 1))), "U8x16 randomized independent root, Scalar, and Native deinterleave odd" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)) and then Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_Map), Lane) = R_Lanes (R_Selectors (Lane)), "U8x16 randomized independent scalar and native lane permutation" & Lane'Image);
+               Check (Extract (Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)) and then Backends.Native.Extract (Backends.Native.Permute_Lanes (R_A, R_B, R_Two_Source_Map), Lane) = Extract ((if (Iteration + Lane) mod 2 = 0 then R_A else R_B), Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)), "U8x16 varied independent scalar and native two-source lane permutation" & Lane'Image);
+               Check (Backends.Native.Extract (R_A, Lane) = R_Lanes (Lane) and then Same (Backends.Native.Replace (R_A, Lane, Extract (R_B, Lane)), Replace (R_A, Lane, Extract (R_B, Lane))), "U8x16 randomized native lane access" & Lane'Image);
+               Check (Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_Low (R_A, Slide), Lane) = (if Slide < 16 and then Lane < 16 - Slide then R_Lanes (Lane_Index_8x16 (Lane + Slide)) else 0) and then Backends.Native.Extract (Backends.Native.Slide_Lanes_Toward_High (R_A, Slide), Lane) = (if Slide < 16 and then Lane >= Slide then R_Lanes (Lane_Index_8x16 (Lane - Slide)) else 0), "U8x16 randomized independent native lane slides" & Lane'Image);
+               Check (Extract (Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane) and then Backends.Native.Extract (Backends.Native.Add_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) + Extract (R_B, Lane), "U8x16 independent root, Scalar, and Native add oracle" & Lane'Image);
+               Check (Extract (Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane) and then Backends.Native.Extract (Backends.Native.Subtract_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) - Extract (R_B, Lane), "U8x16 independent root, Scalar, and Native subtract oracle" & Lane'Image);
+               Check (Extract (Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane) and then Backends.Scalar.Extract (Backends.Scalar.Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane) and then Backends.Native.Extract (Backends.Native.Multiply_Wrap (R_A, R_B), Lane) = Extract (R_A, Lane) * Extract (R_B, Lane), "U8x16 independent root, Scalar, and Native multiply oracle" & Lane'Image);
+               Check (Extract (Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Add_Saturate (R_A, R_B), Lane) = Reference_Add_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)) and then Extract (Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Subtract_Saturate (R_A, R_B), Lane) = Reference_Subtract_Saturate_U8x16 (Extract (R_A, Lane), Extract (R_B, Lane)), "U8x16 randomized independent root, Scalar, and Native saturation oracle" & Lane'Image);
+               Check (Extract (Bitwise_And (R_A, R_B), Lane) = (Extract (R_A, Lane) and Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_And (R_A, R_B), Lane) = (Extract (R_A, Lane) and Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_And (R_A, R_B), Lane) = (Extract (R_A, Lane) and Extract (R_B, Lane)), "U8x16 randomized independent root, Scalar, and Native AND oracle" & Lane'Image);
+               Check (Extract (Bitwise_Or (R_A, R_B), Lane) = (Extract (R_A, Lane) or Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Or (R_A, R_B), Lane) = (Extract (R_A, Lane) or Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Or (R_A, R_B), Lane) = (Extract (R_A, Lane) or Extract (R_B, Lane)), "U8x16 randomized independent root, Scalar, and Native OR oracle" & Lane'Image);
+               Check (Extract (Bitwise_Xor (R_A, R_B), Lane) = (Extract (R_A, Lane) xor Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Xor (R_A, R_B), Lane) = (Extract (R_A, Lane) xor Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Xor (R_A, R_B), Lane) = (Extract (R_A, Lane) xor Extract (R_B, Lane)), "U8x16 randomized independent root, Scalar, and Native XOR oracle" & Lane'Image);
+               Check (Extract (Bitwise_Not (R_A), Lane) = (not Extract (R_A, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Bitwise_Not (R_A), Lane) = (not Extract (R_A, Lane)) and then Backends.Native.Extract (Backends.Native.Bitwise_Not (R_A), Lane) = (not Extract (R_A, Lane)), "U8x16 randomized independent root, Scalar, and Native NOT oracle" & Lane'Image);
+               Check (Extract (Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Min (R_A, R_B), Lane) = (if Extract (R_A, Lane) < Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Extract (Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Scalar.Extract (Backends.Scalar.Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)) and then Backends.Native.Extract (Backends.Native.Max (R_A, R_B), Lane) = (if Extract (R_A, Lane) > Extract (R_B, Lane) then Extract (R_A, Lane) else Extract (R_B, Lane)), "U8x16 randomized independent root, Scalar, and Native min/max oracle" & Lane'Image);
+               Check (Test (Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) = Extract (R_B, Lane)) and then Test (Less_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) < Extract (R_B, Lane)) and then Test (Less_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) <= Extract (R_B, Lane)) and then Test (Greater_Than (R_A, R_B), Lane) = (Extract (R_A, Lane) > Extract (R_B, Lane)) and then Test (Greater_Equal (R_A, R_B), Lane) = (Extract (R_A, Lane) >= Extract (R_B, Lane)), "U8x16 independent comparison oracle" & Lane'Image);
+            end loop;
+         end;
+      end loop;
+   end Test_U8x16;
+
    function Bits_To_I8x16 is new Ada.Unchecked_Conversion (Interfaces.Unsigned_8, I8);
    function I8x16_To_Bits is new Ada.Unchecked_Conversion (I8, Interfaces.Unsigned_8);
    function Reference_Add_Saturate_I8x16 (Left, Right : I8) return I8 is
@@ -3559,6 +3910,7 @@ procedure Family_Tests is
 
 begin
    Put_Line ("full-family differential tests seed=0x5EED0123D15CA11A");
+   Test_U8x16;
    Test_I8x16;
    Test_U16x8;
    Test_I16x8;

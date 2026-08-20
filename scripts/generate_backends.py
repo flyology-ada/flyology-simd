@@ -54,29 +54,22 @@ TEST = ROOT / "tests" / "family_tests.adb"
 
 
 def value_types() -> list[tuple[str, str, int, int]]:
-    return [("U8x16", "U8", 8, 16)] + [
+    #  The byte family is one of the integer families now, so it needs no
+    #  separate mention here.
+    return [
         (vector, scalar, bits, lanes)
         for vector, scalar, bits, lanes, *_ in INTEGER_TYPES
     ] + list(FLOAT_TYPES)
 
 
 def contract() -> str:
+    #  The backend contract is the family operations only: the type
+    #  declarations emit_spec puts above them belong to the root package, and
+    #  the byte family now arrives with the rest rather than by hand.
     generated = emit_spec()
-    operations = "   function Zero return I8x16;" + generated.split(
-        "   function Zero return I8x16;", 1
-    )[1]
-    byte_operations = "\n".join(
-        [
-            "   function Table_Lookup (Table, Indices : U8x16) return U8x16;",
-            "   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16;",
-            "   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16;",
-            "   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16;",
-            "   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16;",
-            "   function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16;",
-            "   function Slide_Lanes_Toward_High (Value : U8x16; Count : Natural) return U8x16;",
-        ]
-    )
-    result = emit_conversion_spec() + "\n" + byte_operations + "\n" + operations
+    marker = "   function Zero return U8x16;"
+    operations = marker + generated.split(marker, 1)[1]
+    result = emit_conversion_spec() + "\n" + operations
     result = re.sub(
         r"(function (?:Slide_Lanes_Toward_(?:Low|High) "
         r"\(Value : [A-Za-z0-9_]+; Count : Natural\) return [A-Za-z0-9_]+|"
@@ -349,15 +342,63 @@ def target_construction_body(
     ]
 
 
+def byte_only_bodies(kind: str) -> list[str]:
+    """Return the two operations that exist only for the byte family.
+
+    Horizontal_Sum has no counterpart at wider lanes -- it widens as it folds,
+    so the result cannot overflow -- and Reverse_Bytes is the compatibility
+    spelling of Reverse_Lanes, which at one byte per lane is the same
+    operation.
+    """
+    if kind == "fallback":
+        return [
+            call("Horizontal_Sum", "Natural", "Value", "Value : U8x16"),
+            call("Reverse_Bytes", "U8x16", "Value", "Value : U8x16"),
+        ]
+    if kind == "aarch64":
+        fold = ['"uaddlv %h1, %2.16b" & ASCII.LF & ASCII.HT &', '           "umov %w0, %1.h[0]",']
+        constraint, register = "=&w", "w"
+        scratch = ["      Total : Machine_Vector;"]
+        outputs = ["Interfaces.Unsigned_32'Asm_Output (\"=r\", Result)",
+                   "Machine_Vector'Asm_Output (\"=&w\", Total)"]
+    else:
+        fold = ['"movdqa %3, %1" & ASCII.LF & ASCII.HT &',
+                '           "pxor %2, %2" & ASCII.LF & ASCII.HT &',
+                '           "psadbw %2, %1" & ASCII.LF & ASCII.HT &',
+                '           "movhlps %1, %2" & ASCII.LF & ASCII.HT &',
+                '           "paddq %2, %1" & ASCII.LF & ASCII.HT &',
+                '           "movd %1, %0",']
+        constraint, register = "=&x", "x"
+        scratch = ["      Sums : Machine_Vector;", "      Upper : Machine_Vector;"]
+        outputs = ["Interfaces.Unsigned_32'Asm_Output (\"=r\", Result)",
+                   "Machine_Vector'Asm_Output (\"=&x\", Sums)",
+                   "Machine_Vector'Asm_Output (\"=&x\", Upper)"]
+    return [
+        "   function Horizontal_Sum (Value : U8x16) return Natural is",
+        "      function To_Machine is new"
+        " Ada.Unchecked_Conversion (U8x16, Machine_Vector);",
+        "      Result : Interfaces.Unsigned_32;",
+        *scratch,
+        "   begin",
+        "      Asm",
+        "        (Template =>",
+        f"           {fold[0]}",
+        *[f"        {line}" for line in fold[1:]],
+        f"         Outputs => [{', '.join(outputs)}],",
+        f"         Inputs => Machine_Vector'Asm_Input (\"{register}\", To_Machine (Value)));",
+        "      return Natural (Result);",
+        "   end Horizontal_Sum;",
+        "   function Reverse_Bytes (Value : U8x16) return U8x16 is"
+        " (Reverse_Lanes (Value));",
+    ]
+
+
 def fallback_body() -> str:
     out: list[str] = [
+        #  Table_Lookup has no counterpart at wider lanes; the rest of the
+        #  byte family arrives with the other families below.
         call("Table_Lookup", "U8x16", "Table, Indices", "Table, Indices : U8x16"),
-        call("Permute_Lanes", "U8x16", "Value, Map", "Value : U8x16; Map : Lane_Map_8x16"),
-        call("Permute_Lanes", "U8x16", "Left, Right, Map", "Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16"),
-        call("Compress", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"),
-        call("Expand", "U8x16", "Value, Mask", "Value : U8x16; Mask : Mask_8x16"),
-        call("Slide_Lanes_Toward_Low", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
-        call("Slide_Lanes_Toward_High", "U8x16", "Value, Count", "Value : U8x16; Count : Natural"),
+        *byte_only_bodies("fallback"),
     ]
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out.append(call("Bit_Cast", target_vector, "Value", f"Value : {source_vector}"))
@@ -1111,14 +1152,7 @@ def neon_body() -> str:
     out += [
         "   function Native_Table_Lookup_U8x16 is new NEON_Binary_128 (U8x16, \"tbl v0.16b, {v0.16b}, v1.16b\");",
         "   function Table_Lookup (Table, Indices : U8x16) return U8x16 is (Native_Table_Lookup_U8x16 (Table, Indices));",
-        "   function Native_Permute_U8x16 is new NEON_Permute_128 (U8x16, Lane_Map_8x16);",
-        "   pragma Inline_Always (Native_Permute_U8x16);",
-        "   function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 is (Native_Permute_U8x16 (Value, Map));",
-        "   function Native_Permute_2_U8x16 is new NEON_Permute_2_128 (U8x16, Two_Source_Lane_Map_8x16);",
-        "   pragma Inline_Always (Native_Permute_2_U8x16);",
-        "   function Permute_Lanes (Left, Right : U8x16; Map : Two_Source_Lane_Map_8x16) return U8x16 is (Native_Permute_2_U8x16 (Left, Right, Map));",
     ]
-    out += native_compress_expand("U8x16", 8, 16)
     out.append("")
     out += native_lane_slides("aarch64")
 
@@ -1129,8 +1163,9 @@ def neon_body() -> str:
         prefix = "s" if signed else "u"
         weight = "Weights_Vector_8x16" if bits == 8 else f"Weights_Vector_{bits}x{lanes}"
         compare_type = "Interfaces.Unsigned_16" if bits == 8 else "Interfaces.Unsigned_8"
-        # 8-bit comparison already exists; all other operations are emitted here.
-        if vector == "I8x16":
+        #  Sixteen lanes need a sixteen-bit result, which is a different
+        #  generic; it is instantiated below, with the rest of the family.
+        if lanes == 16:
             compare = f"Compare_{vector}"
         else:
             out += [
@@ -1213,14 +1248,16 @@ def neon_body() -> str:
                 f"   function Shift_Right_Arithmetic (Value : {vector}; Count : Natural) return {vector} is",
                 f"     (Native_SRA_{vector} (Value, -Interfaces.Integer_64 (Natural'Min (Count, {bits}))));",
             ]
-        if vector == "I8x16":
-            # Signed byte comparison needs its own compacting instantiations.
+        if lanes == 16:
+            #  Byte comparison compacts sixteen truths into sixteen bits.
+            greater = "cmgt" if signed else "cmhi"
+            greater_equal = "cmge" if signed else "cmhs"
             out += [
                 f"   function Compare_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmeq %2.16b, %4.16b, %5.16b\");",
                 f"   pragma Inline_Always (Compare_{vector});",
-                f"   function Compare_Greater_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmgt %2.16b, %4.16b, %5.16b\");",
+                f"   function Compare_Greater_{vector} is new NEON_Compare_16_Lanes ({vector}, \"{greater} %2.16b, %4.16b, %5.16b\");",
                 f"   pragma Inline_Always (Compare_Greater_{vector});",
-                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_16_Lanes ({vector}, \"cmge %2.16b, %4.16b, %5.16b\");",
+                f"   function Compare_Greater_Equal_{vector} is new NEON_Compare_16_Lanes ({vector}, \"{greater_equal} %2.16b, %4.16b, %5.16b\");",
                 f"   pragma Inline_Always (Compare_Greater_Equal_{vector});",
             ]
         out += [
@@ -1285,6 +1322,8 @@ def neon_body() -> str:
                 f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value));",
             ]
         out += memory_body(vector, arr, count)
+        if vector == "U8x16":
+            out += byte_only_bodies("aarch64")
 
     for vector, scalar, bits, lanes in FLOAT_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
@@ -2612,8 +2651,6 @@ def x86_body() -> str:
             f"   function Permute_Lanes (Left, Right : {vector}; Map : {two_mapping}) return {vector} is (Native_Permute_2_{vector} (Left, Right, Map));",
         ]
 
-    out += native_permute("U8x16", 8, 16)
-    out += native_compress_expand("U8x16", 8, 16)
     out += native_lane_slides("x86_64")
     for source_vector, _, target_vector, _ in bit_cast_pairs():
         out += native_bit_cast_body(source_vector, target_vector)
@@ -2809,8 +2846,6 @@ def x86_body() -> str:
     )
 
     for vector, scalar, bits, lanes, signed in INTEGER_TYPES:
-        if vector == "U8x16":
-            continue
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)
         arr, count = array_name(scalar), lane_count(bits, lanes)
         sign = "Sign_Vector_8" if bits == 8 else ("Sign_Vector_16" if bits == 16 else "Sign_Vector_32")
@@ -2910,8 +2945,15 @@ def x86_body() -> str:
             else "Sign_Vector_32"
         )
         reduction_compare = (signed_gt if signed else unsigned_gt)[bits]
-        native_min = "pminsw" if signed and bits == 16 else None
-        native_max = "pmaxsw" if signed and bits == 16 else None
+        #  SSE2's only packed integer extremes are unsigned byte and signed
+        #  word; where one applies the reduction folds with it directly
+        #  instead of emulating a comparison and select.
+        if bits == 8 and not signed:
+            native_min, native_max = "pminub", "pmaxub"
+        elif bits == 16 and signed:
+            native_min, native_max = "pminsw", "pmaxsw"
+        else:
+            native_min = native_max = None
         for name, instruction in (
             ("Reduce_Add_Wrap", x86_reduce_add_instruction(bits)),
             ("Reduce_Min", x86_reduce_extreme_instruction(bits, reduction_compare, False, native_min)),
@@ -2930,6 +2972,8 @@ def x86_body() -> str:
                 f"   function {name} (Value : {vector}) return {scalar} is ({native} ({arguments}));",
             ]
         out += x86_memory_body(vector, arr, count)
+        if vector == "U8x16":
+            out += byte_only_bodies("x86_64")
 
     for vector, scalar, bits, lanes in FLOAT_TYPES:
         idx, vals, mask = lane_index(bits, lanes), lane_values(vector), mask_for(bits, lanes)

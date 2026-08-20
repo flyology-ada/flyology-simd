@@ -800,13 +800,13 @@ def invalid_support(path: Path) -> list[str]:
             for block in text.split("function Is_Aligned_16")[1:]
         ]
         if (
-            len(alignment_blocks) != 9
+            len(alignment_blocks) != 10
             or sum(
                 "first check that Start is in the array range" in block
                 and "test the selected element address modulo 16 directly" in block
                 and "do not call the portable root operation" in block
                 for block in alignment_blocks
-            ) != 9
+            ) != 10
         ):
             invalid.append(
                 f"{path.relative_to(ROOT)}: incorrect exact Is_Aligned_16 "

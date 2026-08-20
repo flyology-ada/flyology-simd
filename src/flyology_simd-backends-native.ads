@@ -4,365 +4,14 @@ with Interfaces;
 package Flyology_SIMD.Backends.Native
   with Preelaborate
 is
-   function Zero return U8x16;
-   --  Return a vector in which each lane is zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends construct the all-zero U8x16 result directly in result registers. A scalar build uses the portable scalar implementation.
-   --  @return The operation result.
-   function Splat (Value : U8) return U8x16;
-   --  Return a vector in which each lane has the same value.
-   --  Cross-platform support: The AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend unpacks the input byte through word width and broadcasts the result with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function From_Lanes (Values : Lane_Values_8x16) return U8x16;
-   --  Construct a vector from lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Values Lane values in logical lane order.
-   --  @return The operation result.
-   function To_Lanes (Value : U8x16) return Lane_Values_8x16;
-   --  Return all lanes in logical lane order.
-   --  Cross-platform support: The AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8;
-   --  Return one logical lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Lane The logical lane index.
-   --  @return The operation result.
-   function Replace
-     (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16;
-   --  Return a copy with one logical lane replaced.
-   --  Cross-platform support: The AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Lane The logical lane index.
-   --  @param With_Value The replacement lane value.
-   --  @return The operation result.
 
-   function Add_Wrap (Left, Right : U8x16) return U8x16;
-   --  Add corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 16b lanes. The x86-64 backend uses the SSE2 paddb instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Subtract_Wrap (Left, Right : U8x16) return U8x16;
-   --  Subtract corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 16b lanes. The x86-64 backend uses the SSE2 psubb instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Multiply_Wrap (Left, Right : U8x16) return U8x16;
-   --  Multiply corresponding lanes modulo the lane width.
-   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 16b lanes. The x86-64 backend uses an SSE2 sequence that widens bytes, uses two pmullw instructions, and packs the low product bytes. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Add_Saturate (Left, Right : U8x16) return U8x16;
-   --  Add corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: The AArch64 backend uses one NEON uqadd instruction over 16b lanes. The x86-64 backend uses one SSE2 paddusb instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Subtract_Saturate (Left, Right : U8x16) return U8x16;
-   --  Subtract corresponding lanes and clamp to the lane range.
-   --  Cross-platform support: The AArch64 backend uses one NEON uqsub instruction over 16b lanes. The x86-64 backend uses one SSE2 psubusb instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
 
-   function Bitwise_And (Left, Right : U8x16) return U8x16;
-   --  Apply bitwise AND to corresponding integer lanes.
-   --  Cross-platform support: The AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Bitwise_Or (Left, Right : U8x16) return U8x16;
-   --  Apply bitwise OR to corresponding integer lanes.
-   --  Cross-platform support: The AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Bitwise_Xor (Left, Right : U8x16) return U8x16;
-   --  Apply bitwise exclusive OR to corresponding integer lanes.
-   --  Cross-platform support: The AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Bitwise_Not (Value : U8x16) return U8x16;
-   --  Complement every bit in every integer lane.
-   --  Cross-platform support: The AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
 
-   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16;
-   --  Shift each lane left. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: The AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes left, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Count The number of bit positions to shift.
-   --  @return The operation result.
-   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16;
-   --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
-   --  Cross-platform support: The AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes right, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Count The number of bit positions to shift.
-   --  @return The operation result.
 
-   function Equal (Left, Right : U8x16) return Mask_8x16;
-   --  Compare corresponding lanes for equality.
-   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 16b lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqb comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Less_Than (Left, Right : U8x16) return Mask_8x16;
-   --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Less_Equal (Left, Right : U8x16) return Mask_8x16;
-   --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Greater_Than (Left, Right : U8x16) return Mask_8x16;
-   --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Greater_Equal (Left, Right : U8x16) return Mask_8x16;
-   --  Compare corresponding lanes with the lane type's ordering.
-   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
 
-   function Select_Value
-     (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16;
-   --  Select the true input in true mask lanes and the false input in other lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @param If_True The value selected in true mask lanes.
-   --  @param If_False The value selected in false mask lanes.
-   --  @return The operation result.
-   function Min (Left, Right : U8x16) return U8x16;
-   --  Return the smaller integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses one NEON umin instruction over 16b lanes. The x86-64 backend uses one SSE2 pminub instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Max (Left, Right : U8x16) return U8x16;
-   --  Return the larger integer in each lane.
-   --  Cross-platform support: The AArch64 backend uses one NEON umax instruction over 16b lanes. The x86-64 backend uses one SSE2 pmaxub instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Horizontal_Sum (Value : U8x16) return Natural
-     with Post => Horizontal_Sum'Result <= 16 * 255;
-   --  Return the exact sum of all unsigned byte lanes as Natural.
-   --  Cross-platform support: The AArch64 backend uses the NEON uaddlv instruction to sum all 16 unsigned byte lanes. The x86-64 backend uses SSE2 psadbw to form two 64-bit partial sums and adds them. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Reduce_Add_Wrap (Value : U8x16) return U8;
-   --  Add all integer lanes modulo the lane width in ascending lane order.
-   --  Cross-platform support: The AArch64 backend uses the NEON uaddlv instruction to form a widening sum and retains its low eight bits. The x86-64 backend uses the SSE2 paddb instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Reduce_Min (Value : U8x16) return U8;
-   --  Return the smallest integer lane.
-   --  Cross-platform support: The AArch64 backend uses the NEON uminv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pminub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Reduce_Max (Value : U8x16) return U8;
-   --  Return the largest integer lane.
-   --  Cross-platform support: The AArch64 backend uses the NEON umaxv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pmaxub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
 
-   function Reverse_Bytes (Value : U8x16) return U8x16;
-   --  Reverse logical byte-lane order. This is the compatibility name for Reverse_Lanes.
-   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Reverse_Lanes (Value : U8x16) return U8x16;
-   --  Reverse logical lane order.
-   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 16b lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Interleave_Low (Left, Right : U8x16) return U8x16;
-   --  Alternate lanes from the low half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpcklbw instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Interleave_High (Left, Right : U8x16) return U8x16;
-   --  Alternate lanes from the high half of both inputs, starting with the left input.
-   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpckhbw instruction. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Deinterleave_Even (Left, Right : U8x16) return U8x16;
-   --  Collect even lanes from the left input, then even lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 16b lanes. The x86-64 backend uses SSE2 low-byte masking and packuswb. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Deinterleave_Odd (Left, Right : U8x16) return U8x16;
-   --  Collect odd lanes from the left input, then odd lanes from the right input.
-   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 16b lanes. The x86-64 backend uses SSE2 word shifts and packuswb. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
 
-   function Mask_From_Bit_Mask
-     (Bits : Interfaces.Unsigned_16) return Mask_8x16;
-   --  Construct lane truths from compact bits. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Bits Compact lane bits. Bit zero represents lane zero.
-   --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16;
-   --  Return compact lane truths. Bit zero represents lane zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16;
-   --  Apply Boolean AND to corresponding mask lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16;
-   --  Apply Boolean OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16;
-   --  Apply Boolean exclusive OR to corresponding mask lanes.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Left The left input.
-   --  @param Right The right input.
-   --  @return The operation result.
-   function Mask_Not (Value : Mask_8x16) return Mask_8x16;
-   --  Complement every mask lane truth.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @return The operation result.
-   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean;
-   --  Return the Boolean truth of one mask lane.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @param Lane The logical lane index.
-   --  @return The operation result.
-   function Any_True (Mask : Mask_8x16) return Boolean;
-   --  Return true when at least one mask lane is true.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function All_True (Mask : Mask_8x16) return Boolean;
-   --  Return true when every mask lane is true.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function None_True (Mask : Mask_8x16) return Boolean;
-   --  Return true when every mask lane is false.
-   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16;
-   --  Return the number of true mask lanes.
-   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function First_True (Mask : Mask_8x16) return Lane_Count_8x16;
-   --  Return the first true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
-   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16;
-   --  Return the last true lane, or the lane-count value when no lane is true.
-   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
-   --  @param Mask The input mask.
-   --  @return The operation result.
 
-   function Load (Data : Byte_Array; Start : Natural) return U8x16
-     with Pre => Has_Extent (Data, Start, 16);
-   --  Load one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array into a vector register with ldr q. The x86-64 backend delegates to Load_Unaligned, which loads the array into a vector register with movdqu. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @return The operation result.
-   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16)
-     with Pre => Has_Extent (Data, Start, 16);
-   --  Store one complete vector without an alignment requirement.
-   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf stores a vector register to the array with str q. The x86-64 backend delegates to Store_Unaligned, which stores a vector register to the array with movdqu. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @param Value The input value.
-   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16
-     with Pre => Has_Extent (Data, Start, 16);
-   --  Load one complete vector from an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array into a vector register with ldr q. The x86-64 backend loads the array into a vector register with movdqu. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @return The operation result.
-   procedure Store_Unaligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16)
-     with Pre => Has_Extent (Data, Start, 16);
-   --  Store one complete vector to an address with any alignment.
-   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that stores a vector register to the array with str q. The x86-64 backend stores a vector register to the array with movdqu. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @param Value The input value.
-   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16
-     with Pre =>
-       Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start);
-   --  Load one complete vector from a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses the same ldr q transfer after checking the alignment precondition. The x86-64 backend loads the aligned array into a vector register with movdqa. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @return The operation result.
-   procedure Store_Aligned
-     (Data : in out Byte_Array; Start : Natural; Value : U8x16)
-     with Pre =>
-       Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start);
-   --  Store one complete vector to a 16-byte-aligned address.
-   --  Cross-platform support: The AArch64 backend uses the same str q transfer after checking the alignment precondition. The x86-64 backend stores a vector register to the aligned array with movdqa. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @param Value The input value.
-   function Load_Partial
-     (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16)
-      return U8x16
-     with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
-   --  Read exactly Count elements and set the remaining lanes to zero.
-   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @param Count The number of valid elements.
-   --  @return The operation result.
-   procedure Store_Partial
-     (Data  : in out Byte_Array;
-      Start : Natural;
-      Count : Lane_Count_8x16;
-      Value : U8x16)
-     with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
-   --  Write exactly Count elements and leave all other elements unchanged.
-   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
-   --  @param Data The typed lane array.
-   --  @param Start The Ada index of the first selected element.
-   --  @param Count The number of valid elements.
-   --  @param Value The input value.
-
-   --  These are the primitive operations used by the statically instantiated
-   --  whole-buffer algorithms.  Inter-unit inlining removes one call boundary
-   --  per vector while preserving the same backend contract for generic code.
-   pragma Inline_Always (Splat);
-   pragma Inline_Always (Bitwise_And);
-   pragma Inline_Always (Equal);
-   pragma Inline_Always (Mask_From_Bit_Mask);
-   pragma Inline_Always (To_Bit_Mask);
-   pragma Inline_Always (Load_Unaligned);
 
    --  BEGIN GENERATED FULL-FAMILY BACKEND CONTRACT
    function Bit_Cast (Value : U8x16) return I8x16 with Inline_Always;
@@ -693,11 +342,183 @@ is
    --  Cross-platform support: The AArch64 backend uses a NEON movi-all-ones and ushr.2d signed-maximum construction followed by cmhi.2d and bsl.16b selection. The x86-64 backend uses an SSE2 psrad, psrlq, pandn, and por sequence that constructs and selects the signed maximum. A scalar build uses the portable scalar implementation.
    --  @param Value The input value.
    --  @return The operation result.
-   function Table_Lookup (Table, Indices : U8x16) return U8x16 with Inline_Always;
-   --  Use the unsigned value in each index lane for the corresponding result lane. A value from zero through 15 selects the table lane with the same lane index. A larger value returns zero.
-   --  Cross-platform support: The AArch64 backend uses one NEON tbl instruction. The x86-64 backend uses an SSE2 sequence that compares each index with every valid table position, broadcasts the matching table byte, masks it, and merges all matches into an initially zero result. Indexes above 15 match no position and remain zero. A scalar build uses the portable scalar implementation.
-   --  @param Table The 16 selectable byte lanes.
-   --  @param Indices One unsigned table index for each result lane.
+   function Zero return U8x16 with Inline_Always;
+   --  Return a vector in which each lane is zero.
+   --  Cross-platform support: The AArch64 and x86-64 backends construct the all-zero U8x16 result directly in result registers. A scalar build uses the portable scalar implementation.
+   --  @return The operation result.
+   function Splat (Value : U8) return U8x16 with Inline_Always;
+   --  Return a vector in which each lane has the same value.
+   --  Cross-platform support: The AArch64 backend broadcasts the input bit encoding to every lane with the NEON dup instruction. The x86-64 backend unpacks the input byte through word width and broadcasts the result with the SSE2 pshufd instruction. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function From_Lanes (Values : Lane_Values_8x16) return U8x16;
+   --  Construct a vector from lanes in logical lane order.
+   --  Cross-platform support: The AArch64 and x86-64 backends copy the supplied lane array into private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Values Lane values in logical lane order.
+   --  @return The operation result.
+   function To_Lanes (Value : U8x16) return Lane_Values_8x16;
+   --  Return all lanes in logical lane order.
+   --  Cross-platform support: The AArch64 and x86-64 backends copy private vector storage into the result lane array directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Extract (Value : U8x16; Lane : Lane_Index_8x16) return U8;
+   --  Return one logical lane.
+   --  Cross-platform support: The AArch64 and x86-64 backends read the selected position from private vector storage directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Lane The logical lane index.
+   --  @return The operation result.
+   function Replace (Value : U8x16; Lane : Lane_Index_8x16; With_Value : U8) return U8x16;
+   --  Return a copy with one logical lane replaced.
+   --  Cross-platform support: The AArch64 and x86-64 backends copy private vector storage and write the selected position directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Lane The logical lane index.
+   --  @param With_Value The replacement lane value.
+   --  @return The operation result.
+   function Add_Wrap (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Add corresponding lanes modulo the lane width.
+   --  Cross-platform support: The AArch64 backend uses the NEON add instruction over 16b lanes. The x86-64 backend uses the SSE2 paddb instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Subtract_Wrap (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Subtract corresponding lanes modulo the lane width.
+   --  Cross-platform support: The AArch64 backend uses the NEON sub instruction over 16b lanes. The x86-64 backend uses the SSE2 psubb instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Multiply_Wrap (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Multiply corresponding lanes modulo the lane width.
+   --  Cross-platform support: The AArch64 backend uses the NEON mul instruction over 16b lanes. The x86-64 backend uses an SSE2 sequence that widens bytes, uses two pmullw instructions, and packs the low product bytes. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Add_Saturate (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Add corresponding lanes and clamp to the lane range.
+   --  Cross-platform support: The AArch64 backend uses one NEON uqadd instruction over 16b lanes. The x86-64 backend uses one SSE2 paddusb instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Subtract_Saturate (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Subtract corresponding lanes and clamp to the lane range.
+   --  Cross-platform support: The AArch64 backend uses one NEON uqsub instruction over 16b lanes. The x86-64 backend uses one SSE2 psubusb instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Bitwise_And (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Apply bitwise AND to corresponding integer lanes.
+   --  Cross-platform support: The AArch64 backend uses one NEON and instruction over 16b. The x86-64 backend uses one SSE2 pand instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Bitwise_Or (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Apply bitwise OR to corresponding integer lanes.
+   --  Cross-platform support: The AArch64 backend uses one NEON orr instruction over 16b. The x86-64 backend uses one SSE2 por instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Bitwise_Xor (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Apply bitwise exclusive OR to corresponding integer lanes.
+   --  Cross-platform support: The AArch64 backend uses one NEON eor instruction over 16b. The x86-64 backend uses one SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Bitwise_Not (Value : U8x16) return U8x16 with Inline_Always;
+   --  Complement every bit in every integer lane.
+   --  Cross-platform support: The AArch64 backend uses one NEON mvn instruction over 16b. The x86-64 backend uses one SSE2 pcmpeqd instruction to construct all-one bits, followed by one pxor instruction. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
+   --  Shift each lane left. Return zero lanes when the count reaches the lane width.
+   --  Cross-platform support: The AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a positive count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes left, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Count The number of bit positions to shift.
+   --  @return The operation result.
+   function Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
+   --  Shift each lane right with zero fill. Return zero lanes when the count reaches the lane width.
+   --  Cross-platform support: The AArch64 backend shifts the 8-bit lanes with the NEON ushl instruction and a negative count. The x86-64 backend uses an SSE2 sequence that widens the bytes, shifts the 16-bit lanes right, and packs the result bytes. When Count exceeds 8, both backends clamp it to 8. The clamped count produces the defined all-zero result without calling the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Count The number of bit positions to shift.
+   --  @return The operation result.
+   function Equal (Left, Right : U8x16) return Mask_8x16 with Inline_Always;
+   --  Compare corresponding lanes for equality.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmeq comparison over 16b lanes for the equality predicate. The x86-64 backend uses the SSE2 pcmpeqb comparison for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Less_Than (Left, Right : U8x16) return Mask_8x16 with Inline_Always;
+   --  Compare corresponding lanes with the lane type's ordering.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes with reversed operands for the less-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Less_Equal (Left, Right : U8x16) return Mask_8x16 with Inline_Always;
+   --  Compare corresponding lanes with the lane type's ordering.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes with reversed operands for the less-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality using reversed operands for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Greater_Than (Left, Right : U8x16) return Mask_8x16 with Inline_Always;
+   --  Compare corresponding lanes with the lane type's ordering.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhi comparison over 16b lanes for the greater-than predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Greater_Equal (Left, Right : U8x16) return Mask_8x16 with Inline_Always;
+   --  Compare corresponding lanes with the lane type's ordering.
+   --  Cross-platform support: The AArch64 backend uses the NEON cmhs comparison over 16b lanes for the greater-than-or-equal predicate. The x86-64 backend uses the SSE2 pcmpgtb comparison with an unsigned sign-bit bias merged with pcmpeqb equality for the same predicate. Both compact the lane results into the public mask. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Select_Value (Mask : Mask_8x16; If_True, If_False : U8x16) return U8x16 with Inline_Always;
+   --  Select the true input in true mask lanes and the false input in other lanes.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON compact-mask expansion and bit-selection sequence. The x86-64 backend uses a dedicated SSE2 compact-mask expansion and bit-selection sequence. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @param If_True The value selected in true mask lanes.
+   --  @param If_False The value selected in false mask lanes.
+   --  @return The operation result.
+   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 with Inline_Always;
+   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
+   --  Cross-platform support: The AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 with Inline_Always;
+   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
+   --  Cross-platform support: The AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Min (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Return the smaller integer in each lane.
+   --  Cross-platform support: The AArch64 backend uses one NEON umin instruction over 16b lanes. The x86-64 backend uses one SSE2 pminub instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Max (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Return the larger integer in each lane.
+   --  Cross-platform support: The AArch64 backend uses one NEON umax instruction over 16b lanes. The x86-64 backend uses one SSE2 pmaxub instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Reduce_Add_Wrap (Value : U8x16) return U8 with Inline_Always;
+   --  Add all integer lanes modulo the lane width in ascending lane order.
+   --  Cross-platform support: The AArch64 backend uses the NEON uaddlv instruction to form a widening sum and retains its low eight bits. The x86-64 backend uses the SSE2 paddb instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reduce_Min (Value : U8x16) return U8 with Inline_Always;
+   --  Return the smallest integer lane.
+   --  Cross-platform support: The AArch64 backend uses the NEON uminv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pminub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reduce_Max (Value : U8x16) return U8 with Inline_Always;
+   --  Return the largest integer lane.
+   --  Cross-platform support: The AArch64 backend uses the NEON umaxv instruction over 16 byte lanes. The x86-64 backend uses the SSE2 pmaxub instruction in a four-stage fixed-shuffle tree. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reverse_Lanes (Value : U8x16) return U8x16 with Inline_Always;
+   --  Reverse logical lane order.
+   --  Cross-platform support: The AArch64 backend uses NEON rev64 over 16b lanes followed by ext with an eight-byte offset. The x86-64 backend uses SSE2 byte shifts and OR followed by pshuflw, pshufhw, and pshufd. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
    --  @return The operation result.
    function Permute_Lanes (Value : U8x16; Map : Lane_Map_8x16) return U8x16 with Inline_Always;
    --  Select each result lane through a reusable lane map. Moved lanes keep their complete bit encoding.
@@ -712,17 +533,29 @@ is
    --  @param Right The right input.
    --  @param Map The reusable lane map.
    --  @return The operation result.
-   function Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 with Inline_Always;
-   --  Stably pack lanes whose mask lane is true toward lane zero. Preserve their complete bit encodings and fill the remaining lanes with zero.
-   --  Cross-platform support: The AArch64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive a stable compression byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Mask The input mask.
+   function Interleave_Low (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Alternate lanes from the low half of both inputs, starting with the left input.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip1 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpcklbw instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @return The operation result.
-   function Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 with Inline_Always;
-   --  Place consecutive low input lanes into result lanes whose mask lane is true. Preserve their complete bit encodings and fill false lanes with zero.
-   --  Cross-platform support: The AArch64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated NEON tbl sequence. The x86-64 backend uses fixed-width Ada code to derive an expansion byte map from the mask, followed by a dedicated SSE2 sequence that compares every byte selector with each valid source position, broadcasts matching source bytes, and merges them into the result. A scalar build uses the portable scalar implementation.
-   --  @param Value The input value.
-   --  @param Mask The input mask.
+   function Interleave_High (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Alternate lanes from the high half of both inputs, starting with the left input.
+   --  Cross-platform support: The AArch64 backend uses the NEON zip2 instruction over 16b lanes. The x86-64 backend uses the SSE2 punpckhbw instruction. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Deinterleave_Even (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Collect even lanes from the left input, then even lanes from the right input.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp1 instruction over 16b lanes. The x86-64 backend uses SSE2 low-byte masking and packuswb. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Deinterleave_Odd (Left, Right : U8x16) return U8x16 with Inline_Always;
+   --  Collect odd lanes from the left input, then odd lanes from the right input.
+   --  Cross-platform support: The AArch64 backend uses the NEON uzp2 instruction over 16b lanes. The x86-64 backend uses SSE2 word shifts and packuswb. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
    --  @return The operation result.
    function Slide_Lanes_Toward_Low (Value : U8x16; Count : Natural) return U8x16 with Inline_Always;
    --  Count is in lanes.
@@ -744,6 +577,81 @@ is
    --  @param Value The input value.
    --  @param Count The number of lane positions to move.
    --  @return The operation result.
+   function Is_Aligned_16 (Data : Byte_Array; Start : Natural) return Boolean with Inline_Always;
+   --  Report whether the selected first element has a 16-byte-aligned address.
+   --  Cross-platform support: The AArch64 and x86-64 backends first check that Start is in the array range. For a valid Start, they test the selected element address modulo 16 directly with fixed-width Ada code. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @return The operation result.
+   function Load (Data : Byte_Array; Start : Natural) return U8x16
+     with Pre => Has_Extent (Data, Start, 16);
+   --  Load one complete vector without an alignment requirement.
+   --  Cross-platform support: The AArch64 backend delegates to Load_Unaligned, whose isolated NEON leaf loads the array into a vector register with ldr q. The x86-64 backend delegates to Load_Unaligned, which loads the array into a vector register with movdqu. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @return The operation result.
+   procedure Store (Data : in out Byte_Array; Start : Natural; Value : U8x16) with Pre => Has_Extent (Data, Start, 16);
+   --  Store one complete vector without an alignment requirement.
+   --  Cross-platform support: The AArch64 backend delegates to Store_Unaligned, whose isolated NEON leaf stores a vector register to the array with str q. The x86-64 backend delegates to Store_Unaligned, which stores a vector register to the array with movdqu. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @param Value The input value.
+   function Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16 with Pre => Has_Extent (Data, Start, 16), Inline_Always;
+   --  Load one complete vector from an address with any alignment.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that loads the array into a vector register with ldr q. The x86-64 backend loads the array into a vector register with movdqu. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @return The operation result.
+   procedure Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) with Pre => Has_Extent (Data, Start, 16);
+   --  Store one complete vector to an address with any alignment.
+   --  Cross-platform support: The AArch64 backend uses an isolated NEON leaf that stores a vector register to the array with str q. The x86-64 backend stores a vector register to the array with movdqu. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @param Value The input value.
+   function Load_Aligned (Data : Byte_Array; Start : Natural) return U8x16 with Pre => Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start), Inline_Always;
+   --  Load one complete vector from a 16-byte-aligned address.
+   --  Cross-platform support: The AArch64 backend uses the same ldr q transfer after checking the alignment precondition. The x86-64 backend loads the aligned array into a vector register with movdqa. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @return The operation result.
+   procedure Store_Aligned (Data : in out Byte_Array; Start : Natural; Value : U8x16) with Pre => Has_Extent (Data, Start, 16) and then Is_Aligned_16 (Data, Start);
+   --  Store one complete vector to a 16-byte-aligned address.
+   --  Cross-platform support: The AArch64 backend uses the same str q transfer after checking the alignment precondition. The x86-64 backend stores a vector register to the aligned array with movdqa. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @param Value The input value.
+   function Load_Partial (Data : Byte_Array; Start : Natural; Count : Lane_Count_8x16) return U8x16 with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
+   --  Read exactly Count elements and set the remaining lanes to zero.
+   --  Cross-platform support: The AArch64 and x86-64 backends read exactly Count elements and initialize every inactive result lane to positive zero with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @param Count The number of valid elements.
+   --  @return The operation result.
+   procedure Store_Partial (Data : in out Byte_Array; Start : Natural; Count : Lane_Count_8x16; Value : U8x16) with Pre => Count = 0 or else Has_Extent (Data, Start, Count);
+   --  Write exactly Count elements and leave all other elements unchanged.
+   --  Cross-platform support: The AArch64 and x86-64 backends write the first Count value lanes to exactly Count destination elements and leave every other array element unchanged with a direct fixed-width Ada loop. A zero count does not evaluate an element address. They do not call the portable root operation. A scalar build uses the portable scalar implementation.
+   --  @param Data The typed lane array.
+   --  @param Start The Ada index of the first selected element.
+   --  @param Count The number of valid elements.
+   --  @param Value The input value.
+   function Table_Lookup (Table, Indices : U8x16) return U8x16 with Inline_Always;
+   --  Use the unsigned value in each index lane for the corresponding result lane. A value from zero through 15 selects the table lane with the same lane index. A larger value returns zero.
+   --  Cross-platform support: The AArch64 backend uses one NEON tbl instruction. The x86-64 backend uses an SSE2 sequence that compares each index with every valid table position, broadcasts the matching table byte, masks it, and merges all matches into an initially zero result. Indexes above 15 match no position and remain zero. A scalar build uses the portable scalar implementation.
+   --  @param Table The 16 selectable byte lanes.
+   --  @param Indices One unsigned table index for each result lane.
+   --  @return The operation result.
+   function Horizontal_Sum (Value : U8x16) return Natural
+     with Post => Horizontal_Sum'Result <= 16 * 255;
+   --  Return the exact sum of all unsigned byte lanes as Natural.
+   --  Cross-platform support: The AArch64 backend uses the NEON uaddlv instruction to sum all 16 unsigned byte lanes. The x86-64 backend uses SSE2 psadbw to form two 64-bit partial sums and adds them. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Reverse_Bytes (Value : U8x16) return U8x16 with Inline_Always;
+   --  Reverse logical byte-lane order. This is the compatibility name for Reverse_Lanes.
+   --  Cross-platform support: The AArch64 backend uses a dedicated NEON implementation. The x86-64 backend uses a dedicated SSE2 implementation. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+
    function Zero return I8x16 with Inline_Always;
    --  Return a vector in which each lane is zero.
    --  Cross-platform support: The AArch64 backend constructs the all-zero result with the NEON movi instruction. The x86-64 backend uses the SSE2 pxor instruction. A scalar build uses the portable scalar implementation.
@@ -3336,6 +3244,76 @@ is
    --  @param Start The Ada index of the first selected element.
    --  @param Count The number of valid elements.
    --  @param Value The input value.
+
+   function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_16) return Mask_8x16 with Inline_Always;
+   --  Construct lane truths from compact bits. Bit zero represents lane zero.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Bits Compact lane bits. Bit zero represents lane zero.
+   --  @return The operation result.
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 with Inline_Always;
+   --  Return compact lane truths. Bit zero represents lane zero.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Mask_And (Left, Right : Mask_8x16) return Mask_8x16 with Inline_Always;
+   --  Apply Boolean AND to corresponding mask lanes.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Mask_Or (Left, Right : Mask_8x16) return Mask_8x16 with Inline_Always;
+   --  Apply Boolean OR to corresponding mask lanes.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Mask_Xor (Left, Right : Mask_8x16) return Mask_8x16 with Inline_Always;
+   --  Apply Boolean exclusive OR to corresponding mask lanes.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Left The left input.
+   --  @param Right The right input.
+   --  @return The operation result.
+   function Mask_Not (Value : Mask_8x16) return Mask_8x16 with Inline_Always;
+   --  Complement every mask lane truth.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Value The input value.
+   --  @return The operation result.
+   function Test (Mask : Mask_8x16; Lane : Lane_Index_8x16) return Boolean;
+   --  Return the Boolean truth of one mask lane.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @param Lane The logical lane index.
+   --  @return The operation result.
+   function Any_True (Mask : Mask_8x16) return Boolean;
+   --  Return true when at least one mask lane is true.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function All_True (Mask : Mask_8x16) return Boolean;
+   --  Return true when every mask lane is true.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function None_True (Mask : Mask_8x16) return Boolean;
+   --  Return true when every mask lane is false.
+   --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Population_Count (Mask : Mask_8x16) return Lane_Count_8x16;
+   --  Return the number of true mask lanes.
+   --  Cross-platform support: The AArch64 backend counts set bits with a dedicated NEON byte-count and horizontal-add sequence. The x86-64 backend uses a dedicated fixed-width arithmetic bit-count sequence that does not require POPCNT. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function First_True (Mask : Mask_8x16) return Lane_Count_8x16;
+   --  Return the first true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: The AArch64 backend uses a dedicated bit-reversal and leading-zero-count sequence to find the first set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-forward sequence to find the first set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
+   function Last_True (Mask : Mask_8x16) return Lane_Count_8x16;
+   --  Return the last true lane, or the lane-count value when no lane is true.
+   --  Cross-platform support: The AArch64 backend uses a dedicated leading-zero-count sequence to find the last set compact-mask bit. The x86-64 backend uses a dedicated bit-scan-reverse sequence to find the last set compact-mask bit. Both return the lane-count value for a zero mask. A scalar build uses the portable scalar implementation.
+   --  @param Mask The input mask.
+   --  @return The operation result.
 
    function Mask_From_Bit_Mask (Bits : Interfaces.Unsigned_8) return Mask_16x8 with Inline_Always;
    --  Construct lane truths from compact bits. Bit zero represents lane zero.

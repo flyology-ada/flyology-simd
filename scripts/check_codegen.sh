@@ -1355,9 +1355,11 @@ require_count 'alignment_codegen_probe__.*_aligned_(16|32)' 19 \
 forbid_pattern 'flyology_simd__(backends__native__is_aligned_16|wide__(native__)?is_aligned_32|is_aligned_16(__|$))' \
   "$temporary/alignment-undefined.txt" \
   'out-of-line or portable alignment-predicate call in the caller probe'
-require_count '(^|[[:space:]])_?flyology_simd__is_aligned_16$' 1 \
+#  The byte family declares its own alignment predicate now, like every other
+#  family, so the backend resolves it locally and leaves nothing undefined.
+forbid_pattern '(^|[[:space:]])_?flyology_simd__(backends__native__)?is_aligned_16$' \
   "$temporary/native-undefined.txt" \
-  'only the shared Byte_Array contract predicate remains undefined'
+  'undefined alignment predicate in the Native backend object'
 forbid_pattern 'flyology_simd__is_aligned_16__' \
   "$temporary/native-undefined.txt" \
   'typed portable alignment-predicate call retained in the Native backend object'
@@ -1569,10 +1571,10 @@ while read -r lane_kind operation suffix operation_class; do
                     ;;
             esac
             actual_native=$(grep -Eic "$selected_function_reloc" "$caller" || true)
-            case "$architecture:$operation" in
-                aarch64:equal|x86_64:equal) expected_native=0 ;;
-                *) expected_native=2 ;;
-            esac
+            #  The byte family carries Inline_Always on both targets now that
+            #  the generator emits it, so no selected call survives anywhere;
+            #  equality always behaved this way and the rest have caught up.
+            expected_native=0
             if [ "$actual_native" -ne "$expected_native" ]; then
                 echo "unexpected selected operation in ${lane_kind} ${operation}" >&2
                 exit 1
@@ -2173,19 +2175,9 @@ while read -r lane_kind operation combine suffix; do
           "$caller" "two matching selected splats in ${lane_kind} ${operation}"
         selected_operation_count=6
     else
+        #  The byte family is generated like the rest now, so it broadcasts the
+        #  same way and needs no case of its own.
         case "$architecture:$lane_kind" in
-            aarch64:u8)
-                require_count 'dup\.16b' 2 "$caller" \
-                  "two inlined byte splats in ${lane_kind} ${operation}"
-                ;;
-            x86_64:u8)
-                require_count 'punpcklbw' 2 "$caller" \
-                  "two inlined byte splat expansions in ${lane_kind} ${operation}"
-                require_count 'punpcklwd' 2 "$caller" \
-                  "two inlined word splat expansions in ${lane_kind} ${operation}"
-                require_count 'pshufd' 2 "$caller" \
-                  "two inlined dword splat broadcasts in ${lane_kind} ${operation}"
-                ;;
             aarch64:*)
                 require_at_least 'dup(\.[0-9]+[bhsd])?[[:space:]]' 2 "$caller" \
                   "two inlined splats in ${lane_kind} ${operation}"
@@ -3141,9 +3133,9 @@ greater_equal cmhs.*16b greater_equal|greater_equal_bits
 select_value bsl.*16b select_value
 min umin.*16b min|neon_min
 max umax.*16b max|neon_max
-reduce_add_wrap uaddlv.*16b reduce_add_wrap
-reduce_min uminv.*16b reduce_min
-reduce_max umaxv.*16b reduce_max
+reduce_add_wrap addv.*16b reduce_add_wrap|native_reduce_add_wrap_u8x16
+reduce_min uminv.*16b reduce_min|native_reduce_min_u8x16
+reduce_max umaxv.*16b reduce_max|native_reduce_max_u8x16
 reverse_bytes rev64.*16b reverse_bytes|neon_reverse_bytes
 reverse_lanes rev64.*16b reverse_lanes|neon_reverse_bytes
 interleave_low zip1.*16b interleave_low|neon_interleave_low
@@ -3206,12 +3198,12 @@ EOF
                   "$output" "out-of-line Flyology helper in ${lane_kind} ${operation} leaf"
             done
             if [ "$lane_kind" = u8 ]; then
-                require_count '(^|[[:space:]])(uaddlv\.16b[[:space:]]|uaddlv[[:space:]].*16b([^[:alnum:]]|$))' 1 \
-                  "$temporary/integer_reduction_leaf_u8_reduce_add_wrap.txt" \
-                  'one exact unsigned-byte widening sum in U8 Reduce_Add_Wrap'
-                require_pattern '(^|[[:space:]])and[[:space:]].*#(0x)?ff([^[:xdigit:]]|$)' \
-                  "$temporary/integer_reduction_leaf_u8_reduce_add_wrap.txt" \
-                  'low-byte modulo result in U8 Reduce_Add_Wrap'
+                #  Short enough to inline, so the byte reduction leaves no leaf
+                #  of its own; the fold is evidenced wherever it landed.  addv
+                #  over sixteen byte lanes wraps, which is the defined result.
+                require_pattern '(^|[[:space:]])(addv\.16b[[:space:]]|addv[[:space:]].*16b([^[:alnum:]]|$))' \
+                  "$(native_and_probes)" \
+                  'unsigned-byte wrapping sum in U8 Reduce_Add_Wrap'
             elif [ "$shape" = 2d ]; then
                 require_count '(^|[[:space:]])(addp\.2d[[:space:]]|addp[[:space:]].*2d([^[:alnum:]]|$))' 1 \
                   "$temporary/integer_reduction_leaf_${lane_kind}_reduce_add_wrap.txt" \
@@ -4094,10 +4086,11 @@ EOF
         done <scripts/probes/float_binary_codegen_cases.txt
         extract_symbol 'construction_codegen_probe__splat_u8' \
           "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
-        require_pattern 'punpcklbw' "$temporary/construction-splat-u8.txt" \
-          'inlined x86-64 byte duplication in the U8x16 public caller probe'
-        require_pattern 'punpcklwd' "$temporary/construction-splat-u8.txt" \
-          'inlined x86-64 word duplication in the U8x16 public caller probe'
+        #  The byte splat fills a general register and moves it across, the
+        #  same broadcast every other integer family uses.
+        require_pattern 'imul[a-z]*[[:space:]]+\$0x1010101' \
+          "$temporary/construction-splat-u8.txt" \
+          'inlined x86-64 byte broadcast in the U8x16 public caller probe'
         require_pattern 'pshufd' "$temporary/construction-splat-u8.txt" \
           'inlined x86-64 dword broadcast in the U8x16 public caller probe'
         forbid_pattern '(^|[[:space:]])(call|jmp)[[:space:]]|flyology_simd__(backends__native__)?splat' \
@@ -4369,7 +4362,7 @@ EOF
         done <<'EOF'
 add_wrap paddb add_wrap|u8_add_wrap
 subtract_wrap psubb subtract_wrap|u8_subtract_wrap
-multiply_wrap pmullw multiply_wrap|u8_multiply_wrap
+multiply_wrap pmullw multiply_wrap|native_multiply_wrap_u8x16
 add_saturate paddusb add_saturate|u8_add_saturate
 subtract_saturate psubusb subtract_saturate|u8_subtract_saturate
 bitwise_and pand bitwise_and|u8_and
@@ -4384,9 +4377,9 @@ greater_equal pcmpgtb greater_equal|greater_mask
 select_value pandn select_value
 min pminub min
 max pmaxub max
-reduce_add_wrap paddb reduce_add_wrap
-reduce_min pminub reduce_min
-reduce_max pmaxub reduce_max
+reduce_add_wrap paddb reduce_add_wrap|native_reduce_add_wrap_u8x16
+reduce_min pminub reduce_min|native_reduce_min_u8x16
+reduce_max pmaxub reduce_max|native_reduce_max_u8x16
 reverse_bytes pshufd reverse_bytes|u8_reverse
 reverse_lanes pshufd reverse_lanes|u8_reverse
 interleave_low punpcklbw interleave_low|u8_interleave_low
@@ -5098,7 +5091,12 @@ EOF
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "no mismatched zero constructor in ${vector_kind} ${operation} caller"
                     else
-                        require_count '(^|[[:space:]])pxor[[:space:]]+%?xmm0,[[:space:]]*%?xmm0' 3 \
+                        #  Self-XOR is the zeroing idiom whatever register it
+                        #  lands in.  The map, the selector and the value need
+                        #  one each; the byte family's own Zero inlines here
+                        #  too now, so this is a floor and the assertion that
+                        #  matters is the absence of a call, just below.
+                        require_at_least '(^|[[:space:]])pxor[[:space:]]+%?xmm([0-9]+),[[:space:]]*%?xmm\2' 3 \
                           "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                           "exact map, selector, and value zeroing in ${vector_kind} ${operation} caller"
                         require_at_most 'backends__native__native_zero_' 0 \
@@ -5361,13 +5359,17 @@ EOF
                   'one selected 128-bit 16-filled vector construction in the composed Wide lookup mechanism'
                 expected_wide_lookup_symbols=4
             else
-                require_count '\$0x10101010|\$269488144' 1 \
+                #  The byte splat is the family one now: it fills a general
+                #  register with the lane-repeat multiplier, moves it across,
+                #  and broadcasts.  Which registers it picks is the
+                #  allocator's business.
+                require_count '(^|[[:space:]])imul[a-z]*[[:space:]]+\$0x1010101' 1 \
                   "$temporary/wide-lookup.txt" \
                   'one inlined 16-byte repeated constant in the composed Wide lookup mechanism'
-                require_count '(^|[[:space:]])movd[[:space:]]+%?eax,[[:space:]]*%?xmm0' 1 \
+                require_count '(^|[[:space:]])movd[[:space:]]+%?e[a-z0-9]+,[[:space:]]*%?xmm[0-9]+' 1 \
                   "$temporary/wide-lookup.txt" \
                   'one inlined 16-filled vector scalar transfer in the composed Wide lookup mechanism'
-                require_count '(^|[[:space:]])pshufd[[:space:]]+\$(0x0*0|0),[[:space:]]*%?xmm0,[[:space:]]*%?xmm0' 1 \
+                require_count '(^|[[:space:]])pshufd[[:space:]]+\$(0x0*0|0),[[:space:]]*%?xmm[0-9]+,[[:space:]]*%?xmm[0-9]+' 1 \
                   "$temporary/wide-lookup.txt" \
                   'one inlined 16-filled vector broadcast in the composed Wide lookup mechanism'
                 expected_wide_lookup_symbols=3
