@@ -64,9 +64,6 @@ package body Flyology_SIMD.Backends.Native is
    end Count_Set_Bits;
    pragma Inline_Always (Count_Set_Bits);
 
-   Weights_8x16 : aliased constant Lane_Values_8x16 :=
-     [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
-
    type Byte_Vector is array (0 .. 15) of Interfaces.Unsigned_8;
    for Byte_Vector'Alignment use 16;
    pragma Machine_Attribute (Byte_Vector, "vector_type");
@@ -535,8 +532,10 @@ package body Flyology_SIMD.Backends.Native is
       function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
       Result : Machine_Vector;
    begin
+      pragma Warnings (Off, "code statement with no inputs*");
       Asm (Template => "movi %0.16b, #0",
            Outputs => Machine_Vector'Asm_Output ("=w", Result));
+      pragma Warnings (On, "code statement with no inputs*");
       return To_Vector (Result);
    end NEON_Zero_128;
 
@@ -574,14 +573,18 @@ package body Flyology_SIMD.Backends.Native is
       type Vector_Type is private;
       type Scalar_Type is private;
       Instruction : String;
-      Store_Instruction : String;
+      Extract_Instruction : String;
    function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type;
    function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
       Result : Scalar_Type;
+      Folded : Machine_Vector;
+      Spare : Machine_Vector;
+      Extra : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,
-           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
-           Clobber => "v0,v1,v2,memory", Volatile => True);
+      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,
+           Outputs => [Scalar_Type'Asm_Output ("=r", Result), Machine_Vector'Asm_Output ("=&w", Folded), Machine_Vector'Asm_Output ("=&w", Spare), Machine_Vector'Asm_Output ("=&w", Extra)],
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
       return Result;
    end NEON_Integer_Reduce_128;
 
@@ -589,14 +592,17 @@ package body Flyology_SIMD.Backends.Native is
       type Vector_Type is private;
       type Scalar_Type is private;
       Instruction : String;
-      Store_Instruction : String;
+      Extract_Instruction : String;
    function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;
    function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is
+      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
       Result : Scalar_Type;
+      Folded : Machine_Vector;
+      Spare : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,
-           Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Value'Address)],
-           Clobber => "v0,v1,v2,memory", Volatile => True);
+      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,
+           Outputs => [Scalar_Type'Asm_Output ("=w", Result), Machine_Vector'Asm_Output ("=&w", Folded), Machine_Vector'Asm_Output ("=&w", Spare)],
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
       return Result;
    end NEON_Float_Reduce_128;
 
@@ -826,11 +832,8 @@ package body Flyology_SIMD.Backends.Native is
    end NEON_Convert_128_S2;
 
    Weights_Vector_8x16 : constant Machine_Vector := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];
-   Weights_16x8 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];
    Weights_Vector_16x8 : constant Machine_Vector := [1, 0, 2, 0, 4, 0, 8, 0, 16, 0, 32, 0, 64, 0, 128, 0];
-   Weights_32x4 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];
    Weights_Vector_32x4 : constant Machine_Vector := [1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 8, 0, 0, 0];
-   Weights_64x2 : aliased constant Lane_Values_U64x2 := [1, 2];
    Weights_Vector_64x2 : constant Machine_Vector := [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
    function Native_Bit_Cast_U8x16_To_I8x16 is new Ada.Unchecked_Conversion (U8x16, I8x16);
@@ -1689,11 +1692,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_I8x16 is new NEON_Select_16_Lanes_128 (I8x16);
    pragma Inline_Always (Native_Select_I8x16);
    function Select_Value (Mask : Mask_8x16; If_True, If_False : I8x16) return I8x16 is (Native_Select_I8x16 (Mask.Bits, Weights_Vector_8x16, If_True, If_False));
-   function Native_Reduce_Add_Wrap_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "addv b0, v0.16b", "str b0, [%0]");
+   function Native_Reduce_Add_Wrap_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "addv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_I8x16);
    function Reduce_Add_Wrap (Value : I8x16) return I8 is (Native_Reduce_Add_Wrap_I8x16 (Value));
-   function Native_Reduce_Min_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "sminv b0, v0.16b", "str b0, [%0]");
+   function Native_Reduce_Min_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "sminv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Min_I8x16);
    function Reduce_Min (Value : I8x16) return I8 is (Native_Reduce_Min_I8x16 (Value));
-   function Native_Reduce_Max_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "smaxv b0, v0.16b", "str b0, [%0]");
+   function Native_Reduce_Max_I8x16 is new NEON_Integer_Reduce_128 (I8x16, I8, "smaxv %b1, %4.16b", "umov %w0, %1.b[0]");
+   pragma Inline_Always (Native_Reduce_Max_I8x16);
    function Reduce_Max (Value : I8x16) return I8 is (Native_Reduce_Max_I8x16 (Value));
    function Is_Aligned_16 (Data : I8_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -1702,14 +1708,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I8_Array; Start : Natural) return I8x16 is
-      Result : I8x16;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, I8x16);
+      Source : constant Lane_Values_I8x16 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_I8x16'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is
+      function To_Machine is new Ada.Unchecked_Conversion (I8x16, Machine_Vector);
+      Target : Lane_Values_I8x16 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_I8x16'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : I8_Array; Start : Natural) return I8x16 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I8_Array; Start : Natural; Value : I8x16) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -1870,11 +1884,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_U16x8 is new NEON_Select_128 (U16x8, "dup %0.8h, %w1", "cmtst %0.8h, %0.8h, %2.8h");
    pragma Inline_Always (Native_Select_U16x8);
    function Select_Value (Mask : Mask_16x8; If_True, If_False : U16x8) return U16x8 is (Native_Select_U16x8 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_16x8, If_True, If_False));
-   function Native_Reduce_Add_Wrap_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "addv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Add_Wrap_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "addv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_U16x8);
    function Reduce_Add_Wrap (Value : U16x8) return U16 is (Native_Reduce_Add_Wrap_U16x8 (Value));
-   function Native_Reduce_Min_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "uminv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Min_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "uminv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Min_U16x8);
    function Reduce_Min (Value : U16x8) return U16 is (Native_Reduce_Min_U16x8 (Value));
-   function Native_Reduce_Max_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "umaxv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Max_U16x8 is new NEON_Integer_Reduce_128 (U16x8, U16, "umaxv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Max_U16x8);
    function Reduce_Max (Value : U16x8) return U16 is (Native_Reduce_Max_U16x8 (Value));
    function Is_Aligned_16 (Data : U16_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -1883,14 +1900,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U16_Array; Start : Natural) return U16x8 is
-      Result : U16x8;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U16x8);
+      Source : constant Lane_Values_U16x8 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_U16x8'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is
+      function To_Machine is new Ada.Unchecked_Conversion (U16x8, Machine_Vector);
+      Target : Lane_Values_U16x8 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_U16x8'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : U16_Array; Start : Natural) return U16x8 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U16_Array; Start : Natural; Value : U16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2055,11 +2080,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_I16x8 is new NEON_Select_128 (I16x8, "dup %0.8h, %w1", "cmtst %0.8h, %0.8h, %2.8h");
    pragma Inline_Always (Native_Select_I16x8);
    function Select_Value (Mask : Mask_16x8; If_True, If_False : I16x8) return I16x8 is (Native_Select_I16x8 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_16x8, If_True, If_False));
-   function Native_Reduce_Add_Wrap_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "addv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Add_Wrap_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "addv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_I16x8);
    function Reduce_Add_Wrap (Value : I16x8) return I16 is (Native_Reduce_Add_Wrap_I16x8 (Value));
-   function Native_Reduce_Min_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "sminv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Min_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "sminv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Min_I16x8);
    function Reduce_Min (Value : I16x8) return I16 is (Native_Reduce_Min_I16x8 (Value));
-   function Native_Reduce_Max_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "smaxv h0, v0.8h", "str h0, [%0]");
+   function Native_Reduce_Max_I16x8 is new NEON_Integer_Reduce_128 (I16x8, I16, "smaxv %h1, %4.8h", "umov %w0, %1.h[0]");
+   pragma Inline_Always (Native_Reduce_Max_I16x8);
    function Reduce_Max (Value : I16x8) return I16 is (Native_Reduce_Max_I16x8 (Value));
    function Is_Aligned_16 (Data : I16_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2068,14 +2096,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I16_Array; Start : Natural) return I16x8 is
-      Result : I16x8;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, I16x8);
+      Source : constant Lane_Values_I16x8 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_I16x8'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is
+      function To_Machine is new Ada.Unchecked_Conversion (I16x8, Machine_Vector);
+      Target : Lane_Values_I16x8 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_I16x8'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : I16_Array; Start : Natural) return I16x8 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I16_Array; Start : Natural; Value : I16x8) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2236,11 +2272,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_U32x4 is new NEON_Select_128 (U32x4, "dup %0.4s, %w1", "cmtst %0.4s, %0.4s, %2.4s");
    pragma Inline_Always (Native_Select_U32x4);
    function Select_Value (Mask : Mask_32x4; If_True, If_False : U32x4) return U32x4 is (Native_Select_U32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_32x4, If_True, If_False));
-   function Native_Reduce_Add_Wrap_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "addv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Add_Wrap_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "addv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_U32x4);
    function Reduce_Add_Wrap (Value : U32x4) return U32 is (Native_Reduce_Add_Wrap_U32x4 (Value));
-   function Native_Reduce_Min_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "uminv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Min_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "uminv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Min_U32x4);
    function Reduce_Min (Value : U32x4) return U32 is (Native_Reduce_Min_U32x4 (Value));
-   function Native_Reduce_Max_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "umaxv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Max_U32x4 is new NEON_Integer_Reduce_128 (U32x4, U32, "umaxv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Max_U32x4);
    function Reduce_Max (Value : U32x4) return U32 is (Native_Reduce_Max_U32x4 (Value));
    function Is_Aligned_16 (Data : U32_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2249,14 +2288,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U32_Array; Start : Natural) return U32x4 is
-      Result : U32x4;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U32x4);
+      Source : constant Lane_Values_U32x4 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_U32x4'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is
+      function To_Machine is new Ada.Unchecked_Conversion (U32x4, Machine_Vector);
+      Target : Lane_Values_U32x4 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_U32x4'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : U32_Array; Start : Natural) return U32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U32_Array; Start : Natural; Value : U32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2421,11 +2468,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_I32x4 is new NEON_Select_128 (I32x4, "dup %0.4s, %w1", "cmtst %0.4s, %0.4s, %2.4s");
    pragma Inline_Always (Native_Select_I32x4);
    function Select_Value (Mask : Mask_32x4; If_True, If_False : I32x4) return I32x4 is (Native_Select_I32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_32x4, If_True, If_False));
-   function Native_Reduce_Add_Wrap_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "addv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Add_Wrap_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "addv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_I32x4);
    function Reduce_Add_Wrap (Value : I32x4) return I32 is (Native_Reduce_Add_Wrap_I32x4 (Value));
-   function Native_Reduce_Min_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "sminv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Min_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "sminv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Min_I32x4);
    function Reduce_Min (Value : I32x4) return I32 is (Native_Reduce_Min_I32x4 (Value));
-   function Native_Reduce_Max_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "smaxv s0, v0.4s", "str s0, [%0]");
+   function Native_Reduce_Max_I32x4 is new NEON_Integer_Reduce_128 (I32x4, I32, "smaxv %s1, %4.4s", "umov %w0, %1.s[0]");
+   pragma Inline_Always (Native_Reduce_Max_I32x4);
    function Reduce_Max (Value : I32x4) return I32 is (Native_Reduce_Max_I32x4 (Value));
    function Is_Aligned_16 (Data : I32_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2434,14 +2484,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I32_Array; Start : Natural) return I32x4 is
-      Result : I32x4;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, I32x4);
+      Source : constant Lane_Values_I32x4 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_I32x4'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is
+      function To_Machine is new Ada.Unchecked_Conversion (I32x4, Machine_Vector);
+      Target : Lane_Values_I32x4 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_I32x4'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : I32_Array; Start : Natural) return I32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I32_Array; Start : Natural; Value : I32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2601,11 +2659,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_U64x2 is new NEON_Select_128 (U64x2, "dup %0.2d, %1", "cmtst %0.2d, %0.2d, %2.2d");
    pragma Inline_Always (Native_Select_U64x2);
    function Select_Value (Mask : Mask_64x2; If_True, If_False : U64x2) return U64x2 is (Native_Select_U64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_64x2, If_True, If_False));
-   function Native_Reduce_Add_Wrap_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "addp d0, v0.2d", "str d0, [%0]");
+   function Native_Reduce_Add_Wrap_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "addp %d1, %4.2d", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_U64x2);
    function Reduce_Add_Wrap (Value : U64x2) return U64 is (Native_Reduce_Add_Wrap_U64x2 (Value));
-   function Native_Reduce_Min_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Native_Reduce_Min_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup %2.2d, %4.d[1]" & ASCII.LF & ASCII.HT & "cmhi %3.2d, %4.2d, %2.2d" & ASCII.LF & ASCII.HT & "mov %1.16b, %4.16b" & ASCII.LF & ASCII.HT & "bit %1.16b, %2.16b, %3.16b", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Min_U64x2);
    function Reduce_Min (Value : U64x2) return U64 is (Native_Reduce_Min_U64x2 (Value));
-   function Native_Reduce_Max_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmhi v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Native_Reduce_Max_U64x2 is new NEON_Integer_Reduce_128 (U64x2, U64, "dup %2.2d, %4.d[1]" & ASCII.LF & ASCII.HT & "cmhi %3.2d, %4.2d, %2.2d" & ASCII.LF & ASCII.HT & "mov %1.16b, %4.16b" & ASCII.LF & ASCII.HT & "bif %1.16b, %2.16b, %3.16b", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Max_U64x2);
    function Reduce_Max (Value : U64x2) return U64 is (Native_Reduce_Max_U64x2 (Value));
    function Is_Aligned_16 (Data : U64_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2614,14 +2675,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : U64_Array; Start : Natural) return U64x2 is
-      Result : U64x2;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, U64x2);
+      Source : constant Lane_Values_U64x2 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_U64x2'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is
+      function To_Machine is new Ada.Unchecked_Conversion (U64x2, Machine_Vector);
+      Target : Lane_Values_U64x2 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_U64x2'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : U64_Array; Start : Natural) return U64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out U64_Array; Start : Natural; Value : U64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2785,11 +2854,14 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_I64x2 is new NEON_Select_128 (I64x2, "dup %0.2d, %1", "cmtst %0.2d, %0.2d, %2.2d");
    pragma Inline_Always (Native_Select_I64x2);
    function Select_Value (Mask : Mask_64x2; If_True, If_False : I64x2) return I64x2 is (Native_Select_I64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_64x2, If_True, If_False));
-   function Native_Reduce_Add_Wrap_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "addp d0, v0.2d", "str d0, [%0]");
+   function Native_Reduce_Add_Wrap_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "addp %d1, %4.2d", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Add_Wrap_I64x2);
    function Reduce_Add_Wrap (Value : I64x2) return I64 is (Native_Reduce_Add_Wrap_I64x2 (Value));
-   function Native_Reduce_Min_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bit v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Native_Reduce_Min_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup %2.2d, %4.d[1]" & ASCII.LF & ASCII.HT & "cmgt %3.2d, %4.2d, %2.2d" & ASCII.LF & ASCII.HT & "mov %1.16b, %4.16b" & ASCII.LF & ASCII.HT & "bit %1.16b, %2.16b, %3.16b", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Min_I64x2);
    function Reduce_Min (Value : I64x2) return I64 is (Native_Reduce_Min_I64x2 (Value));
-   function Native_Reduce_Max_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup v1.2d, v0.d[1]" & ASCII.LF & ASCII.HT & "cmgt v2.2d, v0.2d, v1.2d" & ASCII.LF & ASCII.HT & "bif v0.16b, v1.16b, v2.16b", "str d0, [%0]");
+   function Native_Reduce_Max_I64x2 is new NEON_Integer_Reduce_128 (I64x2, I64, "dup %2.2d, %4.d[1]" & ASCII.LF & ASCII.HT & "cmgt %3.2d, %4.2d, %2.2d" & ASCII.LF & ASCII.HT & "mov %1.16b, %4.16b" & ASCII.LF & ASCII.HT & "bif %1.16b, %2.16b, %3.16b", "umov %x0, %1.d[0]");
+   pragma Inline_Always (Native_Reduce_Max_I64x2);
    function Reduce_Max (Value : I64x2) return I64 is (Native_Reduce_Max_I64x2 (Value));
    function Is_Aligned_16 (Data : I64_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2798,14 +2870,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : I64_Array; Start : Natural) return I64x2 is
-      Result : I64x2;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, I64x2);
+      Source : constant Lane_Values_I64x2 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_I64x2'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is
+      function To_Machine is new Ada.Unchecked_Conversion (I64x2, Machine_Vector);
+      Target : Lane_Values_I64x2 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_I64x2'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : I64_Array; Start : Natural) return I64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out I64_Array; Start : Natural; Value : I64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -2901,7 +2981,7 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_F32x4 is new NEON_Select_128 (F32x4, "dup %0.4s, %w1", "cmtst %0.4s, %0.4s, %2.4s");
    pragma Inline_Always (Native_Select_F32x4);
    function Select_Value (Mask : Mask_32x4; If_True, If_False : F32x4) return F32x4 is (Native_Select_F32x4 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_32x4, If_True, If_False));
-   function Native_Reduce_Add_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[0]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fadd s0, s0, s1", "str s0, [%0]");
+   function Native_Reduce_Add_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "movi %1.16b, #0" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[0]" & ASCII.LF & ASCII.HT & "fadd %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[1]" & ASCII.LF & ASCII.HT & "fadd %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[2]" & ASCII.LF & ASCII.HT & "fadd %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[3]" & ASCII.LF & ASCII.HT & "fadd %s1, %s1, %s2", "fmov %s0, %s1");
    function Reduce_Add (Value : F32x4) return F32 is (Native_Reduce_Add_F32x4 (Value));
    function Compress (Value : F32x4; Mask : Mask_32x4) return F32x4 is
       Map : Lane_Map_32x4;
@@ -2948,9 +3028,11 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_F32x4 (Value, Map);
    end Expand;
 
-   function Native_Reduce_Min_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fminnm s0, s0, s1", "str s0, [%0]");
+   function Native_Reduce_Min_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov %1.16b, %3.16b" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[1]" & ASCII.LF & ASCII.HT & "fminnm %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[2]" & ASCII.LF & ASCII.HT & "fminnm %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[3]" & ASCII.LF & ASCII.HT & "fminnm %s1, %s1, %s2", "fmov %s0, %s1");
+   pragma Inline_Always (Native_Reduce_Min_Number_F32x4);
    function Reduce_Min_Number (Value : F32x4) return F32 is (Native_Reduce_Min_Number_F32x4 (Value));
-   function Native_Reduce_Max_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1" & ASCII.LF & ASCII.HT & "dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & "fmaxnm s0, s0, s1", "str s0, [%0]");
+   function Native_Reduce_Max_Number_F32x4 is new NEON_Float_Reduce_128 (F32x4, F32, "mov %1.16b, %3.16b" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[1]" & ASCII.LF & ASCII.HT & "fmaxnm %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[2]" & ASCII.LF & ASCII.HT & "fmaxnm %s1, %s1, %s2" & ASCII.LF & ASCII.HT & "dup %2.4s, %3.s[3]" & ASCII.LF & ASCII.HT & "fmaxnm %s1, %s1, %s2", "fmov %s0, %s1");
+   pragma Inline_Always (Native_Reduce_Max_Number_F32x4);
    function Reduce_Max_Number (Value : F32x4) return F32 is (Native_Reduce_Max_Number_F32x4 (Value));
    function Is_Aligned_16 (Data : F32_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -2959,14 +3041,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : F32_Array; Start : Natural) return F32x4 is
-      Result : F32x4;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, F32x4);
+      Source : constant Lane_Values_F32x4 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_F32x4'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is
+      function To_Machine is new Ada.Unchecked_Conversion (F32x4, Machine_Vector);
+      Target : Lane_Values_F32x4 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_F32x4'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : F32_Array; Start : Natural) return F32x4 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out F32_Array; Start : Natural; Value : F32x4) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;
@@ -3062,7 +3152,8 @@ package body Flyology_SIMD.Backends.Native is
    function Native_Select_F64x2 is new NEON_Select_128 (F64x2, "dup %0.2d, %1", "cmtst %0.2d, %0.2d, %2.2d");
    pragma Inline_Always (Native_Select_F64x2);
    function Select_Value (Mask : Mask_64x2; If_True, If_False : F64x2) return F64x2 is (Native_Select_F64x2 (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_64x2, If_True, If_False));
-   function Native_Reduce_Add_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "movi v0.16b, #0" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[0]" & ASCII.LF & ASCII.HT & "fadd d0, d0, d1" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fadd d0, d0, d1", "str d0, [%0]");
+   function Native_Reduce_Add_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "movi %1.16b, #0" & ASCII.LF & ASCII.HT & "dup %2.2d, %3.d[0]" & ASCII.LF & ASCII.HT & "fadd %d1, %d1, %d2" & ASCII.LF & ASCII.HT & "dup %2.2d, %3.d[1]" & ASCII.LF & ASCII.HT & "fadd %d1, %d1, %d2", "fmov %d0, %d1");
+   pragma Inline_Always (Native_Reduce_Add_F64x2);
    function Reduce_Add (Value : F64x2) return F64 is (Native_Reduce_Add_F64x2 (Value));
    function Compress (Value : F64x2; Mask : Mask_64x2) return F64x2 is
       Map : Lane_Map_64x2;
@@ -3109,9 +3200,11 @@ package body Flyology_SIMD.Backends.Native is
       return Native_Permute_F64x2 (Value, Map);
    end Expand;
 
-   function Native_Reduce_Min_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fminnm d0, d0, d1", "str d0, [%0]");
+   function Native_Reduce_Min_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov %1.16b, %3.16b" & ASCII.LF & ASCII.HT & "dup %2.2d, %3.d[1]" & ASCII.LF & ASCII.HT & "fminnm %d1, %d1, %d2", "fmov %d0, %d1");
+   pragma Inline_Always (Native_Reduce_Min_Number_F64x2);
    function Reduce_Min_Number (Value : F64x2) return F64 is (Native_Reduce_Min_Number_F64x2 (Value));
-   function Native_Reduce_Max_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & "dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & "fmaxnm d0, d0, d1", "str d0, [%0]");
+   function Native_Reduce_Max_Number_F64x2 is new NEON_Float_Reduce_128 (F64x2, F64, "mov %1.16b, %3.16b" & ASCII.LF & ASCII.HT & "dup %2.2d, %3.d[1]" & ASCII.LF & ASCII.HT & "fmaxnm %d1, %d1, %d2", "fmov %d0, %d1");
+   pragma Inline_Always (Native_Reduce_Max_Number_F64x2);
    function Reduce_Max_Number (Value : F64x2) return F64 is (Native_Reduce_Max_Number_F64x2 (Value));
    function Is_Aligned_16 (Data : F64_Array; Start : Natural) return Boolean is
      (Start in Data'Range and then
@@ -3120,14 +3213,22 @@ package body Flyology_SIMD.Backends.Native is
    function Load (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store;
    function Load_Unaligned (Data : F64_Array; Start : Natural) return F64x2 is
-      Result : F64x2;
+      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, F64x2);
+      Source : constant Lane_Values_F64x2 with Import, Address => Data (Start)'Address;
+      Result : Machine_Vector;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Result'Address), System.Address'Asm_Input ("r", Data (Start)'Address)], Clobber => "v0,memory", Volatile => True);
-      return Result;
+      Asm (Template => "ldr %q0, %1",
+           Outputs => Machine_Vector'Asm_Output ("=w", Result),
+           Inputs => Lane_Values_F64x2'Asm_Input ("Q", Source));
+      return To_Vector (Result);
    end Load_Unaligned;
    procedure Store_Unaligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is
+      function To_Machine is new Ada.Unchecked_Conversion (F64x2, Machine_Vector);
+      Target : Lane_Values_F64x2 with Import, Address => Data (Start)'Address;
    begin
-      Asm (Template => "ldr q0, [%1]" & ASCII.LF & ASCII.HT & "str q0, [%0]", Inputs => [System.Address'Asm_Input ("r", Data (Start)'Address), System.Address'Asm_Input ("r", Value'Address)], Clobber => "v0,memory", Volatile => True);
+      Asm (Template => "str %q1, %0",
+           Outputs => Lane_Values_F64x2'Asm_Output ("=Q", Target),
+           Inputs => Machine_Vector'Asm_Input ("w", To_Machine (Value)));
    end Store_Unaligned;
    function Load_Aligned (Data : F64_Array; Start : Natural) return F64x2 is (Load_Unaligned (Data, Start));
    procedure Store_Aligned (Data : in out F64_Array; Start : Natural; Value : F64x2) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;

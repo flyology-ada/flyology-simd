@@ -7,6 +7,11 @@ import re
 from neon_operands import registerise_instantiations, required_variants
 from sse_operands import registerise_instantiations as registerise_sse
 from sse_operands import required_variants as required_sse_variants
+from sse_operands import (
+    reduce_variant_name,
+    registerise_reduce,
+    required_reduce_variants,
+)
 from generate_full_family import (
     FLOAT_TO_INTEGER_CONVERSIONS,
     BIT_CAST_GROUPS,
@@ -99,9 +104,18 @@ def contract() -> str:
         r"Widen_Low|Widen_High|Narrow_Truncate|Narrow_Saturate|"
         r"Convert_Saturate|Convert_Truncate|Convert_Nearest|Convert_To_Float|"
         r"Bit_Cast|Table_Lookup|"
-        r"Mask_From_Bit_Mask|To_Bit_Mask|Mask_And|Mask_Or|Mask_Xor|Mask_Not"
+        r"Mask_From_Bit_Mask|To_Bit_Mask|Mask_And|Mask_Or|Mask_Xor|Mask_Not|"
+        r"Reduce_Add_Wrap|Reduce_Add|Reduce_Min_Number|Reduce_Max_Number|"
+        r"Reduce_Min|Reduce_Max|"
+        r"Load|Store|Load_Unaligned|Store_Unaligned|Load_Aligned|Store_Aligned"
         r")\b[^\n]*?)(;)$",
-        r"\1 with Inline_Always\2",
+        #  A declaration that already carries an aspect gets another item on the
+        #  same clause; one without gets a clause of its own.
+        lambda match: (
+            match.group(1)
+            + (", Inline_Always" if " with " in match.group(1) else " with Inline_Always")
+            + match.group(2)
+        ),
         result,
         flags=re.MULTILINE,
     )
@@ -655,8 +669,10 @@ def neon_helpers() -> list[str]:
         "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
         "      Result : Machine_Vector;",
         "   begin",
+        '      pragma Warnings (Off, "code statement with no inputs*");',
         '      Asm (Template => "movi %0.16b, #0",',
         '           Outputs => Machine_Vector\'Asm_Output ("=w", Result));',
+        '      pragma Warnings (On, "code statement with no inputs*");',
         "      return To_Vector (Result);",
         "   end NEON_Zero_128;",
         "",
@@ -694,14 +710,18 @@ def neon_helpers() -> list[str]:
         "      type Vector_Type is private;",
         "      type Scalar_Type is private;",
         "      Instruction : String;",
-        "      Store_Instruction : String;",
+        "      Extract_Instruction : String;",
         "   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
         "   function NEON_Integer_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
         "      Result : Scalar_Type;",
+        "      Folded : Machine_Vector;",
+        "      Spare : Machine_Vector;",
+        "      Extra : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
+        "      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,",
+        "           Outputs => [Scalar_Type'Asm_Output (\"=r\", Result), Machine_Vector'Asm_Output (\"=&w\", Folded), Machine_Vector'Asm_Output (\"=&w\", Spare), Machine_Vector'Asm_Output (\"=&w\", Extra)],",
+        "           Inputs => Machine_Vector'Asm_Input (\"w\", To_Machine (Value)));",
         "      return Result;",
         "   end NEON_Integer_Reduce_128;",
         "",
@@ -709,14 +729,17 @@ def neon_helpers() -> list[str]:
         "      type Vector_Type is private;",
         "      type Scalar_Type is private;",
         "      Instruction : String;",
-        "      Store_Instruction : String;",
+        "      Extract_Instruction : String;",
         "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
         "   function NEON_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
+        "      function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
         "      Result : Scalar_Type;",
+        "      Folded : Machine_Vector;",
+        "      Spare : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction,",
-        "           Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)],",
-        "           Clobber => \"v0,v1,v2,memory\", Volatile => True);",
+        "      Asm (Template => Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,",
+        "           Outputs => [Scalar_Type'Asm_Output (\"=w\", Result), Machine_Vector'Asm_Output (\"=&w\", Folded), Machine_Vector'Asm_Output (\"=&w\", Spare)],",
+        "           Inputs => Machine_Vector'Asm_Input (\"w\", To_Machine (Value)));",
         "      return Result;",
         "   end NEON_Float_Reduce_128;",
         "",
@@ -963,7 +986,6 @@ def neon_body() -> str:
             for byte in range(bits // 8)
         )
         out += [
-            f"   Weights_{bits}x{lanes} : aliased constant {vals} := [{', '.join(str(1 << n) for n in range(lanes))}];",
             f"   Weights_Vector_{bits}x{lanes} : constant Machine_Vector := [{weight_bytes}];",
         ]
     out.append("")
@@ -1221,26 +1243,34 @@ def neon_body() -> str:
             ),
         ]
         scalar_lane = {8: "b", 16: "h", 32: "s", 64: "d"}[bits]
-        store = f"str {scalar_lane}0, [%0]"
+        #  The reduction folds the input (%3) into %1 and the extraction moves
+        #  the surviving lane into the scalar result (%0); %2 is a spare.
+        move = "x" if bits == 64 else "w"
+        store = f"umov %{move}0, %1.{scalar_lane}[0]"
         if bits < 64:
             reduce_instructions = {
-                "Reduce_Add_Wrap": f"addv {scalar_lane}0, v0.{shape}",
-                "Reduce_Min": f"{prefix}minv {scalar_lane}0, v0.{shape}",
-                "Reduce_Max": f"{prefix}maxv {scalar_lane}0, v0.{shape}",
+                "Reduce_Add_Wrap": f"addv %{scalar_lane}1, %4.{shape}",
+                "Reduce_Min": f"{prefix}minv %{scalar_lane}1, %4.{shape}",
+                "Reduce_Max": f"{prefix}maxv %{scalar_lane}1, %4.{shape}",
             }
         else:
+            #  No 64-bit lane reduction exists, so the pair is folded by hand:
+            #  %2 takes the high lane, %3 the comparison, and %1 starts as the
+            #  input because the select writes its own destination.
             compare = "cmgt" if signed else "cmhi"
             reduce_instructions = {
-                "Reduce_Add_Wrap": "addp d0, v0.2d",
+                "Reduce_Add_Wrap": "addp %d1, %4.2d",
                 "Reduce_Min": (
-                    "dup v1.2d, v0.d[1]\n      "
-                    + f"{compare} v2.2d, v0.2d, v1.2d\n      "
-                    + "bit v0.16b, v1.16b, v2.16b"
+                    "dup %2.2d, %4.d[1]\n      "
+                    + f"{compare} %3.2d, %4.2d, %2.2d\n      "
+                    + "mov %1.16b, %4.16b\n      "
+                    + "bit %1.16b, %2.16b, %3.16b"
                 ),
                 "Reduce_Max": (
-                    "dup v1.2d, v0.d[1]\n      "
-                    + f"{compare} v2.2d, v0.2d, v1.2d\n      "
-                    + "bif v0.16b, v1.16b, v2.16b"
+                    "dup %2.2d, %4.d[1]\n      "
+                    + f"{compare} %3.2d, %4.2d, %2.2d\n      "
+                    + "mov %1.16b, %4.16b\n      "
+                    + "bif %1.16b, %2.16b, %3.16b"
                 ),
             }
         for name, instruction in reduce_instructions.items():
@@ -1250,6 +1280,8 @@ def neon_body() -> str:
             native = f"Native_{name}_{vector}"
             out += [
                 f"   function {native} is new NEON_Integer_Reduce_128 ({vector}, {scalar}, \"{ada_instruction}\", \"{store}\");",
+                *([f"   pragma Inline_Always ({native});"]
+                  if reduce_is_short(ada_instruction, store) else []),
                 f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value));",
             ]
         out += memory_body(vector, arr, count)
@@ -1260,17 +1292,16 @@ def neon_body() -> str:
         shape = f"{lanes}{'s' if bits == 32 else 'd'}"
         weight = f"Weights_Vector_{bits}x{lanes}"
         add_lane = "s" if bits == 32 else "d"
-        add_steps = [
-            '"mov v2.16b, v0.16b"',
-            '"movi v0.16b, #0"',
-        ]
+        #  Lanes are folded in index order so the rounding matches the scalar
+        #  reference exactly. %1 accumulates, %2 stages one lane, %3 is input.
+        add_steps = ['"movi %1.16b, #0"']
         for lane in range(lanes):
             add_steps.extend([
-                f'"dup v1.{shape}, v2.{add_lane}[{lane}]"',
-                f'"fadd {add_lane}0, {add_lane}0, {add_lane}1"',
+                f'"dup %2.{shape}, %3.{add_lane}[{lane}]"',
+                f'"fadd %{add_lane}1, %{add_lane}1, %{add_lane}2"',
             ])
         add_instruction = " & ASCII.LF & ASCII.HT & ".join(add_steps)
-        add_store = f"str {add_lane}0, [%0]"
+        add_store = f"fmov %{add_lane}0, %{add_lane}1"
         for name, op in (("Add", "fadd"), ("Subtract", "fsub"), ("Multiply", "fmul"), ("Divide", "fdiv"), ("Min_Number", "fminnm"), ("Max_Number", "fmaxnm"), ("Interleave_Low", "zip1"), ("Interleave_High", "zip2"), ("Deinterleave_Even", "uzp1"), ("Deinterleave_Odd", "uzp2")):
             instruction = f"{op} v0.{shape}, v0.{shape}, v1.{shape}"
             out += [f"   function Native_{name}_{vector} is new NEON_Binary_128 ({vector}, \"{instruction}\");", f"   function {name} (Left, Right : {vector}) return {vector} is (Native_{name}_{vector} (Left, Right));"]
@@ -1305,31 +1336,25 @@ def neon_body() -> str:
             f"   pragma Inline_Always (Native_Select_{vector});",
             f"   function Select_Value (Mask : {mask}; If_True, If_False : {vector}) return {vector} is (Native_Select_{vector} (Interfaces.Unsigned_64 (Mask.Bits), Weights_Vector_{bits}x{lanes}, If_True, If_False));",
             f"   function Native_Reduce_Add_{vector} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {add_instruction}, \"{add_store}\");",
+            *([f"   pragma Inline_Always (Native_Reduce_Add_{vector});"]
+              if reduce_is_short(add_instruction, add_store) else []),
             f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
         ]
         out += native_compress_expand(vector, bits, lanes)
         for name, opcode in (("Reduce_Min_Number", "fminnm"), ("Reduce_Max_Number", "fmaxnm")):
-            if bits == 32:
-                instruction = (
-                    '"mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & '
-                    '"dup v1.4s, v2.s[1]" & ASCII.LF & ASCII.HT & '
-                    f'"{opcode} s0, s0, s1" & ASCII.LF & ASCII.HT & '
-                    '"dup v1.4s, v2.s[2]" & ASCII.LF & ASCII.HT & '
-                    f'"{opcode} s0, s0, s1" & ASCII.LF & ASCII.HT & '
-                    '"dup v1.4s, v2.s[3]" & ASCII.LF & ASCII.HT & '
-                    f'"{opcode} s0, s0, s1"'
-                )
-                store = "str s0, [%0]"
-            else:
-                instruction = (
-                    '"mov v2.16b, v0.16b" & ASCII.LF & ASCII.HT & '
-                    '"dup v1.2d, v2.d[1]" & ASCII.LF & ASCII.HT & '
-                    f'"{opcode} d0, d0, d1"'
-                )
-                store = "str d0, [%0]"
+            steps = ['"mov %1.16b, %3.16b"']
+            for lane in range(1, lanes):
+                steps.extend([
+                    f'"dup %2.{shape}, %3.{add_lane}[{lane}]"',
+                    f'"{opcode} %{add_lane}1, %{add_lane}1, %{add_lane}2"',
+                ])
+            instruction = " & ASCII.LF & ASCII.HT & ".join(steps)
+            store = f"fmov %{add_lane}0, %{add_lane}1"
             native = f"Native_{name}_{vector}"
             out += [
                 f"   function {native} is new NEON_Float_Reduce_128 ({vector}, {scalar}, {instruction}, \"{store}\");",
+                *([f"   pragma Inline_Always ({native});"]
+                  if reduce_is_short(instruction, store) else []),
                 f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value));",
             ]
         out += memory_body(vector, arr, count)
@@ -1343,6 +1368,7 @@ def neon_body() -> str:
 
 
 def memory_body(vector: str, arr: str, count: str) -> list[str]:
+    vals = lane_values(vector)
     scalar = next(item[1] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
     bits = next(item[2] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
     lanes = 128 // bits
@@ -1356,14 +1382,22 @@ def memory_body(vector: str, arr: str, count: str) -> list[str]:
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;",
         f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is",
-        f"      Result : {vector};",
+        f"      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, {vector});",
+        f"      Source : constant {vals} with Import, Address => Data (Start)'Address;",
+        "      Result : Machine_Vector;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"str q0, [%0]\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"v0,memory\", Volatile => True);",
-        "      return Result;",
+        "      Asm (Template => \"ldr %q0, %1\",",
+        "           Outputs => Machine_Vector'Asm_Output (\"=w\", Result),",
+        f"           Inputs => {vals}'Asm_Input (\"Q\", Source));",
+        "      return To_Vector (Result);",
         "   end Load_Unaligned;",
         f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
+        f"      function To_Machine is new Ada.Unchecked_Conversion ({vector}, Machine_Vector);",
+        f"      Target : {vals} with Import, Address => Data (Start)'Address;",
         "   begin",
-        "      Asm (Template => \"ldr q0, [%1]\" & ASCII.LF & ASCII.HT & \"str q0, [%0]\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"v0,memory\", Volatile => True);",
+        "      Asm (Template => \"str %q1, %0\",",
+        f"           Outputs => {vals}'Asm_Output (\"=Q\", Target),",
+        "           Inputs => Machine_Vector'Asm_Input (\"w\", To_Machine (Value)));",
         "   end Store_Unaligned;",
         f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store_Aligned;",
@@ -1401,6 +1435,77 @@ def sse_register_generic(
         f"   end {name};",
         "",
     ]
+
+
+#  A reduction ends a chain rather than continuing one, so it earns the aspect
+#  on its own terms: inlined, the value arrives in the vector register the
+#  caller already holds it in, and the ABI never has to rebuild it from halves.
+#  A long fold would pay that rebuild back in code size at every call site.
+REDUCE_INLINE_LIMIT = 8
+
+
+def reduce_is_short(*templates: str) -> bool:
+    """Report whether a reduction is short enough to inline at every call."""
+    total = 0
+    for each in templates:
+        normalised = each.replace('" & ASCII.LF & ASCII.HT & "', "\n")
+        normalised = normalised.replace(" & ASCII.LF & ASCII.HT & ", "\n")
+        total += len([line for line in normalised.split("\n") if line.strip()])
+    return total <= REDUCE_INLINE_LIMIT
+
+
+def sse_reduce_generic(
+    generic: str, scratch: int, sign: bool, result_constraint: str
+) -> list[str]:
+    """Emit one shape of a register-operand reduction generic.
+
+    The value arrives in a register and the fold runs entirely in the scratch
+    operands, so nothing about the reduction reaches memory.
+    """
+    name = reduce_variant_name(generic, scratch, sign)
+    signature = (
+        f"(Value : Vector_Type{'; Sign : Machine_Vector' if sign else ''})"
+        " return Scalar_Type"
+    )
+    scratch_names = [f"Scratch_{index}" for index in range(1, scratch + 1)]
+    outputs = [f"Scalar_Type'Asm_Output (\"={result_constraint}\", Result)"] + [
+        f"Machine_Vector'Asm_Output (\"=&x\", {each})" for each in scratch_names
+    ]
+    inputs = ["Machine_Vector'Asm_Input (\"x\", To_Machine (Value))"]
+    if sign:
+        inputs.append("Machine_Vector'Asm_Input (\"x\", Sign)")
+    return [
+        "   generic",
+        "      type Vector_Type is private;",
+        "      type Scalar_Type is private;",
+        "      Instruction : String;",
+        "      Extract_Instruction : String;",
+        f"   function {name} {signature};",
+        f"   function {name} {signature} is",
+        "      function To_Machine is new"
+        " Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);",
+        "      Result : Scalar_Type;",
+        *[f"      {each} : Machine_Vector;" for each in scratch_names],
+        "   begin",
+        "      Asm (Template =>"
+        " Instruction & ASCII.LF & ASCII.HT & Extract_Instruction,",
+        f"           Outputs => [{', '.join(outputs)}],",
+        f"           Inputs => [{', '.join(inputs)}]);",
+        "      return Result;",
+        f"   end {name};",
+        "",
+    ]
+
+
+def sse_reduce_generics() -> list[str]:
+    out: list[str] = []
+    for generic, constraint in (
+        ("SSE2_Integer_Reduce_128", "r"),
+        ("SSE2_Float_Reduce_128", "x"),
+    ):
+        for scratch, sign in required_reduce_variants(generic):
+            out += sse_reduce_generic(generic, scratch, sign, constraint)
+    return out
 
 
 def sse_register_generics() -> list[str]:
@@ -1471,18 +1576,11 @@ def x86_helpers() -> list[str]:
         "   pragma Machine_Attribute (Machine_Vector, \"vector_type\");",
         "",
         "   Sign_Vector_8 : constant Machine_Vector := [others => 16#80#];",
-        "   Sign_8 : aliased constant Lane_Values_8x16 := [others => 16#80#];",
-        "   Sign_16 : aliased constant Lane_Values_8x16 := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];",
         "   Sign_Vector_16 : constant Machine_Vector := [0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#, 0, 16#80#];",
-        "   Sign_32 : aliased constant Lane_Values_8x16 := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];",
         "   Sign_Vector_32 : constant Machine_Vector := [0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#, 0, 0, 0, 16#80#];",
-        "   Weights_X86_8 : aliased constant Lane_Values_8x16 := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
         "   Weights_X86_Vector_8 : constant Machine_Vector := [1, 2, 4, 8, 16, 32, 64, 128, 1, 2, 4, 8, 16, 32, 64, 128];",
-        "   Weights_X86_16 : aliased constant Lane_Values_U16x8 := [1, 2, 4, 8, 16, 32, 64, 128];",
         "   Weights_X86_Vector_16 : constant Machine_Vector := [1, 0, 2, 0, 4, 0, 8, 0, 16, 0, 32, 0, 64, 0, 128, 0];",
-        "   Weights_X86_32 : aliased constant Lane_Values_U32x4 := [1, 2, 4, 8];",
         "   Weights_X86_Vector_32 : constant Machine_Vector := [1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 8, 0, 0, 0];",
-        "   Weights_X86_64 : aliased constant Lane_Values_U64x2 := [1, 2];",
         "   Weights_X86_Vector_64 : constant Machine_Vector := [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];",
         "",
         "   generic",
@@ -1516,8 +1614,10 @@ def x86_helpers() -> list[str]:
         "      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);",
         "      Result : Machine_Vector;",
         "   begin",
+        '      pragma Warnings (Off, "code statement with no inputs*");',
         '      Asm (Template => "pxor %0, %0",',
         '           Outputs => Machine_Vector\'Asm_Output ("=x", Result));',
+        '      pragma Warnings (On, "code statement with no inputs*");',
         "      return To_Vector (Result);",
         "   end SSE2_Zero_128;",
         "",
@@ -1620,42 +1720,44 @@ def x86_helpers() -> list[str]:
         "      return To_Vector (Result);",
         "   end SSE2_Select_128;",
         "",
-        "   generic",
-        "      type Vector_Type is private;",
-        "      type Scalar_Type is private;",
-        "      Instruction : String;",
-        "      Store_Instruction : String;",
-        "      Load_Sign : Boolean;",
-        "   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type;",
-        "   function SSE2_Integer_Reduce_128 (Value : Vector_Type; Sign : System.Address) return Scalar_Type is",
-        "      Result : Scalar_Type;",
-        "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & (if Load_Sign then \"movdqu (%2), %%xmm7\" & ASCII.LF & ASCII.HT else \"\") & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address), System.Address'Asm_Input (\"r\", Sign)], Clobber => \"eax,xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Integer_Reduce_128;",
-        "",
-        "   generic",
-        "      type Vector_Type is private;",
-        "      type Scalar_Type is private;",
-        "      Instruction : String;",
-        "      Store_Instruction : String;",
-        "   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type;",
-        "   function SSE2_Float_Reduce_128 (Value : Vector_Type) return Scalar_Type is",
-        "      Result : Scalar_Type;",
-        "   begin",
-        "      Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & Instruction & ASCII.LF & ASCII.HT & Store_Instruction, Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7,memory\", Volatile => True);",
-        "      return Result;",
-        "   end SSE2_Float_Reduce_128;",
         "",
     ]
 
 
 def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
+    vals = lane_values(vector)
     scalar = next(item[1] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
     bits = next(item[2] for item in INTEGER_TYPES + FLOAT_TYPES if item[0] == vector)
     lanes = 128 // bits
     idx = lane_index(bits, lanes)
     zero = "0.0" if scalar in {"F32", "F64"} else "0"
+
+    def transfer(name, move, direction):
+        """A complete-buffer move between the array and a vector register."""
+        if direction == "load":
+            return [
+                f"   function {name} (Data : {arr}; Start : Natural) return {vector} is",
+                f"      function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, {vector});",
+                f"      Source : constant {vals} with Import, Address => Data (Start)'Address;",
+                "      Result : Machine_Vector;",
+                "   begin",
+                f"      Asm (Template => \"{move} %1, %0\",",
+                "           Outputs => Machine_Vector'Asm_Output (\"=x\", Result),",
+                f"           Inputs => {vals}'Asm_Input (\"m\", Source));",
+                "      return To_Vector (Result);",
+                f"   end {name};",
+            ]
+        return [
+            f"   procedure {name} (Data : in out {arr}; Start : Natural; Value : {vector}) is",
+            f"      function To_Machine is new Ada.Unchecked_Conversion ({vector}, Machine_Vector);",
+            f"      Target : {vals} with Import, Address => Data (Start)'Address;",
+            "   begin",
+            f"      Asm (Template => \"{move} %1, %0\",",
+            f"           Outputs => {vals}'Asm_Output (\"=m\", Target),",
+            "           Inputs => Machine_Vector'Asm_Input (\"x\", To_Machine (Value)));",
+            f"   end {name};",
+        ]
+
     return [
         f"   function Is_Aligned_16 (Data : {arr}; Start : Natural) return Boolean is\n"
         "     (Start in Data'Range and then\n"
@@ -1663,16 +1765,10 @@ def x86_memory_body(vector: str, arr: str, count: str) -> list[str]:
         "        System.Storage_Elements.Integer_Address (16) = 0);",
         f"   function Load (Data : {arr}; Start : Natural) return {vector} is (Load_Unaligned (Data, Start));",
         f"   procedure Store (Data : in out {arr}; Start : Natural; Value : {vector}) is begin Store_Unaligned (Data, Start, Value); end Store;",
-        f"   function Load_Unaligned (Data : {arr}; Start : Natural) return {vector} is",
-        f"      Result : {vector};",
-        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Unaligned;",
-        f"   procedure Store_Unaligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
-        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Unaligned;",
-        f"   function Load_Aligned (Data : {arr}; Start : Natural) return {vector} is",
-        f"      Result : {vector};",
-        "   begin Asm (Template => \"movdqa (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqu %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Result'Address), System.Address'Asm_Input (\"r\", Data (Start)'Address)], Clobber => \"xmm0,memory\", Volatile => True); return Result; end Load_Aligned;",
-        f"   procedure Store_Aligned (Data : in out {arr}; Start : Natural; Value : {vector}) is",
-        "   begin Asm (Template => \"movdqu (%1), %%xmm0\" & ASCII.LF & ASCII.HT & \"movdqa %%xmm0, (%0)\", Inputs => [System.Address'Asm_Input (\"r\", Data (Start)'Address), System.Address'Asm_Input (\"r\", Value'Address)], Clobber => \"xmm0,memory\", Volatile => True); end Store_Aligned;",
+        *transfer("Load_Unaligned", "movdqu", "load"),
+        *transfer("Store_Unaligned", "movdqu", "store"),
+        *transfer("Load_Aligned", "movdqa", "load"),
+        *transfer("Store_Aligned", "movdqa", "store"),
         *direct_partial_memory_body(vector, arr, count, idx, zero),
     ]
 
@@ -2113,10 +2209,12 @@ def x86_float_reduce_minmax_instruction(
 ) -> str:
     """Apply the exact scalar min/max rule from lane 0 in ascending order."""
     shift = 4 if bits == 32 else 8
-    steps: list[str] = []
+    #  The comparison needs every register below XMM8, so the untouched value
+    #  is kept there rather than re-read for each lane.
+    steps: list[str] = ["movdqa %%xmm0, %%xmm8"]
     for lane in range(1, lanes):
         steps += [
-            "movdqu (%1), %%xmm1",
+            "movdqa %%xmm8, %%xmm1",
             f"psrldq ${lane * shift}, %%xmm1",
             x86_float_minmax_instruction(bits, maximum),
         ]
@@ -2159,11 +2257,16 @@ def x86_reduce_extreme_instruction(
 
 
 def x86_reduce_store(bits: int) -> str:
+    """Return the sequence that moves the folded lane into the result.
+
+    The byte form has to clear the lanes ``movd`` brings along; ``pextrw``
+    already zero-extends, and the wider forms move the whole scalar.
+    """
     return {
-        8: "movd %%xmm0, %%eax\nmovb %%al, (%0)",
-        16: "pextrw $0, %%xmm0, %%eax\nmovw %%ax, (%0)",
-        32: "movd %%xmm0, (%0)",
-        64: "movq %%xmm0, (%0)",
+        8: "movd %%xmm0, %k0\nmovzbl %b0, %k0",
+        16: "pextrw $0, %%xmm0, %k0",
+        32: "movd %%xmm0, %k0",
+        64: "movq %%xmm0, %q0",
     }[bits]
 
 
@@ -2802,22 +2905,29 @@ def x86_body() -> str:
                 f"   function Max (Left, Right : {vector}) return {vector} is (Select_Value (Greater_Than (Left, Right), Left, Right));",
             ]
         reduction_sign = (
-            "Sign_8'Address" if bits == 8
-            else "Sign_16'Address" if bits == 16
-            else "Sign_32'Address"
+            "Sign_Vector_8" if bits == 8
+            else "Sign_Vector_16" if bits == 16
+            else "Sign_Vector_32"
         )
         reduction_compare = (signed_gt if signed else unsigned_gt)[bits]
         native_min = "pminsw" if signed and bits == 16 else None
         native_max = "pmaxsw" if signed and bits == 16 else None
-        for name, instruction, load_sign in (
-            ("Reduce_Add_Wrap", x86_reduce_add_instruction(bits), False),
-            ("Reduce_Min", x86_reduce_extreme_instruction(bits, reduction_compare, False, native_min), (not signed or bits == 64) and native_min is None),
-            ("Reduce_Max", x86_reduce_extreme_instruction(bits, reduction_compare, True, native_max), (not signed or bits == 64) and native_max is None),
+        for name, instruction in (
+            ("Reduce_Add_Wrap", x86_reduce_add_instruction(bits)),
+            ("Reduce_Min", x86_reduce_extreme_instruction(bits, reduction_compare, False, native_min)),
+            ("Reduce_Max", x86_reduce_extreme_instruction(bits, reduction_compare, True, native_max)),
         ):
             native = f"Native_{name}_{vector}"
+            body, extract, scratch, sign_used = registerise_reduce(
+                "SSE2_Integer_Reduce_128", instruction, x86_reduce_store(bits)
+            )
+            variant = reduce_variant_name("SSE2_Integer_Reduce_128", scratch, sign_used)
+            arguments = f"Value{f', {reduction_sign}' if sign_used else ''}"
             out += [
-                f"   function {native} is new SSE2_Integer_Reduce_128 ({vector}, {scalar}, \"{x86_ada_instruction(instruction)}\", \"{x86_ada_instruction(x86_reduce_store(bits))}\", {str(load_sign)});",
-                f"   function {name} (Value : {vector}) return {scalar} is ({native} (Value, {reduction_sign}));",
+                f"   function {native} is new {variant} ({vector}, {scalar}, \"{x86_ada_instruction(body)}\", \"{x86_ada_instruction(extract)}\");",
+                *([f"   pragma Inline_Always ({native});"]
+                  if reduce_is_short(body, extract) else []),
+                f"   function {name} (Value : {vector}) return {scalar} is ({native} ({arguments}));",
             ]
         out += x86_memory_body(vector, arr, count)
 
@@ -2848,7 +2958,7 @@ def x86_body() -> str:
         reduce_instruction = x86_ada_instruction(
             x86_float_reduce_add_instruction(bits, lanes)
         )
-        reduce_store = "movss %%xmm0, (%0)" if bits == 32 else "movsd %%xmm0, (%0)"
+        reduce_store = "movaps %%xmm0, %0"
         min_instruction = x86_ada_instruction(
             x86_float_minmax_instruction(bits, maximum=False)
         )
@@ -2861,6 +2971,20 @@ def x86_body() -> str:
         reduce_max_instruction = x86_ada_instruction(
             x86_float_reduce_minmax_instruction(bits, lanes, maximum=True)
         )
+        float_reduce = {}
+        for label, raw in (
+            ("reduce_instruction", x86_float_reduce_add_instruction(bits, lanes)),
+            ("reduce_min_instruction", x86_float_reduce_minmax_instruction(bits, lanes, maximum=False)),
+            ("reduce_max_instruction", x86_float_reduce_minmax_instruction(bits, lanes, maximum=True)),
+        ):
+            fold, extract, scratch, _ = registerise_reduce(
+                "SSE2_Float_Reduce_128", raw, reduce_store, signed_table=False
+            )
+            float_reduce[label] = (
+                reduce_variant_name("SSE2_Float_Reduce_128", scratch, False),
+                x86_ada_instruction(fold),
+                x86_ada_instruction(extract),
+            )
         out += [
             f"   function Greater_Than (Left, Right : {vector}) return {mask} is (Less_Than (Left => Right, Right => Left));",
             f"   function Greater_Equal (Left, Right : {vector}) return {mask} is (Less_Equal (Left => Right, Right => Left));",
@@ -2873,11 +2997,17 @@ def x86_body() -> str:
             f"   function Min_Number (Left, Right : {vector}) return {vector} is (Native_Min_Number_{vector} (Left, Right));",
             f"   function Native_Max_Number_{vector} is new SSE2_Binary_128 ({vector}, \"{max_instruction}\");",
             f"   function Max_Number (Left, Right : {vector}) return {vector} is (Native_Max_Number_{vector} (Left, Right));",
-            f"   function Native_Reduce_Add_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_instruction}\", \"{reduce_store}\");",
+            f"   function Native_Reduce_Add_{vector} is new {float_reduce['reduce_instruction'][0]} ({vector}, {scalar}, \"{float_reduce['reduce_instruction'][1]}\", \"{float_reduce['reduce_instruction'][2]}\");",
+            *([f"   pragma Inline_Always (Native_Reduce_Add_{vector});"]
+              if reduce_is_short(float_reduce['reduce_instruction'][1], float_reduce['reduce_instruction'][2]) else []),
             f"   function Reduce_Add (Value : {vector}) return {scalar} is (Native_Reduce_Add_{vector} (Value));",
-            f"   function Native_Reduce_Min_Number_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_min_instruction}\", \"{reduce_store}\");",
+            f"   function Native_Reduce_Min_Number_{vector} is new {float_reduce['reduce_min_instruction'][0]} ({vector}, {scalar}, \"{float_reduce['reduce_min_instruction'][1]}\", \"{float_reduce['reduce_min_instruction'][2]}\");",
+            *([f"   pragma Inline_Always (Native_Reduce_Min_Number_{vector});"]
+              if reduce_is_short(float_reduce['reduce_min_instruction'][1], float_reduce['reduce_min_instruction'][2]) else []),
             f"   function Reduce_Min_Number (Value : {vector}) return {scalar} is (Native_Reduce_Min_Number_{vector} (Value));",
-            f"   function Native_Reduce_Max_Number_{vector} is new SSE2_Float_Reduce_128 ({vector}, {scalar}, \"{reduce_max_instruction}\", \"{reduce_store}\");",
+            f"   function Native_Reduce_Max_Number_{vector} is new {float_reduce['reduce_max_instruction'][0]} ({vector}, {scalar}, \"{float_reduce['reduce_max_instruction'][1]}\", \"{float_reduce['reduce_max_instruction'][2]}\");",
+            *([f"   pragma Inline_Always (Native_Reduce_Max_Number_{vector});"]
+              if reduce_is_short(float_reduce['reduce_max_instruction'][1], float_reduce['reduce_max_instruction'][2]) else []),
             f"   function Reduce_Max_Number (Value : {vector}) return {scalar} is (Native_Reduce_Max_Number_{vector} (Value));",
         ]
         out += native_permute(vector, bits, lanes)
@@ -2889,7 +3019,11 @@ def x86_body() -> str:
         out += native_mask_body(bits, lanes, storage)
         out += [f"   function Population_Count (Mask : {mask}) return {count} is (Count_Set_Bits (Interfaces.Unsigned_32 (To_Bit_Mask (Mask))));", f"   function First_True (Mask : {mask}) return {count} is (Find_First_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));", f"   function Last_True (Mask : {mask}) return {count} is (Find_Last_Set_Bit (Interfaces.Unsigned_32 (To_Bit_Mask (Mask)), {lanes}));"]
     body = registerise_sse("\n".join(out))
-    return "\n".join(x86_helpers() + sse_register_generics()) + "\n" + body
+    return (
+        "\n".join(x86_helpers() + sse_register_generics() + sse_reduce_generics())
+        + "\n"
+        + body
+    )
 
 
 def complete_memory_test_lines(

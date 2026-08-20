@@ -173,3 +173,51 @@ def _without_duplicate_pragmas(lines: list[str]) -> list[str]:
             continue
         out.append(line)
     return out
+
+
+#  Reduction templates were written against a fixed convention of their own:
+#  %%xmm0 receives the value and carries the running fold, %%xmm7 holds the
+#  sign table when one is needed, and the remaining registers are scratch.
+#  Only the registers a template actually names become operands, so a plain
+#  Reduce_Add asks for two registers where a 64-bit signed extreme asks for
+#  eight.
+_REDUCE_REQUIRED: dict[str, set[tuple[int, bool]]] = {}
+_SIGN_REGISTER = 7
+
+
+def required_reduce_variants(generic: str) -> list[tuple[int, bool]]:
+    return sorted(_REDUCE_REQUIRED.get(generic, set()))
+
+
+def registerise_reduce(
+    generic: str, template: str, extract: str, signed_table: bool = True
+) -> tuple[str, str, int, bool]:
+    """Return the operand form of one reduction, with its variant shape.
+
+    The result is the rewritten instruction sequence, the rewritten extract,
+    the number of scratch registers the variant declares, and whether it reads
+    the sign table.  Floating reductions never bias their lanes, so there the
+    sign register is scratch like any other.
+    """
+    used = {int(match) for match in _XMM.findall(template)}
+    reserved = {_SIGN_REGISTER} if signed_table else set()
+    sign = signed_table and _SIGN_REGISTER in used
+    general = sorted(used - reserved)
+    if 0 not in general:
+        raise ValueError(f"{generic}: reduction never names the value register")
+    slot = {register: index + 1 for index, register in enumerate(general)}
+    scratch = len(general)
+    value_slot = scratch + 1
+    if sign:
+        slot[_SIGN_REGISTER] = value_slot + 1
+
+    def rewrite(text: str) -> str:
+        return _XMM.sub(lambda m: f"%{slot[int(m.group(1))]}", text)
+
+    _REDUCE_REQUIRED.setdefault(generic, set()).add((scratch, sign))
+    seeded = f"movdqa %{value_slot}, %1\n" + rewrite(template)
+    return seeded, rewrite(extract), scratch, sign
+
+
+def reduce_variant_name(generic: str, scratch: int, sign: bool) -> str:
+    return f"{generic}_S{scratch}" + ("_Sign" if sign else "")

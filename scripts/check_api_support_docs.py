@@ -438,14 +438,17 @@ def invalid_support(path: Path) -> list[str]:
                     f"{operation} classifications, found {found}"
                 )
     if path.name == "flyology_simd.ads":
+        #  Each transfer names exactly one instruction per architecture now
+        #  that the value travels in a register rather than through memory.
         for operation in complete_memory_names:
+            neon = "str q" if operation.startswith("Store") else "ldr q"
+            x86 = "movdqa" if operation.endswith("Aligned") else "movdqu"
             blocks = declaration_blocks(text, operation)
             found = sum(
                 "This overload uses the portable scalar implementation" in block
                 and "For the matching Native overload" in block
-                and ("ldr q" in block and "str q" in block)
-                and ("movdqu" in block)
-                and (operation not in {"Load_Aligned", "Store_Aligned"} or "movdqa" in block)
+                and neon in block
+                and x86 in block
                 for block in blocks
             )
             if len(blocks) != 10 or found != 10:
@@ -739,29 +742,29 @@ def invalid_support(path: Path) -> list[str]:
         complete_memory_support = {
             "Load": (
                 "delegates to Load_Unaligned",
-                "loads the array with ldr q and stores the private result with str q",
-                "delegates to Load_Unaligned, which uses two movdqu transfers",
+                "delegates to Load_Unaligned, whose isolated NEON leaf loads the array into a vector register with ldr q",
+                "delegates to Load_Unaligned, which loads the array into a vector register with movdqu",
             ),
             "Store": (
                 "delegates to Store_Unaligned",
-                "loads the private value with ldr q and stores the array with str q",
-                "delegates to Store_Unaligned, which uses two movdqu transfers",
+                "delegates to Store_Unaligned, whose isolated NEON leaf stores a vector register to the array with str q",
+                "delegates to Store_Unaligned, which stores a vector register to the array with movdqu",
             ),
             "Load_Unaligned": (
-                "loads the array with ldr q and stores the private result with str q",
-                "uses two movdqu transfers",
+                "uses an isolated NEON leaf that loads the array into a vector register with ldr q",
+                "loads the array into a vector register with movdqu",
             ),
             "Store_Unaligned": (
-                "loads the private value with ldr q and stores the array with str q",
-                "uses two movdqu transfers",
+                "uses an isolated NEON leaf that stores a vector register to the array with str q",
+                "stores a vector register to the array with movdqu",
             ),
             "Load_Aligned": (
-                "same safe ldr q and str q transfers after checking the alignment precondition",
-                "loads the aligned array with movdqa and stores the private result with movdqu",
+                "uses the same ldr q transfer after checking the alignment precondition",
+                "loads the aligned array into a vector register with movdqa",
             ),
             "Store_Aligned": (
-                "same safe ldr q and str q transfers after checking the alignment precondition",
-                "loads the private value with movdqu and stores the aligned array with movdqa",
+                "uses the same str q transfer after checking the alignment precondition",
+                "stores a vector register to the aligned array with movdqa",
             ),
         }
         for operation, phrases in complete_memory_support.items():

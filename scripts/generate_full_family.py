@@ -687,36 +687,36 @@ def native_support_doc(name: str, declaration: str) -> str:
     }:
         actions = {
             "Load": (
-                "delegates to Load_Unaligned, whose isolated NEON leaf loads "
-                "the array with ldr q and stores the private result with str q",
-                "delegates to Load_Unaligned, which uses two movdqu transfers",
+                "delegates to Load_Unaligned, whose isolated NEON leaf "
+                "loads the array into a vector register with ldr q",
+                "delegates to Load_Unaligned, which loads the array into a "
+                "vector register with movdqu",
             ),
             "Store": (
-                "delegates to Store_Unaligned, whose isolated NEON leaf loads "
-                "the private value with ldr q and stores the array with str q",
-                "delegates to Store_Unaligned, which uses two movdqu transfers",
+                "delegates to Store_Unaligned, whose isolated NEON leaf "
+                "stores a vector register to the array with str q",
+                "delegates to Store_Unaligned, which stores a vector "
+                "register to the array with movdqu",
             ),
             "Load_Unaligned": (
-                "uses an isolated NEON leaf that loads the array with ldr q "
-                "and stores the private result with str q",
-                "uses two movdqu transfers",
+                "uses an isolated NEON leaf that loads the array into a "
+                "vector register with ldr q",
+                "loads the array into a vector register with movdqu",
             ),
             "Store_Unaligned": (
-                "uses an isolated NEON leaf that loads the private value with "
-                "ldr q and stores the array with str q",
-                "uses two movdqu transfers",
+                "uses an isolated NEON leaf that stores a vector register "
+                "to the array with str q",
+                "stores a vector register to the array with movdqu",
             ),
             "Load_Aligned": (
-                "uses the same safe ldr q and str q transfers after checking "
-                "the alignment precondition",
-                "loads the aligned array with movdqa and stores the private "
-                "result with movdqu",
+                "uses the same ldr q transfer after checking the alignment "
+                "precondition",
+                "loads the aligned array into a vector register with movdqa",
             ),
             "Store_Aligned": (
-                "uses the same safe ldr q and str q transfers after checking "
-                "the alignment precondition",
-                "loads the private value with movdqu and stores the aligned "
-                "array with movdqa",
+                "uses the same str q transfer after checking the alignment "
+                "precondition",
+                "stores a vector register to the aligned array with movdqa",
             ),
         }
         aarch, x86 = actions[name]

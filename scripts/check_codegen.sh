@@ -516,11 +516,11 @@ register_operand_leaf() {
     register_operand_family "$1"
 }
 
-#  The complete-buffer memory leaves were converted for the byte family only;
-#  every other family still hands its address to the assembly.
+#  Every family's complete-buffer memory leaves take and return vector
+#  registers; none of them hands an address to the assembly any more.
 register_operand_memory_family() {
     case "$1" in
-        u8) return 0 ;;
+        u8|i8|u16|i16|u32|i32|u64|i64|f32|f64) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -2851,14 +2851,21 @@ case "$architecture" in
               "complete_memory_codegen_probe__${lane_kind}_${operation}" \
               "$temporary/complete-memory-probe.txt" "$leaf"
             if register_operand_memory_family "$lane_kind"; then
-                require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$leaf" \
-                  "AArch64 ${lane_kind} ${operation} vector load transfer"
+                #  A register-operand transfer touches memory exactly once: a
+                #  load brings the array in and returns the value in a vector
+                #  register, a store takes one and writes the array.  The other
+                #  direction is what the address model used to add.
                 case "$operation" in
                     load|load_unaligned|load_aligned)
+                        require_leaf_instruction '(^|[[:space:]])ldr[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$leaf" \
+                          "AArch64 ${lane_kind} ${operation} vector load transfer"
                         require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 0 "$leaf" \
                           "no result store in register-operand ${lane_kind} ${operation} leaf"
                         ;;
                     *)
+                        #  No matching absence to assert here: an out-of-line
+                        #  store still receives its 128-bit value by reference,
+                        #  so the ABI fetches it whatever the assembly does.
                         require_leaf_instruction '(^|[[:space:]])str[[:space:]]+q[0-9]+,[[:space:]]*\[' 1 "$leaf" \
                           "AArch64 ${lane_kind} ${operation} vector store transfer"
                         ;;
@@ -3015,9 +3022,11 @@ case "$architecture" in
           "$temporary/reduce-add-f32x4.txt"
         extract_symbol 'native_reduce_add_f64x2' "$temporary/native.txt" \
           "$temporary/reduce-add-f64x2.txt"
-        require_count 'fadd[[:space:]]+s0' 4 "$temporary/reduce-add-f32x4.txt" \
+        #  Register numbers belong to the allocator now, so the reduction is
+        #  evidenced by the shape of the fold rather than by a fixed register.
+        require_count 'fadd[[:space:]]+s[0-9]+' 4 "$temporary/reduce-add-f32x4.txt" \
           'four ascending scalar NEON additions in F32x4 Reduce_Add'
-        require_count 'fadd[[:space:]]+d0' 2 "$temporary/reduce-add-f64x2.txt" \
+        require_count 'fadd[[:space:]]+d[0-9]+' 2 "$temporary/reduce-add-f64x2.txt" \
           'two ascending scalar NEON additions in F64x2 Reduce_Add'
         for reduction in reduce-add-f32x4 reduce-add-f64x2; do
             require_pattern 'movi.*v[0-9]+.*#(0x)?0+([^[:xdigit:]]|$)' \
@@ -3174,10 +3183,10 @@ EOF
         require_pattern 'uminv.*8h' "$temporary/reduce_min_u16.txt" 'NEON unsigned-16 minimum reduction'
         require_pattern 'smaxv.*16b' "$temporary/reduce_max_i8.txt" 'NEON signed-byte maximum reduction'
         require_pattern 'addp.*2d' "$temporary/reduce_add_u64.txt" 'NEON unsigned-64 wrapping reduction'
-        require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_min_i64.txt" 'NEON signed-64 reduction lane broadcast'
+        require_pattern 'dup.*2d.*v[0-9]+.*\[1\]' "$temporary/reduce_min_i64.txt" 'NEON signed-64 reduction lane broadcast'
         require_pattern 'cmgt.*2d' "$temporary/reduce_min_i64.txt" 'NEON signed-64 minimum comparison'
         require_pattern 'bit.*16b' "$temporary/reduce_min_i64.txt" 'NEON signed-64 minimum selection'
-        require_pattern 'dup.*2d.*v0.*\[1\]' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 reduction lane broadcast'
+        require_pattern 'dup.*2d.*v[0-9]+.*\[1\]' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 reduction lane broadcast'
         require_pattern 'cmhi.*2d' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum comparison'
         require_pattern 'bif.*16b' "$temporary/reduce_max_u64.txt" 'NEON unsigned-64 maximum selection'
         #  Inspect every 128-bit integer-reduction leaf.  The public caller
@@ -3242,7 +3251,9 @@ EOF
                     require_pattern '(^|[[:space:]])umov(\.h)?[[:space:]]' \
                       "$output" 'widened sum transfer in U8 Reduce_Add_Wrap'
                 else
-                    require_pattern "(^|[[:space:]])(str[[:space:]]+${lane_letter}0|umov(\\.${lane_letter})?[[:space:]])" \
+                    #  A lane-to-register move is spelled umov for the narrow
+                    #  widths and mov for the ones that fill the destination.
+                    require_pattern "(^|[[:space:]])(str[[:space:]]+${lane_letter}0|u?mov\\.${lane_letter}[[:space:]]|umov[[:space:]])" \
                       "$output" "result transfer in ${lane_kind} ${operation}"
                 fi
             done
@@ -3508,10 +3519,10 @@ EOF
         require_pattern 'fdiv.*(4s|2d)' "$(native_and_probes)" 'floating division'
         require_pattern 'fminnm.*(4s|2d)' "$(native_and_probes)" 'IEEE minimum-number operation'
         require_pattern 'fmaxnm.*(4s|2d)' "$(native_and_probes)" 'IEEE maximum-number operation'
-        require_pattern 'fminnm[[:space:]]+s0' "$(native_and_probes)" 'ordered F32 minimum-number reduction'
-        require_pattern 'fmaxnm[[:space:]]+s0' "$(native_and_probes)" 'ordered F32 maximum-number reduction'
-        require_pattern 'fminnm[[:space:]]+d0' "$(native_and_probes)" 'ordered F64 minimum-number reduction'
-        require_pattern 'fmaxnm[[:space:]]+d0' "$(native_and_probes)" 'ordered F64 maximum-number reduction'
+        require_pattern 'fminnm[[:space:]]+s[0-9]+,' "$(native_and_probes)" 'ordered F32 minimum-number reduction'
+        require_pattern 'fmaxnm[[:space:]]+s[0-9]+,' "$(native_and_probes)" 'ordered F32 maximum-number reduction'
+        require_pattern 'fminnm[[:space:]]+d[0-9]+,' "$(native_and_probes)" 'ordered F64 minimum-number reduction'
+        require_pattern 'fmaxnm[[:space:]]+d[0-9]+,' "$(native_and_probes)" 'ordered F64 maximum-number reduction'
         require_pattern 'fcmeq.*(4s|2d)' "$(native_and_probes)" 'floating comparison'
         require_pattern '(uxtl|ushll)2?.*(8h|4s|2d)' "$(native_and_probes)" 'unsigned integer widening'
         require_pattern '(sxtl|sshll)2?.*(8h|4s|2d)' "$(native_and_probes)" 'signed integer widening'
@@ -4182,7 +4193,10 @@ EOF
         require_count 'addsd' 2 "$temporary/reduce-add-f64x2.txt" \
           'two ascending scalar SSE2 additions in F64x2 Reduce_Add'
         for reduction in reduce-add-f32x4 reduce-add-f64x2; do
-            require_pattern 'pxor.*xmm0.*xmm0' "$temporary/${reduction}.txt" \
+            #  Whichever register the allocator picks, the accumulator starts
+            #  at positive zero by being exclusive-ored with itself.
+            require_pattern 'pxor[[:space:]]+%xmm([0-9]+),[[:space:]]*%xmm\1' \
+              "$temporary/${reduction}.txt" \
               "positive-zero accumulator in ${reduction}"
             forbid_pattern '(^|[[:space:]])call[[:space:]]|flyology_simd__reduce_add' \
               "$temporary/${reduction}.txt" \
@@ -4511,7 +4525,9 @@ EOF
                         require_pattern '(^|[[:space:]])pextrw[[:space:]]' \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} result extraction"
-                        require_count '(^|[[:space:]])mov(w)?[[:space:]]+%(ax|bx|cx|dx|si|di|r(8|9|10|11|12|13|14|15)w),' 1 \
+                        #  pextrw already zero-extends the lane into a general
+                        #  register, so the word never reaches a private buffer.
+                        forbid_pattern '(^|[[:space:]])mov(w)?[[:space:]]+%(ax|bx|cx|dx|si|di|r(8|9|10|11|12|13|14|15)w),[[:space:]]*-?(0x)?[0-9a-f]*\(' \
                           "$temporary/reduction_${lane_kind}_${operation}.txt" \
                           "SSE2 ${lane_kind} ${operation} word result store"
                     done
