@@ -111,6 +111,44 @@ jobs:
       - name: Run SSE2 AddressSanitizer suite
         run: ./scripts/run_sanitized_tests.sh x86_64
 
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [false, true]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: alire-project/setup-alire@v6.0.0
+      - name: Select verified toolchain
+        run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Build debug library
+        if: ${{ !matrix.release }}
+        run: alr build -- -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build release library
+        if: ${{ matrix.release }}
+        run: alr build --release -- -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build tests
+        run: >-
+          alr exec -- gprbuild -p -P tests/tests.gpr
+          -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Build examples
+        run: >-
+          alr exec -- gprbuild -p -P examples/examples.gpr
+          -XFLYOLOGY_SIMD_ARCH=aarch64
+      - name: Run differential tests
+        run: |
+          ./bin/simd_tests
+          ./bin/family_tests
+          ./bin/wide_tests
+          ./bin/conversion_tests
+          ./bin/guard_page_tests
+      - name: Run AArch64 AddressSanitizer suite
+        if: ${{ !matrix.release }}
+        run: ./scripts/run_sanitized_tests.sh aarch64
+      - name: Check generated code
+        run: ./scripts/check_codegen.sh aarch64 disabled
+
   macos-aarch64:
     runs-on: macos-14
     strategy:

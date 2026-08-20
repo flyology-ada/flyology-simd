@@ -269,12 +269,17 @@ procedure Family_Chain_Benchmark is
      (Case_Id => Candidate, Batch => Batch);
    procedure Put_Console is new
      Flyology_Bench.Reporters.Put_Multi_Comparison_Console (Candidate);
+   procedure Put_JSON is new
+     Flyology_Bench.Reporters.Put_Multi_Comparison_JSON (Candidate);
    procedure Put_CSV is new
      Flyology_Bench.Reporters.Put_Multi_Comparison_CSV (Candidate);
 
    Output_Mode : constant String :=
      Ada.Environment_Variables.Value
        ("FLYOLOGY_BENCH_OUTPUT", Default => "terminal");
+   Quiet_CPU : constant Boolean :=
+     Ada.Environment_Variables.Value
+       ("FLYOLOGY_BENCH_QUIESCENCE", Default => "0") = "1";
    Config : constant Flyology_Bench.Configuration :=
      (Warmup_Time                 => 0.250,
       Measurement_Time            => 3.000,
@@ -290,7 +295,7 @@ procedure Family_Chain_Benchmark is
       Metrics                     => Flyology_Bench.Time_Metrics,
       Scheduler_Probe             => null,
       CPU_Quiescence              =>
-        (Enabled                     => False,
+        (Enabled                     => Quiet_CPU,
          Maximum_Average_CPU_Percent => 20.0,
          Maximum_Core_CPU_Percent    => 50.0,
          Stable_Time                 => 1.0,
@@ -325,7 +330,36 @@ procedure Family_Chain_Benchmark is
            Current_Size'Image;
       end if;
    end Validate;
+
+   procedure Maybe_Pin is
+   begin
+      if Ada.Environment_Variables.Exists ("FLYOLOGY_SIMD_BENCH_CPU") then
+         declare
+            CPU : constant Natural := Natural'Value
+              (Ada.Environment_Variables.Value ("FLYOLOGY_SIMD_BENCH_CPU"));
+            Strength : constant Flyology_Bench.Host_Control.Placement_Strength :=
+              Flyology_Bench.Host_Control.Pin_Current_Thread (CPU);
+         begin
+            Put_Line
+              ("placement_cpu=" & CPU'Image & " strength=" & Strength'Image);
+         end;
+      else
+         Put_Line ("placement=uncontrolled (set FLYOLOGY_SIMD_BENCH_CPU)");
+      end if;
+   end Maybe_Pin;
+
+   procedure Validate_Output_Mode is
+   begin
+      if Output_Mode /= "terminal"
+        and then Output_Mode /= "json"
+        and then Output_Mode /= "csv"
+      then
+         raise Constraint_Error with
+           "FLYOLOGY_BENCH_OUTPUT must be terminal, json, or csv";
+      end if;
+   end Validate_Output_Mode;
 begin
+   Validate_Output_Mode;
    Fill_Data;
    Put_Line ("flyology_simd family lane-chain statistical benchmark");
    Put_Line
@@ -335,6 +369,7 @@ begin
    Put_Line
      ("method=flyology_bench balanced_rounds equal_time warmup=0.25s " &
       "measurement=3s samples=75 seed=0x5EED0123");
+   Maybe_Pin;
 
    for Which_Family in Family loop
       Current_Family := Which_Family;
@@ -355,9 +390,14 @@ begin
               ("family=" & Which_Family'Image & " input_lanes=" & Size'Image);
             if Output_Mode = "terminal" then
                Put_Console (Result, Show_Individual_Details => True);
-            else
+            elsif Output_Mode = "json" then
+               Put_JSON (Result);
+            elsif Output_Mode = "csv" then
                Flyology_Bench.Reporters.Put_Multi_Comparison_CSV_Header;
                Put_CSV (Result);
+            else
+               raise Constraint_Error with
+                 "FLYOLOGY_BENCH_OUTPUT must be terminal, json, or csv";
             end if;
          end;
       end loop;

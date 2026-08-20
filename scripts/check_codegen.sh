@@ -3320,7 +3320,8 @@ EOF
             extract_symbol "permute_codegen_probe__${lane_kind}_permute" "$temporary/permute-probe.txt" "$temporary/permute_${lane_kind}.txt"
             require_pattern 'tbl.*16b' "$temporary/permute_${lane_kind}.txt" "NEON ${lane_kind} public lane permutation"
             extract_symbol "permute_codegen_probe__${lane_kind}_permute_2" "$temporary/permute-probe.txt" "$temporary/permute_2_${lane_kind}.txt"
-            require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/permute_2_${lane_kind}.txt" "NEON ${lane_kind} public two-source lane permutation"
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} left-source table lookup"
+            require_count 'tbx(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} right-source table extension"
         done
         forbid_pattern 'flyology_simd__backends__native__permute_lanes' "$temporary/permute-probe.txt" 'lane-permutation backend call in caller probe'
         extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
@@ -3538,22 +3539,22 @@ EOF
         extract_symbol 'integer_conversion_codegen_probe__u64_i64_convert_saturate' "$temporary/integer-conversion-probe.txt" "$temporary/u64_to_i64.txt"
         require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i8_to_u8.txt" 'signed-byte conversion zero construction'
         require_pattern 'smax.*16b' "$temporary/i8_to_u8.txt" 'signed-byte to unsigned-byte saturation'
-        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#(0xff|255)([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum all-ones construction'
         require_pattern 'ushr.*16b.*#(0x)?1([,[:space:]]|$)' "$temporary/u8_to_i8.txt" 'signed-byte maximum construction'
         require_pattern 'umin.*16b' "$temporary/u8_to_i8.txt" 'unsigned-byte to signed-byte saturation'
         require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i16_to_u16.txt" 'signed-16 conversion zero construction'
         require_pattern 'smax.*8h' "$temporary/i16_to_u16.txt" 'signed-16 to unsigned-16 saturation'
-        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#(0xff|255)([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum all-ones construction'
         require_pattern 'ushr.*8h.*#(0x)?1([,[:space:]]|$)' "$temporary/u16_to_i16.txt" 'signed-16 maximum construction'
         require_pattern 'umin.*8h' "$temporary/u16_to_i16.txt" 'unsigned-16 to signed-16 saturation'
         require_pattern 'movi.*v[0-9]+.*#(0x)?0+([,[:space:]]|$)' "$temporary/i32_to_u32.txt" 'signed-32 conversion zero construction'
         require_pattern 'smax.*4s' "$temporary/i32_to_u32.txt" 'signed-32 to unsigned-32 saturation'
-        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#(0xff|255)([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum all-ones construction'
         require_pattern 'ushr.*4s.*#(0x)?1([,[:space:]]|$)' "$temporary/u32_to_i32.txt" 'signed-32 maximum construction'
         require_pattern 'umin.*4s' "$temporary/u32_to_i32.txt" 'unsigned-32 to signed-32 saturation'
         require_pattern 'cmge.*2d.*#(0x)?0+([,[:space:]]|$)' "$temporary/i64_to_u64.txt" 'signed-64 nonnegative mask'
         require_pattern 'and.*16b' "$temporary/i64_to_u64.txt" 'signed-64 to unsigned-64 saturation'
-        require_pattern 'movi.*v[0-9]+.*#0xff([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum all-ones construction'
+        require_pattern 'movi.*v[0-9]+.*#(0xff|255)([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum all-ones construction'
         require_pattern 'ushr.*2d.*#(0x)?1([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum construction'
         require_pattern 'cmhi.*2d' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp mask'
         require_pattern 'bsl.*16b' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp selection'
@@ -3616,13 +3617,13 @@ EOF
                 convert_saturate)
                     case "$source:$target" in
                         i8x16:u8x16) required='movi.*v[0-9]+.*#(0x)?0+|smax.*16b' ;;
-                        u8x16:i8x16) required='movi.*v[0-9]+.*#0xff|ushr.*16b.*#(0x)?1|umin.*16b' ;;
+                        u8x16:i8x16) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*16b.*#(0x)?1|umin.*16b' ;;
                         i16x8:u16x8) required='movi.*v[0-9]+.*#(0x)?0+|smax.*8h' ;;
-                        u16x8:i16x8) required='movi.*v[0-9]+.*#0xff|ushr.*8h.*#(0x)?1|umin.*8h' ;;
+                        u16x8:i16x8) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*8h.*#(0x)?1|umin.*8h' ;;
                         i32x4:u32x4) required='movi.*v[0-9]+.*#(0x)?0+|smax.*4s' ;;
-                        u32x4:i32x4) required='movi.*v[0-9]+.*#0xff|ushr.*4s.*#(0x)?1|umin.*4s' ;;
+                        u32x4:i32x4) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*4s.*#(0x)?1|umin.*4s' ;;
                         i64x2:u64x2) required='cmge.*2d.*#(0x)?0+|and.*16b' ;;
-                        u64x2:i64x2) required='movi.*v[0-9]+.*#0xff|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' ;;
+                        u64x2:i64x2) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' ;;
                     esac
                     printf '%s\n' "$required" | tr '|' '\n' | while read -r instruction; do
                         require_at_least "(^|[[:space:]])${instruction}" 1 "$leaf" \

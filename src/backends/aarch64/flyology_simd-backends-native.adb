@@ -120,15 +120,14 @@ package body Flyology_SIMD.Backends.Native is
       function To_Machine is new Ada.Unchecked_Conversion (Vector_Type, Machine_Vector);
       function Map_To_Machine is new Ada.Unchecked_Conversion (Map_Type, Machine_Vector);
       function To_Vector is new Ada.Unchecked_Conversion (Machine_Vector, Vector_Type);
-      Result : Machine_Vector;
+      Result, Adjusted_Map : Machine_Vector;
    begin
-      Asm (Template => "mov v0.16b, %1.16b" & ASCII.LF & ASCII.HT &
-           "mov v1.16b, %2.16b" & ASCII.LF & ASCII.HT &
-           "tbl v0.16b, {v0.16b, v1.16b}, %3.16b" & ASCII.LF & ASCII.HT &
-           "mov %0.16b, v0.16b",
-           Outputs => Machine_Vector'Asm_Output ("=w", Result),
-           Inputs => [Machine_Vector'Asm_Input ("w", To_Machine (Left)), Machine_Vector'Asm_Input ("w", To_Machine (Right)), Machine_Vector'Asm_Input ("w", Map_To_Machine (Map))],
-           Clobber => "v0,v1");
+      Asm (Template => "movi %1.16b, #16" & ASCII.LF & ASCII.HT &
+           "sub %1.16b, %4.16b, %1.16b" & ASCII.LF & ASCII.HT &
+           "tbl %0.16b, {%2.16b}, %4.16b" & ASCII.LF & ASCII.HT &
+           "tbx %0.16b, {%3.16b}, %1.16b",
+           Outputs => [Machine_Vector'Asm_Output ("=&w", Result), Machine_Vector'Asm_Output ("=&w", Adjusted_Map)],
+           Inputs => [Machine_Vector'Asm_Input ("w", To_Machine (Left)), Machine_Vector'Asm_Input ("w", To_Machine (Right)), Machine_Vector'Asm_Input ("w", Map_To_Machine (Map))]);
       return To_Vector (Result);
    end NEON_Permute_2_128;
 

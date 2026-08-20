@@ -10,6 +10,7 @@ alr build --release
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build simd_benchmark
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark
 FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build dot_product_benchmark
+FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build family_chain_benchmark
 ```
 
 Alire selects AArch64 NEON or x86-64 automatically from the host architecture.
@@ -37,11 +38,21 @@ The programs use `Flyology_Bench.Compare_Many` with this method:
 They do not silently discard outliers or subtract timer cost. The byte-count
 sizes 7, 15, 16, 17, 4,096, and 1,048,576 cover sub-vector, boundary, cache,
 and streaming behavior. The dot-product sizes 3, 4, 5, 7, 8, 9, 4,096, and
-1,048,576 exercise both binary32 and binary64 vector boundaries. Candidates
-are ordinary Ada with matching semantics, the scalar backend, the statically
-selected native backend, and coarse runtime dispatch.
+1,048,576 exercise both binary32 and binary64 vector boundaries. Those
+benchmarks compare ordinary Ada with matching semantics, the scalar backend,
+the statically selected native backend, and coarse runtime dispatch. The
+lane-family chain benchmark compares identical generic chains instantiated
+with the scalar and statically selected native backends.
 Each run prints the compiler version and the project-declared library and
 benchmark switches alongside the backend and CPU-feature selection.
+
+## Lane-family chains
+
+`family_chain_benchmark` measures dependent U16, U32, U64, and F32 operation
+chains at input sizes from one vector through 262,144 lanes. Each chain mixes
+construction, comparison, selection, lane permutation, conversion or
+multiplication where applicable, and reduction. It validates the complete
+native result against the scalar instantiation before measuring each case.
 
 ## Dot product
 
