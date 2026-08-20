@@ -3392,8 +3392,12 @@ EOF
             done
         done
         tbl_register_pattern='v[0-9]+(\.16b)?'
-        tbl_two_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
-        tbl_four_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
+        #  Apple and LLVM disassemblers print each table register, while GNU
+        #  objdump contracts consecutive lists to v0.16b-v1.16b (or -v3.16b).
+        tbl_two_registers="(${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}|${tbl_register_pattern}-[[:space:]]*${tbl_register_pattern})"
+        tbl_four_registers="(${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}|${tbl_register_pattern}-[[:space:]]*${tbl_register_pattern})"
+        tbl_two_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_two_registers}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
+        tbl_four_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_four_registers}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
         for permute_probe in wide_u8_permute wide_f32_permute; do
             require_count "$tbl_two_pattern" 2 \
               "$temporary/${permute_probe}.txt" \
@@ -3527,11 +3531,11 @@ EOF
         extract_symbol 'slide_codegen_probe__f32_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f32_high.txt"
         extract_symbol 'slide_codegen_probe__f64_toward_high' "$temporary/slide-probe.txt" "$temporary/probe_f64_high.txt"
         require_pattern 'ext.*#(0x)?0*1([^[:xdigit:]]|$)' "$temporary/probe_u8_low.txt" 'constant U8 slide toward low in caller'
-        require_pattern 'ext.*#(0x)?0*f([^[:xdigit:]]|$)' "$temporary/probe_u8_high.txt" 'constant U8 slide toward high in caller'
+        require_pattern 'ext.*#(0x0*f|0*15)([^[:xdigit:]]|$)' "$temporary/probe_u8_high.txt" 'constant U8 slide toward high in caller'
         require_pattern 'ext.*#(0x)?0*2([^[:xdigit:]]|$)' "$temporary/probe_u16_low.txt" 'constant U16 lane scaling in caller'
         require_pattern 'ext.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_u32_low.txt" 'constant U32 lane scaling in caller'
         require_pattern 'ext.*#(0x)?0*4([^[:xdigit:]]|$)' "$temporary/probe_f32_low.txt" 'constant F32 slide toward low in caller'
-        require_pattern 'ext.*#(0x)?0*c([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
+        require_pattern 'ext.*#(0x0*c|0*12)([^[:xdigit:]]|$)' "$temporary/probe_f32_high.txt" 'constant F32 slide toward high in caller'
         require_pattern 'ext.*#(0x)?0*8([^[:xdigit:]]|$)' "$temporary/probe_f64_high.txt" 'constant F64 lane scaling in caller'
         forbid_pattern 'flyology_simd__backends__native__slide_lanes' "$temporary/slide-probe.txt" 'lane-slide dispatcher call in constant-count probe'
         require_pattern 'ldr[[:space:]]+q[0-9]+' "$(native_and_probes)" '128-bit unaligned load'
@@ -3595,10 +3599,10 @@ EOF
         require_pattern 'cmhi.*2d' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp mask'
         require_pattern 'bsl.*16b' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp selection'
         require_pattern 'mov(\.16b)?[[:space:]]+v[0-9]+(\.16b)?,[[:space:]]*v[0-9]+(\.16b)?' "$temporary/u64_to_i64.txt" 'unsigned-64 conversion result move'
-        require_pattern '(^|[[:space:]])xtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'truncating integer narrowing'
-        require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'unsigned saturating narrowing'
-        require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'signed saturating narrowing'
-        require_pattern '(^|[[:space:]])sqxtun2?\..*(16b|8h|4s)' "$(native_and_probes)" 'signed-to-unsigned saturating narrowing'
+        require_pattern '(^|[[:space:]])(xtn2?\..*(16b|8h|4s)|xtn2?[[:space:]]+v[0-9]+\.(16b|8h|4s))' "$(native_and_probes)" 'truncating integer narrowing'
+        require_pattern '(^|[[:space:]])(uqxtn2?\..*(16b|8h|4s)|uqxtn2?[[:space:]]+v[0-9]+\.(16b|8h|4s))' "$(native_and_probes)" 'unsigned saturating narrowing'
+        require_pattern '(^|[[:space:]])(sqxtn2?\..*(16b|8h|4s)|sqxtn2?[[:space:]]+v[0-9]+\.(16b|8h|4s))' "$(native_and_probes)" 'signed saturating narrowing'
+        require_pattern '(^|[[:space:]])(sqxtun2?\..*(16b|8h|4s)|sqxtun2?[[:space:]]+v[0-9]+\.(16b|8h|4s))' "$(native_and_probes)" 'signed-to-unsigned saturating narrowing'
         while read -r kind operation source target suffix arity; do
             [ -n "$kind" ] || continue
             selected_symbol=$operation
