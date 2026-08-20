@@ -3391,8 +3391,11 @@ EOF
                   "$temporary/wide_${lane_kind}_${operation}.txt"
             done
         done
+        tbl_register_pattern='v[0-9]+(\.16b)?'
+        tbl_two_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
+        tbl_four_pattern="tbl(\.16b)?[[:space:]]+${tbl_register_pattern},.*\{[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern},[[:space:]]*${tbl_register_pattern}[[:space:]]*\},[[:space:]]*${tbl_register_pattern}"
         for permute_probe in wide_u8_permute wide_f32_permute; do
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+            require_count "$tbl_two_pattern" 2 \
               "$temporary/${permute_probe}.txt" \
               "two-register TBL operations in AArch64 ${permute_probe} caller"
             forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__permute_lanes|flyology_simd__(__wide)?__(extract|from_lanes)' \
@@ -3400,7 +3403,7 @@ EOF
               "per-lane or dispatcher call in AArch64 ${permute_probe} caller"
         done
         for permute_probe in wide_u16_permute_2 wide_f64_permute_2; do
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+            require_count "$tbl_four_pattern" 2 \
               "$temporary/${permute_probe}.txt" \
               "four-register TBL operations in AArch64 ${permute_probe} caller"
             forbid_pattern 'flyology_simd__wide__(permute_mechanism|native)__permute_lanes|flyology_simd__(__wide)?__(extract|from_lanes)' \
@@ -3408,12 +3411,12 @@ EOF
               "per-lane or dispatcher call in AArch64 ${permute_probe} caller"
         done
         for movement_probe in wide_u8_reverse wide_f64_slide; do
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+            require_count "$tbl_two_pattern" 2 \
               "$temporary/${movement_probe}.txt" \
               "two-register TBL operations in AArch64 ${movement_probe} caller"
         done
         for movement_probe in wide_u16_interleave wide_f32_deinterleave; do
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+            require_count "$tbl_four_pattern" 2 \
               "$temporary/${movement_probe}.txt" \
               "four-register TBL operations in AArch64 ${movement_probe} caller"
         done
@@ -3431,7 +3434,7 @@ EOF
         require_at_most '(^|[[:space:]])bl[[:space:]]' 1 "$temporary/wide_u8_table_lookup.txt" 'one target-selected 32-lane table-lookup mechanism in wide caller'
         require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_u8_horizontal_sum.txt" 'two exact byte-sum leaves in wide caller'
         for compact_probe in wide_u8_compress wide_u16_expand wide_f32_compress wide_f64_expand; do
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+            require_count "$tbl_two_pattern" 2 \
               "$temporary/${compact_probe}.txt" \
               "two-register TBL operations in AArch64 ${compact_probe} caller"
             forbid_pattern 'flyology_simd__wide__(compact_mechanism|native)__(compress|expand)|flyology_simd__(__wide)?__(extract|from_lanes|test)' \
@@ -3443,7 +3446,7 @@ EOF
                 extract_symbol "wide_compact_codegen_probe__${lane_kind}_${operation}" \
                   "$temporary/wide-compact-probe.txt" \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt"
-                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                require_count "$tbl_two_pattern" 2 \
                   "$temporary/wide_compact_${lane_kind}_${operation}.txt" \
                   "two-register TBL operations in AArch64 ${lane_kind} ${operation} caller"
                 forbid_pattern 'flyology_simd__(__wide)?__to_bit_mask|flyology_simd__backends__native__to_bit_mask' \
@@ -3465,7 +3468,7 @@ EOF
                 extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
                   "$temporary/wide-movement-probe.txt" \
                   "$temporary/wide_movement_${vector_kind}_${operation}.txt"
-                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                require_count "$tbl_two_pattern" 2 \
                   "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                   "two two-register TBL operations in AArch64 ${vector_kind} ${operation} caller"
                 forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
@@ -3476,7 +3479,7 @@ EOF
                 extract_symbol "wide_movement_codegen_probe__${vector_kind}_${operation}" \
                   "$temporary/wide-movement-probe.txt" \
                   "$temporary/wide_movement_${vector_kind}_${operation}.txt"
-                require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 2 \
+                require_count "$tbl_four_pattern" 2 \
                   "$temporary/wide_movement_${vector_kind}_${operation}.txt" \
                   "two four-register TBL operations in AArch64 ${vector_kind} ${operation} caller"
                 forbid_pattern 'flyology_simd__wide__(extract|from_lanes|permute_lanes|reverse_lanes|interleave_|deinterleave_|slide_lanes_)' \
@@ -3503,7 +3506,7 @@ EOF
         require_at_most '(^|[[:space:]])bl[[:space:]]' 2 "$temporary/wide_i8_select.txt" \
           'two selected operations in composed Wide I8 selection caller'
         extract_symbol 'table_lookup_half' "$temporary/wide-lookup.txt" "$temporary/wide_lookup_leaf.txt"
-        require_pattern 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+,[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
+        require_pattern "$tbl_two_pattern" "$temporary/wide_lookup_leaf.txt" 'AArch64 32-entry byte-table lookup leaf'
         require_route_or_inlined 'flyology_simd__backends__native__(neon_)?add_wrap' "$temporary/wide-undefined.txt" 'wide U8 addition calls selected 128-bit native leaves after mechanism inlining'
         require_route_or_inlined 'flyology_simd__backends__native__native_(add|subtract|multiply|divide)_(f32x4|f64x2)' "$temporary/wide-undefined.txt" 'wide floating arithmetic calls selected 128-bit native leaves'
         require_route_or_inlined 'flyology_simd__backends__native__bit_cast' "$temporary/wide-undefined.txt" 'wide F32 bit cast calls the selected 128-bit native leaf'
@@ -3591,7 +3594,7 @@ EOF
         require_pattern 'ushr.*2d.*#(0x)?1([,[:space:]]|$)' "$temporary/u64_to_i64.txt" 'signed-64 maximum construction'
         require_pattern 'cmhi.*2d' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp mask'
         require_pattern 'bsl.*16b' "$temporary/u64_to_i64.txt" 'unsigned-64 clamp selection'
-        require_pattern 'mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' "$temporary/u64_to_i64.txt" 'unsigned-64 conversion result move'
+        require_pattern 'mov(\.16b)?[[:space:]]+v[0-9]+(\.16b)?,[[:space:]]*v[0-9]+(\.16b)?' "$temporary/u64_to_i64.txt" 'unsigned-64 conversion result move'
         require_pattern '(^|[[:space:]])xtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'truncating integer narrowing'
         require_pattern '(^|[[:space:]])uqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'unsigned saturating narrowing'
         require_pattern '(^|[[:space:]])sqxtn2?\..*(16b|8h|4s)' "$(native_and_probes)" 'signed saturating narrowing'
@@ -3656,7 +3659,7 @@ EOF
                         i32x4:u32x4) required='movi.*v[0-9]+.*#(0x)?0+|smax.*4s' ;;
                         u32x4:i32x4) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*4s.*#(0x)?1|umin.*4s' ;;
                         i64x2:u64x2) required='cmge.*2d.*#(0x)?0+|and.*16b' ;;
-                        u64x2:i64x2) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov(\.16b)?[[:space:]]+v[0-9]+,[[:space:]]*v[0-9]+' ;;
+                        u64x2:i64x2) required='movi.*v[0-9]+.*#(0xff|255)|ushr.*2d.*#(0x)?1|cmhi.*2d|bsl.*16b|mov(\.16b)?[[:space:]]+v[0-9]+(\.16b)?,[[:space:]]*v[0-9]+(\.16b)?' ;;
                     esac
                     printf '%s\n' "$required" | tr '|' '\n' | while read -r instruction; do
                         require_at_least "(^|[[:space:]])${instruction}" 1 "$leaf" \
