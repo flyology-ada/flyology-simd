@@ -2956,7 +2956,8 @@ case "$architecture" in
         done
         extract_symbol 'construction_codegen_probe__splat_u8' \
           "$temporary/construction-probe.txt" "$temporary/construction-splat-u8.txt"
-        require_pattern 'dup\.16b' "$temporary/construction-splat-u8.txt" \
+        require_pattern '(^|[[:space:]])dup(\.16b)?[[:space:]]+v[0-9]+(\.16b)?' \
+          "$temporary/construction-splat-u8.txt" \
           'inlined AArch64 U8x16 broadcast in the public caller probe'
         forbid_pattern '(^|[[:space:]])bl[[:space:]]|flyology_simd__(backends__native__)?splat' \
           "$temporary/construction-splat-u8.txt" \
@@ -2985,7 +2986,7 @@ case "$architecture" in
             extract_symbol "construction_codegen_probe__splat_${kind}" \
               "$temporary/construction-probe.txt" \
               "$temporary/construction-splat-${kind}.txt"
-            require_pattern "dup\.${shape}" \
+            require_pattern "(^|[[:space:]])dup(\.${shape})?[[:space:]]+v[0-9]+(\.${shape})?" \
               "$temporary/construction-splat-${kind}.txt" \
               "AArch64 ${shape} lane broadcast for ${kind}"
         done
@@ -3352,8 +3353,8 @@ EOF
             extract_symbol "permute_codegen_probe__${lane_kind}_permute" "$temporary/permute-probe.txt" "$temporary/permute_${lane_kind}.txt"
             require_pattern 'tbl.*16b' "$temporary/permute_${lane_kind}.txt" "NEON ${lane_kind} public lane permutation"
             extract_symbol "permute_codegen_probe__${lane_kind}_permute_2" "$temporary/permute-probe.txt" "$temporary/permute_2_${lane_kind}.txt"
-            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} left-source table lookup"
-            require_count 'tbx(\.16b)?[[:space:]]+v[0-9]+,.*\{[[:space:]]*v[0-9]+[[:space:]]*\},[[:space:]]*v[0-9]+' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} right-source table extension"
+            require_count 'tbl(\.16b)?[[:space:]]+v[0-9]+(\.16b)?,.*\{[[:space:]]*v[0-9]+(\.16b)?[[:space:]]*\},[[:space:]]*v[0-9]+(\.16b)?' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} left-source table lookup"
+            require_count 'tbx(\.16b)?[[:space:]]+v[0-9]+(\.16b)?,.*\{[[:space:]]*v[0-9]+(\.16b)?[[:space:]]*\},[[:space:]]*v[0-9]+(\.16b)?' 1 "$temporary/permute_2_${lane_kind}.txt" "one NEON ${lane_kind} right-source table extension"
         done
         forbid_pattern 'flyology_simd__backends__native__permute_lanes' "$temporary/permute-probe.txt" 'lane-permutation backend call in caller probe'
         extract_symbol 'wide_codegen_probe__u8_add' "$temporary/wide-probe.txt" "$temporary/wide_u8_add.txt"
