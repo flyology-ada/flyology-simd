@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["regex==2026.7.19"]
+# ///
 """Build SIMD probes and enforce their generated-code contracts."""
 
 from __future__ import annotations

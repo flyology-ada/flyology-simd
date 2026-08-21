@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+#
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["regex==2026.7.19"]
+# ///
 """Focused tests for the code-generation checker primitives."""
 
 from __future__ import annotations
@@ -38,6 +43,48 @@ class CheckerTests(unittest.TestCase):
             CodegenError, "forbidden code generation found: uppercase"
         ):
             checker.forbid_pattern(r"ADD\.[[:xdigit:]]+B", evidence, "uppercase")
+
+    def test_posix_matching_is_leftmost_longest(self) -> None:
+        evidence = self.evidence("names.txt", "Mrs\nMr\n")
+        self.assertEqual(
+            Checker._matching_substrings(r"Mr|Mrs", evidence, ignore_case=False),
+            ["Mrs", "Mr"],
+        )
+
+    def test_posix_character_classes_and_line_matching(self) -> None:
+        evidence = self.evidence(
+            "posix.txt",
+            "Mrs\n  VZEROUPPER\n00ff relocation\nfoo+0xAB rest\nblank:\n\n",
+        )
+        cases = (
+            (r"Mr|Mrs", ["Mrs"], ["Mrs"]),
+            (
+                r"(^|[[:space:]])v[a-z0-9]+",
+                ["  VZEROUPPER"],
+                [" VZEROUPPER"],
+            ),
+            (
+                r"[[:xdigit:]]+([[:space:]]|$)",
+                ["00ff relocation", "foo+0xAB rest"],
+                ["00ff ", "AB "],
+            ),
+            (
+                r"foo([+-]0x[[:xdigit:]]+)?([[:space:]]|$)",
+                ["foo+0xAB rest"],
+                ["foo+0xAB "],
+            ),
+            (r"^[[:space:]]*$", [""], []),
+        )
+        for pattern, expected_lines, expected_substrings in cases:
+            with self.subTest(pattern=pattern):
+                self.assertEqual(
+                    Checker._matching_lines(pattern, evidence, ignore_case=True),
+                    expected_lines,
+                )
+                self.assertEqual(
+                    Checker._matching_substrings(pattern, evidence, ignore_case=True),
+                    expected_substrings,
+                )
 
     def test_empty_inlined_body_bypasses_positive_checks(self) -> None:
         evidence = self.evidence("empty.txt", "")

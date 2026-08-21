@@ -1,8 +1,10 @@
 # Contributing
 
 Run `git diff --check`, the scalar suite, the native suite on your architecture,
-and `python3 scripts/check_codegen.py` before proposing changes.  Tests use a printed,
-fixed random seed; preserve reproducibility or print any replacement seed.
+and `./scripts/check_codegen.py` before proposing changes. The checker is a
+PEP 723 script and uses `uv` to provide its pinned regular-expression engine.
+Tests use a printed, fixed random seed; preserve reproducibility or print any
+replacement seed.
 
 Every public fixed-width and Wide overload is assigned to one family in
 `scripts/simd_coverage.toml`. The inventory records semantic, generated-code,

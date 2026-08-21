@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Primitives used by the generated-code checker.
-
-Patterns are evaluated by ``grep -E`` to retain the checker's established
-POSIX extended-regular-expression semantics.
-"""
+"""Primitives used by the generated-code checker."""
 
 from __future__ import annotations
 
+from functools import cache
 import re
 import shutil
 import subprocess
 from pathlib import Path
+
+import regex
 
 
 class CodegenError(RuntimeError):
@@ -51,19 +50,65 @@ class Checker:
         }.get(architecture, "")
 
     @staticmethod
-    def _grep(
-        pattern: str, file: Path, *options: str
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ["grep", *options, pattern, str(file)],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
+    @cache
+    def _compiled_pattern(pattern: str, ignore_case: bool) -> regex.Pattern:
+        flags = regex.POSIX | regex.VERSION0
+        if ignore_case:
+            flags |= regex.IGNORECASE
+        return regex.compile(pattern, flags)
+
+    @staticmethod
+    def _evidence_lines(file: Path) -> list[str]:
+        try:
+            text = file.read_text(errors="replace")
+        except OSError:
+            # Matches the old grep calls, which suppressed file errors and
+            # treated an unreadable source as having no matching lines.
+            return []
+        if not text:
+            return []
+        lines = text.split("\n")
+        if text.endswith("\n"):
+            lines.pop()
+        return lines
+
+    @classmethod
+    def _matching_lines(
+        cls, pattern: str, file: Path, *, ignore_case: bool
+    ) -> list[str]:
+        compiled = cls._compiled_pattern(pattern, ignore_case)
+        matches = [line for line in cls._evidence_lines(file) if compiled.search(line)]
+        # ``grep`` writes a newline after each match; text-mode subprocess
+        # decoding and splitlines() then normalize any line endings.
+        return "".join(f"{line}\n" for line in matches).splitlines()
+
+    @classmethod
+    def _matching_line_numbers(
+        cls, pattern: str, file: Path, *, ignore_case: bool
+    ) -> set[int]:
+        compiled = cls._compiled_pattern(pattern, ignore_case)
+        return {
+            number
+            for number, line in enumerate(cls._evidence_lines(file), 1)
+            if compiled.search(line)
+        }
+
+    @classmethod
+    def _matching_substrings(
+        cls, pattern: str, file: Path, *, ignore_case: bool
+    ) -> list[str]:
+        compiled = cls._compiled_pattern(pattern, ignore_case)
+        matches = [
+            match.group()
+            for line in cls._evidence_lines(file)
+            for match in compiled.finditer(line)
+            if match.group()
+        ]
+        return "".join(f"{match}\n" for match in matches).splitlines()
 
     def matches(self, pattern: str, file: Path) -> bool:
-        return self._grep(pattern, file, "-Eiq").returncode == 0
+        compiled = self._compiled_pattern(pattern, True)
+        return any(compiled.search(line) for line in self._evidence_lines(file))
 
     @staticmethod
     def _empty_regular_file(file: Path) -> bool:
@@ -108,12 +153,7 @@ class Checker:
         previous = False
         actual = 0
         branch = re.compile(r"(call|jmp|bl|b)[ \t]")
-        # The pattern itself remains POSIX ERE. Ask grep which individual lines
-        # match it, then reproduce the oracle's one-line relocation look-ahead.
-        matching_lines = set(self._grep(pattern, file, "-En").stdout.splitlines())
-        matching_numbers = {
-            int(line.split(":", 1)[0]) for line in matching_lines if ":" in line
-        }
+        matching_numbers = self._matching_line_numbers(pattern, file, ignore_case=False)
         for number, line in enumerate(file.read_text(errors="replace").splitlines(), 1):
             if previous and "__gnat_" not in line:
                 actual += 1
@@ -149,7 +189,7 @@ class Checker:
         )
 
     def count_matches(self, pattern: str, file: Path) -> int:
-        lines = self._grep(pattern, file, "-Ei").stdout.splitlines()
+        lines = self._matching_lines(pattern, file, ignore_case=True)
         if self.architecture != "aarch64":
             return len(lines)
         seen: set[str] = set()
@@ -436,11 +476,11 @@ class Checker:
             caller_file,
             f"only one selected Native function in {description}",
         )
-        matches = self._grep(
+        matches = self._matching_substrings(
             rf"flyology_simd__backends__native__({matching_symbols})",
             caller_file,
-            "-Eio",
-        ).stdout.splitlines()
+            ignore_case=True,
+        )
         if not matches or not self.extract_symbol(
             matches[0], native_file, selected_file
         ):
@@ -449,9 +489,9 @@ class Checker:
     def require_final_avx_instruction(
         self, expected: str, file: Path, description: str
     ) -> None:
-        matches = self._grep(
-            r"(^|[[:space:]])v[a-z0-9]+", file, "-Eio"
-        ).stdout.splitlines()
+        matches = self._matching_substrings(
+            r"(^|[[:space:]])v[a-z0-9]+", file, ignore_case=True
+        )
         actual = matches[-1].lstrip() if matches else ""
         if actual != expected:
             raise CodegenError(
