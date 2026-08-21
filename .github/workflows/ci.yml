@@ -31,6 +31,9 @@ jobs:
       - uses: alire-project/setup-alire@v6.0.0
       - name: Select verified toolchain
         run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Test codegen checker primitives
+        if: ${{ matrix.architecture == 'scalar' }}
+        run: python3 scripts/test_codegen_checker.py
       - name: Verify generated sources
         if: ${{ matrix.architecture == 'scalar' }}
         run: |
@@ -96,7 +99,7 @@ jobs:
       - name: Check generated code
         if: ${{ matrix.architecture == 'x86_64' }}
         run: >-
-          ./scripts/check_codegen.sh x86_64 ${{ matrix.avx2 }}
+          python3 scripts/check_codegen.py x86_64 ${{ matrix.avx2 }}
           ${{ matrix.wide_backend }}
 
   linux-sanitizer:
@@ -122,6 +125,9 @@ jobs:
       - uses: alire-project/setup-alire@v6.0.0
       - name: Select verified toolchain
         run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Test codegen checker primitives
+        if: ${{ !matrix.release }}
+        run: python3 scripts/test_codegen_checker.py
       - name: Build debug library
         if: ${{ !matrix.release }}
         run: alr build -- -XFLYOLOGY_SIMD_ARCH=aarch64
@@ -147,7 +153,7 @@ jobs:
         if: ${{ !matrix.release }}
         run: ./scripts/run_sanitized_tests.sh aarch64
       - name: Check generated code
-        run: ./scripts/check_codegen.sh aarch64 disabled
+        run: python3 scripts/check_codegen.py aarch64 disabled
 
   macos-aarch64:
     runs-on: macos-14
@@ -160,6 +166,9 @@ jobs:
       - uses: alire-project/setup-alire@v6.0.0
       - name: Select verified toolchain
         run: alr toolchain --select gnat_native=16.1.0 gprbuild=26.0.1
+      - name: Test codegen checker primitives
+        if: ${{ !matrix.release }}
+        run: python3 scripts/test_codegen_checker.py
       - name: Build debug library
         if: ${{ !matrix.release }}
         run: alr build -- -XFLYOLOGY_SIMD_ARCH=aarch64
@@ -182,4 +191,4 @@ jobs:
           ./bin/conversion_tests
           ./bin/guard_page_tests
       - name: Check generated code
-        run: ./scripts/check_codegen.sh aarch64 disabled
+        run: python3 scripts/check_codegen.py aarch64 disabled

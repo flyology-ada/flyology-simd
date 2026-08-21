@@ -1,7 +1,7 @@
 # Contributing
 
 Run `git diff --check`, the scalar suite, the native suite on your architecture,
-and `scripts/check_codegen.sh` before proposing changes.  Tests use a printed,
+and `python3 scripts/check_codegen.py` before proposing changes.  Tests use a printed,
 fixed random seed; preserve reproducibility or print any replacement seed.
 
 Every public fixed-width and Wide overload is assigned to one family in

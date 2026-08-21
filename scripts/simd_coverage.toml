@@ -230,19 +230,45 @@ evidence = ["tests/wide_tests.adb", "tests/guard_page_tests.adb"]
 
 [profile.fixed_codegen]
 status = "complete"
-evidence = ["scripts/check_codegen.sh"]
+evidence = [
+    "scripts/codegen_contract_common.py",
+    "scripts/codegen_contract_comparison.py",
+    "scripts/codegen_contract_wide.py",
+    "scripts/codegen_contract_aarch64.py",
+    "scripts/codegen_contract_x86_64.py",
+]
 
 [profile.mask_core_codegen]
 status = "complete"
-evidence = ["scripts/generate_mask_core_probe.py", "scripts/probes/mask_core_codegen_cases.txt", "scripts/check_codegen.sh"]
+evidence = [
+    "scripts/generate_mask_core_probe.py",
+    "scripts/probes/mask_core_codegen_cases.txt",
+    "scripts/codegen_contract_common.py",
+    "scripts/codegen_contract_wide.py",
+    "scripts/codegen_contract_aarch64.py",
+    "scripts/codegen_contract_x86_64.py",
+]
 
 [profile.integer_conversion_codegen]
 status = "complete"
-evidence = ["scripts/generate_integer_conversion_probe.py", "scripts/probes/integer_conversion_codegen_cases.txt", "scripts/check_codegen.sh"]
+evidence = [
+    "scripts/generate_integer_conversion_probe.py",
+    "scripts/probes/integer_conversion_codegen_cases.txt",
+    "scripts/codegen_contract_common.py",
+    "scripts/codegen_contract_wide.py",
+    "scripts/codegen_contract_aarch64.py",
+    "scripts/codegen_contract_x86_64.py",
+]
 
 [profile.wide_codegen]
 status = "complete"
-evidence = ["scripts/check_codegen.sh"]
+evidence = [
+    "scripts/codegen_contract_common.py",
+    "scripts/codegen_contract_comparison.py",
+    "scripts/codegen_contract_wide.py",
+    "scripts/codegen_contract_aarch64.py",
+    "scripts/codegen_contract_x86_64.py",
+]
 
 [profile.codegen_not_applicable]
 status = "not_applicable"

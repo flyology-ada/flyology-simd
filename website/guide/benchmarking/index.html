@@ -62,10 +62,10 @@ FLYOLOGY_BENCH_OUTPUT=terminal alr run --skip-build class_scan_benchmark</code><
         <section id="codegen">
           <h2>Check required instruction classes</h2>
           <pre><code class="language-shell"># AArch64 host
-./scripts/check_codegen.sh aarch64
+python3 scripts/check_codegen.py aarch64
 
 # x86-64 baseline host
-./scripts/check_codegen.sh x86_64 disabled</code></pre>
+python3 scripts/check_codegen.py x86_64 disabled</code></pre>
           <p>The script checks primitive, floating-array, and whole-byte-algorithm objects. It requires the applicable vector load, multiplication, addition, byte comparison, and mask extraction or reduction instruction classes.</p>
           <p>The script also verifies baseline isolation and rejects selected unresolved primitive calls from the native complete-algorithm objects. It matches instruction classes instead of complete disassembly text.</p>
         </section>
