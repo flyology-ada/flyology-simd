@@ -1,7 +1,9 @@
 package body Conversion_Test_Floating_Control is
-   function Supported return Boolean is (False);
+   function Supported return Boolean
+   is (False);
 
-   function Current return Control_Word is (0);
+   function Current return Control_Word
+   is (0);
 
    procedure Set_Rounding_Mode (Mode : Rounding_Mode) is
       pragma Unreferenced (Mode);

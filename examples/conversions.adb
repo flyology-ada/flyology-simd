@@ -12,81 +12,55 @@ procedure Conversions is
    use type U64;
    package Native renames Flyology_SIMD.Backends.Native;
 
-   Input : constant Byte_Array :=
-     [0, 17, 34, 51, 68, 85, 102, 119,
-      136, 153, 170, 187, 204, 221, 238, 255];
+   Input : constant Byte_Array := [0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255];
    Bytes : constant U8x16 := Native.Load_Unaligned (Input, Input'First);
 
    Low_Words  : constant U16x8 := Native.Widen_Low (Bytes);
    High_Words : constant U16x8 := Native.Widen_High (Bytes);
-   Round_Trip : constant U8x16 :=
-     Native.Narrow_Saturate (Low_Words, High_Words);
+   Round_Trip : constant U8x16 := Native.Narrow_Saturate (Low_Words, High_Words);
 
-   Wide_Low : constant U16x8 :=
-     Native.From_Lanes ([254, 255, 256, 300, 0, 1, 2, 3]);
+   Wide_Low  : constant U16x8 := Native.From_Lanes ([254, 255, 256, 300, 0, 1, 2, 3]);
    Wide_High : constant U16x8 := Native.Zero;
-   Truncated : constant U8x16 :=
-     Native.Narrow_Truncate (Wide_Low, Wide_High);
-   Saturated : constant U8x16 :=
-     Native.Narrow_Saturate (Wide_Low, Wide_High);
+   Truncated : constant U8x16 := Native.Narrow_Truncate (Wide_Low, Wide_High);
+   Saturated : constant U8x16 := Native.Narrow_Saturate (Wide_Low, Wide_High);
 
-   Signed_Low : constant I16x8 :=
-     Native.From_Lanes ([-1, 0, 255, 256, 0, 1, 2, 3]);
-   Signed_High : constant I16x8 := Native.Zero;
-   Unsigned_Saturated : constant U8x16 :=
-     Native.Narrow_Saturate (Signed_Low, Signed_High);
+   Signed_Low         : constant I16x8 := Native.From_Lanes ([-1, 0, 255, 256, 0, 1, 2, 3]);
+   Signed_High        : constant I16x8 := Native.Zero;
+   Unsigned_Saturated : constant U8x16 := Native.Narrow_Saturate (Signed_Low, Signed_High);
 
-   Samples : constant F32x4 :=
-     Native.From_Lanes ([1.0, -2.0, 0.5, 4.0]);
+   Samples   : constant F32x4 := Native.From_Lanes ([1.0, -2.0, 0.5, 4.0]);
    Encodings : constant U32x4 := Native.Bit_Cast (Samples);
 
-   Wide_Float_Low : constant F64x2 :=
-     Native.From_Lanes
-       ([1.000_000_059_604_644_775_390_625,
-         1.000_000_178_813_934_326_171_875]);
-   Wide_Float_High : constant F64x2 := Native.From_Lanes ([-0.0, 4.0]);
-   Narrowed_Floats : constant F32x4 :=
-     Native.Narrow_Round (Wide_Float_Low, Wide_Float_High);
+   Wide_Float_Low     : constant F64x2 :=
+     Native.From_Lanes ([1.000_000_059_604_644_775_390_625, 1.000_000_178_813_934_326_171_875]);
+   Wide_Float_High    : constant F64x2 := Native.From_Lanes ([-0.0, 4.0]);
+   Narrowed_Floats    : constant F32x4 := Native.Narrow_Round (Wide_Float_Low, Wide_Float_High);
    Narrowed_Encodings : constant U32x4 := Native.Bit_Cast (Narrowed_Floats);
 
-   Integer_Samples : constant I32x4 :=
-     Native.From_Lanes ([0, 16_777_216, 16_777_217, I32'Last]);
-   Rounded_Integers : constant F32x4 :=
-     Native.Convert_Round (Integer_Samples);
-   Rounded_Integer_Encodings : constant U32x4 :=
-     Native.Bit_Cast (Rounded_Integers);
+   Integer_Samples           : constant I32x4 := Native.From_Lanes ([0, 16_777_216, 16_777_217, I32'Last]);
+   Rounded_Integers          : constant F32x4 := Native.Convert_Round (Integer_Samples);
+   Rounded_Integer_Encodings : constant U32x4 := Native.Bit_Cast (Rounded_Integers);
 
    Floating_Input_Bits : constant U32x4 :=
-     Native.From_Lanes
-       ([16#BFE0_0000#, 16#3FE0_0000#, 16#4F00_0000#, 16#7FC0_0001#]);
-   Floating_Inputs : constant F32x4 := Native.Bit_Cast (Floating_Input_Bits);
-   Truncated_Signed : constant I32x4 :=
-     Native.Convert_Truncate_Saturate (Floating_Inputs);
-   Truncated_Unsigned : constant U32x4 :=
-     Native.Convert_Truncate_Saturate (Floating_Inputs);
+     Native.From_Lanes ([16#BFE0_0000#, 16#3FE0_0000#, 16#4F00_0000#, 16#7FC0_0001#]);
+   Floating_Inputs     : constant F32x4 := Native.Bit_Cast (Floating_Input_Bits);
+   Truncated_Signed    : constant I32x4 := Native.Convert_Truncate_Saturate (Floating_Inputs);
+   Truncated_Unsigned  : constant U32x4 := Native.Convert_Truncate_Saturate (Floating_Inputs);
 
-   U64_Boundary_Input : constant U64x2 :=
-     Native.From_Lanes ([2**63 + 1, U64'Last]);
-   U64_Rounded : constant F64x2 := Native.Convert_Round (U64_Boundary_Input);
-   U64_Rounded_Bits : constant U64x2 := Native.Bit_Cast (U64_Rounded);
-   F64_Boundary_Bits : constant U64x2 :=
+   U64_Boundary_Input : constant U64x2 := Native.From_Lanes ([2**63 + 1, U64'Last]);
+   U64_Rounded        : constant F64x2 := Native.Convert_Round (U64_Boundary_Input);
+   U64_Rounded_Bits   : constant U64x2 := Native.Bit_Cast (U64_Rounded);
+   F64_Boundary_Bits  : constant U64x2 :=
      Native.From_Lanes ([16#43E0_0000_0000_0000#, 16#43F0_0000_0000_0000#]);
    F64_Boundary_Input : constant F64x2 := Native.Bit_Cast (F64_Boundary_Bits);
-   F64_To_U64 : constant U64x2 :=
-     Native.Convert_Truncate_Saturate (F64_Boundary_Input);
+   F64_To_U64         : constant U64x2 := Native.Convert_Truncate_Saturate (F64_Boundary_Input);
 
-   Signedness_Input : constant I32x4 :=
-     Native.From_Lanes ([-1, 0, 1, I32'Last]);
-   Signed_To_Unsigned : constant U32x4 :=
-     Native.Convert_Saturate (Signedness_Input);
-   Unsignedness_Input : constant U32x4 :=
-     Native.From_Lanes ([0, 2_147_483_647, 2_147_483_648, U32'Last]);
-   Unsigned_To_Signed : constant I32x4 :=
-     Native.Convert_Saturate (Unsignedness_Input);
+   Signedness_Input   : constant I32x4 := Native.From_Lanes ([-1, 0, 1, I32'Last]);
+   Signed_To_Unsigned : constant U32x4 := Native.Convert_Saturate (Signedness_Input);
+   Unsignedness_Input : constant U32x4 := Native.From_Lanes ([0, 2_147_483_647, 2_147_483_648, U32'Last]);
+   Unsigned_To_Signed : constant I32x4 := Native.Convert_Saturate (Unsignedness_Input);
 begin
-   Put_Line
-     ("round trip:" &
-      Boolean'Image (Native.All_True (Native.Equal (Bytes, Round_Trip))));
+   Put_Line ("round trip:" & Boolean'Image (Native.All_True (Native.Equal (Bytes, Round_Trip))));
    Put ("truncate:");
    for Lane in Lane_Index_8x16 range 0 .. 3 loop
       Put (U8'Image (Native.Extract (Truncated, Lane)));

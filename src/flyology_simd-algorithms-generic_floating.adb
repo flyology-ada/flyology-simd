@@ -6,16 +6,13 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
+            Count     : constant Lane_Count_32x4 := Lane_Count_32x4'Min (4, Remaining);
          begin
             Backend_F32_Store_Partial
               (Data,
                Start,
                Count,
-               Backend_F32_Multiply
-                 (Backend_F32_Load_Partial (Data, Start, Count),
-                  Factor_Vector));
+               Backend_F32_Multiply (Backend_F32_Load_Partial (Data, Start, Count), Factor_Vector));
             exit when Count = Remaining;
             Start := Start + Count;
          end;
@@ -29,16 +26,13 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_64x2 :=
-              Lane_Count_64x2'Min (2, Remaining);
+            Count     : constant Lane_Count_64x2 := Lane_Count_64x2'Min (2, Remaining);
          begin
             Backend_F64_Store_Partial
               (Data,
                Start,
                Count,
-               Backend_F64_Multiply
-                 (Backend_F64_Load_Partial (Data, Start, Count),
-                  Factor_Vector));
+               Backend_F64_Multiply (Backend_F64_Load_Partial (Data, Start, Count), Factor_Vector));
             exit when Count = Remaining;
             Start := Start + Count;
          end;
@@ -53,15 +47,14 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
+            Count     : constant Lane_Count_32x4 := Lane_Count_32x4'Min (4, Remaining);
          begin
             Backend_F32_Store_Partial
-              (Data, Start, Count,
+              (Data,
+               Start,
+               Count,
                Backend_F32_Min_Number
-                 (Backend_F32_Max_Number
-                    (Backend_F32_Load_Partial (Data, Start, Count),
-                     Low_Vector),
+                 (Backend_F32_Max_Number (Backend_F32_Load_Partial (Data, Start, Count), Low_Vector),
                   High_Vector));
             exit when Count = Remaining;
             Start := Start + Count;
@@ -77,15 +70,14 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_64x2 :=
-              Lane_Count_64x2'Min (2, Remaining);
+            Count     : constant Lane_Count_64x2 := Lane_Count_64x2'Min (2, Remaining);
          begin
             Backend_F64_Store_Partial
-              (Data, Start, Count,
+              (Data,
+               Start,
+               Count,
                Backend_F64_Min_Number
-                 (Backend_F64_Max_Number
-                    (Backend_F64_Load_Partial (Data, Start, Count),
-                     Low_Vector),
+                 (Backend_F64_Max_Number (Backend_F64_Load_Partial (Data, Start, Count), Low_Vector),
                   High_Vector));
             exit when Count = Remaining;
             Start := Start + Count;
@@ -100,15 +92,14 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Y'Last loop
          declare
             Remaining : constant Natural := Y'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
+            Count     : constant Lane_Count_32x4 := Lane_Count_32x4'Min (4, Remaining);
          begin
             Backend_F32_Store_Partial
-              (Y, Start, Count,
+              (Y,
+               Start,
+               Count,
                Backend_F32_Add
-                 (Backend_F32_Multiply
-                    (A_Vector,
-                     Backend_F32_Load_Partial (X, Start, Count)),
+                 (Backend_F32_Multiply (A_Vector, Backend_F32_Load_Partial (X, Start, Count)),
                   Backend_F32_Load_Partial (Y, Start, Count)));
             exit when Count = Remaining;
             Start := Start + Count;
@@ -123,15 +114,14 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Y'Last loop
          declare
             Remaining : constant Natural := Y'Last - Start + 1;
-            Count     : constant Lane_Count_64x2 :=
-              Lane_Count_64x2'Min (2, Remaining);
+            Count     : constant Lane_Count_64x2 := Lane_Count_64x2'Min (2, Remaining);
          begin
             Backend_F64_Store_Partial
-              (Y, Start, Count,
+              (Y,
+               Start,
+               Count,
                Backend_F64_Add
-                 (Backend_F64_Multiply
-                    (A_Vector,
-                     Backend_F64_Load_Partial (X, Start, Count)),
+                 (Backend_F64_Multiply (A_Vector, Backend_F64_Load_Partial (X, Start, Count)),
                   Backend_F64_Load_Partial (Y, Start, Count)));
             exit when Count = Remaining;
             Start := Start + Count;
@@ -146,12 +136,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
+            Count     : constant Lane_Count_32x4 := Lane_Count_32x4'Min (4, Remaining);
          begin
-            Accumulator := Backend_F32_Add
-              (Accumulator,
-               Backend_F32_Load_Partial (Data, Start, Count));
+            Accumulator := Backend_F32_Add (Accumulator, Backend_F32_Load_Partial (Data, Start, Count));
             exit when Count = Remaining;
             Start := Start + Count;
          end;
@@ -167,12 +154,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
       while Start <= Data'Last loop
          declare
             Remaining : constant Natural := Data'Last - Start + 1;
-            Count     : constant Lane_Count_64x2 :=
-              Lane_Count_64x2'Min (2, Remaining);
+            Count     : constant Lane_Count_64x2 := Lane_Count_64x2'Min (2, Remaining);
          begin
-            Accumulator := Backend_F64_Add
-              (Accumulator,
-               Backend_F64_Load_Partial (Data, Start, Count));
+            Accumulator := Backend_F64_Add (Accumulator, Backend_F64_Load_Partial (Data, Start, Count));
             exit when Count = Remaining;
             Start := Start + Count;
          end;
@@ -187,15 +171,11 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       if Data'Length >= 4 then
          declare
-            Accumulator : F32x4 :=
-              Backend_F32_Load_Partial (Data, Start, 4);
+            Accumulator : F32x4 := Backend_F32_Load_Partial (Data, Start, 4);
          begin
             Start := Start + 4;
-            while Start <= Data'Last
-              and then Data'Last - Start + 1 >= 4
-            loop
-               Accumulator := Backend_F32_Min_Number
-                 (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
+            while Start <= Data'Last and then Data'Last - Start + 1 >= 4 loop
+               Accumulator := Backend_F32_Min_Number (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
                Start := Start + 4;
             end loop;
             Result := Backend_F32_Reduce_Min_Number (Accumulator);
@@ -205,10 +185,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
          Start := Start + 1;
       end if;
       while Start <= Data'Last loop
-         Result := Backend_F32_Extract
-           (Backend_F32_Min_Number
-              (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))),
-            0);
+         Result :=
+           Backend_F32_Extract
+             (Backend_F32_Min_Number (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))), 0);
          Start := Start + 1;
       end loop;
       return Result;
@@ -220,15 +199,11 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       if Data'Length >= 4 then
          declare
-            Accumulator : F32x4 :=
-              Backend_F32_Load_Partial (Data, Start, 4);
+            Accumulator : F32x4 := Backend_F32_Load_Partial (Data, Start, 4);
          begin
             Start := Start + 4;
-            while Start <= Data'Last
-              and then Data'Last - Start + 1 >= 4
-            loop
-               Accumulator := Backend_F32_Max_Number
-                 (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
+            while Start <= Data'Last and then Data'Last - Start + 1 >= 4 loop
+               Accumulator := Backend_F32_Max_Number (Accumulator, Backend_F32_Load_Partial (Data, Start, 4));
                Start := Start + 4;
             end loop;
             Result := Backend_F32_Reduce_Max_Number (Accumulator);
@@ -238,10 +213,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
          Start := Start + 1;
       end if;
       while Start <= Data'Last loop
-         Result := Backend_F32_Extract
-           (Backend_F32_Max_Number
-              (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))),
-            0);
+         Result :=
+           Backend_F32_Extract
+             (Backend_F32_Max_Number (Backend_F32_Splat (Result), Backend_F32_Splat (Data (Start))), 0);
          Start := Start + 1;
       end loop;
       return Result;
@@ -253,15 +227,11 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       if Data'Length >= 2 then
          declare
-            Accumulator : F64x2 :=
-              Backend_F64_Load_Partial (Data, Start, 2);
+            Accumulator : F64x2 := Backend_F64_Load_Partial (Data, Start, 2);
          begin
             Start := Start + 2;
-            while Start <= Data'Last
-              and then Data'Last - Start + 1 >= 2
-            loop
-               Accumulator := Backend_F64_Min_Number
-                 (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
+            while Start <= Data'Last and then Data'Last - Start + 1 >= 2 loop
+               Accumulator := Backend_F64_Min_Number (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
                Start := Start + 2;
             end loop;
             Result := Backend_F64_Reduce_Min_Number (Accumulator);
@@ -271,10 +241,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
          Start := Start + 1;
       end if;
       while Start <= Data'Last loop
-         Result := Backend_F64_Extract
-           (Backend_F64_Min_Number
-              (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))),
-            0);
+         Result :=
+           Backend_F64_Extract
+             (Backend_F64_Min_Number (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))), 0);
          Start := Start + 1;
       end loop;
       return Result;
@@ -286,15 +255,11 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       if Data'Length >= 2 then
          declare
-            Accumulator : F64x2 :=
-              Backend_F64_Load_Partial (Data, Start, 2);
+            Accumulator : F64x2 := Backend_F64_Load_Partial (Data, Start, 2);
          begin
             Start := Start + 2;
-            while Start <= Data'Last
-              and then Data'Last - Start + 1 >= 2
-            loop
-               Accumulator := Backend_F64_Max_Number
-                 (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
+            while Start <= Data'Last and then Data'Last - Start + 1 >= 2 loop
+               Accumulator := Backend_F64_Max_Number (Accumulator, Backend_F64_Load_Partial (Data, Start, 2));
                Start := Start + 2;
             end loop;
             Result := Backend_F64_Reduce_Max_Number (Accumulator);
@@ -304,10 +269,9 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
          Start := Start + 1;
       end if;
       while Start <= Data'Last loop
-         Result := Backend_F64_Extract
-           (Backend_F64_Max_Number
-              (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))),
-            0);
+         Result :=
+           Backend_F64_Extract
+             (Backend_F64_Max_Number (Backend_F64_Splat (Result), Backend_F64_Splat (Data (Start))), 0);
          Start := Start + 1;
       end loop;
       return Result;
@@ -319,17 +283,12 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       while Start <= Left'Last loop
          declare
-            Remaining : constant Natural := Left'Last - Start + 1;
-            Count     : constant Lane_Count_32x4 :=
-              Lane_Count_32x4'Min (4, Remaining);
-            Left_Block : constant F32x4 :=
-              Backend_F32_Load_Partial (Left, Start, Count);
-            Right_Block : constant F32x4 :=
-              Backend_F32_Load_Partial (Right, Start, Count);
+            Remaining   : constant Natural := Left'Last - Start + 1;
+            Count       : constant Lane_Count_32x4 := Lane_Count_32x4'Min (4, Remaining);
+            Left_Block  : constant F32x4 := Backend_F32_Load_Partial (Left, Start, Count);
+            Right_Block : constant F32x4 := Backend_F32_Load_Partial (Right, Start, Count);
          begin
-            Accumulator := Backend_F32_Add
-              (Accumulator,
-               Backend_F32_Multiply (Left_Block, Right_Block));
+            Accumulator := Backend_F32_Add (Accumulator, Backend_F32_Multiply (Left_Block, Right_Block));
             exit when Count = Remaining;
             Start := Start + Count;
          end;
@@ -344,17 +303,12 @@ package body Flyology_SIMD.Algorithms.Generic_Floating is
    begin
       while Start <= Left'Last loop
          declare
-            Remaining : constant Natural := Left'Last - Start + 1;
-            Count     : constant Lane_Count_64x2 :=
-              Lane_Count_64x2'Min (2, Remaining);
-            Left_Block : constant F64x2 :=
-              Backend_F64_Load_Partial (Left, Start, Count);
-            Right_Block : constant F64x2 :=
-              Backend_F64_Load_Partial (Right, Start, Count);
+            Remaining   : constant Natural := Left'Last - Start + 1;
+            Count       : constant Lane_Count_64x2 := Lane_Count_64x2'Min (2, Remaining);
+            Left_Block  : constant F64x2 := Backend_F64_Load_Partial (Left, Start, Count);
+            Right_Block : constant F64x2 := Backend_F64_Load_Partial (Right, Start, Count);
          begin
-            Accumulator := Backend_F64_Add
-              (Accumulator,
-               Backend_F64_Multiply (Left_Block, Right_Block));
+            Accumulator := Backend_F64_Add (Accumulator, Backend_F64_Multiply (Left_Block, Right_Block));
             exit when Count = Remaining;
             Start := Start + Count;
          end;

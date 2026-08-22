@@ -114,4 +114,12 @@ project Flyology_SIMD is
    package Documentation is
       for Resources_Dir ("html") use "docs/gnatdoc/html";
    end Documentation;
+
+   package Format is
+      for Width ("Ada") use "110";
+      for Indentation ("Ada") use "3";
+      for Indentation_Continuation ("Ada") use "2";
+      for Indentation_Kind ("Ada") use "spaces";
+      for End_Of_Line ("Ada") use "lf";
+   end Format;
 end Flyology_SIMD;

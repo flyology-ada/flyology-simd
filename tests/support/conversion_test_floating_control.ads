@@ -1,8 +1,7 @@
 with Interfaces;
 
 package Conversion_Test_Floating_Control is
-   type Rounding_Mode is
-     (Round_To_Nearest, Round_Down, Round_Up, Round_Toward_Zero);
+   type Rounding_Mode is (Round_To_Nearest, Round_Down, Round_Up, Round_Toward_Zero);
 
    subtype Control_Word is Interfaces.Unsigned_32;
 

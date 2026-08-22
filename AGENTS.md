@@ -6,6 +6,10 @@
   `System.Machine_Code` assembly leaf over an out-of-line C wrapper.  Keep
   semantics and validation in Ada, differentially test the leaf against the
   scalar backend, and inspect its generated code.
+- Keep handwritten Ada source to 110 columns.  After editing Ada, run
+  `gnatformat -P flyology_simd.gpr <handwritten-source-files>`; the root project
+  owns the formatter settings.  Change generators rather than running
+  GNATformat on generated Ada independently.
 
 ## Releases
 

@@ -25,8 +25,8 @@ procedure SIMD_Tests is
    use type Flyology_SIMD.F32;
    use type Flyology_SIMD.F64;
 
-   Seed : constant Interfaces.Unsigned_32 := 16#5EED_0123#;
-   State : Interfaces.Unsigned_32 := Seed;
+   Seed     : constant Interfaces.Unsigned_32 := 16#5EED_0123#;
+   State    : Interfaces.Unsigned_32 := Seed;
    Failures : Natural := 0;
 
    procedure Check (Condition : Boolean; Message : String) is
@@ -37,14 +37,10 @@ procedure SIMD_Tests is
       end if;
    end Check;
 
-   function F32_Bits is new Ada.Unchecked_Conversion
-     (F32, Interfaces.Unsigned_32);
-   function F64_Bits is new Ada.Unchecked_Conversion
-     (F64, Interfaces.Unsigned_64);
-   function F32_Of_Bits is new Ada.Unchecked_Conversion
-     (Interfaces.Unsigned_32, F32);
-   function F64_Of_Bits is new Ada.Unchecked_Conversion
-     (Interfaces.Unsigned_64, F64);
+   function F32_Bits is new Ada.Unchecked_Conversion (F32, Interfaces.Unsigned_32);
+   function F64_Bits is new Ada.Unchecked_Conversion (F64, Interfaces.Unsigned_64);
+   function F32_Of_Bits is new Ada.Unchecked_Conversion (Interfaces.Unsigned_32, F32);
+   function F64_Of_Bits is new Ada.Unchecked_Conversion (Interfaces.Unsigned_64, F64);
 
    function Same_Bits (Left, Right : F32_Array) return Boolean is
    begin
@@ -98,23 +94,20 @@ procedure SIMD_Tests is
       return Result;
    end Random_Selectors;
 
-   function Same (Left, Right : U8x16) return Boolean is
-     (To_Lanes (Left) = To_Lanes (Right));
+   function Same (Left, Right : U8x16) return Boolean
+   is (To_Lanes (Left) = To_Lanes (Right));
 
    procedure Check_Value_Oracle
      (Portable_Result : U8x16;
       Scalar_Result   : U8x16;
       Native_Result   : U8x16;
       Expected        : Lane_Values_8x16;
-      Message         : String)
-   is
+      Message         : String) is
    begin
       Check
         (To_Lanes (Portable_Result) = Expected
-         and then Flyology_SIMD.Backends.Scalar.To_Lanes (Scalar_Result) =
-           Expected
-         and then Flyology_SIMD.Backends.Native.To_Lanes (Native_Result) =
-           Expected,
+         and then Flyology_SIMD.Backends.Scalar.To_Lanes (Scalar_Result) = Expected
+         and then Flyology_SIMD.Backends.Native.To_Lanes (Native_Result) = Expected,
          Message);
    end Check_Value_Oracle;
 
@@ -123,28 +116,20 @@ procedure SIMD_Tests is
       Scalar_Result   : Mask_8x16;
       Native_Result   : Mask_8x16;
       Expected        : Interfaces.Unsigned_16;
-      Message         : String)
-   is
+      Message         : String) is
    begin
       Check
         (To_Bit_Mask (Portable_Result) = Expected
-         and then Flyology_SIMD.Backends.Scalar.To_Bit_Mask (Scalar_Result) =
-           Expected
-         and then Flyology_SIMD.Backends.Native.To_Bit_Mask (Native_Result) =
-           Expected,
+         and then Flyology_SIMD.Backends.Scalar.To_Bit_Mask (Scalar_Result) = Expected
+         and then Flyology_SIMD.Backends.Native.To_Bit_Mask (Native_Result) = Expected,
          Message);
    end Check_Mask_Oracle;
 
    type Comparison_Kind is
-     (Compare_Equal,
-      Compare_Less,
-      Compare_Less_Equal,
-      Compare_Greater,
-      Compare_Greater_Equal);
+     (Compare_Equal, Compare_Less, Compare_Less_Equal, Compare_Greater, Compare_Greater_Equal);
 
    function Reference_Comparison
-     (Left, Right : Lane_Values_8x16;
-      Kind        : Comparison_Kind) return Interfaces.Unsigned_16
+     (Left, Right : Lane_Values_8x16; Kind : Comparison_Kind) return Interfaces.Unsigned_16
    is
       Result : Interfaces.Unsigned_16 := 0;
    begin
@@ -156,16 +141,13 @@ procedure SIMD_Tests is
                when Compare_Greater       => Left (Lane) > Right (Lane),
                when Compare_Greater_Equal => Left (Lane) >= Right (Lane))
          then
-            Result := Result or Interfaces.Shift_Left
-              (Interfaces.Unsigned_16'(1), Lane);
+            Result := Result or Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane);
          end if;
       end loop;
       return Result;
    end Reference_Comparison;
 
-   function Reference_Horizontal_Sum
-     (Values : Lane_Values_8x16) return Natural
-   is
+   function Reference_Horizontal_Sum (Values : Lane_Values_8x16) return Natural is
       Result : Natural := 0;
    begin
       for Value of Values loop
@@ -174,11 +156,11 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Horizontal_Sum;
 
-   function Reference_Add_Saturate (Left, Right : U8) return U8 is
-     (if Left > U8'Last - Right then U8'Last else Left + Right);
+   function Reference_Add_Saturate (Left, Right : U8) return U8
+   is (if Left > U8'Last - Right then U8'Last else Left + Right);
 
-   function Reference_Subtract_Saturate (Left, Right : U8) return U8 is
-     (if Left < Right then 0 else Left - Right);
+   function Reference_Subtract_Saturate (Left, Right : U8) return U8
+   is (if Left < Right then 0 else Left - Right);
 
    function Reference_Reduce_Add (Values : Lane_Values_8x16) return U8 is
       Result : U8 := 0;
@@ -211,30 +193,26 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Reduce_Max;
 
-   function Reference_Shift_Left_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
+   function Reference_Shift_Left_Logical (Value : U8x16; Count : Natural) return U8x16 is
       Result : U8x16 := Zero;
    begin
       for Lane in Lane_Index_8x16 loop
-         Result := Replace
-           (Result, Lane,
-            (if Count >= 8 then 0
-             else Interfaces.Shift_Left (Extract (Value, Lane), Count)));
+         Result :=
+           Replace
+             (Result, Lane, (if Count >= 8 then 0 else Interfaces.Shift_Left (Extract (Value, Lane), Count)));
       end loop;
       return Result;
    end Reference_Shift_Left_Logical;
 
-   function Reference_Shift_Right_Logical
-     (Value : U8x16; Count : Natural) return U8x16
-   is
+   function Reference_Shift_Right_Logical (Value : U8x16; Count : Natural) return U8x16 is
       Result : U8x16 := Zero;
    begin
       for Lane in Lane_Index_8x16 loop
-         Result := Replace
-           (Result, Lane,
-            (if Count >= 8 then 0
-             else Interfaces.Shift_Right (Extract (Value, Lane), Count)));
+         Result :=
+           Replace
+             (Result,
+              Lane,
+              (if Count >= 8 then 0 else Interfaces.Shift_Right (Extract (Value, Lane), Count)));
       end loop;
       return Result;
    end Reference_Shift_Right_Logical;
@@ -244,71 +222,53 @@ procedure SIMD_Tests is
       Count : Natural := 0;
    begin
       for Lane in Lane_Index_8x16 loop
-         if (Value and Interfaces.Shift_Left
-               (Interfaces.Unsigned_16'(1), Lane)) /= 0
-         then
+         if (Value and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0 then
             Count := Count + 1;
          end if;
       end loop;
       return Count;
    end Reference_Popcount;
 
-   function Reference_First_True
-     (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16
-   is
+   function Reference_First_True (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16 is
    begin
       for Lane in Lane_Index_8x16 loop
-         if (Bits and Interfaces.Shift_Left
-               (Interfaces.Unsigned_16'(1), Lane)) /= 0
-         then
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0 then
             return Lane;
          end if;
       end loop;
       return Lane_Count_8x16'Last;
    end Reference_First_True;
 
-   function Reference_Last_True
-     (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16
-   is
+   function Reference_Last_True (Bits : Interfaces.Unsigned_16) return Lane_Count_8x16 is
    begin
       for Lane in reverse Lane_Index_8x16 loop
-         if (Bits and Interfaces.Shift_Left
-               (Interfaces.Unsigned_16'(1), Lane)) /= 0
-         then
+         if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0 then
             return Lane;
          end if;
       end loop;
       return Lane_Count_8x16'Last;
    end Reference_Last_True;
 
-   function Reference_Compress
-     (Value : U8x16; Mask : Mask_8x16) return U8x16
-   is
+   function Reference_Compress (Value : U8x16; Mask : Mask_8x16) return U8x16 is
       Result      : U8x16 := Zero;
       Result_Lane : Natural := 0;
    begin
       for Source_Lane in Lane_Index_8x16 loop
          if Test (Mask, Source_Lane) then
-            Result := Replace
-              (Result, Lane_Index_8x16 (Result_Lane),
-               Extract (Value, Source_Lane));
+            Result := Replace (Result, Lane_Index_8x16 (Result_Lane), Extract (Value, Source_Lane));
             Result_Lane := Result_Lane + 1;
          end if;
       end loop;
       return Result;
    end Reference_Compress;
 
-   function Reference_Expand
-     (Value : U8x16; Mask : Mask_8x16) return U8x16
-   is
+   function Reference_Expand (Value : U8x16; Mask : Mask_8x16) return U8x16 is
       Result      : U8x16 := Zero;
       Source_Lane : Natural := 0;
    begin
       for Result_Lane in Lane_Index_8x16 loop
          if Test (Mask, Result_Lane) then
-            Result := Replace
-              (Result, Result_Lane,
-               Extract (Value, Lane_Index_8x16 (Source_Lane)));
+            Result := Replace (Result, Result_Lane, Extract (Value, Lane_Index_8x16 (Source_Lane)));
             Source_Lane := Source_Lane + 1;
          end if;
       end loop;
@@ -316,95 +276,109 @@ procedure SIMD_Tests is
    end Reference_Expand;
 
    procedure Test_Core_Semantics is
-      A_Lanes : constant Lane_Values_8x16 :=
-        [0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#,
-         16#AA#, 16#55#, 10, 20, 30, 40, 50, 60];
-      B_Lanes : constant Lane_Values_8x16 :=
-        [0, 2, 1, 3, 1, 16#80#, 2, 1,
-         16#55#, 16#AA#, 250, 240, 230, 220, 210, 200];
-      A : constant U8x16 := From_Lanes (A_Lanes);
-      B : constant U8x16 := From_Lanes (B_Lanes);
-      Min_Expected : constant Lane_Values_8x16 :=
+      A_Lanes             : constant Lane_Values_8x16 :=
+        [0, 1, 2, 3, 16#7F#, 16#80#, 16#FE#, 16#FF#, 16#AA#, 16#55#, 10, 20, 30, 40, 50, 60];
+      B_Lanes             : constant Lane_Values_8x16 :=
+        [0, 2, 1, 3, 1, 16#80#, 2, 1, 16#55#, 16#AA#, 250, 240, 230, 220, 210, 200];
+      A                   : constant U8x16 := From_Lanes (A_Lanes);
+      B                   : constant U8x16 := From_Lanes (B_Lanes);
+      Min_Expected        : constant Lane_Values_8x16 :=
         [for Lane in Lane_Index_8x16 =>
-           (if A_Lanes (Lane) < B_Lanes (Lane)
-            then A_Lanes (Lane) else B_Lanes (Lane))];
-      Max_Expected : constant Lane_Values_8x16 :=
+           (if A_Lanes (Lane) < B_Lanes (Lane) then A_Lanes (Lane) else B_Lanes (Lane))];
+      Max_Expected        : constant Lane_Values_8x16 :=
         [for Lane in Lane_Index_8x16 =>
-           (if A_Lanes (Lane) > B_Lanes (Lane)
-            then A_Lanes (Lane) else B_Lanes (Lane))];
-      Added : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
-      Saturated : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
-      Lookup_Table : constant U8x16 := From_Lanes
-        ([16#A0#, 16#A1#, 16#A2#, 16#A3#,
-          16#A4#, 16#A5#, 16#A6#, 16#A7#,
-          16#A8#, 16#A9#, 16#AA#, 16#AB#,
-          16#AC#, 16#AD#, 16#AE#, 16#AF#]);
-      Lookup_Indices : constant U8x16 := From_Lanes
-        ([15, 0, 7, 16, 1, 14, 255, 8, 3, 128, 12, 2, 31, 5, 9, 4]);
-      Lookup_Expected : constant U8x16 := From_Lanes
-        ([16#AF#, 16#A0#, 16#A7#, 0,
-          16#A1#, 16#AE#, 0, 16#A8#,
-          16#A3#, 0, 16#AC#, 16#A2#,
-          0, 16#A5#, 16#A9#, 16#A4#]);
-      Selectors : constant Lane_Selectors_8x16 :=
+           (if A_Lanes (Lane) > B_Lanes (Lane) then A_Lanes (Lane) else B_Lanes (Lane))];
+      Added               : constant Lane_Values_8x16 := To_Lanes (Add_Wrap (A, B));
+      Saturated           : constant Lane_Values_8x16 := To_Lanes (Add_Saturate (A, B));
+      Lookup_Table        : constant U8x16 :=
+        From_Lanes
+          ([16#A0#,
+            16#A1#,
+            16#A2#,
+            16#A3#,
+            16#A4#,
+            16#A5#,
+            16#A6#,
+            16#A7#,
+            16#A8#,
+            16#A9#,
+            16#AA#,
+            16#AB#,
+            16#AC#,
+            16#AD#,
+            16#AE#,
+            16#AF#]);
+      Lookup_Indices      : constant U8x16 :=
+        From_Lanes ([15, 0, 7, 16, 1, 14, 255, 8, 3, 128, 12, 2, 31, 5, 9, 4]);
+      Lookup_Expected     : constant U8x16 :=
+        From_Lanes
+          ([16#AF#,
+            16#A0#,
+            16#A7#,
+            0,
+            16#A1#,
+            16#AE#,
+            0,
+            16#A8#,
+            16#A3#,
+            0,
+            16#AC#,
+            16#A2#,
+            0,
+            16#A5#,
+            16#A9#,
+            16#A4#]);
+      Selectors           : constant Lane_Selectors_8x16 :=
         [15, 0, 7, 7, 1, 14, 2, 8, 3, 3, 12, 2, 6, 5, 9, 4];
-      Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
-      Two_Source_Map : constant Two_Source_Lane_Map_8x16 :=
+      Map                 : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
+      Two_Source_Map      : constant Two_Source_Lane_Map_8x16 :=
         Make_Two_Source_Lane_Map
-          ([Select_Left_Lane (15), Select_Right_Lane (0),
-            Select_Left_Lane (7), Select_Right_Lane (7),
-            Select_Left_Lane (1), Select_Right_Lane (14),
-            Select_Left_Lane (2), Select_Right_Lane (8),
-            Select_Left_Lane (3), Select_Right_Lane (3),
-            Select_Left_Lane (12), Select_Right_Lane (2),
-            Select_Left_Lane (6), Select_Right_Lane (5),
-            Select_Left_Lane (9), Select_Right_Lane (4)]);
-      Two_Source_Expected : constant U8x16 := From_Lanes
-        ([60, 0, 16#FF#, 1, 1, 210, 2, 16#55#,
-          3, 3, 30, 1, 16#FE#, 16#80#, 16#55#, 1]);
+          ([Select_Left_Lane (15),
+            Select_Right_Lane (0),
+            Select_Left_Lane (7),
+            Select_Right_Lane (7),
+            Select_Left_Lane (1),
+            Select_Right_Lane (14),
+            Select_Left_Lane (2),
+            Select_Right_Lane (8),
+            Select_Left_Lane (3),
+            Select_Right_Lane (3),
+            Select_Left_Lane (12),
+            Select_Right_Lane (2),
+            Select_Left_Lane (6),
+            Select_Right_Lane (5),
+            Select_Left_Lane (9),
+            Select_Right_Lane (4)]);
+      Two_Source_Expected : constant U8x16 :=
+        From_Lanes ([60, 0, 16#FF#, 1, 1, 210, 2, 16#55#, 3, 3, 30, 1, 16#FE#, 16#80#, 16#55#, 1]);
    begin
-      Check
-        (Extract (U8x16'(Zero), 0) = 0
-         and Extract (U8x16'(Zero), 15) = 0,
-         "zero");
+      Check (Extract (U8x16'(Zero), 0) = 0 and Extract (U8x16'(Zero), 15) = 0, "zero");
       Check (Extract (U8x16'(Splat (U8'(77))), 9) = 77, "splat");
       Check (Extract (Replace (A, 5, 42), 5) = 42, "replace");
       Check (Added (6) = 0 and Added (7) = 0, "wrapping addition");
-      Check (Extract (Subtract_Wrap (A, B), 1) = 255,
-             "wrapping subtraction");
-      Check (Extract (Multiply_Wrap (A, B), 6) = 252
-             and Extract (Multiply_Wrap (A, B), 7) = 255,
-             "wrapping multiplication");
-      Check (Saturated (6) = 255 and Saturated (7) = 255,
-             "saturating addition");
-      Check (Extract (Subtract_Saturate (A, B), 1) = 0,
-             "saturating subtraction");
-      Check (Extract (Bitwise_And (A, B), 8) = 0
-             and Extract (Bitwise_Or (A, B), 8) = 255
-             and Extract (Bitwise_Xor (A, B), 8) = 255
-             and Extract (Bitwise_Not (A), 0) = 255,
-             "bitwise operations");
-      Check (Same (Shift_Left_Logical (Splat (255), 8), Zero),
-             "oversized left shift");
-      Check (Same (Shift_Right_Logical (Splat (255), 100), Zero),
-             "oversized right shift");
+      Check (Extract (Subtract_Wrap (A, B), 1) = 255, "wrapping subtraction");
       Check
-        (Same
-           (Flyology_SIMD.Backends.Native.Shift_Left_Logical
-              (Splat (255), Natural'Last),
-            Zero)
-         and then Same
-           (Flyology_SIMD.Backends.Native.Shift_Right_Logical
-              (Splat (255), Natural'Last),
-            Zero),
+        (Extract (Multiply_Wrap (A, B), 6) = 252 and Extract (Multiply_Wrap (A, B), 7) = 255,
+         "wrapping multiplication");
+      Check (Saturated (6) = 255 and Saturated (7) = 255, "saturating addition");
+      Check (Extract (Subtract_Saturate (A, B), 1) = 0, "saturating subtraction");
+      Check
+        (Extract (Bitwise_And (A, B), 8) = 0
+         and Extract (Bitwise_Or (A, B), 8) = 255
+         and Extract (Bitwise_Xor (A, B), 8) = 255
+         and Extract (Bitwise_Not (A), 0) = 255,
+         "bitwise operations");
+      Check (Same (Shift_Left_Logical (Splat (255), 8), Zero), "oversized left shift");
+      Check (Same (Shift_Right_Logical (Splat (255), 100), Zero), "oversized right shift");
+      Check
+        (Same (Flyology_SIMD.Backends.Native.Shift_Left_Logical (Splat (255), Natural'Last), Zero)
+         and then Same (Flyology_SIMD.Backends.Native.Shift_Right_Logical (Splat (255), Natural'Last), Zero),
          "native maximum-count logical shifts");
       Check (To_Bit_Mask (Equal (A, B)) = 16#0029#, "equality lane mask");
-      Check (Test (Less_Than (A, B), 1) and not Test (Less_Than (A, B), 2),
-             "unsigned ordered comparison");
-      Check (Test (Less_Equal (A, B), 0)
-             and Test (Greater_Than (A, B), 2)
-             and Test (Greater_Equal (A, B), 3),
-             "all ordered comparisons");
+      Check (Test (Less_Than (A, B), 1) and not Test (Less_Than (A, B), 2), "unsigned ordered comparison");
+      Check
+        (Test (Less_Equal (A, B), 0) and Test (Greater_Than (A, B), 2) and Test (Greater_Equal (A, B), 3),
+         "all ordered comparisons");
       Check (Same (Select_Value (Equal (A, B), A, B), B), "select semantics");
       Check_Value_Oracle
         (Min (A, B),
@@ -419,161 +393,140 @@ procedure SIMD_Tests is
          Max_Expected,
          "fixed independent unsigned maximum");
       Check
-        (Horizontal_Sum (Splat (255)) =
-           Reference_Horizontal_Sum ([others => 255])
-         and then Flyology_SIMD.Backends.Native.Horizontal_Sum (Splat (255)) =
-           Reference_Horizontal_Sum ([others => 255]),
+        (Horizontal_Sum (Splat (255)) = Reference_Horizontal_Sum ([others => 255])
+         and then Flyology_SIMD.Backends.Native.Horizontal_Sum (Splat (255))
+                  = Reference_Horizontal_Sum ([others => 255]),
          "horizontal sum");
       Check (Extract (Reverse_Bytes (A), 0) = Extract (A, 15), "reverse");
-      Check (Same (Reverse_Lanes (A), Reverse_Bytes (A)),
-             "reverse lanes compatibility");
-      Check (Extract (Interleave_Low (A, B), 2) = Extract (A, 1)
-             and Extract (Interleave_Low (A, B), 3) = Extract (B, 1),
-             "interleave low");
-      Check (Extract (Interleave_High (A, B), 0) = Extract (A, 8),
-             "interleave high");
-      Check (Extract (Deinterleave_Even (A, B), 1) = Extract (A, 2)
-             and Extract (Deinterleave_Even (A, B), 9) = Extract (B, 2),
-             "deinterleave even");
-      Check (Extract (Deinterleave_Odd (A, B), 1) = Extract (A, 3)
-             and Extract (Deinterleave_Odd (A, B), 9) = Extract (B, 3),
-             "deinterleave odd");
-      Check (Same (Table_Lookup (Lookup_Table, Lookup_Indices), Lookup_Expected),
-             "table lookup literal semantics");
+      Check (Same (Reverse_Lanes (A), Reverse_Bytes (A)), "reverse lanes compatibility");
       Check
-        (Same
-           (Flyology_SIMD.Backends.Scalar.Table_Lookup
-              (Lookup_Table, Lookup_Indices),
-            Lookup_Expected),
+        (Extract (Interleave_Low (A, B), 2) = Extract (A, 1)
+         and Extract (Interleave_Low (A, B), 3) = Extract (B, 1),
+         "interleave low");
+      Check (Extract (Interleave_High (A, B), 0) = Extract (A, 8), "interleave high");
+      Check
+        (Extract (Deinterleave_Even (A, B), 1) = Extract (A, 2)
+         and Extract (Deinterleave_Even (A, B), 9) = Extract (B, 2),
+         "deinterleave even");
+      Check
+        (Extract (Deinterleave_Odd (A, B), 1) = Extract (A, 3)
+         and Extract (Deinterleave_Odd (A, B), 9) = Extract (B, 3),
+         "deinterleave odd");
+      Check
+        (Same (Table_Lookup (Lookup_Table, Lookup_Indices), Lookup_Expected),
+         "table lookup literal semantics");
+      Check
+        (Same (Flyology_SIMD.Backends.Scalar.Table_Lookup (Lookup_Table, Lookup_Indices), Lookup_Expected),
          "scalar backend table lookup literal semantics");
       Check
-        (Same
-           (Flyology_SIMD.Backends.Native.Table_Lookup
-              (Lookup_Table, Lookup_Indices),
-            Lookup_Expected),
+        (Same (Flyology_SIMD.Backends.Native.Table_Lookup (Lookup_Table, Lookup_Indices), Lookup_Expected),
          "native table lookup literal semantics");
       for Lane in Lane_Index_8x16 loop
          Check
-           (Extract (Permute_Lanes (A, Map), Lane) =
-              Extract (A, Selectors (Lane)),
+           (Extract (Permute_Lanes (A, Map), Lane) = Extract (A, Selectors (Lane)),
             "byte fixed lane permutation" & Lane'Image);
       end loop;
       Check
-        (Same
-           (Flyology_SIMD.Backends.Scalar.Permute_Lanes (A, Map),
-            Permute_Lanes (A, Map))
-         and then Same
-           (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
-            Permute_Lanes (A, Map)),
+        (Same (Flyology_SIMD.Backends.Scalar.Permute_Lanes (A, Map), Permute_Lanes (A, Map))
+         and then Same (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map), Permute_Lanes (A, Map)),
          "byte fixed lane permutation backends");
       Check
         (Same (Permute_Lanes (A, B, Two_Source_Map), Two_Source_Expected)
          and then Same
-           (Flyology_SIMD.Backends.Scalar.Permute_Lanes
-              (A, B, Two_Source_Map),
-            Two_Source_Expected)
+                    (Flyology_SIMD.Backends.Scalar.Permute_Lanes (A, B, Two_Source_Map), Two_Source_Expected)
          and then Same
-           (Flyology_SIMD.Backends.Native.Permute_Lanes
-              (A, B, Two_Source_Map),
-            Two_Source_Expected),
+                    (Flyology_SIMD.Backends.Native.Permute_Lanes (A, B, Two_Source_Map), Two_Source_Expected),
          "byte fixed two-source lane permutation");
    end Test_Core_Semantics;
 
    procedure Test_All_Table_Indices is
-      Table : constant U8x16 := From_Lanes
-        ([16#31#, 16#72#, 16#B4#, 16#05#,
-          16#E6#, 16#27#, 16#68#, 16#A9#,
-          16#4A#, 16#8B#, 16#CC#, 16#0D#,
-          16#EE#, 16#2F#, 16#70#, 16#B1#]);
+      Table : constant U8x16 :=
+        From_Lanes
+          ([16#31#,
+            16#72#,
+            16#B4#,
+            16#05#,
+            16#E6#,
+            16#27#,
+            16#68#,
+            16#A9#,
+            16#4A#,
+            16#8B#,
+            16#CC#,
+            16#0D#,
+            16#EE#,
+            16#2F#,
+            16#70#,
+            16#B1#]);
    begin
       for Batch in Natural range 0 .. 15 loop
          declare
-            Indices : constant U8x16 := From_Lanes
-              ([for Lane in Lane_Index_8x16 => U8 (Batch * 16 + Lane)]);
-            Expected : constant U8x16 :=
-              (if Batch = 0 then Table else Zero);
+            Indices  : constant U8x16 := From_Lanes ([for Lane in Lane_Index_8x16 => U8 (Batch * 16 + Lane)]);
+            Expected : constant U8x16 := (if Batch = 0 then Table else Zero);
          begin
+            Check (Same (Table_Lookup (Table, Indices), Expected), "table lookup index batch" & Batch'Image);
             Check
-              (Same (Table_Lookup (Table, Indices), Expected),
-               "table lookup index batch" & Batch'Image);
-            Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.Table_Lookup (Table, Indices),
-                  Expected),
+              (Same (Flyology_SIMD.Backends.Native.Table_Lookup (Table, Indices), Expected),
                "native table lookup index batch" & Batch'Image);
          end;
       end loop;
    end Test_All_Table_Indices;
 
    procedure Test_Lane_Slides is
-      Value : constant U8x16 := From_Lanes
-        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+      Value : constant U8x16 := From_Lanes ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
    begin
       for Count in Natural range 0 .. 18 loop
          Check
            (Same
-              (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_Low
-                 (Value, Count),
+              (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_Low (Value, Count),
                Slide_Lanes_Toward_Low (Value, Count))
             and then Same
-              (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
-                 (Value, Count),
-               Slide_Lanes_Toward_Low (Value, Count))
+                       (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low (Value, Count),
+                        Slide_Lanes_Toward_Low (Value, Count))
             and then Same
-              (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_High
-                 (Value, Count),
-               Slide_Lanes_Toward_High (Value, Count))
+                       (Flyology_SIMD.Backends.Scalar.Slide_Lanes_Toward_High (Value, Count),
+                        Slide_Lanes_Toward_High (Value, Count))
             and then Same
-              (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
-                 (Value, Count),
-               Slide_Lanes_Toward_High (Value, Count)),
+                       (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High (Value, Count),
+                        Slide_Lanes_Toward_High (Value, Count)),
             "byte lane-slide backends" & Count'Image);
          for Lane in Lane_Index_8x16 loop
             Check
-              (Extract (Slide_Lanes_Toward_Low (Value, Count), Lane) =
-                 (if Count < 16 and then Lane < 16 - Count
+              (Extract (Slide_Lanes_Toward_Low (Value, Count), Lane)
+               = (if Count < 16 and then Lane < 16 - Count
                   then Extract (Value, Lane_Index_8x16 (Lane + Count))
                   else 0)
-               and then Extract
-                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
-                    (Value, Count), Lane) =
-                 (if Count < 16 and then Lane < 16 - Count
-                  then Extract (Value, Lane_Index_8x16 (Lane + Count))
-                  else 0),
+               and then Extract (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low (Value, Count), Lane)
+                        = (if Count < 16 and then Lane < 16 - Count
+                           then Extract (Value, Lane_Index_8x16 (Lane + Count))
+                           else 0),
                "byte slide toward low" & Count'Image & Lane'Image);
             Check
-              (Extract (Slide_Lanes_Toward_High (Value, Count), Lane) =
-                 (if Count < 16 and then Lane >= Count
+              (Extract (Slide_Lanes_Toward_High (Value, Count), Lane)
+               = (if Count < 16 and then Lane >= Count
                   then Extract (Value, Lane_Index_8x16 (Lane - Count))
                   else 0)
-               and then Extract
-                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
-                    (Value, Count), Lane) =
-                 (if Count < 16 and then Lane >= Count
-                  then Extract (Value, Lane_Index_8x16 (Lane - Count))
-                  else 0),
+               and then Extract (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High (Value, Count), Lane)
+                        = (if Count < 16 and then Lane >= Count
+                           then Extract (Value, Lane_Index_8x16 (Lane - Count))
+                           else 0),
                "byte slide toward high" & Count'Image & Lane'Image);
          end loop;
       end loop;
       Check
         (Same (Slide_Lanes_Toward_Low (Value, Natural'Last), Zero)
-         and then Same
-           (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
-              (Value, Natural'Last), Zero)
+         and then Same (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low (Value, Natural'Last), Zero)
          and then Same (Slide_Lanes_Toward_High (Value, Natural'Last), Zero)
-         and then Same
-           (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
-              (Value, Natural'Last), Zero),
+         and then Same (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High (Value, Natural'Last), Zero),
          "byte maximum-count lane slides");
    end Test_Lane_Slides;
 
    procedure Test_All_Masks is
-      Value : constant U8x16 := From_Lanes
-        ([16#80#, 1, 16#FD#, 3, 4, 16#AA#, 6, 7,
-          8, 16#55#, 10, 11, 12, 13, 14, 16#FF#]);
-      Other : constant U8x16 := From_Lanes
-        ([0, 16#FE#, 2, 16#FC#, 5, 16#FA#, 7, 16#F8#,
-          9, 16#F6#, 11, 16#F4#, 13, 16#F2#, 15, 16#F0#]);
+      Value       : constant U8x16 :=
+        From_Lanes ([16#80#, 1, 16#FD#, 3, 4, 16#AA#, 6, 7, 8, 16#55#, 10, 11, 12, 13, 14, 16#FF#]);
+      Other       : constant U8x16 :=
+        From_Lanes
+          ([0, 16#FE#, 2, 16#FC#, 5, 16#FA#, 7, 16#F8#, 9, 16#F6#, 11, 16#F4#, 13, 16#F2#, 15, 16#F0#]);
       Value_Lanes : constant Lane_Values_8x16 := To_Lanes (Value);
       Other_Lanes : constant Lane_Values_8x16 := To_Lanes (Other);
    begin
@@ -583,52 +536,46 @@ procedure SIMD_Tests is
             Mask : constant Mask_8x16 := Mask_From_Bit_Mask (Bits);
          begin
             Check (To_Bit_Mask (Mask) = Bits, "mask round trip" & Raw'Image);
-            Check
-              (To_Bit_Mask (Mask_Not (Mask)) = not Bits,
-               "mask not" & Raw'Image);
+            Check (To_Bit_Mask (Mask_Not (Mask)) = not Bits, "mask not" & Raw'Image);
             Check
               (To_Bit_Mask (Mask_And (Mask, Mask_Not (Mask))) = 0
-               and then To_Bit_Mask (Mask_Or (Mask, Mask_Not (Mask))) =
-                 Interfaces.Unsigned_16'Last
-               and then To_Bit_Mask (Mask_Xor (Mask, Mask_Not (Mask))) =
-                 Interfaces.Unsigned_16'Last,
+               and then To_Bit_Mask (Mask_Or (Mask, Mask_Not (Mask))) = Interfaces.Unsigned_16'Last
+               and then To_Bit_Mask (Mask_Xor (Mask, Mask_Not (Mask))) = Interfaces.Unsigned_16'Last,
                "mask algebra" & Raw'Image);
             Check
               (Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits)) = Bits,
+                 (Flyology_SIMD.Backends.Native.Mask_From_Bit_Mask (Bits))
+               = Bits,
                "native mask round trip" & Raw'Image);
-            Check (Population_Count (Mask) = Reference_Popcount (Bits),
-                   "mask popcount" & Raw'Image);
+            Check (Population_Count (Mask) = Reference_Popcount (Bits), "mask popcount" & Raw'Image);
             Check
-              (Flyology_SIMD.Backends.Native.Population_Count (Mask) =
-                 Reference_Popcount (Bits),
+              (Flyology_SIMD.Backends.Native.Population_Count (Mask) = Reference_Popcount (Bits),
                "native mask popcount" & Raw'Image);
             Check
               (First_True (Mask) = Reference_First_True (Bits)
                and then Last_True (Mask) = Reference_Last_True (Bits),
                "mask positions" & Raw'Image);
             Check
-              (Flyology_SIMD.Backends.Native.First_True (Mask) =
-                 Reference_First_True (Bits)
-               and then Flyology_SIMD.Backends.Native.Last_True (Mask) =
-                 Reference_Last_True (Bits),
+              (Flyology_SIMD.Backends.Native.First_True (Mask) = Reference_First_True (Bits)
+               and then Flyology_SIMD.Backends.Native.Last_True (Mask) = Reference_Last_True (Bits),
                "native mask positions" & Raw'Image);
             Check
-              (Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Mask_Not (Mask)) = not Bits,
+              (Flyology_SIMD.Backends.Native.To_Bit_Mask (Flyology_SIMD.Backends.Native.Mask_Not (Mask))
+               = not Bits,
                "native mask not" & Raw'Image);
             Check
               (Flyology_SIMD.Backends.Native.To_Bit_Mask
                  (Flyology_SIMD.Backends.Native.Mask_And
-                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) = 0
+                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask)))
+               = 0
                and then Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Mask_Or
-                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) =
-                   Interfaces.Unsigned_16'Last
+                          (Flyology_SIMD.Backends.Native.Mask_Or
+                             (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask)))
+                        = Interfaces.Unsigned_16'Last
                and then Flyology_SIMD.Backends.Native.To_Bit_Mask
-                 (Flyology_SIMD.Backends.Native.Mask_Xor
-                    (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask))) =
-                   Interfaces.Unsigned_16'Last,
+                          (Flyology_SIMD.Backends.Native.Mask_Xor
+                             (Mask, Flyology_SIMD.Backends.Native.Mask_Not (Mask)))
+                        = Interfaces.Unsigned_16'Last,
                "native mask algebra" & Raw'Image);
             Check (Any_True (Mask) = (Raw /= 0), "mask any" & Raw'Image);
             Check (None_True (Mask) = (Raw = 0), "mask none" & Raw'Image);
@@ -636,42 +583,36 @@ procedure SIMD_Tests is
             Check
               (Flyology_SIMD.Backends.Native.Any_True (Mask) = (Raw /= 0)
                and then Flyology_SIMD.Backends.Native.None_True (Mask) = (Raw = 0)
-               and then Flyology_SIMD.Backends.Native.All_True (Mask) =
-                 (Raw = 65_535),
+               and then Flyology_SIMD.Backends.Native.All_True (Mask) = (Raw = 65_535),
                "native mask reductions" & Raw'Image);
             Check
               (Same (Compress (Value, Mask), Reference_Compress (Value, Mask))
                and then Same
-                 (Flyology_SIMD.Backends.Scalar.Compress (Value, Mask),
-                  Reference_Compress (Value, Mask))
+                          (Flyology_SIMD.Backends.Scalar.Compress (Value, Mask),
+                           Reference_Compress (Value, Mask))
                and then Same
-                 (Flyology_SIMD.Backends.Native.Compress (Value, Mask),
-                  Reference_Compress (Value, Mask)),
+                          (Flyology_SIMD.Backends.Native.Compress (Value, Mask),
+                           Reference_Compress (Value, Mask)),
                "compression semantics" & Raw'Image);
             Check
               (Same (Expand (Value, Mask), Reference_Expand (Value, Mask))
                and then Same
-                 (Flyology_SIMD.Backends.Scalar.Expand (Value, Mask),
-                  Reference_Expand (Value, Mask))
+                          (Flyology_SIMD.Backends.Scalar.Expand (Value, Mask), Reference_Expand (Value, Mask))
                and then Same
-                 (Flyology_SIMD.Backends.Native.Expand (Value, Mask),
-                  Reference_Expand (Value, Mask)),
+                          (Flyology_SIMD.Backends.Native.Expand (Value, Mask),
+                           Reference_Expand (Value, Mask)),
                "expansion semantics" & Raw'Image);
             declare
                Expected : Lane_Values_8x16;
             begin
                for Lane in Lane_Index_8x16 loop
                   Expected (Lane) :=
-                    (if (Raw / 2 ** Lane) mod 2 = 1
-                     then Value_Lanes (Lane)
-                     else Other_Lanes (Lane));
+                    (if (Raw / 2**Lane) mod 2 = 1 then Value_Lanes (Lane) else Other_Lanes (Lane));
                end loop;
                Check_Value_Oracle
                  (Select_Value (Mask, Value, Other),
-                  Flyology_SIMD.Backends.Scalar.Select_Value
-                    (Mask, Value, Other),
-                  Flyology_SIMD.Backends.Native.Select_Value
-                    (Mask, Value, Other),
+                  Flyology_SIMD.Backends.Scalar.Select_Value (Mask, Value, Other),
+                  Flyology_SIMD.Backends.Native.Select_Value (Mask, Value, Other),
                   Expected,
                   "exhaustive independent selection semantics" & Raw'Image);
             end;
@@ -680,229 +621,231 @@ procedure SIMD_Tests is
    end Test_All_Masks;
 
    procedure Test_Memory is
-      Data : Byte_Array (0 .. 95) := [others => 16#CC#];
+      Data             : Byte_Array (0 .. 95) := [others => 16#CC#];
       for Data'Alignment use 16;
-      Value : constant U8x16 := From_Lanes
-        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
-      Private_Storage : Byte_Array (0 .. 16) := [others => 0]
-        with Alignment => 16;
+      Value            : constant U8x16 :=
+        From_Lanes ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+      Private_Storage  : Byte_Array (0 .. 16) := [others => 0]
+      with Alignment => 16;
       Misaligned_Value : U8x16;
       for Misaligned_Value'Address use Private_Storage (1)'Address;
-      Aligned_Start : Natural := 0;
-      High_Data : constant Byte_Array (Natural'Last - 3 .. Natural'Last) :=
-        [others => 0];
+      Aligned_Start    : Natural := 0;
+      High_Data        : constant Byte_Array (Natural'Last - 3 .. Natural'Last) := [others => 0];
    begin
-      Check (Has_Extent (Data, Natural'Last, 0)
-        and then Has_Extent (Data, Data'First, Data'Length)
-        and then Has_Extent (Data, Data'Last, 1)
-        and then not Has_Extent (Data, Data'Last, 2)
-        and then not Has_Extent (Data, Data'Last + 1, 1)
-        and then Has_Extent (High_Data, High_Data'First, High_Data'Length)
-        and then Has_Extent (High_Data, High_Data'Last, 1)
-        and then not Has_Extent (High_Data, High_Data'Last, 2),
-        "byte extent boundaries");
+      Check
+        (Has_Extent (Data, Natural'Last, 0)
+         and then Has_Extent (Data, Data'First, Data'Length)
+         and then Has_Extent (Data, Data'Last, 1)
+         and then not Has_Extent (Data, Data'Last, 2)
+         and then not Has_Extent (Data, Data'Last + 1, 1)
+         and then Has_Extent (High_Data, High_Data'First, High_Data'Length)
+         and then Has_Extent (High_Data, High_Data'Last, 1)
+         and then not Has_Extent (High_Data, High_Data'Last, 2),
+         "byte extent boundaries");
       while not Is_Aligned_16 (Data, Aligned_Start) loop
          Aligned_Start := Aligned_Start + 1;
       end loop;
       Store_Aligned (Data, Aligned_Start, Value);
       Check (Same (Load_Aligned (Data, Aligned_Start), Value), "aligned memory");
       Misaligned_Value := Value;
-      Flyology_SIMD.Backends.Native.Store_Aligned
-        (Data, Aligned_Start, Misaligned_Value);
-      Check (Same (Flyology_SIMD.Backends.Native.Load_Aligned
-                     (Data, Aligned_Start), Value),
-             "aligned memory does not assume private vector alignment");
+      Flyology_SIMD.Backends.Native.Store_Aligned (Data, Aligned_Start, Misaligned_Value);
+      Check
+        (Same (Flyology_SIMD.Backends.Native.Load_Aligned (Data, Aligned_Start), Value),
+         "aligned memory does not assume private vector alignment");
       Store (Data, Aligned_Start, Value);
       Check (Same (Load (Data, Aligned_Start), Value), "ordinary full memory");
       Store_Unaligned (Data, Aligned_Start + 1, Value);
-      Check (Same (Load_Unaligned (Data, Aligned_Start + 1), Value),
-             "deliberately unaligned memory");
+      Check (Same (Load_Unaligned (Data, Aligned_Start + 1), Value), "deliberately unaligned memory");
 
       for Backend in Natural range 0 .. 2 loop
          Data := [others => 16#CC#];
          case Backend is
-            when 0 => Store (Data, Aligned_Start, Value);
-            when 1 => Flyology_SIMD.Backends.Scalar.Store
-              (Data, Aligned_Start, Value);
-            when 2 => Flyology_SIMD.Backends.Native.Store
-              (Data, Aligned_Start, Value);
+            when 0 =>
+               Store (Data, Aligned_Start, Value);
+
+            when 1 =>
+               Flyology_SIMD.Backends.Scalar.Store (Data, Aligned_Start, Value);
+
+            when 2 =>
+               Flyology_SIMD.Backends.Native.Store (Data, Aligned_Start, Value);
          end case;
          for Offset in Data'Range loop
             Check
-              (Data (Offset) =
-                 (if Offset in Aligned_Start .. Aligned_Start + 15
-                  then U8 (Offset - Aligned_Start) else 16#CC#),
+              (Data (Offset)
+               = (if Offset in Aligned_Start .. Aligned_Start + 15
+                  then U8 (Offset - Aligned_Start)
+                  else 16#CC#),
                "independent U8 ordinary store" & Backend'Image & Offset'Image);
          end loop;
          declare
             Loaded : constant U8x16 :=
               (case Backend is
                  when 0 => Load (Data, Aligned_Start),
-                 when 1 => Flyology_SIMD.Backends.Scalar.Load
-                   (Data, Aligned_Start),
-                 when 2 => Flyology_SIMD.Backends.Native.Load
-                   (Data, Aligned_Start));
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load (Data, Aligned_Start),
+                 when 2 => Flyology_SIMD.Backends.Native.Load (Data, Aligned_Start));
          begin
-            Check (To_Lanes (Loaded) = To_Lanes (Value),
-                   "independent U8 ordinary load" & Backend'Image);
+            Check (To_Lanes (Loaded) = To_Lanes (Value), "independent U8 ordinary load" & Backend'Image);
          end;
 
          Data := [others => 16#CC#];
          case Backend is
-            when 0 => Store_Unaligned (Data, Aligned_Start + 1, Value);
-            when 1 => Flyology_SIMD.Backends.Scalar.Store_Unaligned
-              (Data, Aligned_Start + 1, Value);
-            when 2 => Flyology_SIMD.Backends.Native.Store_Unaligned
-              (Data, Aligned_Start + 1, Value);
+            when 0 =>
+               Store_Unaligned (Data, Aligned_Start + 1, Value);
+
+            when 1 =>
+               Flyology_SIMD.Backends.Scalar.Store_Unaligned (Data, Aligned_Start + 1, Value);
+
+            when 2 =>
+               Flyology_SIMD.Backends.Native.Store_Unaligned (Data, Aligned_Start + 1, Value);
          end case;
          for Offset in Data'Range loop
             Check
-              (Data (Offset) =
-                 (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
-                  then U8 (Offset - Aligned_Start - 1) else 16#CC#),
+              (Data (Offset)
+               = (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
+                  then U8 (Offset - Aligned_Start - 1)
+                  else 16#CC#),
                "independent U8 unaligned store" & Backend'Image & Offset'Image);
          end loop;
          declare
             Loaded : constant U8x16 :=
               (case Backend is
                  when 0 => Load_Unaligned (Data, Aligned_Start + 1),
-                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned
-                   (Data, Aligned_Start + 1),
-                 when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned
-                   (Data, Aligned_Start + 1));
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned (Data, Aligned_Start + 1),
+                 when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned (Data, Aligned_Start + 1));
          begin
-            Check (To_Lanes (Loaded) = To_Lanes (Value),
-                   "independent U8 unaligned load" & Backend'Image);
+            Check (To_Lanes (Loaded) = To_Lanes (Value), "independent U8 unaligned load" & Backend'Image);
          end;
 
          Data := [others => 16#CC#];
          case Backend is
-            when 0 => Store_Aligned (Data, Aligned_Start, Value);
-            when 1 => Flyology_SIMD.Backends.Scalar.Store_Aligned
-              (Data, Aligned_Start, Value);
-            when 2 => Flyology_SIMD.Backends.Native.Store_Aligned
-              (Data, Aligned_Start, Value);
+            when 0 =>
+               Store_Aligned (Data, Aligned_Start, Value);
+
+            when 1 =>
+               Flyology_SIMD.Backends.Scalar.Store_Aligned (Data, Aligned_Start, Value);
+
+            when 2 =>
+               Flyology_SIMD.Backends.Native.Store_Aligned (Data, Aligned_Start, Value);
          end case;
          for Offset in Data'Range loop
             Check
-              (Data (Offset) =
-                 (if Offset in Aligned_Start .. Aligned_Start + 15
-                  then U8 (Offset - Aligned_Start) else 16#CC#),
+              (Data (Offset)
+               = (if Offset in Aligned_Start .. Aligned_Start + 15
+                  then U8 (Offset - Aligned_Start)
+                  else 16#CC#),
                "independent U8 aligned store" & Backend'Image & Offset'Image);
          end loop;
          declare
             Loaded : constant U8x16 :=
               (case Backend is
                  when 0 => Load_Aligned (Data, Aligned_Start),
-                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned
-                   (Data, Aligned_Start),
-                 when 2 => Flyology_SIMD.Backends.Native.Load_Aligned
-                   (Data, Aligned_Start));
+                 when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned (Data, Aligned_Start),
+                 when 2 => Flyology_SIMD.Backends.Native.Load_Aligned (Data, Aligned_Start));
          begin
-            Check (To_Lanes (Loaded) = To_Lanes (Value),
-                   "independent U8 aligned load" & Backend'Image);
+            Check (To_Lanes (Loaded) = To_Lanes (Value), "independent U8 aligned load" & Backend'Image);
          end;
       end loop;
 
       for Iteration in 1 .. 250 loop
          declare
-            Lanes : constant Lane_Values_8x16 := Random_Lanes;
+            Lanes        : constant Lane_Values_8x16 := Random_Lanes;
             Random_Value : constant U8x16 := From_Lanes (Lanes);
          begin
             for Backend in Natural range 0 .. 2 loop
                Data := [others => 16#CC#];
                case Backend is
-                  when 0 => Store (Data, Aligned_Start, Random_Value);
-                  when 1 => Flyology_SIMD.Backends.Scalar.Store
-                    (Data, Aligned_Start, Random_Value);
-                  when 2 => Flyology_SIMD.Backends.Native.Store
-                    (Data, Aligned_Start, Random_Value);
+                  when 0 =>
+                     Store (Data, Aligned_Start, Random_Value);
+
+                  when 1 =>
+                     Flyology_SIMD.Backends.Scalar.Store (Data, Aligned_Start, Random_Value);
+
+                  when 2 =>
+                     Flyology_SIMD.Backends.Native.Store (Data, Aligned_Start, Random_Value);
                end case;
                for Offset in Data'Range loop
                   Check
-                    (Data (Offset) =
-                       (if Offset in Aligned_Start .. Aligned_Start + 15
-                        then Lanes (Lane_Index_8x16
-                          (Offset - Aligned_Start)) else 16#CC#),
-                     "random independent U8 ordinary store" &
-                       Iteration'Image & Backend'Image & Offset'Image);
+                    (Data (Offset)
+                     = (if Offset in Aligned_Start .. Aligned_Start + 15
+                        then Lanes (Lane_Index_8x16 (Offset - Aligned_Start))
+                        else 16#CC#),
+                     "random independent U8 ordinary store" & Iteration'Image & Backend'Image & Offset'Image);
                end loop;
                declare
                   Loaded : constant U8x16 :=
                     (case Backend is
                        when 0 => Load (Data, Aligned_Start),
-                       when 1 => Flyology_SIMD.Backends.Scalar.Load
-                         (Data, Aligned_Start),
-                       when 2 => Flyology_SIMD.Backends.Native.Load
-                         (Data, Aligned_Start));
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load (Data, Aligned_Start),
+                       when 2 => Flyology_SIMD.Backends.Native.Load (Data, Aligned_Start));
                begin
-                  Check (To_Lanes (Loaded) = Lanes,
-                         "random independent U8 ordinary load" &
-                           Iteration'Image & Backend'Image);
+                  Check
+                    (To_Lanes (Loaded) = Lanes,
+                     "random independent U8 ordinary load" & Iteration'Image & Backend'Image);
                end;
 
                Data := [others => 16#CC#];
                case Backend is
-                  when 0 => Store_Unaligned
-                    (Data, Aligned_Start + 1, Random_Value);
-                  when 1 => Flyology_SIMD.Backends.Scalar.Store_Unaligned
-                    (Data, Aligned_Start + 1, Random_Value);
-                  when 2 => Flyology_SIMD.Backends.Native.Store_Unaligned
-                    (Data, Aligned_Start + 1, Random_Value);
+                  when 0 =>
+                     Store_Unaligned (Data, Aligned_Start + 1, Random_Value);
+
+                  when 1 =>
+                     Flyology_SIMD.Backends.Scalar.Store_Unaligned (Data, Aligned_Start + 1, Random_Value);
+
+                  when 2 =>
+                     Flyology_SIMD.Backends.Native.Store_Unaligned (Data, Aligned_Start + 1, Random_Value);
                end case;
                for Offset in Data'Range loop
                   Check
-                    (Data (Offset) =
-                       (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
-                        then Lanes (Lane_Index_8x16
-                          (Offset - Aligned_Start - 1)) else 16#CC#),
-                     "random independent U8 unaligned store" &
-                       Iteration'Image & Backend'Image & Offset'Image);
+                    (Data (Offset)
+                     = (if Offset in Aligned_Start + 1 .. Aligned_Start + 16
+                        then Lanes (Lane_Index_8x16 (Offset - Aligned_Start - 1))
+                        else 16#CC#),
+                     "random independent U8 unaligned store"
+                     & Iteration'Image
+                     & Backend'Image
+                     & Offset'Image);
                end loop;
                declare
                   Loaded : constant U8x16 :=
                     (case Backend is
                        when 0 => Load_Unaligned (Data, Aligned_Start + 1),
-                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned
-                         (Data, Aligned_Start + 1),
-                       when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned
-                         (Data, Aligned_Start + 1));
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Unaligned (Data, Aligned_Start + 1),
+                       when 2 => Flyology_SIMD.Backends.Native.Load_Unaligned (Data, Aligned_Start + 1));
                begin
-                  Check (To_Lanes (Loaded) = Lanes,
-                         "random independent U8 unaligned load" &
-                           Iteration'Image & Backend'Image);
+                  Check
+                    (To_Lanes (Loaded) = Lanes,
+                     "random independent U8 unaligned load" & Iteration'Image & Backend'Image);
                end;
 
                Data := [others => 16#CC#];
                case Backend is
-                  when 0 => Store_Aligned
-                    (Data, Aligned_Start, Random_Value);
-                  when 1 => Flyology_SIMD.Backends.Scalar.Store_Aligned
-                    (Data, Aligned_Start, Random_Value);
-                  when 2 => Flyology_SIMD.Backends.Native.Store_Aligned
-                    (Data, Aligned_Start, Random_Value);
+                  when 0 =>
+                     Store_Aligned (Data, Aligned_Start, Random_Value);
+
+                  when 1 =>
+                     Flyology_SIMD.Backends.Scalar.Store_Aligned (Data, Aligned_Start, Random_Value);
+
+                  when 2 =>
+                     Flyology_SIMD.Backends.Native.Store_Aligned (Data, Aligned_Start, Random_Value);
                end case;
                for Offset in Data'Range loop
                   Check
-                    (Data (Offset) =
-                       (if Offset in Aligned_Start .. Aligned_Start + 15
-                        then Lanes (Lane_Index_8x16
-                          (Offset - Aligned_Start)) else 16#CC#),
-                     "random independent U8 aligned store" &
-                       Iteration'Image & Backend'Image & Offset'Image);
+                    (Data (Offset)
+                     = (if Offset in Aligned_Start .. Aligned_Start + 15
+                        then Lanes (Lane_Index_8x16 (Offset - Aligned_Start))
+                        else 16#CC#),
+                     "random independent U8 aligned store" & Iteration'Image & Backend'Image & Offset'Image);
                end loop;
                declare
                   Loaded : constant U8x16 :=
                     (case Backend is
                        when 0 => Load_Aligned (Data, Aligned_Start),
-                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned
-                         (Data, Aligned_Start),
-                       when 2 => Flyology_SIMD.Backends.Native.Load_Aligned
-                         (Data, Aligned_Start));
+                       when 1 => Flyology_SIMD.Backends.Scalar.Load_Aligned (Data, Aligned_Start),
+                       when 2 => Flyology_SIMD.Backends.Native.Load_Aligned (Data, Aligned_Start));
                begin
-                  Check (To_Lanes (Loaded) = Lanes,
-                         "random independent U8 aligned load" &
-                           Iteration'Image & Backend'Image);
+                  Check
+                    (To_Lanes (Loaded) = Lanes,
+                     "random independent U8 aligned load" & Iteration'Image & Backend'Image);
                end;
             end loop;
          end;
@@ -913,158 +856,117 @@ procedure SIMD_Tests is
          Store_Partial (Data, 17, Count, Value);
          for Offset in Data'Range loop
             if Count > 0 and then Offset in 17 .. 17 + Count - 1 then
-               Check (Data (Offset) = U8 (Offset - 17),
-                      "partial store content" & Count'Image);
+               Check (Data (Offset) = U8 (Offset - 17), "partial store content" & Count'Image);
             else
-               Check (Data (Offset) = 16#CC#,
-                      "partial store boundary" & Count'Image);
+               Check (Data (Offset) = 16#CC#, "partial store boundary" & Count'Image);
             end if;
          end loop;
-         Check (Same
-                  (Load_Partial (Data, 17, Count),
-                   From_Lanes
-                     ([for Lane in Lane_Index_8x16 =>
-                        (if Lane < Count then U8 (Lane) else 0)])),
-                "partial load zero fill" & Count'Image);
+         Check
+           (Same
+              (Load_Partial (Data, 17, Count),
+               From_Lanes ([for Lane in Lane_Index_8x16 => (if Lane < Count then U8 (Lane) else 0)])),
+            "partial load zero fill" & Count'Image);
       end loop;
       Store_Partial (Data, Natural'Last, 0, Value);
-      Check (Same (Load_Partial (Data, Natural'Last, 0), Zero),
-             "zero partial operation touches no address");
+      Check (Same (Load_Partial (Data, Natural'Last, 0), Zero), "zero partial operation touches no address");
    end Test_Memory;
 
    procedure Test_Native_Differential is
    begin
       for Iteration in 0 .. 2_000 loop
          declare
-            A_Lanes : constant Lane_Values_8x16 :=
+            A_Lanes                    : constant Lane_Values_8x16 :=
               (if Iteration = 0
-               then [0, 1, 127, 128, 254, 255, 16#AA#, 16#55#,
-                     0, 1, 127, 128, 254, 255, 16#F0#, 16#0F#]
+               then [0, 1, 127, 128, 254, 255, 16#AA#, 16#55#, 0, 1, 127, 128, 254, 255, 16#F0#, 16#0F#]
                else Random_Lanes);
-            A : constant U8x16 := From_Lanes (A_Lanes);
-            B_Lanes : constant Lane_Values_8x16 :=
+            A                          : constant U8x16 := From_Lanes (A_Lanes);
+            B_Lanes                    : constant Lane_Values_8x16 :=
               (if Iteration = 0
-               then [0, 255, 1, 128, 2, 1, 16#55#, 16#AA#,
-                     255, 0, 128, 127, 1, 254, 16#0F#, 16#F0#]
+               then [0, 255, 1, 128, 2, 1, 16#55#, 16#AA#, 255, 0, 128, 127, 1, 254, 16#0F#, 16#F0#]
                else Random_Lanes);
-            B : constant U8x16 := From_Lanes (B_Lanes);
-            Buffer : Byte_Array (0 .. 32) := [others => 0];
-            Reference_Buffer : Byte_Array (0 .. 32) := [others => 0];
-            Count : constant Lane_Count_8x16 := Iteration mod 17;
-            Shift : constant Natural := Iteration mod 13;
-            Slide : constant Natural := Iteration mod 19;
-            Selectors : constant Lane_Selectors_8x16 := Random_Selectors;
-            Map : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
-            Two_Source_Map : constant Two_Source_Lane_Map_8x16 :=
+            B                          : constant U8x16 := From_Lanes (B_Lanes);
+            Buffer                     : Byte_Array (0 .. 32) := [others => 0];
+            Reference_Buffer           : Byte_Array (0 .. 32) := [others => 0];
+            Count                      : constant Lane_Count_8x16 := Iteration mod 17;
+            Shift                      : constant Natural := Iteration mod 13;
+            Slide                      : constant Natural := Iteration mod 19;
+            Selectors                  : constant Lane_Selectors_8x16 := Random_Selectors;
+            Map                        : constant Lane_Map_8x16 := Make_Lane_Map (Selectors);
+            Two_Source_Map             : constant Two_Source_Lane_Map_8x16 :=
               Make_Two_Source_Lane_Map
                 ([for Lane in Lane_Index_8x16 =>
-                   (if (Iteration + Lane) mod 2 = 0
-                    then Select_Left_Lane
-                      (Lane_Index_8x16
-                         ((Iteration * 3 + Lane * 5) mod 16))
-                    else Select_Right_Lane
-                      (Lane_Index_8x16
-                         ((Iteration * 3 + Lane * 5) mod 16)))]);
-            Expected_Add : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) + B_Lanes (Lane)];
-            Expected_Subtract : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) - B_Lanes (Lane)];
-            Expected_Multiply : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) * B_Lanes (Lane)];
-            Expected_Add_Saturate : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 Reference_Add_Saturate (A_Lanes (Lane), B_Lanes (Lane))];
+                    (if (Iteration + Lane) mod 2 = 0
+                     then Select_Left_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16))
+                     else Select_Right_Lane (Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)))]);
+            Expected_Add               : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) + B_Lanes (Lane)];
+            Expected_Subtract          : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) - B_Lanes (Lane)];
+            Expected_Multiply          : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) * B_Lanes (Lane)];
+            Expected_Add_Saturate      : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => Reference_Add_Saturate (A_Lanes (Lane), B_Lanes (Lane))];
             Expected_Subtract_Saturate : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 Reference_Subtract_Saturate
-                   (A_Lanes (Lane), B_Lanes (Lane))];
-            Expected_And : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) and B_Lanes (Lane)];
-            Expected_Or : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) or B_Lanes (Lane)];
-            Expected_Xor : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane) xor B_Lanes (Lane)];
-            Expected_Not : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => Reference_Subtract_Saturate (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_And               : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) and B_Lanes (Lane)];
+            Expected_Or                : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) or B_Lanes (Lane)];
+            Expected_Xor               : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane) xor B_Lanes (Lane)];
+            Expected_Not               : constant Lane_Values_8x16 :=
               [for Lane in Lane_Index_8x16 => not A_Lanes (Lane)];
-            Expected_Min : constant Lane_Values_8x16 :=
+            Expected_Min               : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => U8'Min (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_Max               : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => U8'Max (A_Lanes (Lane), B_Lanes (Lane))];
+            Expected_Reverse           : constant Lane_Values_8x16 :=
+              [for Lane in Lane_Index_8x16 => A_Lanes (Lane_Index_8x16'Last - Lane)];
+            Expected_Interleave_Low    : constant Lane_Values_8x16 :=
               [for Lane in Lane_Index_8x16 =>
-                 U8'Min (A_Lanes (Lane), B_Lanes (Lane))];
-            Expected_Max : constant Lane_Values_8x16 :=
+                 (if Lane mod 2 = 0 then A_Lanes (Lane / 2) else B_Lanes (Lane / 2))];
+            Expected_Interleave_High   : constant Lane_Values_8x16 :=
               [for Lane in Lane_Index_8x16 =>
-                 U8'Max (A_Lanes (Lane), B_Lanes (Lane))];
-            Expected_Reverse : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 A_Lanes (Lane_Index_8x16'Last - Lane)];
-            Expected_Interleave_Low : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 (if Lane mod 2 = 0
-                  then A_Lanes (Lane / 2)
-                  else B_Lanes (Lane / 2))];
-            Expected_Interleave_High : constant Lane_Values_8x16 :=
-              [for Lane in Lane_Index_8x16 =>
-                 (if Lane mod 2 = 0
-                  then A_Lanes (8 + Lane / 2)
-                  else B_Lanes (8 + Lane / 2))];
+                 (if Lane mod 2 = 0 then A_Lanes (8 + Lane / 2) else B_Lanes (8 + Lane / 2))];
             Expected_Deinterleave_Even : constant Lane_Values_8x16 :=
               [for Lane in Lane_Index_8x16 =>
-                 (if Lane < 8
-                  then A_Lanes (2 * Lane)
-                  else B_Lanes (2 * (Lane - 8)))];
-            Expected_Deinterleave_Odd : constant Lane_Values_8x16 :=
+                 (if Lane < 8 then A_Lanes (2 * Lane) else B_Lanes (2 * (Lane - 8)))];
+            Expected_Deinterleave_Odd  : constant Lane_Values_8x16 :=
               [for Lane in Lane_Index_8x16 =>
-                 (if Lane < 8
-                  then A_Lanes (2 * Lane + 1)
-                  else B_Lanes (2 * (Lane - 8) + 1))];
+                 (if Lane < 8 then A_Lanes (2 * Lane + 1) else B_Lanes (2 * (Lane - 8) + 1))];
          begin
             --  Iteration zero supplies explicit wrap, saturation, equality,
             --  unsigned-ordering, and high-bit boundaries.  The remaining
             --  2,000 iterations use full-width deterministic byte values.
             for Lane in Lane_Index_8x16 loop
                Check
-                 (Flyology_SIMD.Backends.Native.Extract
-                    (U8x16'(Flyology_SIMD.Backends.Native.Zero), Lane) = 0,
+                 (Flyology_SIMD.Backends.Native.Extract (U8x16'(Flyology_SIMD.Backends.Native.Zero), Lane)
+                  = 0,
                   "independent native zero" & Iteration'Image & Lane'Image);
                Check
                  (Flyology_SIMD.Backends.Native.Extract
-                    (Flyology_SIMD.Backends.Native.Splat
-                       (U8 (Iteration mod 256)),
-                     Lane) = U8 (Iteration mod 256),
+                    (Flyology_SIMD.Backends.Native.Splat (U8 (Iteration mod 256)), Lane)
+                  = U8 (Iteration mod 256),
                   "independent native splat" & Iteration'Image & Lane'Image);
             end loop;
             declare
-               Native_From : constant U8x16 :=
-                 Flyology_SIMD.Backends.Native.From_Lanes (A_Lanes);
-               Native_To : constant Lane_Values_8x16 :=
-                 Flyology_SIMD.Backends.Native.To_Lanes (A);
-               Replaced_Lane : constant Lane_Index_8x16 := Count mod 16;
-               Replacement : constant U8 := U8 (Iteration mod 256);
+               Native_From     : constant U8x16 := Flyology_SIMD.Backends.Native.From_Lanes (A_Lanes);
+               Native_To       : constant Lane_Values_8x16 := Flyology_SIMD.Backends.Native.To_Lanes (A);
+               Replaced_Lane   : constant Lane_Index_8x16 := Count mod 16;
+               Replacement     : constant U8 := U8 (Iteration mod 256);
                Native_Replaced : constant U8x16 :=
-                 Flyology_SIMD.Backends.Native.Replace
-                   (A, Replaced_Lane, Replacement);
+                 Flyology_SIMD.Backends.Native.Replace (A, Replaced_Lane, Replacement);
             begin
                for Lane in Lane_Index_8x16 loop
                   Check
-                    (Flyology_SIMD.Backends.Native.Extract
-                       (Native_From, Lane) = A_Lanes (Lane)
+                    (Flyology_SIMD.Backends.Native.Extract (Native_From, Lane) = A_Lanes (Lane)
                      and then Native_To (Lane) = A_Lanes (Lane)
-                     and then Flyology_SIMD.Backends.Native.Extract
-                       (A, Lane) = A_Lanes (Lane),
-                     "independent native lane access" &
-                       Iteration'Image & Lane'Image);
+                     and then Flyology_SIMD.Backends.Native.Extract (A, Lane) = A_Lanes (Lane),
+                     "independent native lane access" & Iteration'Image & Lane'Image);
                   Check
-                    (Flyology_SIMD.Backends.Native.Extract
-                       (Native_Replaced, Lane) =
-                         (if Lane = Replaced_Lane
-                          then Replacement
-                          else A_Lanes (Lane)),
-                     "independent native replace" &
-                       Iteration'Image & Lane'Image);
+                    (Flyology_SIMD.Backends.Native.Extract (Native_Replaced, Lane)
+                     = (if Lane = Replaced_Lane then Replacement else A_Lanes (Lane)),
+                     "independent native replace" & Iteration'Image & Lane'Image);
                end loop;
             end;
             Check_Value_Oracle
@@ -1122,31 +1024,25 @@ procedure SIMD_Tests is
                Expected_Not,
                "independent bitwise-not oracle" & Iteration'Image);
             Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.Table_Lookup (A, B),
-                  Table_Lookup (A, B)),
+              (Same (Flyology_SIMD.Backends.Native.Table_Lookup (A, B), Table_Lookup (A, B)),
                "native table lookup" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check
-                 (Extract (Table_Lookup (A, B), Lane) =
-                    (if Extract (B, Lane) < 16
-                     then Extract (A, Natural (Extract (B, Lane)))
-                     else 0),
+                 (Extract (Table_Lookup (A, B), Lane)
+                  = (if Extract (B, Lane) < 16 then Extract (A, Natural (Extract (B, Lane))) else 0),
                   "scalar table lookup lane" & Lane'Image);
             end loop;
             Check
-              (Same (Shift_Left_Logical (A, Shift),
-                     Reference_Shift_Left_Logical (A, Shift))
+              (Same (Shift_Left_Logical (A, Shift), Reference_Shift_Left_Logical (A, Shift))
                and then Same
-                 (Flyology_SIMD.Backends.Native.Shift_Left_Logical (A, Shift),
-                  Reference_Shift_Left_Logical (A, Shift)),
+                          (Flyology_SIMD.Backends.Native.Shift_Left_Logical (A, Shift),
+                           Reference_Shift_Left_Logical (A, Shift)),
                "native left shift" & Iteration'Image);
             Check
-              (Same (Shift_Right_Logical (A, Shift),
-                     Reference_Shift_Right_Logical (A, Shift))
+              (Same (Shift_Right_Logical (A, Shift), Reference_Shift_Right_Logical (A, Shift))
                and then Same
-                 (Flyology_SIMD.Backends.Native.Shift_Right_Logical (A, Shift),
-                  Reference_Shift_Right_Logical (A, Shift)),
+                          (Flyology_SIMD.Backends.Native.Shift_Right_Logical (A, Shift),
+                           Reference_Shift_Right_Logical (A, Shift)),
                "native right shift" & Iteration'Image);
             Check_Mask_Oracle
               (Equal (A, B),
@@ -1176,8 +1072,7 @@ procedure SIMD_Tests is
               (Greater_Equal (A, B),
                Flyology_SIMD.Backends.Scalar.Greater_Equal (A, B),
                Flyology_SIMD.Backends.Native.Greater_Equal (A, B),
-               Reference_Comparison
-                 (A_Lanes, B_Lanes, Compare_Greater_Equal),
+               Reference_Comparison (A_Lanes, B_Lanes, Compare_Greater_Equal),
                "independent greater-equal oracle" & Iteration'Image);
             Check_Value_Oracle
               (Min (A, B),
@@ -1229,184 +1124,136 @@ procedure SIMD_Tests is
                "independent odd-deinterleave oracle" & Iteration'Image);
             Check
               (Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes)
-               and then Flyology_SIMD.Backends.Native.Horizontal_Sum (A) =
-                 Reference_Horizontal_Sum (A_Lanes),
+               and then Flyology_SIMD.Backends.Native.Horizontal_Sum (A) = Reference_Horizontal_Sum (A_Lanes),
                "horizontal sum oracle" & Iteration'Image);
             Check
               (Reduce_Add_Wrap (A) = Reference_Reduce_Add (A_Lanes)
-               and then Flyology_SIMD.Backends.Scalar.Reduce_Add_Wrap (A) =
-                 Reference_Reduce_Add (A_Lanes)
-               and then Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) =
-                 Reference_Reduce_Add (A_Lanes)
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Add_Wrap (A) = Reference_Reduce_Add (A_Lanes)
+               and then Flyology_SIMD.Backends.Native.Reduce_Add_Wrap (A) = Reference_Reduce_Add (A_Lanes)
                and then Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
-               and then Flyology_SIMD.Backends.Scalar.Reduce_Min (A) =
-                 Reference_Reduce_Min (A_Lanes)
-               and then Flyology_SIMD.Backends.Native.Reduce_Min (A) =
-                 Reference_Reduce_Min (A_Lanes)
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
+               and then Flyology_SIMD.Backends.Native.Reduce_Min (A) = Reference_Reduce_Min (A_Lanes)
                and then Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
-               and then Flyology_SIMD.Backends.Scalar.Reduce_Max (A) =
-                 Reference_Reduce_Max (A_Lanes)
-               and then Flyology_SIMD.Backends.Native.Reduce_Max (A) =
-                 Reference_Reduce_Max (A_Lanes),
-               "independent scalar and native byte reductions" &
-                 Iteration'Image);
+               and then Flyology_SIMD.Backends.Scalar.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes)
+               and then Flyology_SIMD.Backends.Native.Reduce_Max (A) = Reference_Reduce_Max (A_Lanes),
+               "independent scalar and native byte reductions" & Iteration'Image);
             Check
               (Same
-                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
-                    (A, Slide),
+                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low (A, Slide),
                   Slide_Lanes_Toward_Low (A, Slide))
                and then Same
-                 (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
-                    (A, Slide),
-                  Slide_Lanes_Toward_High (A, Slide)),
+                          (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High (A, Slide),
+                           Slide_Lanes_Toward_High (A, Slide)),
                "native lane slides" & Iteration'Image);
             Check
-              (Same
-                 (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
-                  Permute_Lanes (A, Map)),
+              (Same (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map), Permute_Lanes (A, Map)),
                "native lane permutation" & Iteration'Image);
             Check
               (Same
-                 (Flyology_SIMD.Backends.Native.Permute_Lanes
-                    (A, B, Two_Source_Map),
+                 (Flyology_SIMD.Backends.Native.Permute_Lanes (A, B, Two_Source_Map),
                   Permute_Lanes (A, B, Two_Source_Map)),
                "native two-source lane permutation" & Iteration'Image);
             for Lane in Lane_Index_8x16 loop
                Check
-                 (Extract
-                    (Flyology_SIMD.Backends.Native.Table_Lookup (A, B), Lane) =
-                    (if Extract (B, Lane) <= 15
-                     then Extract (A, Lane_Index_8x16 (Extract (B, Lane)))
-                     else 0),
+                 (Extract (Flyology_SIMD.Backends.Native.Table_Lookup (A, B), Lane)
+                  = (if Extract (B, Lane) <= 15 then Extract (A, Lane_Index_8x16 (Extract (B, Lane))) else 0),
                   "native independent table lookup lane" & Lane'Image);
                Check
-                 (Extract (Permute_Lanes (A, Map), Lane) =
-                    Extract (A, Selectors (Lane))
+                 (Extract (Permute_Lanes (A, Map), Lane) = Extract (A, Selectors (Lane))
                   and then Flyology_SIMD.Backends.Native.Extract
-                    (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map),
-                     Lane) = Extract (A, Selectors (Lane)),
-                  "randomized independent scalar and native lane permutation" &
-                    Lane'Image);
+                             (Flyology_SIMD.Backends.Native.Permute_Lanes (A, Map), Lane)
+                           = Extract (A, Selectors (Lane)),
+                  "randomized independent scalar and native lane permutation" & Lane'Image);
                Check
-                 (Extract (Permute_Lanes (A, B, Two_Source_Map), Lane) =
-                    Extract
-                      ((if (Iteration + Lane) mod 2 = 0
-                        then A else B),
-                       Lane_Index_8x16
-                         ((Iteration * 3 + Lane * 5) mod 16))
+                 (Extract (Permute_Lanes (A, B, Two_Source_Map), Lane)
+                  = Extract
+                      ((if (Iteration + Lane) mod 2 = 0 then A else B),
+                       Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16))
                   and then Flyology_SIMD.Backends.Native.Extract
-                    (Flyology_SIMD.Backends.Native.Permute_Lanes
-                       (A, B, Two_Source_Map),
-                     Lane) =
-                    Extract
-                      ((if (Iteration + Lane) mod 2 = 0
-                        then A else B),
-                       Lane_Index_8x16
-                         ((Iteration * 3 + Lane * 5) mod 16)),
-                  "varied independent scalar and native two-source lane permutation" &
-                    Lane'Image);
-               Check (Extract (Shift_Left_Logical (A, Shift), Lane) =
-                        (if Shift >= 8 then 0
-                         else Interfaces.Shift_Left (Extract (A, Lane), Shift)),
-                      "scalar left shift" & Shift'Image);
-               Check (Extract (Shift_Right_Logical (A, Shift), Lane) =
-                        (if Shift >= 8 then 0
-                         else Interfaces.Shift_Right (Extract (A, Lane), Shift)),
-                      "scalar right shift" & Shift'Image);
-               Check (Test (Less_Than (A, B), Lane) =
-                        (Extract (A, Lane) < Extract (B, Lane)),
-                      "scalar comparison lane" & Lane'Image);
+                             (Flyology_SIMD.Backends.Native.Permute_Lanes (A, B, Two_Source_Map), Lane)
+                           = Extract
+                               ((if (Iteration + Lane) mod 2 = 0 then A else B),
+                                Lane_Index_8x16 ((Iteration * 3 + Lane * 5) mod 16)),
+                  "varied independent scalar and native two-source lane permutation" & Lane'Image);
                Check
-                 (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane) =
-                    (if Slide < 16 and then Lane < 16 - Slide
+                 (Extract (Shift_Left_Logical (A, Shift), Lane)
+                  = (if Shift >= 8 then 0 else Interfaces.Shift_Left (Extract (A, Lane), Shift)),
+                  "scalar left shift" & Shift'Image);
+               Check
+                 (Extract (Shift_Right_Logical (A, Shift), Lane)
+                  = (if Shift >= 8 then 0 else Interfaces.Shift_Right (Extract (A, Lane), Shift)),
+                  "scalar right shift" & Shift'Image);
+               Check
+                 (Test (Less_Than (A, B), Lane) = (Extract (A, Lane) < Extract (B, Lane)),
+                  "scalar comparison lane" & Lane'Image);
+               Check
+                 (Extract (Slide_Lanes_Toward_Low (A, Slide), Lane)
+                  = (if Slide < 16 and then Lane < 16 - Slide
                      then Extract (A, Lane_Index_8x16 (Lane + Slide))
                      else 0)
-                  and then
-                    Extract (Slide_Lanes_Toward_High (A, Slide), Lane) =
-                      (if Slide < 16 and then Lane >= Slide
-                       then Extract (A, Lane_Index_8x16 (Lane - Slide))
-                       else 0)
-                  and then
-                    Extract
-                      (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low
-                         (A, Slide), Lane) =
-                      (if Slide < 16 and then Lane < 16 - Slide
-                       then Extract (A, Lane_Index_8x16 (Lane + Slide))
-                       else 0)
-                  and then
-                    Extract
-                      (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High
-                         (A, Slide), Lane) =
-                      (if Slide < 16 and then Lane >= Slide
-                       then Extract (A, Lane_Index_8x16 (Lane - Slide))
-                       else 0),
+                  and then Extract (Slide_Lanes_Toward_High (A, Slide), Lane)
+                           = (if Slide < 16 and then Lane >= Slide
+                              then Extract (A, Lane_Index_8x16 (Lane - Slide))
+                              else 0)
+                  and then Extract (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_Low (A, Slide), Lane)
+                           = (if Slide < 16 and then Lane < 16 - Slide
+                              then Extract (A, Lane_Index_8x16 (Lane + Slide))
+                              else 0)
+                  and then Extract (Flyology_SIMD.Backends.Native.Slide_Lanes_Toward_High (A, Slide), Lane)
+                           = (if Slide < 16 and then Lane >= Slide
+                              then Extract (A, Lane_Index_8x16 (Lane - Slide))
+                              else 0),
                   "randomized independent lane slides" & Lane'Image);
             end loop;
             Store_Unaligned (Buffer, 1, A);
             Check
               (Same (Flyology_SIMD.Backends.Native.Load (Buffer, 1), A),
                "native ordinary load" & Iteration'Image);
-            Check (Same
-                     (Flyology_SIMD.Backends.Native.Load_Unaligned (Buffer, 1), A),
-                   "native unaligned load" & Iteration'Image);
-            Flyology_SIMD.Backends.Native.Store_Unaligned
-              (Buffer, 1, B);
+            Check
+              (Same (Flyology_SIMD.Backends.Native.Load_Unaligned (Buffer, 1), A),
+               "native unaligned load" & Iteration'Image);
+            Flyology_SIMD.Backends.Native.Store_Unaligned (Buffer, 1, B);
             Store_Unaligned (Reference_Buffer, 1, B);
-            Check (Buffer = Reference_Buffer,
-                   "native unaligned store" & Iteration'Image);
+            Check (Buffer = Reference_Buffer, "native unaligned store" & Iteration'Image);
             Buffer := [others => 0];
             Reference_Buffer := [others => 0];
             Flyology_SIMD.Backends.Native.Store (Buffer, 1, B);
             Store (Reference_Buffer, 1, B);
-            Check (Buffer = Reference_Buffer,
-                   "native ordinary store" & Iteration'Image);
+            Check (Buffer = Reference_Buffer, "native ordinary store" & Iteration'Image);
             Buffer := [others => 16#CC#];
             Reference_Buffer := [others => 16#CC#];
-            Flyology_SIMD.Backends.Native.Store_Partial
-              (Buffer, 3, Count, A);
+            Flyology_SIMD.Backends.Native.Store_Partial (Buffer, 3, Count, A);
             Store_Partial (Reference_Buffer, 3, Count, A);
-            Check (Buffer = Reference_Buffer,
-                   "native partial store" & Iteration'Image);
+            Check (Buffer = Reference_Buffer, "native partial store" & Iteration'Image);
             declare
-               Loaded : constant U8x16 :=
-                 Flyology_SIMD.Backends.Native.Load_Partial
-                   (Buffer, 3, Count);
+               Loaded : constant U8x16 := Flyology_SIMD.Backends.Native.Load_Partial (Buffer, 3, Count);
             begin
                for Lane in Lane_Index_8x16 loop
                   Check
-                    (Extract (Loaded, Lane) =
-                       (if Lane < Count then Extract (A, Lane) else 0),
-                     "independent native partial load" & Iteration'Image &
-                       Lane'Image);
+                    (Extract (Loaded, Lane) = (if Lane < Count then Extract (A, Lane) else 0),
+                     "independent native partial load" & Iteration'Image & Lane'Image);
                end loop;
             end;
          end;
       end loop;
       declare
-         Maximum_Index_Data : Byte_Array
-           (Natural'Last .. Natural'Last) := [others => 1];
+         Maximum_Index_Data : Byte_Array (Natural'Last .. Natural'Last) := [others => 1];
       begin
          Check
-           (Same
-              (Flyology_SIMD.Backends.Native.Load_Partial
-                 (Maximum_Index_Data, Natural'Last, 0),
-               Zero),
+           (Same (Flyology_SIMD.Backends.Native.Load_Partial (Maximum_Index_Data, Natural'Last, 0), Zero),
             "native maximum-index zero-count partial load");
-         Flyology_SIMD.Backends.Native.Store_Partial
-           (Maximum_Index_Data, Natural'Last, 0, Zero);
-         Check
-           (Maximum_Index_Data (Natural'Last) = 1,
-            "native maximum-index zero-count partial store");
+         Flyology_SIMD.Backends.Native.Store_Partial (Maximum_Index_Data, Natural'Last, 0, Zero);
+         Check (Maximum_Index_Data (Natural'Last) = 1, "native maximum-index zero-count partial store");
       end;
    end Test_Native_Differential;
 
    procedure Test_Algorithms_For_Length (Length : Natural) is
-      Data : Byte_Array (1 .. Length);
-      Other : Byte_Array (1 .. Length);
+      Data                                      : Byte_Array (1 .. Length);
+      Other                                     : Byte_Array (1 .. Length);
       Reference_Find, Native_Find, Runtime_Find : Algorithms.Search_Result;
-      Needles : constant Byte_Array := [0, 42, 128, 255];
-      Reference_Of : Algorithms.Search_Result := (Found => False, Index => 0);
-      Reference_Range : Natural := 0;
+      Needles                                   : constant Byte_Array := [0, 42, 128, 255];
+      Reference_Of                              : Algorithms.Search_Result := (Found => False, Index => 0);
+      Reference_Range                           : Natural := 0;
    begin
       for Index in Data'Range loop
          Data (Index) := Next_U8;
@@ -1421,35 +1268,29 @@ procedure SIMD_Tests is
       end loop;
       Other := Data;
       Check
-        (Algorithms.Scalar.Find_First_Difference (Data, Other) =
-           (Found => False, Index => 0)
+        (Algorithms.Scalar.Find_First_Difference (Data, Other) = (Found => False, Index => 0)
          and then Algorithms.Scalar.Equal (Data, Other),
          "scalar equal buffers length" & Length'Image);
       Check
-        (Algorithms.Native.Find_First_Difference (Data, Other) =
-           (Found => False, Index => 0)
+        (Algorithms.Native.Find_First_Difference (Data, Other) = (Found => False, Index => 0)
          and then Algorithms.Native.Equal (Data, Other),
          "native equal buffers length" & Length'Image);
       Check
-        (Algorithms.Runtime.Find_First_Difference (Data, Other) =
-           (Found => False, Index => 0)
+        (Algorithms.Runtime.Find_First_Difference (Data, Other) = (Found => False, Index => 0)
          and then Algorithms.Runtime.Equal (Data, Other),
          "runtime equal buffers length" & Length'Image);
       if Length > 0 then
          Other (Other'Last) := Other (Other'Last) xor 1;
          Check
-           (Algorithms.Scalar.Find_First_Difference (Data, Other) =
-              (Found => True, Index => Data'Last)
+           (Algorithms.Scalar.Find_First_Difference (Data, Other) = (Found => True, Index => Data'Last)
             and then not Algorithms.Scalar.Equal (Data, Other),
             "scalar final difference length" & Length'Image);
          Check
-           (Algorithms.Native.Find_First_Difference (Data, Other) =
-              (Found => True, Index => Data'Last)
+           (Algorithms.Native.Find_First_Difference (Data, Other) = (Found => True, Index => Data'Last)
             and then not Algorithms.Native.Equal (Data, Other),
             "native final difference length" & Length'Image);
          Check
-           (Algorithms.Runtime.Find_First_Difference (Data, Other) =
-              (Found => True, Index => Data'Last)
+           (Algorithms.Runtime.Find_First_Difference (Data, Other) = (Found => True, Index => Data'Last)
             and then not Algorithms.Runtime.Equal (Data, Other),
             "runtime final difference length" & Length'Image);
       end if;
@@ -1477,13 +1318,14 @@ procedure SIMD_Tests is
         (Algorithms.Runtime.Find_First_Of (Data, Needles) = Reference_Of,
          "runtime find-first-of length" & Length'Image);
       Check
-        (Algorithms.Runtime.Find_First_Of
-           (Data, Needles, Features.Scalar) = Reference_Of,
+        (Algorithms.Runtime.Find_First_Of (Data, Needles, Features.Scalar) = Reference_Of,
          "forced scalar find-first-of length" & Length'Image);
-      Check (Algorithms.Native.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
-             "native count length" & Length'Image);
-      Check (Algorithms.Runtime.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
-             "runtime count length" & Length'Image);
+      Check
+        (Algorithms.Native.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+         "native count length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+         "runtime count length" & Length'Image);
       Check
         (Algorithms.Scalar.Count_In_Range (Data, 40, 150) = Reference_Range,
          "scalar count-in-range length" & Length'Image);
@@ -1491,59 +1333,56 @@ procedure SIMD_Tests is
         (Algorithms.Native.Count_In_Range (Data, 40, 150) = Reference_Range,
          "native count-in-range length" & Length'Image);
       Check
-        (Algorithms.Runtime.Count_In_Range (Data, 40, 150) =
-           Reference_Range,
+        (Algorithms.Runtime.Count_In_Range (Data, 40, 150) = Reference_Range,
          "runtime count-in-range length" & Length'Image);
-      Check (Algorithms.Native.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
-             "native ASCII length" & Length'Image);
-      Check (Algorithms.Runtime.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
-             "runtime ASCII length" & Length'Image);
+      Check
+        (Algorithms.Native.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+         "native ASCII length" & Length'Image);
+      Check
+        (Algorithms.Runtime.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+         "runtime ASCII length" & Length'Image);
       if Features.Available (Features.AVX2) then
          Check
-           (Algorithms.AVX2.Find_First_Difference (Data, Other) =
-              Algorithms.Scalar.Find_First_Difference (Data, Other)
-            and then Algorithms.AVX2.Equal (Data, Other) =
-              Algorithms.Scalar.Equal (Data, Other),
+           (Algorithms.AVX2.Find_First_Difference (Data, Other)
+            = Algorithms.Scalar.Find_First_Difference (Data, Other)
+            and then Algorithms.AVX2.Equal (Data, Other) = Algorithms.Scalar.Equal (Data, Other),
             "AVX2 buffer comparison length" & Length'Image);
-         Check (Algorithms.AVX2.Find_First (Data, 42) = Reference_Find,
-                "AVX2 find length" & Length'Image);
+         Check (Algorithms.AVX2.Find_First (Data, 42) = Reference_Find, "AVX2 find length" & Length'Image);
          Check
            (Algorithms.AVX2.Find_First_Of (Data, Needles) = Reference_Of,
             "AVX2 find-first-of length" & Length'Image);
          Check
-           (Algorithms.Runtime.Find_First_Of
-              (Data, Needles, Features.AVX2) = Reference_Of,
+           (Algorithms.Runtime.Find_First_Of (Data, Needles, Features.AVX2) = Reference_Of,
             "runtime AVX2 find-first-of length" & Length'Image);
-         Check (Algorithms.AVX2.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
-                "AVX2 count length" & Length'Image);
          Check
-           (Algorithms.AVX2.Count_In_Range (Data, 40, 150) =
-              Reference_Range,
+           (Algorithms.AVX2.Count (Data, 42) = Algorithms.Scalar.Count (Data, 42),
+            "AVX2 count length" & Length'Image);
+         Check
+           (Algorithms.AVX2.Count_In_Range (Data, 40, 150) = Reference_Range,
             "AVX2 count-in-range length" & Length'Image);
-         Check (Algorithms.AVX2.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
-                "AVX2 ASCII length" & Length'Image);
+         Check
+           (Algorithms.AVX2.Is_ASCII (Data) = Algorithms.Scalar.Is_ASCII (Data),
+            "AVX2 ASCII length" & Length'Image);
       end if;
    end Test_Algorithms_For_Length;
 
    procedure Test_Algorithms is
-      Lane_Data : Byte_Array (1 .. 64) := [others => 0];
-      Empty_Data : constant Byte_Array (1 .. 0) := [];
-      Empty_Set : constant Byte_Array (1 .. 0) := [];
-      Four_Set : constant Byte_Array := [9, 10, 13, 32];
+      Lane_Data     : Byte_Array (1 .. 64) := [others => 0];
+      Empty_Data    : constant Byte_Array (1 .. 0) := [];
+      Empty_Set     : constant Byte_Array (1 .. 0) := [];
+      Four_Set      : constant Byte_Array := [9, 10, 13, 32];
       Duplicate_Set : constant Byte_Array := [32, 9, 32, 10];
-      Large_Set : constant Byte_Array := [1, 3, 5, 7, 9, 11];
+      Large_Set     : constant Byte_Array := [1, 3, 5, 7, 9, 11];
    begin
       for Length in Natural range 0 .. 80 loop
          Test_Algorithms_For_Length (Length);
       end loop;
       Test_Algorithms_For_Length (4_096);
       Check
-        (Algorithms.Scalar.Find_First_Of (Empty_Data, Four_Set) =
-           (Found => False, Index => 0),
+        (Algorithms.Scalar.Find_First_Of (Empty_Data, Four_Set) = (Found => False, Index => 0),
          "find-first-of empty data");
       Check
-        (Algorithms.Native.Find_First_Of (Lane_Data, Empty_Set) =
-           (Found => False, Index => 0),
+        (Algorithms.Native.Find_First_Of (Lane_Data, Empty_Set) = (Found => False, Index => 0),
          "find-first-of empty set");
       declare
          All_Bytes : Byte_Array (0 .. 255);
@@ -1555,31 +1394,21 @@ procedure SIMD_Tests is
             for High_Value in U8 loop
                declare
                   Expected : constant Natural :=
-                    (if Low_Value <= High_Value
-                     then Natural (High_Value) - Natural (Low_Value) + 1
-                     else 0);
+                    (if Low_Value <= High_Value then Natural (High_Value) - Natural (Low_Value) + 1 else 0);
                begin
                   Check
-                    (Algorithms.Scalar.Count_In_Range
-                       (All_Bytes, Low_Value, High_Value) = Expected,
-                     "scalar exhaustive count-in-range" &
-                       Low_Value'Image & High_Value'Image);
+                    (Algorithms.Scalar.Count_In_Range (All_Bytes, Low_Value, High_Value) = Expected,
+                     "scalar exhaustive count-in-range" & Low_Value'Image & High_Value'Image);
                   Check
-                    (Algorithms.Native.Count_In_Range
-                       (All_Bytes, Low_Value, High_Value) = Expected,
-                     "native exhaustive count-in-range" &
-                       Low_Value'Image & High_Value'Image);
+                    (Algorithms.Native.Count_In_Range (All_Bytes, Low_Value, High_Value) = Expected,
+                     "native exhaustive count-in-range" & Low_Value'Image & High_Value'Image);
                   Check
-                    (Algorithms.Runtime.Count_In_Range
-                       (All_Bytes, Low_Value, High_Value) = Expected,
-                     "runtime exhaustive count-in-range" &
-                       Low_Value'Image & High_Value'Image);
+                    (Algorithms.Runtime.Count_In_Range (All_Bytes, Low_Value, High_Value) = Expected,
+                     "runtime exhaustive count-in-range" & Low_Value'Image & High_Value'Image);
                   if Features.Available (Features.AVX2) then
                      Check
-                       (Algorithms.AVX2.Count_In_Range
-                          (All_Bytes, Low_Value, High_Value) = Expected,
-                        "AVX2 exhaustive count-in-range" &
-                          Low_Value'Image & High_Value'Image);
+                       (Algorithms.AVX2.Count_In_Range (All_Bytes, Low_Value, High_Value) = Expected,
+                        "AVX2 exhaustive count-in-range" & Low_Value'Image & High_Value'Image);
                   end if;
                end;
             end loop;
@@ -1588,14 +1417,12 @@ procedure SIMD_Tests is
       Lane_Data := [others => 65];
       Lane_Data (37) := 32;
       Check
-        (Algorithms.Native.Find_First_Of (Lane_Data, Duplicate_Set) =
-           (Found => True, Index => 37),
+        (Algorithms.Native.Find_First_Of (Lane_Data, Duplicate_Set) = (Found => True, Index => 37),
          "find-first-of duplicate set");
       Lane_Data := [others => 2];
       Lane_Data (51) := 11;
       Check
-        (Algorithms.Native.Find_First_Of (Lane_Data, Large_Set) =
-           (Found => True, Index => 51),
+        (Algorithms.Native.Find_First_Of (Lane_Data, Large_Set) = (Found => True, Index => 51),
          "find-first-of large-set fallback");
       declare
          Offset_Data : Byte_Array (37 .. 196) := [others => 65];
@@ -1604,21 +1431,17 @@ procedure SIMD_Tests is
             Offset_Data := [others => 65];
             Offset_Data (Position) := 13;
             Check
-              (Algorithms.Scalar.Find_First_Of (Offset_Data, Four_Set) =
-                 (Found => True, Index => Position),
+              (Algorithms.Scalar.Find_First_Of (Offset_Data, Four_Set) = (Found => True, Index => Position),
                "scalar find-first-of offset" & Position'Image);
             Check
-              (Algorithms.Native.Find_First_Of (Offset_Data, Four_Set) =
-                 (Found => True, Index => Position),
+              (Algorithms.Native.Find_First_Of (Offset_Data, Four_Set) = (Found => True, Index => Position),
                "native find-first-of offset" & Position'Image);
             Check
-              (Algorithms.Runtime.Find_First_Of (Offset_Data, Four_Set) =
-                 (Found => True, Index => Position),
+              (Algorithms.Runtime.Find_First_Of (Offset_Data, Four_Set) = (Found => True, Index => Position),
                "runtime find-first-of offset" & Position'Image);
             if Features.Available (Features.AVX2) then
                Check
-                 (Algorithms.AVX2.Find_First_Of (Offset_Data, Four_Set) =
-                    (Found => True, Index => Position),
+                 (Algorithms.AVX2.Find_First_Of (Offset_Data, Four_Set) = (Found => True, Index => Position),
                   "AVX2 find-first-of offset" & Position'Image);
             end if;
          end loop;
@@ -1631,21 +1454,17 @@ procedure SIMD_Tests is
             Right := [others => 65];
             Right (Position) := 66;
             Check
-              (Algorithms.Scalar.Find_First_Difference (Left, Right) =
-                 (Found => True, Index => Position),
+              (Algorithms.Scalar.Find_First_Difference (Left, Right) = (Found => True, Index => Position),
                "scalar first difference offset" & Position'Image);
             Check
-              (Algorithms.Native.Find_First_Difference (Left, Right) =
-                 (Found => True, Index => Position),
+              (Algorithms.Native.Find_First_Difference (Left, Right) = (Found => True, Index => Position),
                "native first difference offset" & Position'Image);
             Check
-              (Algorithms.Runtime.Find_First_Difference (Left, Right) =
-                 (Found => True, Index => Position),
+              (Algorithms.Runtime.Find_First_Difference (Left, Right) = (Found => True, Index => Position),
                "runtime first difference offset" & Position'Image);
             if Features.Available (Features.AVX2) then
                Check
-                 (Algorithms.AVX2.Find_First_Difference (Left, Right) =
-                    (Found => True, Index => Position),
+                 (Algorithms.AVX2.Find_First_Difference (Left, Right) = (Found => True, Index => Position),
                   "AVX2 first difference offset" & Position'Image);
             end if;
          end loop;
@@ -1655,8 +1474,7 @@ procedure SIMD_Tests is
             Lane_Data := [others => 0];
             Lane_Data (Lane_Data'First + Lane) := 42;
             Check
-              (Algorithms.AVX2.Find_First (Lane_Data, 42) =
-                 (Found => True, Index => Lane_Data'First + Lane),
+              (Algorithms.AVX2.Find_First (Lane_Data, 42) = (Found => True, Index => Lane_Data'First + Lane),
                "AVX2 first-set-bit lane" & Lane'Image);
          end loop;
       end if;
@@ -1681,12 +1499,9 @@ procedure SIMD_Tests is
          Algorithms.Scalar.Add_Saturate (Scalar, Addend);
          Algorithms.Native.Add_Saturate (Native, Addend);
          Algorithms.Runtime.Add_Saturate (Runtime, Addend);
-         Check (Scalar = Expected,
-                "scalar byte Add_Saturate length" & Length'Image);
-         Check (Native = Expected,
-                "native byte Add_Saturate length" & Length'Image);
-         Check (Runtime = Expected,
-                "runtime byte Add_Saturate length" & Length'Image);
+         Check (Scalar = Expected, "scalar byte Add_Saturate length" & Length'Image);
+         Check (Native = Expected, "native byte Add_Saturate length" & Length'Image);
+         Check (Runtime = Expected, "runtime byte Add_Saturate length" & Length'Image);
       end;
       for Backend in Features.Backend_Kind loop
          if Features.Available (Backend) then
@@ -1696,8 +1511,7 @@ procedure SIMD_Tests is
                Algorithms.Runtime.Add_Saturate (Selected, Addend, Backend);
                Check
                  (Selected = Expected,
-                  "selected byte Add_Saturate " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                  "selected byte Add_Saturate " & Features.Name (Backend) & " length" & Length'Image);
             end;
          end if;
       end loop;
@@ -1706,15 +1520,13 @@ procedure SIMD_Tests is
             AVX2_Data : Byte_Array := Original;
          begin
             Algorithms.AVX2.Add_Saturate (AVX2_Data, Addend);
-            Check (AVX2_Data = Expected,
-                   "direct AVX2 byte Add_Saturate length" & Length'Image);
+            Check (AVX2_Data = Expected, "direct AVX2 byte Add_Saturate length" & Length'Image);
          end;
       end if;
    end Test_Add_Saturate_For_Length;
 
    procedure Test_Add_Saturate is
-      Original : constant Byte_Array (0 .. 255) :=
-        [for Index in 0 .. 255 => U8 (Index)];
+      Original : constant Byte_Array (0 .. 255) := [for Index in 0 .. 255 => U8 (Index)];
    begin
       for Length in Natural range 0 .. 96 loop
          Test_Add_Saturate_For_Length (Length);
@@ -1728,43 +1540,35 @@ procedure SIMD_Tests is
             Runtime  : Byte_Array := Original;
          begin
             for Index in Original'Range loop
-               Expected (Index) :=
-                 Reference_Add_Saturate (Original (Index), Addend);
+               Expected (Index) := Reference_Add_Saturate (Original (Index), Addend);
             end loop;
             Algorithms.Scalar.Add_Saturate (Scalar, Addend);
             Algorithms.Native.Add_Saturate (Native, Addend);
             Algorithms.Runtime.Add_Saturate (Runtime, Addend);
             Check
-              (Scalar = Expected and then Native = Expected
-               and then Runtime = Expected,
+              (Scalar = Expected and then Native = Expected and then Runtime = Expected,
                "exhaustive byte Add_Saturate addend" & Addend'Image);
             if Features.Available (Features.AVX2) then
                declare
                   AVX2_Data : Byte_Array := Original;
                begin
                   Algorithms.AVX2.Add_Saturate (AVX2_Data, Addend);
-                  Check (AVX2_Data = Expected,
-                         "exhaustive AVX2 byte Add_Saturate addend" &
-                           Addend'Image);
+                  Check (AVX2_Data = Expected, "exhaustive AVX2 byte Add_Saturate addend" & Addend'Image);
                end;
             end if;
          end;
       end loop;
    end Test_Add_Saturate;
 
-   function Reference_Dot_Product
-     (Left, Right : F32_Array) return F32
-   is
+   function Reference_Dot_Product (Left, Right : F32_Array) return F32 is
       Partial : Lane_Values_F32x4 := [others => 0.0];
       Result  : F32 := 0.0;
    begin
       for Index in Left'Range loop
          declare
-            Lane : constant Lane_Index_32x4 :=
-              Lane_Index_32x4 ((Index - Left'First) mod 4);
+            Lane : constant Lane_Index_32x4 := Lane_Index_32x4 ((Index - Left'First) mod 4);
          begin
-            Partial (Lane) :=
-              Partial (Lane) + Left (Index) * Right (Index);
+            Partial (Lane) := Partial (Lane) + Left (Index) * Right (Index);
          end;
       end loop;
       for Lane in Partial'Range loop
@@ -1773,19 +1577,15 @@ procedure SIMD_Tests is
       return Result;
    end Reference_Dot_Product;
 
-   function Reference_Dot_Product
-     (Left, Right : F64_Array) return F64
-   is
+   function Reference_Dot_Product (Left, Right : F64_Array) return F64 is
       Partial : Lane_Values_F64x2 := [others => 0.0];
       Result  : F64 := 0.0;
    begin
       for Index in Left'Range loop
          declare
-            Lane : constant Lane_Index_64x2 :=
-              Lane_Index_64x2 ((Index - Left'First) mod 2);
+            Lane : constant Lane_Index_64x2 := Lane_Index_64x2 ((Index - Left'First) mod 2);
          begin
-            Partial (Lane) :=
-              Partial (Lane) + Left (Index) * Right (Index);
+            Partial (Lane) := Partial (Lane) + Left (Index) * Right (Index);
          end;
       end loop;
       for Lane in Partial'Range loop
@@ -1813,8 +1613,7 @@ procedure SIMD_Tests is
             Offset : constant Natural := Index - Original_F32'First;
          begin
             Original_F32 (Index) := F32 (Integer (Offset mod 17) - 8);
-            Original_F64 (Index) :=
-              F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+            Original_F64 (Index) := F64 (Integer ((5 * Offset + 1) mod 19) - 9);
          end;
       end loop;
       Expected_F32 := Original_F32;
@@ -1826,29 +1625,23 @@ procedure SIMD_Tests is
 
       Scalar_F32 := Original_F32;
       Algorithms.Scalar_Floating.Scale (Scalar_F32, Factor_F32);
-      Check (Scalar_F32 = Expected_F32,
-             "scalar F32 scale length" & Length'Image);
+      Check (Scalar_F32 = Expected_F32, "scalar F32 scale length" & Length'Image);
       Native_F32 := Original_F32;
       Algorithms.Native_Floating.Scale (Native_F32, Factor_F32);
-      Check (Native_F32 = Expected_F32,
-             "native F32 scale length" & Length'Image);
+      Check (Native_F32 = Expected_F32, "native F32 scale length" & Length'Image);
       Runtime_F32 := Original_F32;
       Algorithms.Runtime.Scale (Runtime_F32, Factor_F32);
-      Check (Runtime_F32 = Expected_F32,
-             "runtime F32 scale length" & Length'Image);
+      Check (Runtime_F32 = Expected_F32, "runtime F32 scale length" & Length'Image);
 
       Scalar_F64 := Original_F64;
       Algorithms.Scalar_Floating.Scale (Scalar_F64, Factor_F64);
-      Check (Scalar_F64 = Expected_F64,
-             "scalar F64 scale length" & Length'Image);
+      Check (Scalar_F64 = Expected_F64, "scalar F64 scale length" & Length'Image);
       Native_F64 := Original_F64;
       Algorithms.Native_Floating.Scale (Native_F64, Factor_F64);
-      Check (Native_F64 = Expected_F64,
-             "native F64 scale length" & Length'Image);
+      Check (Native_F64 = Expected_F64, "native F64 scale length" & Length'Image);
       Runtime_F64 := Original_F64;
       Algorithms.Runtime.Scale (Runtime_F64, Factor_F64);
-      Check (Runtime_F64 = Expected_F64,
-             "runtime F64 scale length" & Length'Image);
+      Check (Runtime_F64 = Expected_F64, "runtime F64 scale length" & Length'Image);
 
       for Backend in Features.Backend_Kind loop
          if Features.Available (Backend) then
@@ -1856,18 +1649,14 @@ procedure SIMD_Tests is
                Selected_F32 : F32_Array := Original_F32;
                Selected_F64 : F64_Array := Original_F64;
             begin
-               Algorithms.Runtime.Scale
-                 (Selected_F32, Factor_F32, Backend);
-               Algorithms.Runtime.Scale
-                 (Selected_F64, Factor_F64, Backend);
+               Algorithms.Runtime.Scale (Selected_F32, Factor_F32, Backend);
+               Algorithms.Runtime.Scale (Selected_F64, Factor_F64, Backend);
                Check
                  (Selected_F32 = Expected_F32,
-                  "selected F32 scale " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                  "selected F32 scale " & Features.Name (Backend) & " length" & Length'Image);
                Check
                  (Selected_F64 = Expected_F64,
-                  "selected F64 scale " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                  "selected F64 scale " & Features.Name (Backend) & " length" & Length'Image);
             end;
          end if;
       end loop;
@@ -1879,10 +1668,8 @@ procedure SIMD_Tests is
          begin
             Algorithms.AVX2.Scale (AVX2_F32, Factor_F32);
             Algorithms.AVX2.Scale (AVX2_F64, Factor_F64);
-            Check (AVX2_F32 = Expected_F32,
-                   "direct AVX2 F32 scale length" & Length'Image);
-            Check (AVX2_F64 = Expected_F64,
-                   "direct AVX2 F64 scale length" & Length'Image);
+            Check (AVX2_F32 = Expected_F32, "direct AVX2 F32 scale length" & Length'Image);
+            Check (AVX2_F64 = Expected_F64, "direct AVX2 F64 scale length" & Length'Image);
          end;
       end if;
    end Test_Scale_For_Length;
@@ -1895,15 +1682,11 @@ procedure SIMD_Tests is
       Test_Scale_For_Length (4_096);
    end Test_Scale;
 
-   function Reference_Clamp (Value, Low, High : F32) return F32 is
-     (Extract
-        (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)),
-         0));
+   function Reference_Clamp (Value, Low, High : F32) return F32
+   is (Extract (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)), 0));
 
-   function Reference_Clamp (Value, Low, High : F64) return F64 is
-     (Extract
-        (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)),
-         0));
+   function Reference_Clamp (Value, Low, High : F64) return F64
+   is (Extract (Min_Number (Max_Number (Splat (Value), Splat (Low)), Splat (High)), 0));
 
    procedure Test_Clamp_For_Length (Length : Natural) is
       Original_F32 : F32_Array (37 .. 36 + Length);
@@ -1920,15 +1703,12 @@ procedure SIMD_Tests is
             Offset : constant Natural := Index - Original_F32'First;
          begin
             Original_F32 (Index) := F32 (Integer (Offset mod 17) - 8);
-            Original_F64 (Index) :=
-              F64 (Integer ((5 * Offset + 1) mod 19) - 9);
+            Original_F64 (Index) := F64 (Integer ((5 * Offset + 1) mod 19) - 9);
          end;
       end loop;
       for Index in Original_F32'Range loop
-         Expected_F32 (Index) :=
-           Reference_Clamp (Original_F32 (Index), Low_F32, High_F32);
-         Expected_F64 (Index) :=
-           Reference_Clamp (Original_F64 (Index), Low_F64, High_F64);
+         Expected_F32 (Index) := Reference_Clamp (Original_F32 (Index), Low_F32, High_F32);
+         Expected_F64 (Index) := Reference_Clamp (Original_F64 (Index), Low_F64, High_F64);
       end loop;
 
       declare
@@ -1945,18 +1725,12 @@ procedure SIMD_Tests is
          Algorithms.Native_Floating.Clamp (Native_F64, Low_F64, High_F64);
          Algorithms.Runtime.Clamp (Runtime_F32, Low_F32, High_F32);
          Algorithms.Runtime.Clamp (Runtime_F64, Low_F64, High_F64);
-         Check (Same_Bits (Scalar_F32, Expected_F32),
-                "scalar F32 clamp length" & Length'Image);
-         Check (Same_Bits (Scalar_F64, Expected_F64),
-                "scalar F64 clamp length" & Length'Image);
-         Check (Same_Bits (Native_F32, Expected_F32),
-                "native F32 clamp length" & Length'Image);
-         Check (Same_Bits (Native_F64, Expected_F64),
-                "native F64 clamp length" & Length'Image);
-         Check (Same_Bits (Runtime_F32, Expected_F32),
-                "runtime F32 clamp length" & Length'Image);
-         Check (Same_Bits (Runtime_F64, Expected_F64),
-                "runtime F64 clamp length" & Length'Image);
+         Check (Same_Bits (Scalar_F32, Expected_F32), "scalar F32 clamp length" & Length'Image);
+         Check (Same_Bits (Scalar_F64, Expected_F64), "scalar F64 clamp length" & Length'Image);
+         Check (Same_Bits (Native_F32, Expected_F32), "native F32 clamp length" & Length'Image);
+         Check (Same_Bits (Native_F64, Expected_F64), "native F64 clamp length" & Length'Image);
+         Check (Same_Bits (Runtime_F32, Expected_F32), "runtime F32 clamp length" & Length'Image);
+         Check (Same_Bits (Runtime_F64, Expected_F64), "runtime F64 clamp length" & Length'Image);
       end;
 
       for Backend in Features.Backend_Kind loop
@@ -1965,16 +1739,14 @@ procedure SIMD_Tests is
                Selected_F32 : F32_Array := Original_F32;
                Selected_F64 : F64_Array := Original_F64;
             begin
-               Algorithms.Runtime.Clamp
-                 (Selected_F32, Low_F32, High_F32, Backend);
-               Algorithms.Runtime.Clamp
-                 (Selected_F64, Low_F64, High_F64, Backend);
-               Check (Same_Bits (Selected_F32, Expected_F32),
-                      "selected F32 clamp " & Features.Name (Backend) &
-                        " length" & Length'Image);
-               Check (Same_Bits (Selected_F64, Expected_F64),
-                      "selected F64 clamp " & Features.Name (Backend) &
-                        " length" & Length'Image);
+               Algorithms.Runtime.Clamp (Selected_F32, Low_F32, High_F32, Backend);
+               Algorithms.Runtime.Clamp (Selected_F64, Low_F64, High_F64, Backend);
+               Check
+                 (Same_Bits (Selected_F32, Expected_F32),
+                  "selected F32 clamp " & Features.Name (Backend) & " length" & Length'Image);
+               Check
+                 (Same_Bits (Selected_F64, Expected_F64),
+                  "selected F64 clamp " & Features.Name (Backend) & " length" & Length'Image);
             end;
          end if;
       end loop;
@@ -1986,10 +1758,8 @@ procedure SIMD_Tests is
          begin
             Algorithms.AVX2.Clamp (AVX2_F32, Low_F32, High_F32);
             Algorithms.AVX2.Clamp (AVX2_F64, Low_F64, High_F64);
-            Check (Same_Bits (AVX2_F32, Expected_F32),
-                   "direct AVX2 F32 clamp length" & Length'Image);
-            Check (Same_Bits (AVX2_F64, Expected_F64),
-                   "direct AVX2 F64 clamp length" & Length'Image);
+            Check (Same_Bits (AVX2_F32, Expected_F32), "direct AVX2 F32 clamp length" & Length'Image);
+            Check (Same_Bits (AVX2_F64, Expected_F64), "direct AVX2 F64 clamp length" & Length'Image);
          end;
       end if;
    end Test_Clamp_For_Length;
@@ -2003,23 +1773,28 @@ procedure SIMD_Tests is
 
       declare
          Original_F32 : constant F32_Array :=
-           [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#),
-            F32_Of_Bits (16#7FC1_2345#), F32_Of_Bits (16#7F81_2345#),
-            F32_Of_Bits (16#FFC5_4321#), -2.0, 2.0];
+           [F32_Of_Bits (16#0000_0000#),
+            F32_Of_Bits (16#8000_0000#),
+            F32_Of_Bits (16#7FC1_2345#),
+            F32_Of_Bits (16#7F81_2345#),
+            F32_Of_Bits (16#FFC5_4321#),
+            -2.0,
+            2.0];
          Original_F64 : constant F64_Array :=
            [F64_Of_Bits (16#0000_0000_0000_0000#),
             F64_Of_Bits (16#8000_0000_0000_0000#),
             F64_Of_Bits (16#7FF8_0000_0001_2345#),
             F64_Of_Bits (16#7FF0_0000_0001_2345#),
-            F64_Of_Bits (16#FFF8_0000_0005_4321#), -2.0, 2.0];
+            F64_Of_Bits (16#FFF8_0000_0005_4321#),
+            -2.0,
+            2.0];
          Expected_F32 : F32_Array (Original_F32'Range);
          Expected_F64 : F64_Array (Original_F64'Range);
       begin
          for Index in Original_F32'Range loop
             Expected_F32 (Index) :=
               Reference_Clamp
-                (Original_F32 (Index), F32_Of_Bits (16#8000_0000#),
-                 F32_Of_Bits (16#0000_0000#));
+                (Original_F32 (Index), F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#0000_0000#));
             Expected_F64 (Index) :=
               Reference_Clamp
                 (Original_F64 (Index),
@@ -2030,16 +1805,11 @@ procedure SIMD_Tests is
             Actual_F32 : F32_Array := Original_F32;
             Actual_F64 : F64_Array := Original_F64;
          begin
+            Algorithms.Runtime.Clamp (Actual_F32, F32_Of_Bits (16#8000_0000#), F32_Of_Bits (16#0000_0000#));
             Algorithms.Runtime.Clamp
-              (Actual_F32, F32_Of_Bits (16#8000_0000#),
-               F32_Of_Bits (16#0000_0000#));
-            Algorithms.Runtime.Clamp
-              (Actual_F64, F64_Of_Bits (16#8000_0000_0000_0000#),
-               F64_Of_Bits (16#0000_0000_0000_0000#));
-            Check (Same_Bits (Actual_F32, Expected_F32),
-                   "runtime F32 clamp special bit semantics");
-            Check (Same_Bits (Actual_F64, Expected_F64),
-                   "runtime F64 clamp special bit semantics");
+              (Actual_F64, F64_Of_Bits (16#8000_0000_0000_0000#), F64_Of_Bits (16#0000_0000_0000_0000#));
+            Check (Same_Bits (Actual_F32, Expected_F32), "runtime F32 clamp special bit semantics");
+            Check (Same_Bits (Actual_F64, Expected_F64), "runtime F64 clamp special bit semantics");
          end;
       end;
    end Test_Clamp;
@@ -2060,10 +1830,8 @@ procedure SIMD_Tests is
          begin
             X_F32 (Index) := F32 (Integer (Offset mod 13) - 6) / 4.0;
             X_F64 (Index) := F64 (Integer (Offset mod 17) - 8) / 8.0;
-            Original_F32 (Index) :=
-              F32 (Integer ((3 * Offset + 2) mod 19) - 9) / 2.0;
-            Original_F64 (Index) :=
-              F64 (Integer ((5 * Offset + 1) mod 23) - 11) / 4.0;
+            Original_F32 (Index) := F32 (Integer ((3 * Offset + 2) mod 19) - 9) / 2.0;
+            Original_F64 (Index) := F64 (Integer ((5 * Offset + 1) mod 23) - 11) / 4.0;
          end;
       end loop;
       Expected_F32 := Original_F32;
@@ -2087,18 +1855,12 @@ procedure SIMD_Tests is
          Algorithms.Native_Floating.AXPY (Native_F64, A_F64, X_F64);
          Algorithms.Runtime.AXPY (Runtime_F32, A_F32, X_F32);
          Algorithms.Runtime.AXPY (Runtime_F64, A_F64, X_F64);
-         Check (Same_Bits (Scalar_F32, Expected_F32),
-                "scalar F32 AXPY length" & Length'Image);
-         Check (Same_Bits (Scalar_F64, Expected_F64),
-                "scalar F64 AXPY length" & Length'Image);
-         Check (Same_Bits (Native_F32, Expected_F32),
-                "native F32 AXPY length" & Length'Image);
-         Check (Same_Bits (Native_F64, Expected_F64),
-                "native F64 AXPY length" & Length'Image);
-         Check (Same_Bits (Runtime_F32, Expected_F32),
-                "runtime F32 AXPY length" & Length'Image);
-         Check (Same_Bits (Runtime_F64, Expected_F64),
-                "runtime F64 AXPY length" & Length'Image);
+         Check (Same_Bits (Scalar_F32, Expected_F32), "scalar F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Scalar_F64, Expected_F64), "scalar F64 AXPY length" & Length'Image);
+         Check (Same_Bits (Native_F32, Expected_F32), "native F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Native_F64, Expected_F64), "native F64 AXPY length" & Length'Image);
+         Check (Same_Bits (Runtime_F32, Expected_F32), "runtime F32 AXPY length" & Length'Image);
+         Check (Same_Bits (Runtime_F64, Expected_F64), "runtime F64 AXPY length" & Length'Image);
       end;
 
       for Backend in Features.Backend_Kind loop
@@ -2109,12 +1871,12 @@ procedure SIMD_Tests is
             begin
                Algorithms.Runtime.AXPY (Selected_F32, A_F32, X_F32, Backend);
                Algorithms.Runtime.AXPY (Selected_F64, A_F64, X_F64, Backend);
-               Check (Same_Bits (Selected_F32, Expected_F32),
-                      "selected F32 AXPY " & Features.Name (Backend) &
-                        " length" & Length'Image);
-               Check (Same_Bits (Selected_F64, Expected_F64),
-                      "selected F64 AXPY " & Features.Name (Backend) &
-                        " length" & Length'Image);
+               Check
+                 (Same_Bits (Selected_F32, Expected_F32),
+                  "selected F32 AXPY " & Features.Name (Backend) & " length" & Length'Image);
+               Check
+                 (Same_Bits (Selected_F64, Expected_F64),
+                  "selected F64 AXPY " & Features.Name (Backend) & " length" & Length'Image);
             end;
          end if;
       end loop;
@@ -2126,10 +1888,8 @@ procedure SIMD_Tests is
          begin
             Algorithms.AVX2.AXPY (AVX2_F32, A_F32, X_F32);
             Algorithms.AVX2.AXPY (AVX2_F64, A_F64, X_F64);
-            Check (Same_Bits (AVX2_F32, Expected_F32),
-                   "direct AVX2 F32 AXPY length" & Length'Image);
-            Check (Same_Bits (AVX2_F64, Expected_F64),
-                   "direct AVX2 F64 AXPY length" & Length'Image);
+            Check (Same_Bits (AVX2_F32, Expected_F32), "direct AVX2 F32 AXPY length" & Length'Image);
+            Check (Same_Bits (AVX2_F64, Expected_F64), "direct AVX2 F64 AXPY length" & Length'Image);
          end;
       end if;
    end Test_AXPY_For_Length;
@@ -2146,8 +1906,7 @@ procedure SIMD_Tests is
       Result : F32 := Data (Data'First);
    begin
       for Index in Data'First + 1 .. Data'Last loop
-         Result := Extract
-           (Min_Number (Splat (Result), Splat (Data (Index))), 0);
+         Result := Extract (Min_Number (Splat (Result), Splat (Data (Index))), 0);
       end loop;
       return Result;
    end Reference_Min_Number;
@@ -2156,8 +1915,7 @@ procedure SIMD_Tests is
       Result : F32 := Data (Data'First);
    begin
       for Index in Data'First + 1 .. Data'Last loop
-         Result := Extract
-           (Max_Number (Splat (Result), Splat (Data (Index))), 0);
+         Result := Extract (Max_Number (Splat (Result), Splat (Data (Index))), 0);
       end loop;
       return Result;
    end Reference_Max_Number;
@@ -2166,8 +1924,7 @@ procedure SIMD_Tests is
       Result : F64 := Data (Data'First);
    begin
       for Index in Data'First + 1 .. Data'Last loop
-         Result := Extract
-           (Min_Number (Splat (Result), Splat (Data (Index))), 0);
+         Result := Extract (Min_Number (Splat (Result), Splat (Data (Index))), 0);
       end loop;
       return Result;
    end Reference_Min_Number;
@@ -2176,8 +1933,7 @@ procedure SIMD_Tests is
       Result : F64 := Data (Data'First);
    begin
       for Index in Data'First + 1 .. Data'Last loop
-         Result := Extract
-           (Max_Number (Splat (Result), Splat (Data (Index))), 0);
+         Result := Extract (Max_Number (Splat (Result), Splat (Data (Index))), 0);
       end loop;
       return Result;
    end Reference_Max_Number;
@@ -2201,81 +1957,51 @@ procedure SIMD_Tests is
          Max_F64 : constant F64 := Reference_Max_Number (Data_F64);
       begin
          Check
-           (F32_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F32)) =
-              F32_Bits (Min_F32)
-            and then
-            F32_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F32)) =
-              F32_Bits (Max_F32),
+           (F32_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F32)) = F32_Bits (Min_F32)
+            and then F32_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F32)) = F32_Bits (Max_F32),
             "scalar F32 min/max length" & Length'Image);
          Check
-           (F64_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F64)) =
-              F64_Bits (Min_F64)
-            and then
-            F64_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F64)) =
-              F64_Bits (Max_F64),
+           (F64_Bits (Algorithms.Scalar_Floating.Min_Number (Data_F64)) = F64_Bits (Min_F64)
+            and then F64_Bits (Algorithms.Scalar_Floating.Max_Number (Data_F64)) = F64_Bits (Max_F64),
             "scalar F64 min/max length" & Length'Image);
          Check
-           (F32_Bits (Algorithms.Native_Floating.Min_Number (Data_F32)) =
-              F32_Bits (Min_F32)
-            and then
-            F32_Bits (Algorithms.Native_Floating.Max_Number (Data_F32)) =
-              F32_Bits (Max_F32),
+           (F32_Bits (Algorithms.Native_Floating.Min_Number (Data_F32)) = F32_Bits (Min_F32)
+            and then F32_Bits (Algorithms.Native_Floating.Max_Number (Data_F32)) = F32_Bits (Max_F32),
             "native F32 min/max length" & Length'Image);
          Check
-           (F64_Bits (Algorithms.Native_Floating.Min_Number (Data_F64)) =
-              F64_Bits (Min_F64)
-            and then
-            F64_Bits (Algorithms.Native_Floating.Max_Number (Data_F64)) =
-              F64_Bits (Max_F64),
+           (F64_Bits (Algorithms.Native_Floating.Min_Number (Data_F64)) = F64_Bits (Min_F64)
+            and then F64_Bits (Algorithms.Native_Floating.Max_Number (Data_F64)) = F64_Bits (Max_F64),
             "native F64 min/max length" & Length'Image);
          Check
-           (F32_Bits (Algorithms.Runtime.Min_Number (Data_F32)) =
-              F32_Bits (Min_F32)
-            and then F32_Bits (Algorithms.Runtime.Max_Number (Data_F32)) =
-              F32_Bits (Max_F32),
+           (F32_Bits (Algorithms.Runtime.Min_Number (Data_F32)) = F32_Bits (Min_F32)
+            and then F32_Bits (Algorithms.Runtime.Max_Number (Data_F32)) = F32_Bits (Max_F32),
             "runtime F32 min/max length" & Length'Image);
          Check
-           (F64_Bits (Algorithms.Runtime.Min_Number (Data_F64)) =
-              F64_Bits (Min_F64)
-            and then F64_Bits (Algorithms.Runtime.Max_Number (Data_F64)) =
-              F64_Bits (Max_F64),
+           (F64_Bits (Algorithms.Runtime.Min_Number (Data_F64)) = F64_Bits (Min_F64)
+            and then F64_Bits (Algorithms.Runtime.Max_Number (Data_F64)) = F64_Bits (Max_F64),
             "runtime F64 min/max length" & Length'Image);
 
          for Backend in Features.Backend_Kind loop
             if Features.Available (Backend) then
                Check
-                 (F32_Bits
-                    (Algorithms.Runtime.Min_Number (Data_F32, Backend)) =
-                      F32_Bits (Min_F32)
-                  and then F32_Bits
-                    (Algorithms.Runtime.Max_Number (Data_F32, Backend)) =
-                      F32_Bits (Max_F32),
-                  "selected F32 min/max " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                 (F32_Bits (Algorithms.Runtime.Min_Number (Data_F32, Backend)) = F32_Bits (Min_F32)
+                  and then F32_Bits (Algorithms.Runtime.Max_Number (Data_F32, Backend)) = F32_Bits (Max_F32),
+                  "selected F32 min/max " & Features.Name (Backend) & " length" & Length'Image);
                Check
-                 (F64_Bits
-                    (Algorithms.Runtime.Min_Number (Data_F64, Backend)) =
-                      F64_Bits (Min_F64)
-                  and then F64_Bits
-                    (Algorithms.Runtime.Max_Number (Data_F64, Backend)) =
-                      F64_Bits (Max_F64),
-                  "selected F64 min/max " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                 (F64_Bits (Algorithms.Runtime.Min_Number (Data_F64, Backend)) = F64_Bits (Min_F64)
+                  and then F64_Bits (Algorithms.Runtime.Max_Number (Data_F64, Backend)) = F64_Bits (Max_F64),
+                  "selected F64 min/max " & Features.Name (Backend) & " length" & Length'Image);
             end if;
          end loop;
 
          if Features.Available (Features.AVX2) then
             Check
-              (F32_Bits (Algorithms.AVX2.Min_Number (Data_F32)) =
-                 F32_Bits (Min_F32)
-               and then F32_Bits (Algorithms.AVX2.Max_Number (Data_F32)) =
-                 F32_Bits (Max_F32),
+              (F32_Bits (Algorithms.AVX2.Min_Number (Data_F32)) = F32_Bits (Min_F32)
+               and then F32_Bits (Algorithms.AVX2.Max_Number (Data_F32)) = F32_Bits (Max_F32),
                "direct AVX2 F32 min/max length" & Length'Image);
             Check
-              (F64_Bits (Algorithms.AVX2.Min_Number (Data_F64)) =
-                 F64_Bits (Min_F64)
-               and then F64_Bits (Algorithms.AVX2.Max_Number (Data_F64)) =
-                 F64_Bits (Max_F64),
+              (F64_Bits (Algorithms.AVX2.Min_Number (Data_F64)) = F64_Bits (Min_F64)
+               and then F64_Bits (Algorithms.AVX2.Max_Number (Data_F64)) = F64_Bits (Max_F64),
                "direct AVX2 F64 min/max length" & Length'Image);
          end if;
       end;
@@ -2288,20 +2014,16 @@ procedure SIMD_Tests is
       end loop;
       Test_Min_Max_For_Length (4_096);
       declare
-         Zeros_F32 : constant F32_Array :=
-           [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#)];
+         Zeros_F32 : constant F32_Array := [F32_Of_Bits (16#0000_0000#), F32_Of_Bits (16#8000_0000#)];
          Zeros_F64 : constant F64_Array :=
-           [F64_Of_Bits (16#0000_0000_0000_0000#),
-            F64_Of_Bits (16#8000_0000_0000_0000#)];
+           [F64_Of_Bits (16#0000_0000_0000_0000#), F64_Of_Bits (16#8000_0000_0000_0000#)];
       begin
          Check
-           (F32_Bits (Algorithms.Runtime.Min_Number (Zeros_F32)) =
-              16#8000_0000#
+           (F32_Bits (Algorithms.Runtime.Min_Number (Zeros_F32)) = 16#8000_0000#
             and then F32_Bits (Algorithms.Runtime.Max_Number (Zeros_F32)) = 0,
             "runtime F32 min/max signed-zero semantics");
          Check
-           (F64_Bits (Algorithms.Runtime.Min_Number (Zeros_F64)) =
-              16#8000_0000_0000_0000#
+           (F64_Bits (Algorithms.Runtime.Min_Number (Zeros_F64)) = 16#8000_0000_0000_0000#
             and then F64_Bits (Algorithms.Runtime.Max_Number (Zeros_F64)) = 0,
             "runtime F64 min/max signed-zero semantics");
       end;
@@ -2313,8 +2035,7 @@ procedure SIMD_Tests is
    begin
       for Index in Data'Range loop
          declare
-            Lane : constant Lane_Index_32x4 :=
-              Lane_Index_32x4 ((Index - Data'First) mod 4);
+            Lane : constant Lane_Index_32x4 := Lane_Index_32x4 ((Index - Data'First) mod 4);
          begin
             Partial (Lane) := Partial (Lane) + Data (Index);
          end;
@@ -2331,8 +2052,7 @@ procedure SIMD_Tests is
    begin
       for Index in Data'Range loop
          declare
-            Lane : constant Lane_Index_64x2 :=
-              Lane_Index_64x2 ((Index - Data'First) mod 2);
+            Lane : constant Lane_Index_64x2 := Lane_Index_64x2 ((Index - Data'First) mod 2);
          begin
             Partial (Lane) := Partial (Lane) + Data (Index);
          end;
@@ -2361,58 +2081,44 @@ procedure SIMD_Tests is
          Expected_F64 : constant F64 := Reference_Sum (F64_Data);
       begin
          Check
-           (Algorithms.Scalar_Floating.Sum (F32_Data) = Expected_F32,
-            "scalar F32 sum length" & Length'Image);
+           (Algorithms.Scalar_Floating.Sum (F32_Data) = Expected_F32, "scalar F32 sum length" & Length'Image);
          Check
-           (Algorithms.Native_Floating.Sum (F32_Data) = Expected_F32,
-            "native F32 sum length" & Length'Image);
-         Check
-           (Algorithms.Runtime.Sum (F32_Data) = Expected_F32,
-            "runtime F32 sum length" & Length'Image);
+           (Algorithms.Native_Floating.Sum (F32_Data) = Expected_F32, "native F32 sum length" & Length'Image);
+         Check (Algorithms.Runtime.Sum (F32_Data) = Expected_F32, "runtime F32 sum length" & Length'Image);
          Check
            (Algorithms.Runtime.Sum (F32_Data, Features.Scalar) = Expected_F32,
             "forced scalar F32 sum length" & Length'Image);
          Check
-           (Algorithms.Scalar_Floating.Sum (F64_Data) = Expected_F64,
-            "scalar F64 sum length" & Length'Image);
+           (Algorithms.Scalar_Floating.Sum (F64_Data) = Expected_F64, "scalar F64 sum length" & Length'Image);
          Check
-           (Algorithms.Native_Floating.Sum (F64_Data) = Expected_F64,
-            "native F64 sum length" & Length'Image);
-         Check
-           (Algorithms.Runtime.Sum (F64_Data) = Expected_F64,
-            "runtime F64 sum length" & Length'Image);
+           (Algorithms.Native_Floating.Sum (F64_Data) = Expected_F64, "native F64 sum length" & Length'Image);
+         Check (Algorithms.Runtime.Sum (F64_Data) = Expected_F64, "runtime F64 sum length" & Length'Image);
          Check
            (Algorithms.Runtime.Sum (F64_Data, Features.Scalar) = Expected_F64,
             "forced scalar F64 sum length" & Length'Image);
 
          if Length = 0 then
             Check
-              (F32_Bits (Algorithms.Runtime.Sum (F32_Data)) = 0,
-               "empty runtime F32 sum is positive zero");
+              (F32_Bits (Algorithms.Runtime.Sum (F32_Data)) = 0, "empty runtime F32 sum is positive zero");
             Check
-              (F64_Bits (Algorithms.Runtime.Sum (F64_Data)) = 0,
-               "empty runtime F64 sum is positive zero");
+              (F64_Bits (Algorithms.Runtime.Sum (F64_Data)) = 0, "empty runtime F64 sum is positive zero");
          end if;
 
          if Features.Available (Features.AVX2) then
             Check
-              (Algorithms.AVX2.Sum (F32_Data) = Expected_F32,
-               "direct AVX2 F32 sum length" & Length'Image);
+              (Algorithms.AVX2.Sum (F32_Data) = Expected_F32, "direct AVX2 F32 sum length" & Length'Image);
             Check
-              (Algorithms.AVX2.Sum (F64_Data) = Expected_F64,
-               "direct AVX2 F64 sum length" & Length'Image);
+              (Algorithms.AVX2.Sum (F64_Data) = Expected_F64, "direct AVX2 F64 sum length" & Length'Image);
          end if;
 
          for Backend in Features.Backend_Kind loop
             if Features.Available (Backend) then
                Check
                  (Algorithms.Runtime.Sum (F32_Data, Backend) = Expected_F32,
-                  "selected F32 sum " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                  "selected F32 sum " & Features.Name (Backend) & " length" & Length'Image);
                Check
                  (Algorithms.Runtime.Sum (F64_Data, Backend) = Expected_F64,
-                  "selected F64 sum " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                  "selected F64 sum " & Features.Name (Backend) & " length" & Length'Image);
             end if;
          end loop;
       end;
@@ -2425,27 +2131,21 @@ procedure SIMD_Tests is
       end loop;
       Test_Sum_For_Length (4_096);
       declare
-         F32_Order : constant F32_Array :=
-           [1.0E+20, 1.0, -1.0E+20, 2.0, 3.0];
-         F64_Order : constant F64_Array :=
-           [1.0E+300, 1.0, -1.0E+300, 2.0, 3.0];
+         F32_Order    : constant F32_Array := [1.0E+20, 1.0, -1.0E+20, 2.0, 3.0];
+         F64_Order    : constant F64_Array := [1.0E+300, 1.0, -1.0E+300, 2.0, 3.0];
          Expected_F32 : constant F32 := Reference_Sum (F32_Order);
          Expected_F64 : constant F64 := Reference_Sum (F64_Order);
       begin
          Check
            (Expected_F32 = 2.0
-            and then Algorithms.Scalar_Floating.Sum (F32_Order) =
-              Expected_F32
-            and then Algorithms.Native_Floating.Sum (F32_Order) =
-              Expected_F32
+            and then Algorithms.Scalar_Floating.Sum (F32_Order) = Expected_F32
+            and then Algorithms.Native_Floating.Sum (F32_Order) = Expected_F32
             and then Algorithms.Runtime.Sum (F32_Order) = Expected_F32,
             "F32 sum preserves four-group evaluation order");
          Check
            (Expected_F64 = 6.0
-            and then Algorithms.Scalar_Floating.Sum (F64_Order) =
-              Expected_F64
-            and then Algorithms.Native_Floating.Sum (F64_Order) =
-              Expected_F64
+            and then Algorithms.Scalar_Floating.Sum (F64_Order) = Expected_F64
+            and then Algorithms.Native_Floating.Sum (F64_Order) = Expected_F64
             and then Algorithms.Runtime.Sum (F64_Order) = Expected_F64,
             "F64 sum preserves two-group evaluation order");
          if Features.Available (Features.AVX2) then
@@ -2477,78 +2177,60 @@ procedure SIMD_Tests is
       end loop;
 
       declare
-         Expected_F32 : constant F32 :=
-           Reference_Dot_Product (F32_Left, F32_Right);
-         Expected_F64 : constant F64 :=
-           Reference_Dot_Product (F64_Left, F64_Right);
+         Expected_F32 : constant F32 := Reference_Dot_Product (F32_Left, F32_Right);
+         Expected_F64 : constant F64 := Reference_Dot_Product (F64_Left, F64_Right);
       begin
          Check
-           (Algorithms.Scalar_Floating.Dot_Product (F32_Left, F32_Right) =
-              Expected_F32,
+           (Algorithms.Scalar_Floating.Dot_Product (F32_Left, F32_Right) = Expected_F32,
             "scalar F32 dot length" & Length'Image);
          Check
-           (Algorithms.Native_Floating.Dot_Product (F32_Left, F32_Right) =
-              Expected_F32,
+           (Algorithms.Native_Floating.Dot_Product (F32_Left, F32_Right) = Expected_F32,
             "native F32 dot length" & Length'Image);
          Check
-           (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right) =
-              Expected_F32,
+           (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right) = Expected_F32,
             "runtime F32 dot length" & Length'Image);
          Check
-           (Algorithms.Runtime.Dot_Product
-              (F32_Left, F32_Right, Features.Scalar) = Expected_F32,
+           (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right, Features.Scalar) = Expected_F32,
             "forced scalar F32 dot length" & Length'Image);
          Check
-           (Algorithms.Scalar_Floating.Dot_Product (F64_Left, F64_Right) =
-              Expected_F64,
+           (Algorithms.Scalar_Floating.Dot_Product (F64_Left, F64_Right) = Expected_F64,
             "scalar F64 dot length" & Length'Image);
          Check
-           (Algorithms.Native_Floating.Dot_Product (F64_Left, F64_Right) =
-              Expected_F64,
+           (Algorithms.Native_Floating.Dot_Product (F64_Left, F64_Right) = Expected_F64,
             "native F64 dot length" & Length'Image);
          Check
-           (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right) =
-              Expected_F64,
+           (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right) = Expected_F64,
             "runtime F64 dot length" & Length'Image);
          Check
-           (Algorithms.Runtime.Dot_Product
-              (F64_Left, F64_Right, Features.Scalar) = Expected_F64,
+           (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right, Features.Scalar) = Expected_F64,
             "forced scalar F64 dot length" & Length'Image);
 
          if Length = 0 then
             Check
-              (F32_Bits
-                 (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right)) = 0,
+              (F32_Bits (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right)) = 0,
                "empty runtime F32 dot is positive zero");
             Check
-              (F64_Bits
-                 (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right)) = 0,
+              (F64_Bits (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right)) = 0,
                "empty runtime F64 dot is positive zero");
          end if;
 
          if Features.Available (Features.AVX2) then
             Check
-              (Algorithms.AVX2.Dot_Product (F32_Left, F32_Right) =
-                 Expected_F32,
+              (Algorithms.AVX2.Dot_Product (F32_Left, F32_Right) = Expected_F32,
                "direct AVX2 F32 dot length" & Length'Image);
             Check
-              (Algorithms.AVX2.Dot_Product (F64_Left, F64_Right) =
-                 Expected_F64,
+              (Algorithms.AVX2.Dot_Product (F64_Left, F64_Right) = Expected_F64,
                "direct AVX2 F64 dot length" & Length'Image);
          end if;
 
          for Backend in Features.Backend_Kind loop
             if Features.Available (Backend) then
                Check
-                 (Algorithms.Runtime.Dot_Product
-                    (F32_Left, F32_Right, Backend) = Expected_F32,
-                  "selected F32 dot " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                 (Algorithms.Runtime.Dot_Product (F32_Left, F32_Right, Backend) = Expected_F32,
+                  "selected F32 dot " & Features.Name (Backend) & " length" & Length'Image);
                Check
-                 (Algorithms.Runtime.Dot_Product
-                    (F64_Left, F64_Right, Backend) = Expected_F64,
-                  "selected F64 dot " & Features.Name (Backend) &
-                    " length" & Length'Image);
+                 (Algorithms.Runtime.Dot_Product (F64_Left, F64_Right, Backend) = Expected_F64,
+                  "selected F64 dot " & Features.Name (Backend) & " length" & Length'Image);
             end if;
          end loop;
       end;
@@ -2563,278 +2245,278 @@ procedure SIMD_Tests is
    end Test_Dot_Product;
 
    procedure Test_Unavailable_Rejection is
-      Data : constant Byte_Array (1 .. 1) := [1 => 0];
-      F32_Data : constant F32_Array (1 .. 1) := [1 => 1.0];
-      F64_Data : constant F64_Array (1 .. 1) := [1 => 1.0];
-      F32_Work : F32_Array := F32_Data;
-      F64_Work : F64_Array := F64_Data;
+      Data      : constant Byte_Array (1 .. 1) := [1 => 0];
+      F32_Data  : constant F32_Array (1 .. 1) := [1 => 1.0];
+      F64_Data  : constant F64_Array (1 .. 1) := [1 => 1.0];
+      F32_Work  : F32_Array := F32_Data;
+      F64_Work  : F64_Array := F64_Data;
       Byte_Work : Byte_Array := Data;
-      Result : Natural;
-      Dot : F32;
-      Dot_64 : F64;
-      Search : Algorithms.Search_Result;
-      Same : Boolean;
+      Result    : Natural;
+      Dot       : F32;
+      Dot_64    : F64;
+      Search    : Algorithms.Search_Result;
+      Same      : Boolean;
    begin
       if not Features.Available (Features.AVX2) then
          begin
             Algorithms.Runtime.Scale (F32_Work, 2.0, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F32 scale accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.Runtime.Scale (F64_Work, 2.0, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F64 scale accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.Scale (F32_Work, 2.0);
             Check (False, "unavailable direct AVX2 F32 scale accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.Scale (F64_Work, 2.0);
             Check (False, "unavailable direct AVX2 F64 scale accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Algorithms.Runtime.Clamp
-              (F32_Work, 0.0, 1.0, Features.AVX2);
+            Algorithms.Runtime.Clamp (F32_Work, 0.0, 1.0, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F32 clamp accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Algorithms.Runtime.Clamp
-              (F64_Work, 0.0, 1.0, Features.AVX2);
+            Algorithms.Runtime.Clamp (F64_Work, 0.0, 1.0, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F64 clamp accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.Clamp (F32_Work, 0.0, 1.0);
             Check (False, "unavailable direct AVX2 F32 clamp accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.Clamp (F64_Work, 0.0, 1.0);
             Check (False, "unavailable direct AVX2 F64 clamp accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Algorithms.Runtime.AXPY
-              (F32_Work, 2.0, F32_Data, Features.AVX2);
+            Algorithms.Runtime.AXPY (F32_Work, 2.0, F32_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F32 AXPY accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Algorithms.Runtime.AXPY
-              (F64_Work, 2.0, F64_Data, Features.AVX2);
+            Algorithms.Runtime.AXPY (F64_Work, 2.0, F64_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F64 AXPY accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.AXPY (F32_Work, 2.0, F32_Data);
             Check (False, "unavailable direct AVX2 F32 AXPY accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.AXPY (F64_Work, 2.0, F64_Data);
             Check (False, "unavailable direct AVX2 F64 AXPY accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot := Algorithms.Runtime.Min_Number (F32_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F32 min accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot_64 := Algorithms.Runtime.Max_Number (F64_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 F64 max accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot := Algorithms.AVX2.Max_Number (F32_Data);
             Check (False, "unavailable direct AVX2 F32 max accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot_64 := Algorithms.AVX2.Min_Number (F64_Data);
             Check (False, "unavailable direct AVX2 F64 min accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Result := Algorithms.Runtime.Count (Data, 0, Features.AVX2);
             Check (False, "unavailable AVX2 accepted" & Result'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Result := Algorithms.AVX2.Count (Data, 0);
             Check (False, "direct unavailable AVX2 accepted" & Result'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Result := Algorithms.Runtime.Count_In_Range
-              (Data, 0, 255, Features.AVX2);
-            Check
-              (False,
-               "unavailable runtime AVX2 count-in-range accepted" &
-                 Result'Image);
+            Result := Algorithms.Runtime.Count_In_Range (Data, 0, 255, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 count-in-range accepted" & Result'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Result := Algorithms.AVX2.Count_In_Range (Data, 0, 255);
-            Check
-              (False,
-               "unavailable direct AVX2 count-in-range accepted" &
-                 Result'Image);
+            Check (False, "unavailable direct AVX2 count-in-range accepted" & Result'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Algorithms.Runtime.Add_Saturate
-              (Byte_Work, 1, Features.AVX2);
+            Algorithms.Runtime.Add_Saturate (Byte_Work, 1, Features.AVX2);
             Check (False, "unavailable runtime AVX2 Add_Saturate accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Algorithms.AVX2.Add_Saturate (Byte_Work, 1);
             Check (False, "unavailable direct AVX2 Add_Saturate accepted");
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Search := Algorithms.Runtime.Find_First_Of
-              (Data, Data, Features.AVX2);
-            Check (False, "unavailable runtime AVX2 find-first-of accepted" &
-                   Search.Index'Image);
+            Search := Algorithms.Runtime.Find_First_Of (Data, Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 find-first-of accepted" & Search.Index'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Search := Algorithms.AVX2.Find_First_Of (Data, Data);
-            Check (False, "unavailable direct AVX2 find-first-of accepted" &
-                   Search.Index'Image);
+            Check (False, "unavailable direct AVX2 find-first-of accepted" & Search.Index'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Search := Algorithms.Runtime.Find_First_Difference
-              (Data, Data, Features.AVX2);
-            Check
-              (False,
-               "unavailable runtime AVX2 difference accepted" &
-                 Search.Index'Image);
+            Search := Algorithms.Runtime.Find_First_Difference (Data, Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 difference accepted" & Search.Index'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Search := Algorithms.AVX2.Find_First_Difference (Data, Data);
-            Check
-              (False,
-               "unavailable direct AVX2 difference accepted" &
-                 Search.Index'Image);
+            Check (False, "unavailable direct AVX2 difference accepted" & Search.Index'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Same := Algorithms.Runtime.Equal (Data, Data, Features.AVX2);
-            Check (False, "unavailable runtime AVX2 equal accepted" &
-                   Same'Image);
+            Check (False, "unavailable runtime AVX2 equal accepted" & Same'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot := Algorithms.Runtime.Sum (F32_Data, Features.AVX2);
-            Check (False, "unavailable runtime AVX2 F32 sum accepted" &
-                   Dot'Image);
+            Check (False, "unavailable runtime AVX2 F32 sum accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot_64 := Algorithms.Runtime.Sum (F64_Data, Features.AVX2);
-            Check (False, "unavailable runtime AVX2 F64 sum accepted" &
-                   Dot_64'Image);
+            Check (False, "unavailable runtime AVX2 F64 sum accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot := Algorithms.AVX2.Sum (F32_Data);
-            Check (False, "unavailable direct AVX2 F32 sum accepted" &
-                   Dot'Image);
+            Check (False, "unavailable direct AVX2 F32 sum accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot_64 := Algorithms.AVX2.Sum (F64_Data);
-            Check (False, "unavailable direct AVX2 F64 sum accepted" &
-                   Dot_64'Image);
+            Check (False, "unavailable direct AVX2 F64 sum accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Dot := Algorithms.Runtime.Dot_Product
-              (F32_Data, F32_Data, Features.AVX2);
+            Dot := Algorithms.Runtime.Dot_Product (F32_Data, F32_Data, Features.AVX2);
             Check (False, "unavailable runtime AVX2 dot accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
-            Dot_64 := Algorithms.Runtime.Dot_Product
-              (F64_Data, F64_Data, Features.AVX2);
-            Check
-              (False,
-               "unavailable runtime AVX2 F64 dot accepted" & Dot_64'Image);
+            Dot_64 := Algorithms.Runtime.Dot_Product (F64_Data, F64_Data, Features.AVX2);
+            Check (False, "unavailable runtime AVX2 F64 dot accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot := Algorithms.AVX2.Dot_Product (F32_Data, F32_Data);
             Check (False, "unavailable direct AVX2 dot accepted" & Dot'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
          begin
             Dot_64 := Algorithms.AVX2.Dot_Product (F64_Data, F64_Data);
-            Check
-              (False,
-               "unavailable direct AVX2 F64 dot accepted" & Dot_64'Image);
+            Check (False, "unavailable direct AVX2 F64 dot accepted" & Dot_64'Image);
          exception
-            when Features.Backend_Unavailable => null;
+            when Features.Backend_Unavailable =>
+               null;
          end;
       end if;
    end Test_Unavailable_Rejection;
 begin
    Put_Line ("flyology_simd deterministic seed:" & Seed'Image);
-   Put_Line ("architecture: " & Features.Architecture_Name &
-             "; best backend: " & Features.Name (Features.Best_Available));
-   if Ada.Command_Line.Argument_Count > 0
-     and then Ada.Command_Line.Argument (1) = "--require-avx2"
-   then
-      Check (Features.Compiled (Features.AVX2),
-             "AVX2 was required but not compiled");
-      Check (Features.Available (Features.AVX2),
-             "AVX2 was required but is not available");
+   Put_Line
+     ("architecture: "
+      & Features.Architecture_Name
+      & "; best backend: "
+      & Features.Name (Features.Best_Available));
+   if Ada.Command_Line.Argument_Count > 0 and then Ada.Command_Line.Argument (1) = "--require-avx2" then
+      Check (Features.Compiled (Features.AVX2), "AVX2 was required but not compiled");
+      Check (Features.Available (Features.AVX2), "AVX2 was required but is not available");
    end if;
-   if Features.Compiled (Features.AVX2) and then not Features.Available (Features.AVX2)
-   then
+   if Features.Compiled (Features.AVX2) and then not Features.Available (Features.AVX2) then
       Put_Line ("SKIP avx2 execution: compiled, but CPU/OS AVX state is unavailable");
    elsif not Features.Compiled (Features.AVX2) then
       Put_Line ("SKIP avx2 execution: backend was not compiled in this configuration");

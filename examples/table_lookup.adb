@@ -7,18 +7,27 @@ procedure Table_Lookup is
    use Flyology_SIMD;
    package Native renames Flyology_SIMD.Backends.Native;
 
-   Hex_Digits : constant U8x16 := From_Lanes
-     ([Character'Pos ('0'), Character'Pos ('1'), Character'Pos ('2'),
-       Character'Pos ('3'), Character'Pos ('4'), Character'Pos ('5'),
-       Character'Pos ('6'), Character'Pos ('7'), Character'Pos ('8'),
-       Character'Pos ('9'), Character'Pos ('A'), Character'Pos ('B'),
-       Character'Pos ('C'), Character'Pos ('D'), Character'Pos ('E'),
-       Character'Pos ('F')]);
-   All_Indices : constant U8x16 := From_Lanes
-     ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
-   Encoded : constant U8x16 := Native.Table_Lookup (Hex_Digits, All_Indices);
-   Invalid : constant U8x16 :=
-     Native.Table_Lookup (Hex_Digits, Replace (All_Indices, 15, 255));
+   Hex_Digits  : constant U8x16 :=
+     From_Lanes
+       ([Character'Pos ('0'),
+         Character'Pos ('1'),
+         Character'Pos ('2'),
+         Character'Pos ('3'),
+         Character'Pos ('4'),
+         Character'Pos ('5'),
+         Character'Pos ('6'),
+         Character'Pos ('7'),
+         Character'Pos ('8'),
+         Character'Pos ('9'),
+         Character'Pos ('A'),
+         Character'Pos ('B'),
+         Character'Pos ('C'),
+         Character'Pos ('D'),
+         Character'Pos ('E'),
+         Character'Pos ('F')]);
+   All_Indices : constant U8x16 := From_Lanes ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+   Encoded     : constant U8x16 := Native.Table_Lookup (Hex_Digits, All_Indices);
+   Invalid     : constant U8x16 := Native.Table_Lookup (Hex_Digits, Replace (All_Indices, 15, 255));
 begin
    Put ("hex: ");
    for Lane in Lane_Index_8x16 loop

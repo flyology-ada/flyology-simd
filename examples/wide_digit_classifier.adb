@@ -27,27 +27,19 @@ procedure Wide_Digit_Classifier is
       return Result;
    end To_String;
 
-   Text : constant String := "sensor 17: row 204, sample 0091.";
-   Data : constant Byte_Array := To_Bytes (Text);
-   Values : constant Wide.U8x32 :=
-     Native.Load_Unaligned (Data, Data'First);
+   Text          : constant String := "sensor 17: row 204, sample 0091.";
+   Data          : constant Byte_Array := To_Bytes (Text);
+   Values        : constant Wide.U8x32 := Native.Load_Unaligned (Data, Data'First);
    At_Least_Zero : constant Wide.Mask_8x32 :=
-     Native.Greater_Equal
-       (Values, Native.Splat (U8 (Character'Pos ('0'))));
-   At_Most_Nine : constant Wide.Mask_8x32 :=
-     Native.Less_Equal
-       (Values, Native.Splat (U8 (Character'Pos ('9'))));
-   Is_Digit : constant Wide.Mask_8x32 :=
-     Native.Mask_And (At_Least_Zero, At_Most_Nine);
-   Filtered : constant Wide.U8x32 :=
-     Native.Select_Value
-       (Is_Digit,
-        Values,
-        Native.Splat (U8 (Character'Pos ('.'))));
-   Lanes : constant Wide.Lane_Values_U8x32 := Native.To_Lanes (Filtered);
+     Native.Greater_Equal (Values, Native.Splat (U8 (Character'Pos ('0'))));
+   At_Most_Nine  : constant Wide.Mask_8x32 :=
+     Native.Less_Equal (Values, Native.Splat (U8 (Character'Pos ('9'))));
+   Is_Digit      : constant Wide.Mask_8x32 := Native.Mask_And (At_Least_Zero, At_Most_Nine);
+   Filtered      : constant Wide.U8x32 :=
+     Native.Select_Value (Is_Digit, Values, Native.Splat (U8 (Character'Pos ('.'))));
+   Lanes         : constant Wide.Lane_Values_U8x32 := Native.To_Lanes (Filtered);
    Filtered_Text : constant String := To_String (Lanes);
-   Digit_Count : constant Wide.Lane_Count_8x32 :=
-     Native.Population_Count (Is_Digit);
+   Digit_Count   : constant Wide.Lane_Count_8x32 := Native.Population_Count (Is_Digit);
 begin
    pragma Assert (Data'Length = 32);
    pragma Assert (Filtered_Text = ".......17......204.........0091.");

@@ -15,23 +15,17 @@ procedure Compact_Measurements is
    --  and packs them into a prefix that starts at lane zero.  Expand restores
    --  those values to the true mask positions and fills all other lanes with
    --  positive zero.
-   Sample_Lanes : constant Wide.Lane_Values_F32x8 :=
-     [-2.5, 3.0, -1.0, 4.5, 6.25, -7.0, 8.5, 9.75];
-   Samples : constant Wide.F32x8 := Native.From_Lanes (Sample_Lanes);
-   Keep : constant Wide.Mask_32x8 :=
-     Native.Greater_Than (Samples, Native.Zero);
-   Packed : constant Wide.F32x8 := Native.Compress (Samples, Keep);
-   Expanded : constant Wide.F32x8 := Native.Expand (Packed, Keep);
-   Kept_Count : constant Wide.Lane_Count_32x8 :=
-     Native.Population_Count (Keep);
-   Packed_Lanes : constant Wide.Lane_Values_F32x8 := Native.To_Lanes (Packed);
-   Expanded_Lanes : constant Wide.Lane_Values_F32x8 :=
-     Native.To_Lanes (Expanded);
+   Sample_Lanes   : constant Wide.Lane_Values_F32x8 := [-2.5, 3.0, -1.0, 4.5, 6.25, -7.0, 8.5, 9.75];
+   Samples        : constant Wide.F32x8 := Native.From_Lanes (Sample_Lanes);
+   Keep           : constant Wide.Mask_32x8 := Native.Greater_Than (Samples, Native.Zero);
+   Packed         : constant Wide.F32x8 := Native.Compress (Samples, Keep);
+   Expanded       : constant Wide.F32x8 := Native.Expand (Packed, Keep);
+   Kept_Count     : constant Wide.Lane_Count_32x8 := Native.Population_Count (Keep);
+   Packed_Lanes   : constant Wide.Lane_Values_F32x8 := Native.To_Lanes (Packed);
+   Expanded_Lanes : constant Wide.Lane_Values_F32x8 := Native.To_Lanes (Expanded);
 begin
-   pragma Assert
-     (Packed_Lanes = [3.0, 4.5, 6.25, 8.5, 9.75, 0.0, 0.0, 0.0]);
-   pragma Assert
-     (Expanded_Lanes = [0.0, 3.0, 0.0, 4.5, 6.25, 0.0, 8.5, 9.75]);
+   pragma Assert (Packed_Lanes = [3.0, 4.5, 6.25, 8.5, 9.75, 0.0, 0.0, 0.0]);
+   pragma Assert (Expanded_Lanes = [0.0, 3.0, 0.0, 4.5, 6.25, 0.0, 8.5, 9.75]);
    pragma Assert (Kept_Count = 5);
 
    Put ("input   :");

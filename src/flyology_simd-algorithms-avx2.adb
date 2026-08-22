@@ -86,8 +86,7 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Dot_Product (Left, Right);
    end Dot_Product;
 
-   function Find_First_Difference
-     (Left, Right : Byte_Array) return Search_Result is
+   function Find_First_Difference (Left, Right : Byte_Array) return Search_Result is
    begin
       Features.Require (Features.AVX2);
       return AVX2_Implementation.Find_First_Difference (Left, Right);
@@ -99,15 +98,13 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Equal (Left, Right);
    end Equal;
 
-   function Find_First
-     (Data : Byte_Array; Needle : U8) return Search_Result is
+   function Find_First (Data : Byte_Array; Needle : U8) return Search_Result is
    begin
       Features.Require (Features.AVX2);
       return AVX2_Implementation.Find_First (Data, Needle);
    end Find_First;
 
-   function Find_First_Of
-     (Data : Byte_Array; Needles : Byte_Array) return Search_Result is
+   function Find_First_Of (Data : Byte_Array; Needles : Byte_Array) return Search_Result is
    begin
       Features.Require (Features.AVX2);
       return AVX2_Implementation.Find_First_Of (Data, Needles);
@@ -119,8 +116,7 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Count (Data, Needle);
    end Count;
 
-   function Count_In_Range
-     (Data : Byte_Array; Low, High : U8) return Natural is
+   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural is
    begin
       Features.Require (Features.AVX2);
       return AVX2_Implementation.Count_In_Range (Data, Low, High);

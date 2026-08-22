@@ -145,15 +145,13 @@ is
    pragma No_Inline (Less_Equal);
    pragma No_Inline (Greater_Equal);
 
-   function Select_Value
-     (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32;
+   function Select_Value (Bits : Mask_Bits_8x32; If_True, If_False : U8x32) return U8x32;
    --  Expand compact truths and select corresponding unsigned lanes.
    --  @param Bits The compact semantic selection mask.
    --  @param If_True The lanes selected by set bits.
    --  @param If_False The lanes selected by clear bits.
    --  @return The selected lanes.
-   function Select_Value
-     (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32;
+   function Select_Value (Bits : Mask_Bits_8x32; If_True, If_False : I8x32) return I8x32;
    --  Expand compact truths and select corresponding signed lanes.
    --  @param Bits The compact semantic selection mask.
    --  @param If_True The lanes selected by set bits.

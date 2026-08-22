@@ -20,28 +20,39 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Cursor := Data (Data'First)'Address;
          Asm
            (Template =>
-              "vbroadcastss (%2), %%ymm1" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovups (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmulps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovups %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "subl $1, %1" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
-              [System.Address'Asm_Output ("+&r", Cursor),
-               Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Factor_Copy'Address),
-            Clobber => "ymm0,ymm1,cc,memory",
+              "vbroadcastss (%2), %%ymm1"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulps %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups %%ymm0, (%0)"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  => [System.Address'Asm_Output ("+&r", Cursor), Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs   => System.Address'Asm_Input ("r", Factor_Copy'Address),
+            Clobber  => "ymm0,ymm1,cc,memory",
             Volatile => True);
          Offset := (Data'Length / 8) * 8;
       end if;
 
       while Offset < Data'Length loop
-         Data (Data'First + Offset) :=
-           Data (Data'First + Offset) * Factor;
+         Data (Data'First + Offset) := Data (Data'First + Offset) * Factor;
          Offset := Offset + 1;
       end loop;
    end Scale;
@@ -56,28 +67,39 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Cursor := Data (Data'First)'Address;
          Asm
            (Template =>
-              "vbroadcastsd (%2), %%ymm1" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovupd (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmulpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovupd %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "subl $1, %1" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
-              [System.Address'Asm_Output ("+&r", Cursor),
-               Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Factor_Copy'Address),
-            Clobber => "ymm0,ymm1,cc,memory",
+              "vbroadcastsd (%2), %%ymm1"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulpd %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd %%ymm0, (%0)"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  => [System.Address'Asm_Output ("+&r", Cursor), Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs   => System.Address'Asm_Input ("r", Factor_Copy'Address),
+            Clobber  => "ymm0,ymm1,cc,memory",
             Volatile => True);
          Offset := (Data'Length / 4) * 4;
       end if;
 
       while Offset < Data'Length loop
-         Data (Data'First + Offset) :=
-           Data (Data'First + Offset) * Factor;
+         Data (Data'First + Offset) := Data (Data'First + Offset) * Factor;
          Offset := Offset + 1;
       end loop;
    end Scale;
@@ -104,24 +126,45 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          X_Cursor := X (X'First)'Address;
          Asm
            (Template =>
-              "vbroadcastss (%3), %%ymm2" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovups (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovups (%0), %%ymm1" & ASCII.LF & ASCII.HT &
-              "vmulps %%ymm2, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovups %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "addq $32, %1" & ASCII.LF & ASCII.HT &
-              "subl $1, %2" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
+              "vbroadcastss (%3), %%ymm2"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%1), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%0), %%ymm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulps %%ymm2, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddps %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups %%ymm0, (%0)"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %2"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  =>
               [System.Address'Asm_Output ("+&r", Y_Cursor),
                System.Address'Asm_Output ("+&r", X_Cursor),
                Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs => System.Address'Asm_Input ("r", A_Copy'Address),
-            Clobber => "ymm0,ymm1,ymm2,cc,memory",
+            Inputs   => System.Address'Asm_Input ("r", A_Copy'Address),
+            Clobber  => "ymm0,ymm1,ymm2,cc,memory",
             Volatile => True);
          Offset := (Y'Length / 8) * 8;
       end if;
@@ -148,24 +191,45 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          X_Cursor := X (X'First)'Address;
          Asm
            (Template =>
-              "vbroadcastsd (%3), %%ymm2" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovupd (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovupd (%0), %%ymm1" & ASCII.LF & ASCII.HT &
-              "vmulpd %%ymm2, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovupd %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "addq $32, %1" & ASCII.LF & ASCII.HT &
-              "subl $1, %2" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
+              "vbroadcastsd (%3), %%ymm2"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%1), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%0), %%ymm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulpd %%ymm2, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddpd %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd %%ymm0, (%0)"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %2"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  =>
               [System.Address'Asm_Output ("+&r", Y_Cursor),
                System.Address'Asm_Output ("+&r", X_Cursor),
                Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs => System.Address'Asm_Input ("r", A_Copy'Address),
-            Clobber => "ymm0,ymm1,ymm2,cc,memory",
+            Inputs   => System.Address'Asm_Input ("r", A_Copy'Address),
+            Clobber  => "ymm0,ymm1,ymm2,cc,memory",
             Volatile => True);
          Offset := (Y'Length / 4) * 4;
       end if;
@@ -191,34 +255,48 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Cursor := Data (Data'First)'Address;
          Asm
            (Template =>
-              "vxorps %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovups (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddps %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
-              "vaddps %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "subl $1, %1" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vmovups %%xmm4, (%2)" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
-              [System.Address'Asm_Output ("+&r", Cursor),
-               Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Accumulator'Address),
-            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+              "vxorps %%xmm4, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddps %%xmm0, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "vextractf128 $1, %%ymm0, %%xmm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddps %%xmm1, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups %%xmm4, (%2)"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  => [System.Address'Asm_Output ("+&r", Cursor), Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs   => System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber  => "ymm0,ymm1,ymm4,cc,memory",
             Volatile => True);
          Offset := (Data'Length / 8) * 8;
       end if;
 
       while Offset < Data'Length loop
          declare
-            Lane : constant Lane_Index_32x4 :=
-              Lane_Index_32x4 (Offset mod 4);
+            Lane : constant Lane_Index_32x4 := Lane_Index_32x4 (Offset mod 4);
          begin
-            Accumulator (Lane) :=
-              Accumulator (Lane) + Data (Data'First + Offset);
+            Accumulator (Lane) := Accumulator (Lane) + Data (Data'First + Offset);
          end;
          Offset := Offset + 1;
       end loop;
@@ -239,34 +317,48 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Cursor := Data (Data'First)'Address;
          Asm
            (Template =>
-              "vxorpd %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovupd (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddpd %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
-              "vaddpd %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "subl $1, %1" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vmovupd %%xmm4, (%2)" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
-              [System.Address'Asm_Output ("+&r", Cursor),
-               Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Accumulator'Address),
-            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+              "vxorpd %%xmm4, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddpd %%xmm0, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "vextractf128 $1, %%ymm0, %%xmm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddpd %%xmm1, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd %%xmm4, (%2)"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  => [System.Address'Asm_Output ("+&r", Cursor), Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs   => System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber  => "ymm0,ymm1,ymm4,cc,memory",
             Volatile => True);
          Offset := (Data'Length / 4) * 4;
       end if;
 
       while Offset < Data'Length loop
          declare
-            Lane : constant Lane_Index_64x2 :=
-              Lane_Index_64x2 (Offset mod 2);
+            Lane : constant Lane_Index_64x2 := Lane_Index_64x2 (Offset mod 2);
          begin
-            Accumulator (Lane) :=
-              Accumulator (Lane) + Data (Data'First + Offset);
+            Accumulator (Lane) := Accumulator (Lane) + Data (Data'First + Offset);
          end;
          Offset := Offset + 1;
       end loop;
@@ -276,14 +368,14 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Sum;
 
-   function Min_Number (Data : F32_Array) return F32 is
-     (Algorithms.Native_Floating.Min_Number (Data));
-   function Max_Number (Data : F32_Array) return F32 is
-     (Algorithms.Native_Floating.Max_Number (Data));
-   function Min_Number (Data : F64_Array) return F64 is
-     (Algorithms.Native_Floating.Min_Number (Data));
-   function Max_Number (Data : F64_Array) return F64 is
-     (Algorithms.Native_Floating.Max_Number (Data));
+   function Min_Number (Data : F32_Array) return F32
+   is (Algorithms.Native_Floating.Min_Number (Data));
+   function Max_Number (Data : F32_Array) return F32
+   is (Algorithms.Native_Floating.Max_Number (Data));
+   function Min_Number (Data : F64_Array) return F64
+   is (Algorithms.Native_Floating.Min_Number (Data));
+   function Max_Number (Data : F64_Array) return F64
+   is (Algorithms.Native_Floating.Max_Number (Data));
 
    function Dot_Product (Left, Right : F32_Array) return F32 is
       Accumulator  : aliased Lane_Values_F32x4 := [others => 0.0];
@@ -298,39 +390,61 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Right_Cursor := Right (Right'First)'Address;
          Asm
            (Template =>
-              "vxorps %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovups (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovups (%1), %%ymm1" & ASCII.LF & ASCII.HT &
-              "vmulps %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddps %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
-              "vaddps %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "addq $32, %1" & ASCII.LF & ASCII.HT &
-              "subl $1, %2" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vmovups %%xmm4, (%3)" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
+              "vxorps %%xmm4, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups (%1), %%ymm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulps %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddps %%xmm0, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "vextractf128 $1, %%ymm0, %%xmm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddps %%xmm1, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %2"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovups %%xmm4, (%3)"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  =>
               [System.Address'Asm_Output ("+&r", Left_Cursor),
                System.Address'Asm_Output ("+&r", Right_Cursor),
                Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Accumulator'Address),
-            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+            Inputs   => System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber  => "ymm0,ymm1,ymm4,cc,memory",
             Volatile => True);
          Offset := (Left'Length / 8) * 8;
       end if;
 
       while Offset < Left'Length loop
          declare
-            Lane : constant Lane_Index_32x4 :=
-              Lane_Index_32x4 (Offset mod 4);
+            Lane  : constant Lane_Index_32x4 := Lane_Index_32x4 (Offset mod 4);
             Index : constant Natural := Left'First + Offset;
          begin
-            Accumulator (Lane) :=
-              Accumulator (Lane) + Left (Index) * Right (Index);
+            Accumulator (Lane) := Accumulator (Lane) + Left (Index) * Right (Index);
          end;
          Offset := Offset + 1;
       end loop;
@@ -353,39 +467,61 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Right_Cursor := Right (Right'First)'Address;
          Asm
            (Template =>
-              "vxorpd %%xmm4, %%xmm4, %%xmm4" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovupd (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovupd (%1), %%ymm1" & ASCII.LF & ASCII.HT &
-              "vmulpd %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vaddpd %%xmm0, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "vextractf128 $1, %%ymm0, %%xmm1" & ASCII.LF & ASCII.HT &
-              "vaddpd %%xmm1, %%xmm4, %%xmm4" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "addq $32, %1" & ASCII.LF & ASCII.HT &
-              "subl $1, %2" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vmovupd %%xmm4, (%3)" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
+              "vxorpd %%xmm4, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd (%1), %%ymm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmulpd %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddpd %%xmm0, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "vextractf128 $1, %%ymm0, %%xmm1"
+              & ASCII.LF
+              & ASCII.HT
+              & "vaddpd %%xmm1, %%xmm4, %%xmm4"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %2"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovupd %%xmm4, (%3)"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  =>
               [System.Address'Asm_Output ("+&r", Left_Cursor),
                System.Address'Asm_Output ("+&r", Right_Cursor),
                Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs =>
-              System.Address'Asm_Input ("r", Accumulator'Address),
-            Clobber => "ymm0,ymm1,ymm4,cc,memory",
+            Inputs   => System.Address'Asm_Input ("r", Accumulator'Address),
+            Clobber  => "ymm0,ymm1,ymm4,cc,memory",
             Volatile => True);
          Offset := (Left'Length / 4) * 4;
       end if;
 
       while Offset < Left'Length loop
          declare
-            Lane : constant Lane_Index_64x2 :=
-              Lane_Index_64x2 (Offset mod 2);
+            Lane  : constant Lane_Index_64x2 := Lane_Index_64x2 (Offset mod 2);
             Index : constant Natural := Left'First + Offset;
          begin
-            Accumulator (Lane) :=
-              Accumulator (Lane) + Left (Index) * Right (Index);
+            Accumulator (Lane) := Accumulator (Lane) + Left (Index) * Right (Index);
          end;
          Offset := Offset + 1;
       end loop;
@@ -395,75 +531,87 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Dot_Product;
 
-   function Difference_Mask_32
-     (Left, Right : Byte_Array; Start : Natural)
-      return Interfaces.Unsigned_32
-   is
+   function Difference_Mask_32 (Left, Right : Byte_Array; Start : Natural) return Interfaces.Unsigned_32 is
       Result : Interfaces.Unsigned_32;
    begin
       Asm
         (Template =>
-           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-           "vmovdqu (%2), %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%ymm0, %0" & ASCII.LF & ASCII.HT &
-           "notl %0" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs =>
+           "vmovdqu (%1), %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vmovdqu (%2), %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm1, %%ymm0, %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%ymm0, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "notl %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   =>
            [System.Address'Asm_Input ("r", Left (Start)'Address),
             System.Address'Asm_Input ("r", Right (Start)'Address)],
-         Clobber => "ymm0,ymm1,memory",
+         Clobber  => "ymm0,ymm1,memory",
          Volatile => True);
       return Result;
    end Difference_Mask_32;
    pragma Inline_Always (Difference_Mask_32);
 
-   function Equal_Mask_32
-     (Data : Byte_Array; Start : Natural; Needle : U8)
-      return Interfaces.Unsigned_32
-   is
-      Result : Interfaces.Unsigned_32;
+   function Equal_Mask_32 (Data : Byte_Array; Start : Natural; Needle : U8) return Interfaces.Unsigned_32 is
+      Result       : Interfaces.Unsigned_32;
       Local_Needle : aliased U8 := Needle;
    begin
       Asm
         (Template =>
-           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%2), %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%ymm0, %0" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs =>
+           "vmovdqu (%1), %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%2), %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm1, %%ymm0, %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%ymm0, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   =>
            [System.Address'Asm_Input ("r", Data (Start)'Address),
             System.Address'Asm_Input ("r", Local_Needle'Address)],
-         Clobber => "ymm0,ymm1,memory",
+         Clobber  => "ymm0,ymm1,memory",
          Volatile => True);
       return Result;
    end Equal_Mask_32;
    pragma Inline_Always (Equal_Mask_32);
 
-   function High_Bit_Mask_32
-     (Data : Byte_Array; Start : Natural) return Interfaces.Unsigned_32
-   is
+   function High_Bit_Mask_32 (Data : Byte_Array; Start : Natural) return Interfaces.Unsigned_32 is
       Result : Interfaces.Unsigned_32;
    begin
       Asm
         (Template =>
-           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%ymm0, %0" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs => System.Address'Asm_Input ("r", Data (Start)'Address),
-         Clobber => "ymm0,memory",
+           "vmovdqu (%1), %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%ymm0, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   => System.Address'Asm_Input ("r", Data (Start)'Address),
+         Clobber  => "ymm0,memory",
          Volatile => True);
       return Result;
    end High_Bit_Mask_32;
    pragma Inline_Always (High_Bit_Mask_32);
 
-   function Range_Mask_32
-     (Data : Byte_Array; Start : Natural; Low, High : U8)
-      return Interfaces.Unsigned_32
+   function Range_Mask_32 (Data : Byte_Array; Start : Natural; Low, High : U8) return Interfaces.Unsigned_32
    is
       Result     : Interfaces.Unsigned_32;
       Local_Low  : aliased U8 := Low;
@@ -471,37 +619,52 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    begin
       Asm
         (Template =>
-           "vmovdqu (%1), %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%2), %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%3), %%ymm2" & ASCII.LF & ASCII.HT &
-           "vpmaxub %%ymm1, %%ymm0, %%ymm3" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm3, %%ymm0, %%ymm3" & ASCII.LF & ASCII.HT &
-           "vpminub %%ymm2, %%ymm0, %%ymm4" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm4, %%ymm0, %%ymm4" & ASCII.LF & ASCII.HT &
-           "vpand %%ymm4, %%ymm3, %%ymm3" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%ymm3, %0" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs =>
+           "vmovdqu (%1), %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%2), %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%3), %%ymm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmaxub %%ymm1, %%ymm0, %%ymm3"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm3, %%ymm0, %%ymm3"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpminub %%ymm2, %%ymm0, %%ymm4"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm4, %%ymm0, %%ymm4"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpand %%ymm4, %%ymm3, %%ymm3"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%ymm3, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   =>
            [System.Address'Asm_Input ("r", Data (Start)'Address),
             System.Address'Asm_Input ("r", Local_Low'Address),
             System.Address'Asm_Input ("r", Local_High'Address)],
-         Clobber => "ymm0,ymm1,ymm2,ymm3,ymm4,memory",
+         Clobber  => "ymm0,ymm1,ymm2,ymm3,ymm4,memory",
          Volatile => True);
       return Result;
    end Range_Mask_32;
    pragma Inline_Always (Range_Mask_32);
 
    function Equal_Any_Offset_32
-     (Data : Byte_Array;
-      Start : Natural;
-      Length : Natural;
-      Needle_0, Needle_1, Needle_2, Needle_3 : U8)
+     (Data : Byte_Array; Start : Natural; Length : Natural; Needle_0, Needle_1, Needle_2, Needle_3 : U8)
       return Interfaces.Unsigned_32
    is
-      Cursor : System.Address := Data (Start)'Address;
-      Offset : Interfaces.Unsigned_32;
-      Bits : Interfaces.Unsigned_32;
+      Cursor  : System.Address := Data (Start)'Address;
+      Offset  : Interfaces.Unsigned_32;
+      Bits    : Interfaces.Unsigned_32;
       Local_0 : aliased U8 := Needle_0;
       Local_1 : aliased U8 := Needle_1;
       Local_2 : aliased U8 := Needle_2;
@@ -509,57 +672,106 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    begin
       Asm
         (Template =>
-           "xorl %1, %1" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%3), %%ymm4" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%4), %%ymm5" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%5), %%ymm6" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%6), %%ymm7" & ASCII.LF &
-           "0:" & ASCII.LF & ASCII.HT &
-           "vmovdqu (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm4, %%ymm0, %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm5, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
-           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm6, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
-           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%ymm7, %%ymm0, %%ymm2" & ASCII.LF & ASCII.HT &
-           "vpor %%ymm2, %%ymm1, %%ymm1" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%ymm1, %2" & ASCII.LF & ASCII.HT &
-           "testl %2, %2" & ASCII.LF & ASCII.HT &
-           "jne 1f" & ASCII.LF & ASCII.HT &
-           "addq $32, %0" & ASCII.LF & ASCII.HT &
-           "addl $32, %1" & ASCII.LF & ASCII.HT &
-           "cmpl %7, %1" & ASCII.LF & ASCII.HT &
-           "jb 0b" & ASCII.LF & ASCII.HT &
-           "movl $-1, %1" & ASCII.LF & ASCII.HT &
-           "jmp 2f" & ASCII.LF &
-           "1:" & ASCII.LF & ASCII.HT &
-           "bsfl %2, %2" & ASCII.LF & ASCII.HT &
-           "addl %2, %1" & ASCII.LF &
-           "2:" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs =>
+           "xorl %1, %1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%3), %%ymm4"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%4), %%ymm5"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%5), %%ymm6"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%6), %%ymm7"
+           & ASCII.LF
+           & "0:"
+           & ASCII.LF
+           & ASCII.HT
+           & "vmovdqu (%0), %%ymm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm4, %%ymm0, %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm5, %%ymm0, %%ymm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%ymm2, %%ymm1, %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm6, %%ymm0, %%ymm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%ymm2, %%ymm1, %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%ymm7, %%ymm0, %%ymm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%ymm2, %%ymm1, %%ymm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%ymm1, %2"
+           & ASCII.LF
+           & ASCII.HT
+           & "testl %2, %2"
+           & ASCII.LF
+           & ASCII.HT
+           & "jne 1f"
+           & ASCII.LF
+           & ASCII.HT
+           & "addq $32, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "addl $32, %1"
+           & ASCII.LF
+           & ASCII.HT
+           & "cmpl %7, %1"
+           & ASCII.LF
+           & ASCII.HT
+           & "jb 0b"
+           & ASCII.LF
+           & ASCII.HT
+           & "movl $-1, %1"
+           & ASCII.LF
+           & ASCII.HT
+           & "jmp 2f"
+           & ASCII.LF
+           & "1:"
+           & ASCII.LF
+           & ASCII.HT
+           & "bsfl %2, %2"
+           & ASCII.LF
+           & ASCII.HT
+           & "addl %2, %1"
+           & ASCII.LF
+           & "2:"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  =>
            [System.Address'Asm_Output ("+&r", Cursor),
             Interfaces.Unsigned_32'Asm_Output ("=&r", Offset),
             Interfaces.Unsigned_32'Asm_Output ("=&r", Bits)],
-         Inputs =>
+         Inputs   =>
            [System.Address'Asm_Input ("r", Local_0'Address),
             System.Address'Asm_Input ("r", Local_1'Address),
             System.Address'Asm_Input ("r", Local_2'Address),
             System.Address'Asm_Input ("r", Local_3'Address),
             Natural'Asm_Input ("r", Length)],
-         Clobber => "ymm0,ymm1,ymm2,ymm4,ymm5,ymm6,ymm7,cc,memory",
+         Clobber  => "ymm0,ymm1,ymm2,ymm4,ymm5,ymm6,ymm7,cc,memory",
          Volatile => True);
       return Offset;
    end Equal_Any_Offset_32;
    pragma Inline_Always (Equal_Any_Offset_32);
 
    function Equal_Any_Mask_16
-     (Data : Byte_Array;
-      Start : Natural;
-      Needle_0, Needle_1, Needle_2, Needle_3 : U8)
+     (Data : Byte_Array; Start : Natural; Needle_0, Needle_1, Needle_2, Needle_3 : U8)
       return Interfaces.Unsigned_32
    is
-      Result : Interfaces.Unsigned_32;
+      Result  : Interfaces.Unsigned_32;
       Local_0 : aliased U8 := Needle_0;
       Local_1 : aliased U8 := Needle_1;
       Local_2 : aliased U8 := Needle_2;
@@ -567,28 +779,54 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    begin
       Asm
         (Template =>
-           "vmovdqu (%1), %%xmm0" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%2), %%xmm4" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%3), %%xmm5" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%4), %%xmm6" & ASCII.LF & ASCII.HT &
-           "vpbroadcastb (%5), %%xmm7" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%xmm4, %%xmm0, %%xmm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%xmm5, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%xmm6, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "vpcmpeqb %%xmm7, %%xmm0, %%xmm2" & ASCII.LF & ASCII.HT &
-           "vpor %%xmm2, %%xmm1, %%xmm1" & ASCII.LF & ASCII.HT &
-           "vpmovmskb %%xmm1, %0" & ASCII.LF & ASCII.HT &
-           "vzeroupper",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs =>
+           "vmovdqu (%1), %%xmm0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%2), %%xmm4"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%3), %%xmm5"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%4), %%xmm6"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpbroadcastb (%5), %%xmm7"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%xmm4, %%xmm0, %%xmm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%xmm5, %%xmm0, %%xmm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%xmm2, %%xmm1, %%xmm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%xmm6, %%xmm0, %%xmm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%xmm2, %%xmm1, %%xmm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpcmpeqb %%xmm7, %%xmm0, %%xmm2"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpor %%xmm2, %%xmm1, %%xmm1"
+           & ASCII.LF
+           & ASCII.HT
+           & "vpmovmskb %%xmm1, %0"
+           & ASCII.LF
+           & ASCII.HT
+           & "vzeroupper",
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   =>
            [System.Address'Asm_Input ("r", Data (Start)'Address),
             System.Address'Asm_Input ("r", Local_0'Address),
             System.Address'Asm_Input ("r", Local_1'Address),
             System.Address'Asm_Input ("r", Local_2'Address),
             System.Address'Asm_Input ("r", Local_3'Address)],
-         Clobber => "xmm0,xmm1,xmm2,xmm4,xmm5,xmm6,xmm7,memory",
+         Clobber  => "xmm0,xmm1,xmm2,xmm4,xmm5,xmm6,xmm7,memory",
          Volatile => True);
       return Result;
    end Equal_Any_Mask_16;
@@ -599,25 +837,21 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    begin
       Asm
         (Template => "bsfl %1, %0",
-         Outputs => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
-         Inputs => Interfaces.Unsigned_32'Asm_Input ("r", Bits),
+         Outputs  => Interfaces.Unsigned_32'Asm_Output ("=r", Result),
+         Inputs   => Interfaces.Unsigned_32'Asm_Input ("r", Bits),
          Volatile => True);
       return Natural (Result);
    end First_Set_Bit;
    pragma Inline_Always (First_Set_Bit);
 
-   function Find_First_Difference
-     (Left, Right : Byte_Array) return Search_Result
-   is
+   function Find_First_Difference (Left, Right : Byte_Array) return Search_Result is
       Offset : Natural := 0;
       Bits   : Interfaces.Unsigned_32;
    begin
       while Left'Length - Offset >= 32 loop
          Bits := Difference_Mask_32 (Left, Right, Left'First + Offset);
          if Bits /= 0 then
-            return
-              (Found => True,
-               Index => Left'First + Offset + First_Set_Bit (Bits));
+            return (Found => True, Index => Left'First + Offset + First_Set_Bit (Bits));
          end if;
          Offset := Offset + 32;
       end loop;
@@ -630,11 +864,11 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return (Found => False, Index => 0);
    end Find_First_Difference;
 
-   function Equal (Left, Right : Byte_Array) return Boolean is
-     (not Find_First_Difference (Left, Right).Found);
+   function Equal (Left, Right : Byte_Array) return Boolean
+   is (not Find_First_Difference (Left, Right).Found);
 
    function Popcount (Value : Interfaces.Unsigned_32) return Natural is
-      Bits : Interfaces.Unsigned_32 := Value;
+      Bits   : Interfaces.Unsigned_32 := Value;
       Result : Natural := 0;
    begin
       while Bits /= 0 loop
@@ -646,14 +880,12 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
 
    function Find_First (Data : Byte_Array; Needle : U8) return Search_Result is
       Offset : Natural := 0;
-      Bits : Interfaces.Unsigned_32;
+      Bits   : Interfaces.Unsigned_32;
    begin
       while Data'Length - Offset >= 32 loop
          Bits := Equal_Mask_32 (Data, Data'First + Offset, Needle);
          if Bits /= 0 then
-            return
-              (Found => True,
-               Index => Data'First + Offset + First_Set_Bit (Bits));
+            return (Found => True, Index => Data'First + Offset + First_Set_Bit (Bits));
          end if;
          Offset := Offset + 32;
       end loop;
@@ -666,54 +898,44 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return (Found => False, Index => 0);
    end Find_First;
 
-   function Find_First_Of
-     (Data : Byte_Array; Needles : Byte_Array) return Search_Result
-   is
-      Offset : Natural := 0;
-      Full_Bytes : Natural;
-      Match_Offset : Interfaces.Unsigned_32;
-      Bits : Interfaces.Unsigned_32;
+   function Find_First_Of (Data : Byte_Array; Needles : Byte_Array) return Search_Result is
+      Offset                                 : Natural := 0;
+      Full_Bytes                             : Natural;
+      Match_Offset                           : Interfaces.Unsigned_32;
+      Bits                                   : Interfaces.Unsigned_32;
       Needle_0, Needle_1, Needle_2, Needle_3 : U8;
    begin
       case Needles'Length is
-         when 0 =>
+         when 0      =>
             return (Found => False, Index => 0);
-         when 1 =>
+
+         when 1      =>
             return Find_First (Data, Needles (Needles'First));
+
          when 2 .. 4 =>
             Needle_0 := Needles (Needles'First);
             Needle_1 := Needles (Needles'First + 1);
-            Needle_2 :=
-              (if Needles'Length >= 3
-               then Needles (Needles'First + 2) else Needle_0);
-            Needle_3 :=
-              (if Needles'Length >= 4
-               then Needles (Needles'First + 3) else Needle_0);
+            Needle_2 := (if Needles'Length >= 3 then Needles (Needles'First + 2) else Needle_0);
+            Needle_3 := (if Needles'Length >= 4 then Needles (Needles'First + 3) else Needle_0);
+
          when others =>
             return Algorithms.Scalar.Find_First_Of (Data, Needles);
       end case;
 
       Full_Bytes := Data'Length - (Data'Length mod 32);
       if Full_Bytes > 0 then
-         Match_Offset := Equal_Any_Offset_32
-           (Data, Data'First, Full_Bytes,
-            Needle_0, Needle_1, Needle_2, Needle_3);
+         Match_Offset :=
+           Equal_Any_Offset_32 (Data, Data'First, Full_Bytes, Needle_0, Needle_1, Needle_2, Needle_3);
          if Match_Offset /= Interfaces.Unsigned_32'Last then
-            return
-              (Found => True,
-               Index => Data'First + Natural (Match_Offset));
+            return (Found => True, Index => Data'First + Natural (Match_Offset));
          end if;
          Offset := Full_Bytes;
       end if;
 
       if Data'Length - Offset >= 16 then
-         Bits := Equal_Any_Mask_16
-           (Data, Data'First + Offset,
-            Needle_0, Needle_1, Needle_2, Needle_3);
+         Bits := Equal_Any_Mask_16 (Data, Data'First + Offset, Needle_0, Needle_1, Needle_2, Needle_3);
          if Bits /= 0 then
-            return
-              (Found => True,
-               Index => Data'First + Offset + First_Set_Bit (Bits));
+            return (Found => True, Index => Data'First + Offset + First_Set_Bit (Bits));
          end if;
          Offset := Offset + 16;
       end if;
@@ -722,11 +944,7 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          declare
             Item : constant U8 := Data (Data'First + Offset);
          begin
-            if Item = Needle_0
-              or else Item = Needle_1
-              or else Item = Needle_2
-              or else Item = Needle_3
-            then
+            if Item = Needle_0 or else Item = Needle_1 or else Item = Needle_2 or else Item = Needle_3 then
                return (Found => True, Index => Data'First + Offset);
             end if;
          end;
@@ -740,8 +958,7 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       Result : Natural := 0;
    begin
       while Data'Length - Offset >= 32 loop
-         Result := Result +
-           Popcount (Equal_Mask_32 (Data, Data'First + Offset, Needle));
+         Result := Result + Popcount (Equal_Mask_32 (Data, Data'First + Offset, Needle));
          Offset := Offset + 32;
       end loop;
       while Offset < Data'Length loop
@@ -753,21 +970,16 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
       return Result;
    end Count;
 
-   function Count_In_Range
-     (Data : Byte_Array; Low, High : U8) return Natural
-   is
+   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural is
       Offset : Natural := 0;
       Result : Natural := 0;
    begin
       while Data'Length - Offset >= 32 loop
-         Result := Result + Popcount
-           (Range_Mask_32 (Data, Data'First + Offset, Low, High));
+         Result := Result + Popcount (Range_Mask_32 (Data, Data'First + Offset, Low, High));
          Offset := Offset + 32;
       end loop;
       while Offset < Data'Length loop
-         if Data (Data'First + Offset) >= Low
-           and then Data (Data'First + Offset) <= High
-         then
+         if Data (Data'First + Offset) >= Low and then Data (Data'First + Offset) <= High then
             Result := Result + 1;
          end if;
          Offset := Offset + 1;
@@ -785,20 +997,33 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
          Cursor := Data (Data'First)'Address;
          Asm
            (Template =>
-              "vpbroadcastb (%2), %%ymm1" & ASCII.LF &
-              "0:" & ASCII.LF & ASCII.HT &
-              "vmovdqu (%0), %%ymm0" & ASCII.LF & ASCII.HT &
-              "vpaddusb %%ymm1, %%ymm0, %%ymm0" & ASCII.LF & ASCII.HT &
-              "vmovdqu %%ymm0, (%0)" & ASCII.LF & ASCII.HT &
-              "addq $32, %0" & ASCII.LF & ASCII.HT &
-              "subl $1, %1" & ASCII.LF & ASCII.HT &
-              "jnz 0b" & ASCII.LF & ASCII.HT &
-              "vzeroupper",
-            Outputs =>
-              [System.Address'Asm_Output ("+&r", Cursor),
-               Natural'Asm_Output ("+&r", Vector_Count)],
-            Inputs => System.Address'Asm_Input ("r", Value_Copy'Address),
-            Clobber => "ymm0,ymm1,cc,memory",
+              "vpbroadcastb (%2), %%ymm1"
+              & ASCII.LF
+              & "0:"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovdqu (%0), %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vpaddusb %%ymm1, %%ymm0, %%ymm0"
+              & ASCII.LF
+              & ASCII.HT
+              & "vmovdqu %%ymm0, (%0)"
+              & ASCII.LF
+              & ASCII.HT
+              & "addq $32, %0"
+              & ASCII.LF
+              & ASCII.HT
+              & "subl $1, %1"
+              & ASCII.LF
+              & ASCII.HT
+              & "jnz 0b"
+              & ASCII.LF
+              & ASCII.HT
+              & "vzeroupper",
+            Outputs  => [System.Address'Asm_Output ("+&r", Cursor), Natural'Asm_Output ("+&r", Vector_Count)],
+            Inputs   => System.Address'Asm_Input ("r", Value_Copy'Address),
+            Clobber  => "ymm0,ymm1,cc,memory",
             Volatile => True);
          Offset := (Data'Length / 32) * 32;
       end if;

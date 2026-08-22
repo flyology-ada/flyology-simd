@@ -1,5 +1,17 @@
 # Contributing
 
+Handwritten Ada source uses a 110-column limit. The `Format` package in
+`flyology_simd.gpr` supplies that width and the rest of the project style to
+GNATformat. Format the handwritten Ada files you changed with:
+
+```sh
+gnatformat -P flyology_simd.gpr path/to/source.adb [...]
+```
+
+GNATformat is also integrated into the Ada Language Server, so editor formatting
+uses the same project setting. Do not format generated Ada independently; make
+layout changes in its generator and regenerate it.
+
 Run `git diff --check`, the scalar suite, the native suite on your architecture,
 and `./scripts/check_codegen.py` before proposing changes. The checker is a
 PEP 723 script and uses `uv` to provide its pinned regular-expression engine.
