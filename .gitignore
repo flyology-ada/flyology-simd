@@ -1,3 +1,6 @@
+/.agents/
+/.claude/rules/
+/.claude/skills/
 /alire/
 /benchmarks/alire/
 /benchmarks/config/
@@ -17,3 +20,4 @@
 *.a
 *.dSYM/
 __pycache__/
+apm_modules/
