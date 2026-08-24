@@ -18,6 +18,7 @@ alr exec -- gprbuild -p -P tests/tests.gpr \
   -cargs:Ada -fsanitize=address -fno-omit-frame-pointer \
   -largs -fsanitize=address
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/simd_tests
+ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/stream_element_array_tests
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/family_tests
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/wide_tests
 ASAN_OPTIONS=detect_leaks=$leak_detection:abort_on_error=1 ./bin/conversion_tests

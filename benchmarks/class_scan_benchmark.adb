@@ -1,4 +1,5 @@
 with Ada.Environment_Variables;
+with Ada.Streams;
 with Ada.Text_IO;
 with Flyology_Bench;
 with Flyology_Bench.Host_Control;
@@ -8,28 +9,41 @@ with Flyology_SIMD.Algorithms;
 with Flyology_SIMD.Algorithms.Native;
 with Flyology_SIMD.Algorithms.Runtime;
 with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native;
+with Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar;
 with Flyology_SIMD.Features;
 with GNAT.Compiler_Version;
 with Interfaces;
 
 procedure Class_Scan_Benchmark is
    use Ada.Text_IO;
+   use type Ada.Streams.Stream_Element_Offset;
    use Flyology_SIMD;
    use type Flyology_SIMD.Algorithms.Search_Result;
    use type Interfaces.Unsigned_64;
 
    package Compiler is new GNAT.Compiler_Version;
 
-   type Candidate is (Ada_Class_Table, Scalar, Native, Runtime);
+   package Stream_Native renames Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native;
+   package Stream_Scalar renames Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar;
+
+   type Candidate is (Ada_Class_Table, Byte_Scalar, Byte_Native, Byte_Runtime, SEA_Scalar, SEA_Native);
    type Scenario is (No_Match, Last_Match);
    type Size_List is array (Positive range <>) of Positive;
-   Sizes   : constant Size_List :=
+   Sizes       : constant Size_List :=
      [7, 15, 16, 17, 24, 31, 32, 33, 48, 64, 96, 127, 128, 129, 256, 4_096, 1_048_576];
-   Needles : constant Byte_Array := [9, 10, 13, 32];
+   Needles     : constant Byte_Array := [9, 10, 13, 32];
+   SEA_Needles : constant Ada.Streams.Stream_Element_Array (-3 .. 0) := [9, 10, 13, 32];
 
    type Class_Table is array (U8) of Boolean;
+   function SEA_Index (Value : Natural) return Ada.Streams.Stream_Element_Offset
+   is (Ada.Streams.Stream_Element_Offset (Value));
+   pragma Inline_Always (SEA_Index);
+
    Class            : Class_Table := [others => False];
    Data             : Byte_Array (1 .. Sizes (Sizes'Last)) := [others => 65];
+   SEA_Data         : Ada.Streams.Stream_Element_Array (SEA_Index (1) .. SEA_Index (Sizes (Sizes'Last))) :=
+     [others => 65];
    Current_Size     : Positive := Sizes (Sizes'First);
    Current_Scenario : Scenario := No_Match;
    Checksum         : Interfaces.Unsigned_64 := 0;
@@ -51,14 +65,38 @@ procedure Class_Scan_Benchmark is
          when Ada_Class_Table =>
             return Ordinary_Find;
 
-         when Scalar          =>
+         when Byte_Scalar     =>
             return Algorithms.Scalar.Find_First_Of (Data (1 .. Current_Size), Needles);
 
-         when Native          =>
+         when Byte_Native     =>
             return Algorithms.Native.Find_First_Of (Data (1 .. Current_Size), Needles);
 
-         when Runtime         =>
+         when Byte_Runtime    =>
             return Algorithms.Runtime.Find_First_Of (Data (1 .. Current_Size), Needles);
+
+         when SEA_Scalar      =>
+            declare
+               Result : constant Stream_Scalar.Search_Result :=
+                 Stream_Scalar.Find_First_Of
+                   (SEA_Data (SEA_Index (1) .. SEA_Index (Current_Size)), SEA_Needles);
+            begin
+               return
+                 (if Result.Found
+                  then (Found => True, Index => Natural (Result.Index))
+                  else (Found => False, Index => 0));
+            end;
+
+         when SEA_Native      =>
+            declare
+               Result : constant Stream_Native.Search_Result :=
+                 Stream_Native.Find_First_Of
+                   (SEA_Data (SEA_Index (1) .. SEA_Index (Current_Size)), SEA_Needles);
+            begin
+               return
+                 (if Result.Found
+                  then (Found => True, Index => Natural (Result.Index))
+                  else (Found => False, Index => 0));
+            end;
       end case;
    end Scan_Once;
 
@@ -120,8 +158,10 @@ procedure Class_Scan_Benchmark is
    procedure Set_Data is
    begin
       Data (1 .. Current_Size) := [others => 65];
+      SEA_Data (SEA_Index (1) .. SEA_Index (Current_Size)) := [others => 65];
       if Current_Scenario = Last_Match then
          Data (Current_Size) := Needles (Needles'Last);
+         SEA_Data (SEA_Index (Current_Size)) := SEA_Needles (SEA_Needles'Last);
       end if;
    end Set_Data;
 

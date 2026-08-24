@@ -211,6 +211,15 @@ The complete artifact is written to the ignored `build/site/` directory.
   supplied `Algorithms.Scalar` and `Algorithms.Native` instantiations allow
   whole loops to compose against a known backend, including an in-place
   unsigned saturating byte add.
+- `Algorithms.Generic_Indexed_Bytes` provides the same static selection for
+  small-set byte classification over an unconstrained, aliased-component
+  array with its own integer index type. The ready-made
+  `Algorithms.Stream_Element_Arrays.Scalar` and
+  `Algorithms.Stream_Element_Arrays.Native` packages accept
+  `Ada.Streams.Stream_Element_Array` directly, preserve its actual bounds,
+  and do not allocate or copy the input. Their definite search result avoids
+  secondary-stack allocation, and its `Index` is meaningful only when `Found`
+  is true.
 - `Algorithms.Generic_Floating` provides the same static composition boundary
   for binary32 and binary64 scaling, clamping, AXPY, sums, number extrema,
   and dot products. The supplied
@@ -229,6 +238,12 @@ Aligned 128-bit operations require a 16-byte-aligned address. Full and
 unaligned operations have no alignment requirement. No primitive allocates, performs I/O,
 locks, waits, starts a task, or reads ambient configuration.  Checks and IEEE
 floating defaults are not globally disabled; `-ffast-math` is not used.
+
+`Generic_Indexed_Bytes` rejects instantiations whose modular component does
+not have 256 values or whose array component size is not eight bits. These
+representation requirements let the selected backend load each complete
+16-byte chunk directly from the actual array while scalar code handles every
+tail and larger needle set.
 
 Ada reserves the word `all`, so mask reductions are named `Any_True`,
 `All_True`, and `None_True`. Use `Mask_And`, `Mask_Or`, `Mask_Xor`, and
