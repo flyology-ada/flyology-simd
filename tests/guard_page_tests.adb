@@ -1,4 +1,5 @@
 with Ada.Text_IO;
+with Ada.Streams;
 with Interfaces.C;
 with System;
 with System.Storage_Elements;
@@ -8,6 +9,8 @@ with Flyology_SIMD.Algorithms.AVX2;
 with Flyology_SIMD.Algorithms.Native;
 with Flyology_SIMD.Algorithms.Runtime;
 with Flyology_SIMD.Algorithms.Scalar;
+with Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native;
+with Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar;
 with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Features;
 with Flyology_SIMD.Wide;
@@ -19,6 +22,7 @@ procedure Guard_Page_Tests is
    use System.Storage_Elements;
    use type Interfaces.C.int;
    use type Interfaces.Unsigned_8;
+   use type Ada.Streams.Stream_Element_Offset;
    use type Flyology_SIMD.Algorithms.Search_Result;
    use type Flyology_SIMD.F32;
    use type Flyology_SIMD.F64;
@@ -266,6 +270,41 @@ begin
                Algorithms.AVX2.Add_Saturate (Data, 10);
                Check (Data = [Data'Range => 255], "AVX2 Add_Saturate protected tail length" & Length'Image);
             end if;
+         end;
+      end loop;
+   end;
+
+   declare
+      package SEA_Native renames Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native;
+      package SEA_Scalar renames Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar;
+      Needles : constant Ada.Streams.Stream_Element_Array (-3 .. 0) := [9, 10, 13, 32];
+   begin
+      for Length in Positive range 1 .. 160 loop
+         declare
+            First : constant Ada.Streams.Stream_Element_Offset := -Ada.Streams.Stream_Element_Offset (Length);
+            Data  : Ada.Streams.Stream_Element_Array (First .. -1);
+            for Data'Address use Add (Allocation, Page_Size - Length);
+            pragma Import (Ada, Data);
+
+            Scalar_Result : SEA_Scalar.Search_Result;
+            Native_Result : SEA_Native.Search_Result;
+         begin
+            Data := [others => 65];
+            Scalar_Result := SEA_Scalar.Find_First_Of (Data, Needles);
+            Native_Result := SEA_Native.Find_First_Of (Data, Needles);
+            Check
+              (not Scalar_Result.Found and then not Native_Result.Found,
+               "stream-element protected-tail no-match length" & Length'Image);
+
+            Data (Data'Last) := Needles (Needles'Last);
+            Scalar_Result := SEA_Scalar.Find_First_Of (Data, Needles);
+            Native_Result := SEA_Native.Find_First_Of (Data, Needles);
+            Check
+              (Scalar_Result.Found
+               and then Native_Result.Found
+               and then Scalar_Result.Index = Data'Last
+               and then Native_Result.Index = Data'Last,
+               "stream-element protected-tail final-match length" & Length'Image);
          end;
       end loop;
    end;

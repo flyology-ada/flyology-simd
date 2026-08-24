@@ -21,6 +21,7 @@ project Tests is
    for Exec_Dir use "../bin";
    for Main use
      ("simd_tests.adb",
+      "stream_element_array_tests.adb",
       "family_tests.adb",
       "wide_tests.adb",
       "conversion_tests.adb",

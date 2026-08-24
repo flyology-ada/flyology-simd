@@ -93,6 +93,7 @@ jobs:
       - name: Run differential tests
         run: |
           ./bin/simd_tests
+          ./bin/stream_element_array_tests
           ./bin/family_tests
           ./bin/wide_tests
           ./bin/conversion_tests
@@ -153,6 +154,7 @@ jobs:
       - name: Run differential tests
         run: |
           ./bin/simd_tests
+          ./bin/stream_element_array_tests
           ./bin/family_tests
           ./bin/wide_tests
           ./bin/conversion_tests
@@ -198,6 +200,7 @@ jobs:
       - name: Run differential tests
         run: |
           ./bin/simd_tests
+          ./bin/stream_element_array_tests
           ./bin/family_tests
           ./bin/wide_tests
           ./bin/conversion_tests
