@@ -15,8 +15,25 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
        (Byte_Array_Type'Component_Size /= U8'Size,
         "Generic_Indexed_Bytes requires contiguous eight-bit array components");
 
-   function Index_At (First : Index_Type; Offset : Natural) return Index_Type
-   is (Index_Type'Val (Index_Type'Pos (First) + Offset));
+   --  Add in a wider signed type when one is available. For a widest-sized
+   --  index type, walk its actual values. Index_Type'Pos is not used: for a
+   --  full-range signed type its result may exceed the largest runtime integer
+   --  even though the requested array index is in range.
+   function Index_At (First : Index_Type; Offset : Natural) return Index_Type is
+   begin
+      if Index_Type'Base'Size < Long_Long_Long_Integer'Size then
+         return Index_Type (Long_Long_Long_Integer (First) + Long_Long_Long_Integer (Offset));
+      else
+         declare
+            Result : Index_Type := First;
+         begin
+            for Step in 1 .. Offset loop
+               Result := Index_Type'Succ (Result);
+            end loop;
+            return Result;
+         end;
+      end if;
+   end Index_At;
    pragma Inline_Always (Index_At);
 
    function Load_Unaligned (Address : System.Address) return U8x16 is
