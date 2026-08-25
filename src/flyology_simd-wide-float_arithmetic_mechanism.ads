@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected Wide floating-point arithmetic.
 

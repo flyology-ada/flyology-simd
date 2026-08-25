@@ -1,7 +1,9 @@
 with Flyology_SIMD.Backends.Native;
 with Interfaces;
 
-package body Flyology_SIMD.Wide.Byte_Mechanism is
+package body Flyology_SIMD.Wide.Byte_Mechanism
+  with SPARK_Mode => On
+is
    package Native renames Flyology_SIMD.Backends.Native;
    use type Interfaces.Unsigned_32;
 

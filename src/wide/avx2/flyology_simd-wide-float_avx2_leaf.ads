@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Float_AVX2_Leaf
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Isolated AVX2-width floating-point arithmetic leaves.
 

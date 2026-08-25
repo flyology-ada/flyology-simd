@@ -1,6 +1,8 @@
 --  Compiled backend reporting, safe CPU availability, and coarse selection.
 
-package Flyology_SIMD.Features is
+package Flyology_SIMD.Features
+  with SPARK_Mode => On
+is
    type Backend_Kind is (Scalar, NEON, SSE2, AVX2);
    --  A selectable complete-buffer implementation.
    --  @enum Scalar Portable scalar implementation.
@@ -22,7 +24,7 @@ package Flyology_SIMD.Features is
    --  Select the highest-priority safe backend in the current build.
    --  @return NEON, AVX2, SSE2, or Scalar according to the current system.
    procedure Require (Backend : Backend_Kind)
-   with Post => Available (Backend);
+   with Post => Available (Backend), Exceptional_Cases => (Backend_Unavailable => not Available (Backend));
    --  Reject a backend that cannot execute safely.
    --  @param Backend The required backend.
    --  @exception Backend_Unavailable The backend is not available.

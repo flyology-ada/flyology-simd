@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Configuration
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Build-time constants for optional implementation objects.
    AVX2_Compiled : constant Boolean := True;

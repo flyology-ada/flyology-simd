@@ -2,7 +2,7 @@ with Interfaces;
 
 --  Primitive operation contract implemented by the selected target backend.
 package Flyology_SIMD.Backends.Native
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
 
 
@@ -3250,7 +3250,7 @@ is
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 with Inline_Always;
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 65535, Inline_Always;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3320,7 +3320,7 @@ is
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 with Inline_Always;
+   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 255, Inline_Always;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3390,7 +3390,7 @@ is
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 with Inline_Always;
+   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 15, Inline_Always;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3460,7 +3460,7 @@ is
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 with Inline_Always;
+   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 3, Inline_Always;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: The AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.

@@ -3,7 +3,7 @@ with Ada.Streams;
 --  backend. The scalar build remains a valid implementation of this package.
 
 package Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    subtype Search_Result is Flyology_SIMD.Algorithms.Stream_Element_Arrays.Search_Result;
 

@@ -16,7 +16,7 @@ generic
    with function Backend_Splat (Value : U8) return U8x16;
    with function Backend_Equal (Left, Right : U8x16) return Mask_8x16;
    with function Backend_To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16;
-package Flyology_SIMD.Algorithms.Generic_Indexed_Bytes with Preelaborate is
+package Flyology_SIMD.Algorithms.Generic_Indexed_Bytes with Preelaborate, SPARK_Mode => On is
    type Search_Result is record
       Found : Boolean;
       Index : Index_Type;

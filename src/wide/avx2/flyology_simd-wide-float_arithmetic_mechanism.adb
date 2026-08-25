@@ -1,6 +1,8 @@
 with Flyology_SIMD.Wide.Float_AVX2_Leaf;
 
-package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
+package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
+  with SPARK_Mode => On
+is
    function Add (Left, Right : F32x8) return F32x8 is
      (Flyology_SIMD.Wide.Float_AVX2_Leaf.Add (Left, Right));
    function Subtract (Left, Right : F32x8) return F32x8 is

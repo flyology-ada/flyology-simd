@@ -1,7 +1,9 @@
 with Flyology_SIMD.Algorithms.Scalar;
 with Flyology_SIMD.Algorithms.Scalar_Floating;
 
-package body Flyology_SIMD.Algorithms.AVX2_Implementation is
+package body Flyology_SIMD.Algorithms.AVX2_Implementation
+  with SPARK_Mode => On
+is
    procedure Scale (Data : in out F32_Array; Factor : F32) is
    begin
       Algorithms.Scalar_Floating.Scale (Data, Factor);
@@ -51,9 +53,11 @@ package body Flyology_SIMD.Algorithms.AVX2_Implementation is
    function Find_First_Of (Data : Byte_Array; Needles : Byte_Array) return Search_Result
    is (Algorithms.Scalar.Find_First_Of (Data, Needles));
    function Count (Data : Byte_Array; Needle : U8) return Natural
-   is (Algorithms.Scalar.Count (Data, Needle));
+   is (Algorithms.Scalar.Count (Data, Needle))
+   with SPARK_Mode => Off;
    function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural
-   is (Algorithms.Scalar.Count_In_Range (Data, Low, High));
+   is (Algorithms.Scalar.Count_In_Range (Data, Low, High))
+   with SPARK_Mode => Off;
    procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
    begin
       Algorithms.Scalar.Add_Saturate (Data, Value);

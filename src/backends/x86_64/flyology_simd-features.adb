@@ -2,7 +2,9 @@ with Interfaces;
 with System.Machine_Code;
 with Flyology_SIMD.Configuration;
 
-package body Flyology_SIMD.Features is
+package body Flyology_SIMD.Features
+  with SPARK_Mode => On
+is
    use type Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_64;
    use System.Machine_Code;

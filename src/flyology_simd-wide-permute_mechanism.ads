@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Permute_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanism for reusable Wide lane maps.
 
