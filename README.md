@@ -55,11 +55,23 @@ GNAT 16.1 and Alire 2.1 are the locally verified toolchain versions.
 alr build
 alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/simd_tests
+./bin/stream_element_array_tests
 ./bin/family_tests
 ./bin/wide_tests
 ./bin/conversion_tests
 ./bin/guard_page_tests
 ```
+
+The development-only proof harness resolves GNATprove through Alire and proves
+the `Ada.Streams.Stream_Element_Array` index arithmetic plus analyzes the
+production Scalar SEA search. It does not add a runtime crate dependency:
+
+```sh
+./scripts/prove.sh
+```
+
+The native SIMD search shares the proved index arithmetic, but its raw
+unaligned load and backend calls remain outside the current SPARK boundary.
 
 Alire automatically selects the AArch64 or x86-64 host backend. The GPR default
 remains scalar, so an unknown target or a build outside Alire never receives an

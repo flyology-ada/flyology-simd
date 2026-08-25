@@ -1,5 +1,6 @@
 with System;
 with System.Storage_Elements;
+with Flyology_SIMD.Index_Arithmetic;
 
 package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
    use type Interfaces.Unsigned_8;
@@ -15,25 +16,10 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
        (Byte_Array_Type'Component_Size /= U8'Size,
         "Generic_Indexed_Bytes requires contiguous eight-bit array components");
 
-   --  Add in a wider signed type when one is available. For a widest-sized
-   --  index type, walk its actual values. Index_Type'Pos is not used: for a
-   --  full-range signed type its result may exceed the largest runtime integer
-   --  even though the requested array index is in range.
-   function Index_At (First : Index_Type; Offset : Natural) return Index_Type is
-   begin
-      if Index_Type'Base'Size < Long_Long_Long_Integer'Size then
-         return Index_Type (Long_Long_Long_Integer (First) + Long_Long_Long_Integer (Offset));
-      else
-         declare
-            Result : Index_Type := First;
-         begin
-            for Step in 1 .. Offset loop
-               Result := Index_Type'Succ (Result);
-            end loop;
-            return Result;
-         end;
-      end if;
-   end Index_At;
+   package Index_Arithmetic is new Flyology_SIMD.Index_Arithmetic (Index_Type, Byte_Type, Byte_Array_Type);
+
+   function Index_At (Data : Byte_Array_Type; Offset : Natural) return Index_Type
+   renames Index_Arithmetic.Index_At;
    pragma Inline_Always (Index_At);
 
    function Load_Unaligned (Address : System.Address) return U8x16 is
@@ -76,7 +62,7 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
             if Bits /= 0 then
                for Lane in Lane_Index_8x16 loop
                   if (Bits and Interfaces.Shift_Left (Interfaces.Unsigned_16'(1), Lane)) /= 0 then
-                     return (Found => True, Index => Index_At (Data'First, Offset + Lane));
+                     return (Found => True, Index => Index_At (Data, Offset + Lane));
                   end if;
                end loop;
             end if;
@@ -85,14 +71,14 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
 
          while Offset < Data'Length loop
             declare
-               Item : constant U8 := U8 (Data (Index_At (Data'First, Offset)));
+               Item : constant U8 := U8 (Data (Index_At (Data, Offset)));
             begin
                if Item = Needle_0
                  or else (Count >= 2 and then Item = Needle_1)
                  or else (Count >= 3 and then Item = Needle_2)
                  or else (Count >= 4 and then Item = Needle_3)
                then
-                  return (Found => True, Index => Index_At (Data'First, Offset));
+                  return (Found => True, Index => Index_At (Data, Offset));
                end if;
             end;
             Offset := Offset + 1;
@@ -109,15 +95,14 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
             return Find_Small (U8 (Needles (Needles'First)), 0, 0, 0, 1);
 
          when 2      =>
-            return
-              Find_Small (U8 (Needles (Needles'First)), U8 (Needles (Index_At (Needles'First, 1))), 0, 0, 2);
+            return Find_Small (U8 (Needles (Needles'First)), U8 (Needles (Index_At (Needles, 1))), 0, 0, 2);
 
          when 3      =>
             return
               Find_Small
                 (U8 (Needles (Needles'First)),
-                 U8 (Needles (Index_At (Needles'First, 1))),
-                 U8 (Needles (Index_At (Needles'First, 2))),
+                 U8 (Needles (Index_At (Needles, 1))),
+                 U8 (Needles (Index_At (Needles, 2))),
                  0,
                  3);
 
@@ -125,9 +110,9 @@ package body Flyology_SIMD.Algorithms.Generic_Indexed_Bytes is
             return
               Find_Small
                 (U8 (Needles (Needles'First)),
-                 U8 (Needles (Index_At (Needles'First, 1))),
-                 U8 (Needles (Index_At (Needles'First, 2))),
-                 U8 (Needles (Index_At (Needles'First, 3))),
+                 U8 (Needles (Index_At (Needles, 1))),
+                 U8 (Needles (Index_At (Needles, 2))),
+                 U8 (Needles (Index_At (Needles, 3))),
                  4);
 
          when others =>

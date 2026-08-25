@@ -1,0 +1,17 @@
+name = "flyology_simd_proof"
+description = "Development-only SPARK proof harness for Flyology_SIMD"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+tags = ["ada", "spark", "proof"]
+project-files = ["flyology_simd_proof.gpr"]
+
+[[depends-on]]
+flyology_simd = "*"
+gnatprove = "=16.1.0"
+
+[[pins]]
+flyology_simd = { path = ".." }
