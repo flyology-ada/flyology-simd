@@ -6,6 +6,9 @@
 /benchmarks/config/
 /benchmarks/obj/
 /benchmarks/bin/
+/proof/alire/
+/proof/config/
+/proof/obj/
 /config/
 /obj/
 /lib/

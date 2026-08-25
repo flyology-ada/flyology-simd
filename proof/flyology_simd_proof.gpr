@@ -1,0 +1,13 @@
+with "../flyology_simd.gpr";
+
+project Flyology_SIMD_Proof is
+   for Languages use ("Ada");
+   for Source_Dirs use (".");
+   for Object_Dir use "obj";
+   for Create_Missing_Dirs use "True";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnatwa", "-gnatw.X", "-gnatVa", "-gnatW8", "-gnatyM110");
+   end Compiler;
+end Flyology_SIMD_Proof;

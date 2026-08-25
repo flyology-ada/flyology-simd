@@ -1,8 +1,8 @@
 with Ada.Streams;
---  Stream-element byte classification instantiated with the scalar backend.
+--  Direct scalar stream-element byte classification.
 
 package Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    subtype Search_Result is Flyology_SIMD.Algorithms.Stream_Element_Arrays.Search_Result;
 
