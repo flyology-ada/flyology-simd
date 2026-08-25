@@ -62,16 +62,19 @@ alr exec -- gprbuild -p -P tests/tests.gpr
 ./bin/guard_page_tests
 ```
 
-The development-only proof harness resolves GNATprove through Alire and proves
-the `Ada.Streams.Stream_Element_Array` index arithmetic plus analyzes the
-production Scalar SEA search. It does not add a runtime crate dependency:
+The development-only proof harness resolves GNATprove through Alire. It runs a
+repo-wide proof campaign over every SPARK-enabled production unit, then repeats
+the production `Ada.Streams.Stream_Element_Array` Native traversal with
+warnings treated as errors. It does not add a runtime crate dependency:
 
 ```sh
 ./scripts/prove.sh
 ```
 
-The native SIMD search shares the proved index arithmetic, but its raw
-unaligned load and backend calls remain outside the current SPARK boundary.
+The proof boundary and its reviewed native and floating-point exclusions are
+recorded in [`proof/proof-status.md`](proof/proof-status.md). In particular, the
+Native SEA traversal and arbitrary-bound index arithmetic are proved; only its
+isolated raw unaligned vector load remains a representation boundary.
 
 Alire automatically selects the AArch64 or x86-64 host backend. The GPR default
 remains scalar, so an unknown target or a build outside Alire never receives an

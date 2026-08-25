@@ -13,5 +13,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: alire-project/setup-alire@v6.0.0
-      - name: Prove indexed arithmetic
+      - name: Run full SPARK campaign
         run: ./scripts/prove.sh
