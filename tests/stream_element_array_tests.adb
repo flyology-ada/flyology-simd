@@ -70,6 +70,27 @@ begin
       end loop;
    end loop;
 
+   for Length in Stream_Element_Offset range 16 .. 33 loop
+      declare
+         First : constant Stream_Element_Offset := Stream_Element_Offset'Last - Length + 1;
+         Data  : Stream_Element_Array (First .. Stream_Element_Offset'Last) := [others => 65];
+      begin
+         Check_Case (Data, Needles, False, 0, "high-bound no match" & Length'Image);
+         Data (Data'First) := 9;
+         Check_Case (Data, Needles, True, Data'First, "high-bound first match" & Length'Image);
+         Data (Data'First) := 65;
+         Data (Data'Last) := 32;
+         Check_Case (Data, Needles, True, Data'Last, "high-bound last match" & Length'Image);
+      end;
+   end loop;
+
+   declare
+      First        : constant Stream_Element_Offset := Stream_Element_Offset'Last - 3;
+      High_Needles : constant Stream_Element_Array (First .. Stream_Element_Offset'Last) := [9, 10, 13, 32];
+   begin
+      Check_Case (Short_Data, High_Needles, True, 2, "high-bound needles");
+   end;
+
    Storage (-20 .. -18) := [65, 32, 9];
    Check_Case (Storage (-20 .. -18), Large_Needles, True, -19, "large set scalar fallback");
    Check_Case (Short_Data, Duplicates, True, 3, "duplicate needles");

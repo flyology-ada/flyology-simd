@@ -1,6 +1,6 @@
 name = "flyology_simd"
 description = "Portable, strongly typed SIMD foundations for Ada"
-version = "0.1.1-dev"
+version = "0.1.2-dev"
 licenses = "MIT OR Apache-2.0"
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
