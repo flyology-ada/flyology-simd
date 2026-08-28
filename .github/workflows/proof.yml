@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: >-
+    flyology-simd-proof-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   prove:
     runs-on: ubuntu-24.04
