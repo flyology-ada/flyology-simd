@@ -1,6 +1,5 @@
 pragma SPARK_Mode (On);
 
---  Complete-array floating algorithms instantiated with the scalar backend.
 with Flyology_SIMD.Algorithms.Generic_Floating;
 with Flyology_SIMD.Backends.Scalar;
 
@@ -30,3 +29,4 @@ package Flyology_SIMD.Algorithms.Scalar_Floating is new
      Backend_F64_Reduce_Add        => Flyology_SIMD.Backends.Scalar.Reduce_Add,
      Backend_F64_Reduce_Min_Number => Flyology_SIMD.Backends.Scalar.Reduce_Min_Number,
      Backend_F64_Reduce_Max_Number => Flyology_SIMD.Backends.Scalar.Reduce_Max_Number);
+--  Complete-array floating algorithms instantiated with the scalar backend.

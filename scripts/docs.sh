@@ -6,6 +6,7 @@ alr=$("$project_root/scripts/find-alr.sh")
 documentation_output="$project_root/docs/api"
 website_kit="$project_root/vendor/website-kit"
 warning_baseline_file="$project_root/docs/gnatdoc-warning-baseline.txt"
+expected_warnings_file="$project_root/docs/gnatdoc-expected-warnings.txt"
 
 if [ ! -f "$website_kit/scripts/render-gnatdoc-theme.mjs" ]; then
    printf '%s\n' \
@@ -41,7 +42,9 @@ node "$website_kit/scripts/render-gnatdoc-theme.mjs" \
   "$project_root/docs/gnatdoc-theme.json" \
   "$project_root/docs/gnatdoc/html"
 gnatdoc_log=$(mktemp -t flyology-simd-gnatdoc.XXXXXX)
-trap 'rm -f "$gnatdoc_log"' EXIT HUP INT TERM
+normalized_warnings=$(mktemp -t flyology-simd-gnatdoc-normalized.XXXXXX)
+unexpected_warnings=$(mktemp -t flyology-simd-gnatdoc-unexpected.XXXXXX)
+trap 'rm -f "$gnatdoc_log" "$normalized_warnings" "$unexpected_warnings"' EXIT HUP INT TERM
 if ! "$alr" exec -- gnatdoc \
   --backend=html \
   --generate=public \
@@ -55,16 +58,40 @@ then
    exit 1
 fi
 cat "$gnatdoc_log"
-warning_count=$(grep -c 'warning:' "$gnatdoc_log" || true)
-warning_baseline=$(cat "$warning_baseline_file")
-if [ "$warning_count" -gt "$warning_baseline" ]; then
-   printf '%s\n' \
-     "GNATdoc warning count increased: $warning_count > $warning_baseline" >&2
+warning_count=$(awk '/warning:/ { count++ } END { print count + 0 }' "$gnatdoc_log")
+#  GNATdoc 26 reports the formals of a documented deep private generic as
+#  undocumented. Match complete normalized diagnostics so every other warning
+#  remains subject to the zero-warning baseline.
+if [ ! -s "$expected_warnings_file" ] \
+  || grep -Eqv '^[^:]+: warning: .+$' "$expected_warnings_file"
+then
+   printf '%s\n' "invalid expected GNATdoc warnings file" >&2
    exit 1
 fi
-printf '%s\n' \
-  "GNATdoc warnings: $warning_count (must not exceed $warning_baseline)"
-rm -f "$gnatdoc_log"
+sed -nE \
+  '/warning:/ { s/^([^:]+):[0-9]+:[0-9]+: (warning:.*)$/\1: \2/; p; }' \
+  "$gnatdoc_log" >"$normalized_warnings"
+if grep -Fvx -f "$expected_warnings_file" "$normalized_warnings" \
+  >"$unexpected_warnings"
+then
+   :
+else
+   status=$?
+   test "$status" -eq 1 || exit "$status"
+fi
+unexpected_warning_count=$(wc -l <"$unexpected_warnings" | tr -d ' ')
+warning_baseline=$(cat "$warning_baseline_file")
+if [ "$unexpected_warning_count" -gt "$warning_baseline" ]; then
+   cat "$unexpected_warnings" >&2
+   printf '%s\n' \
+     "Unexpected GNATdoc warning count increased: $unexpected_warning_count > $warning_baseline" >&2
+   exit 1
+fi
+expected_warning_count=$((warning_count - unexpected_warning_count))
+printf '%s%s\n' \
+  "GNATdoc warnings: $unexpected_warning_count unexpected," \
+  " $expected_warning_count known private-generic false positives"
+rm -f "$gnatdoc_log" "$normalized_warnings" "$unexpected_warnings"
 trap - EXIT HUP INT TERM
 
 node "$project_root/scripts/normalize-gnatdoc-html.mjs" docs/api
