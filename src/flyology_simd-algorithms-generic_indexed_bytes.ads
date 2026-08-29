@@ -19,12 +19,12 @@ generic
 package Flyology_SIMD.Algorithms.Generic_Indexed_Bytes with Preelaborate is
    type Search_Result is record
       Found : Boolean;
+      --  True when the algorithm found a requested byte.
       Index : Index_Type;
+      --  The actual match index when Found is True.
    end record;
    --  Result of an indexed-byte search. Index is meaningful only when Found
    --  is True.
-   --  @field Found True when the algorithm found a requested byte.
-   --  @field Index The actual match index when Found is True.
 
    function Find_First_Of (Data : Byte_Array_Type; Needles : Byte_Array_Type) return Search_Result;
    --  Return the first index whose byte equals any member of Needles. Empty
