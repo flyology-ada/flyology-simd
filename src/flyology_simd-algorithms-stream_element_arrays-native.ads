@@ -1,11 +1,12 @@
 with Ada.Streams;
+
 --  Stream-element byte classification instantiated with the compiled native
 --  backend. The scalar build remains a valid implementation of this package.
-
 package Flyology_SIMD.Algorithms.Stream_Element_Arrays.Native
   with Preelaborate
 is
    subtype Search_Result is Flyology_SIMD.Algorithms.Stream_Element_Arrays.Search_Result;
+   --  Result of a stream-element search. Index is meaningful only when Found is True.
 
    function Find_First_Of
      (Data : Ada.Streams.Stream_Element_Array; Needles : Ada.Streams.Stream_Element_Array)

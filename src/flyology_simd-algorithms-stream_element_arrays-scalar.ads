@@ -1,10 +1,11 @@
 with Ada.Streams;
---  Direct scalar stream-element byte classification.
 
+--  Direct scalar stream-element byte classification.
 package Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar
   with Preelaborate, SPARK_Mode => On
 is
    subtype Search_Result is Flyology_SIMD.Algorithms.Stream_Element_Arrays.Search_Result;
+   --  Result of a stream-element search. Index is meaningful only when Found is True.
 
    function Find_First_Of
      (Data : Ada.Streams.Stream_Element_Array; Needles : Ada.Streams.Stream_Element_Array)
