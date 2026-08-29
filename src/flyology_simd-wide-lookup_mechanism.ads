@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Lookup_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanism for a 32-entry byte-table lookup.
 

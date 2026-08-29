@@ -1,45 +1,95 @@
 # Proof Status: Flyology_SIMD
-<!-- Reflect the top-level goal given. Items in the list below are moved from
-     Not Started to In Progress to Reviewed and finally to Proved and Finalized. -->
 
-Initial campaign targets the production index arithmetic used by arbitrary-bound
-`Ada.Streams.Stream_Element_Array` searches and the direct Scalar SEA entry
-point. Native address loads and target-specific SIMD leaves remain outside this
-first proof boundary.
+The maintained campaign is repo-wide: GNATprove analyzes every production unit
+that is inside a declared SPARK boundary, plus a proof-only widest-index
+instantiation. `scripts/prove.sh` runs GNATprove FSF 16.1.0 at level 1 with all
+available provers, rejects every unproved or justified check and every
+`pragma Assume`, treats every warning as an error, and then reruns the Native
+SEA traversal independently with the same warning policy.
 
 ## Proved and Finalized
-<!-- Before marking an item complete here, follow the Widen Scope step
-     (Strategic Loop Step 5) in workflow.md in the /gnatprove Skill.
-     Remember: changes to types used by or called subprograms in a given
-     subprogram may cause it to regress to an unproved state. Reproving at the
-     wider scope is thus a critical means to detect these situations. -->
 
-- [x] `Flyology_SIMD.Index_Arithmetic.Index_At`
-  - The SEA specialization proves six prover checks plus termination, including
-    exact-result, contract arithmetic, and conversion checks. The widest-index
-    fallback is outside this SEA-specialized proof boundary.
-- [x] `Flyology_SIMD.Algorithms.Stream_Element_Arrays.Scalar.Find_First_Of`
-  - The production unit is flow analyzed with zero errors, warnings, checks,
-    or pragma Assume statements, and its implicit termination aspect is proved.
-- [x] Widened suite
-  - GNATprove FSF 16.1.0, `--mode=all --level=1 -j0 --output-header
-    --report=all --warnings=error -U -f`: 8/8 aggregate checks proved, zero
-    justified or unproved checks, zero warnings, and zero pragma Assume
-    statements.
+- Public specifications are in SPARK except for the two complete-buffer count
+  operations whose exact result-overflow boundary is described below, so
+  contracts and caller-side checks otherwise remain visible even when an
+  implementation ends at a native boundary.
+- The portable 128-bit and 256-bit integer families, masks, loads, stores,
+  shuffles, conversions, and composition wrappers are proved.
+- The Wide exact byte sum retains its codegen-required overflow-check
+  suppression, while GNATprove independently proves that same overflow check
+  from the two 16-lane sum bounds.
+- Scalar and Native byte-array algorithms prove arbitrary Natural bounds,
+  traversal, tails, termination, and backend preconditions, except for the two
+  exact count-result boundaries described below.
+- Scalar and Native floating-array algorithms prove arbitrary Natural bounds,
+  traversal, tails, termination, and backend preconditions. Their unrestricted
+  scalar floating operations are separately listed below.
+- Scalar SEA search is fully in SPARK.
+- Native SEA search proves the complete small-input, vector, tail, no-match,
+  and match traversal, including the production `Stream_Element_Offset`
+  arithmetic near `Stream_Element_Offset'Last`. The raw 16-byte address load is
+  isolated behind a proved precondition.
+- Runtime and AVX2 dispatch procedures prove their exact `Backend_Unavailable`
+  exceptional cases.
+- Feature and configuration selection is proved on the selected host backend.
+- The AArch64 256-bit byte composition and all selected floating arithmetic
+  composition wrappers are proved.
 
-## Reviewed
-<!-- Before marking an item complete here, review it following the Review
-     step (Strategic Loop Step 4) in workflow.md in the /gnatprove Skill -->
+The warning-clean macOS AArch64 run on GNATprove FSF 16.1.0 on 2026-08-25
+analyzed 33 units and discharged 4,630 obligations: 1,854 by flow analysis and
+2,776 by provers. It contained zero justified checks, zero unproved checks, and
+zero `pragma Assume` statements. Linux/x86-64 runs use the same gate in GitHub
+Actions; target-specific totals can differ because a different native leaf is
+selected.
 
+## Reviewed Proof Boundaries
 
-## In Progress
-<!-- A subagent executes the Tactical Loop for the subprogram below.
-     It should update this section as it works. -->
+These exclusions are deliberate and are not justified, suppressed, or counted
+as proved:
 
+- Backend register representations, unchecked conversions, compiler
+  intrinsics, and `System.Machine_Code` leaves remain native boundaries. Their
+  Ada contracts and every portable caller are still analyzed.
+- Address-alignment predicates and aligned raw-load/store wrappers remain
+  representation boundaries because SPARK does not model the required address
+  arithmetic. Unaligned and partial portable memory operations are proved.
+- The SEA native loader alone converts the proved array element address to a
+  16-byte vector. The search and its arbitrary-bound index arithmetic do not
+  use addresses and are fully proved.
+- Complete-buffer `Count` and `Count_In_Range` bodies remain exact proof
+  boundaries. A `Byte_Array` can contain `Natural'Last + 1` elements while the
+  return type is `Natural`; an all-matching input therefore raises the existing
+  overflow check. Ada functions cannot declare `Exceptional_Cases`, and a
+  length precondition would reject previously valid calls, so proving these
+  bodies would require narrowing the public API. `Count` also uses GNAT's
+  `__builtin_popcount` intrinsic so optimized AArch64 code retains its NEON
+  population count. Differential tests, exhaustive backend mask tests, and
+  target code-generation contracts remain checked.
+- Root and Wide `F32`/`F64` Add, Subtract, Multiply, Divide, and Reduce_Add
+  scalar bodies accept unrestricted IEEE inputs. Proving absence of Ada
+  floating overflow or division checks would require public preconditions and
+  would narrow the existing API.
+- `Narrow_Round (F64x2)` and the `F64x2` to `I64x2`
+  `Convert_Truncate_Saturate` scalar bodies cross floating conversion semantics
+  that GNATprove does not model precisely enough without narrowing contracts.
+  Their public declarations and callers remain in SPARK.
+- Runtime and AVX2 functions intentionally raise `Backend_Unavailable` when a
+  backend cannot be used. Ada does not permit `Exceptional_Cases` on functions,
+  so their function bodies remain dispatch boundaries; the corresponding
+  procedures have exact proved exceptional contracts.
 
-## Not Started
-<!-- Whenever a subprogram is added (due to refactoring) or discovered
-     during assessment (Strategic Loop Steps 1-2), list it here so it
-     is not forgotten. -->
+Both the broad campaign and focused Native SEA rerun are warning-clean. Exact
+compiler diagnostics for proof-required total initialization in generated
+array functions and constant-folded search specializations are locally
+suppressed; these warning pragmas do not suppress verification conditions.
 
-## Discovered Obligations
+## Review State
+
+The proof boundary was swept against public compatibility, absence of hidden
+copies or allocations, arbitrary array bounds, overflow and range semantics,
+termination, native representation assumptions, and unsupported proof claims.
+No proof justification or assumption was added to make a check pass. Two exact
+count operations use `SPARK_Mode => Off` to preserve their existing overflow
+semantics without adding a public input limit; all other exclusions in this
+ledger predate or directly isolate native, representation, unsupported
+floating-point, or exceptional-function boundaries.

@@ -1,38 +1,37 @@
 with Flyology_SIMD.Algorithms.AVX2_Implementation;
-with Flyology_SIMD.Features;
 
 package body Flyology_SIMD.Algorithms.AVX2 is
-   procedure Scale (Data : in out F32_Array; Factor : F32) is
+   procedure Scale (Data : in out F32_Array; Factor : F32) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.Scale (Data, Factor);
    end Scale;
 
-   procedure Scale (Data : in out F64_Array; Factor : F64) is
+   procedure Scale (Data : in out F64_Array; Factor : F64) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.Scale (Data, Factor);
    end Scale;
 
-   procedure Clamp (Data : in out F32_Array; Low, High : F32) is
+   procedure Clamp (Data : in out F32_Array; Low, High : F32) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.Clamp (Data, Low, High);
    end Clamp;
 
-   procedure Clamp (Data : in out F64_Array; Low, High : F64) is
+   procedure Clamp (Data : in out F64_Array; Low, High : F64) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.Clamp (Data, Low, High);
    end Clamp;
 
-   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array) is
+   procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.AXPY (Y, A, X);
    end AXPY;
 
-   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array) is
+   procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.AXPY (Y, A, X);
@@ -122,7 +121,7 @@ package body Flyology_SIMD.Algorithms.AVX2 is
       return AVX2_Implementation.Count_In_Range (Data, Low, High);
    end Count_In_Range;
 
-   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) is
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8) with SPARK_Mode => On is
    begin
       Features.Require (Features.AVX2);
       AVX2_Implementation.Add_Saturate (Data, Value);

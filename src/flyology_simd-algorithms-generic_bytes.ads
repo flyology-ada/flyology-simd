@@ -24,7 +24,7 @@ generic
    with function Backend_Load_Unaligned (Data : Byte_Array; Start : Natural) return U8x16;
    with procedure Backend_Store_Unaligned (Data : in out Byte_Array; Start : Natural; Value : U8x16);
    with function Backend_Add_Saturate (Left, Right : U8x16) return U8x16;
-package Flyology_SIMD.Algorithms.Generic_Bytes with Preelaborate is
+package Flyology_SIMD.Algorithms.Generic_Bytes with Preelaborate, SPARK_Mode => On is
    function Find_First_Difference (Left, Right : Byte_Array) return Search_Result
    with Pre => Left'First = Right'First and Left'Last = Right'Last;
    --  Return the first Ada index at which the complete buffers differ.
@@ -50,12 +50,14 @@ package Flyology_SIMD.Algorithms.Generic_Bytes with Preelaborate is
    --  @param Data The complete byte array to search.
    --  @param Needles The byte values that constitute the small set.
    --  @return A found flag and the first matching Ada index.
-   function Count (Data : Byte_Array; Needle : U8) return Natural;
+   function Count (Data : Byte_Array; Needle : U8) return Natural
+   with SPARK_Mode => Off;
    --  Count occurrences of one byte.
    --  @param Data The complete byte array to scan.
    --  @param Needle The byte to count.
    --  @return The number of matching elements.
-   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural;
+   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural
+   with SPARK_Mode => Off;
    --  Count bytes in the inclusive unsigned interval Low .. High. If Low is
    --  greater than High, the interval is empty and the result is zero.
    --  @param Data The complete byte array to scan.

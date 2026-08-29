@@ -1,6 +1,6 @@
 --  Statically selected 256-bit composition through the native 128-bit backend.
 package Flyology_SIMD.Wide.Native
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    function Make_Lane_Map (Selectors : Lane_Selectors_8x32) return Lane_Map_8x32 with Inline_Always;
    --  Build a reusable map from result lanes to source lanes.

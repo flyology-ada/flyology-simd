@@ -3,16 +3,20 @@ with Flyology_SIMD.Features;
 --  Complete-array and complete-buffer algorithms with one coarse runtime
 --  backend selection.
 
-package Flyology_SIMD.Algorithms.Runtime is
+package Flyology_SIMD.Algorithms.Runtime
+  with SPARK_Mode => On
+is
    procedure Scale
-     (Data : in out F32_Array; Factor : F32; Backend : Features.Backend_Kind := Features.Best_Available);
+     (Data : in out F32_Array; Factor : F32; Backend : Features.Backend_Kind := Features.Best_Available)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Multiply every binary32 element by Factor after one runtime backend
    --  selection.
    --  @param Data The complete array to transform in place.
    --  @param Factor The scalar multiplier applied once to every element.
    --  @param Backend The compiled and available backend to use.
    procedure Scale
-     (Data : in out F64_Array; Factor : F64; Backend : Features.Backend_Kind := Features.Best_Available);
+     (Data : in out F64_Array; Factor : F64; Backend : Features.Backend_Kind := Features.Best_Available)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Multiply every binary64 element by Factor after one runtime backend
    --  selection.
    --  @param Data The complete array to transform in place.
@@ -20,7 +24,8 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Backend The compiled and available backend to use.
 
    procedure Clamp
-     (Data : in out F32_Array; Low, High : F32; Backend : Features.Backend_Kind := Features.Best_Available);
+     (Data : in out F32_Array; Low, High : F32; Backend : Features.Backend_Kind := Features.Best_Available)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Replace each element with Min_Number (Max_Number (Element, Low), High)
    --  after one runtime backend selection.
    --  @param Data The complete array to transform in place.
@@ -28,7 +33,8 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param High The upper operand supplied to Min_Number.
    --  @param Backend The compiled and available backend to use.
    procedure Clamp
-     (Data : in out F64_Array; Low, High : F64; Backend : Features.Backend_Kind := Features.Best_Available);
+     (Data : in out F64_Array; Low, High : F64; Backend : Features.Backend_Kind := Features.Best_Available)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Replace each element with Min_Number (Max_Number (Element, Low), High)
    --  after one runtime backend selection.
    --  @param Data The complete array to transform in place.
@@ -41,7 +47,9 @@ package Flyology_SIMD.Algorithms.Runtime is
       A       : F32;
       X       : F32_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)
-   with Pre => Y'First = X'First and Y'Last = X'Last;
+   with
+     Pre               => Y'First = X'First and Y'Last = X'Last,
+     Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Replace each Y element with A * X + Y after one runtime backend
    --  selection. Multiplication and addition are separate operations.
    --  @param Y The complete destination and addend array.
@@ -53,7 +61,9 @@ package Flyology_SIMD.Algorithms.Runtime is
       A       : F64;
       X       : F64_Array;
       Backend : Features.Backend_Kind := Features.Best_Available)
-   with Pre => Y'First = X'First and Y'Last = X'Last;
+   with
+     Pre               => Y'First = X'First and Y'Last = X'Last,
+     Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Replace each Y element with A * X + Y after one runtime backend
    --  selection. Multiplication and addition are separate operations.
    --  @param Y The complete destination and addend array.
@@ -183,7 +193,8 @@ package Flyology_SIMD.Algorithms.Runtime is
    --  @param Backend The compiled and available backend to use.
    --  @return The number of elements in the interval.
    procedure Add_Saturate
-     (Data : in out Byte_Array; Value : U8; Backend : Features.Backend_Kind := Features.Best_Available);
+     (Data : in out Byte_Array; Value : U8; Backend : Features.Backend_Kind := Features.Best_Available)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Backend));
    --  Add one byte to every element with unsigned saturation after one
    --  runtime backend selection.
    --  @param Data The complete byte buffer to transform in place.

@@ -1,3 +1,5 @@
+pragma SPARK_Mode (On);
+
 --  Complete-buffer byte algorithms instantiated with the compiled backend.
 with Flyology_SIMD.Algorithms.Generic_Bytes;
 with Flyology_SIMD.Backends.Native;

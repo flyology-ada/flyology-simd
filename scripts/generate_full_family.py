@@ -1750,7 +1750,8 @@ def emit_spec() -> str:
         count = lane_count(bits, lanes)
         out += [
             f"   function Mask_From_Bit_Mask (Bits : Interfaces.{storage}) return {mask};",
-            f"   function To_Bit_Mask (Mask : {mask}) return Interfaces.{storage};",
+            f"   function To_Bit_Mask (Mask : {mask}) return Interfaces.{storage}"
+            f" with Post => Long_Long_Integer (To_Bit_Mask'Result) <= {2 ** lanes - 1};",
             f"   function Mask_And (Left, Right : {mask}) return {mask};",
             f"   function Mask_Or (Left, Right : {mask}) return {mask};",
             f"   function Mask_Xor (Left, Right : {mask}) return {mask};",
@@ -1876,6 +1877,7 @@ def emit_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
         "      Result_Lane : Natural := 0;",
         "   begin",
         f"      for Source_Lane in {idx} loop",
+        "         pragma Loop_Invariant (Result_Lane <= Source_Lane);",
         "         if Test (Mask, Source_Lane) then",
         "            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);",
         "            Result_Lane := Result_Lane + 1;",
@@ -1889,6 +1891,7 @@ def emit_compress_expand(vector: str, bits: int, lanes: int) -> list[str]:
         "      Source_Lane : Natural := 0;",
         "   begin",
         f"      for Result_Lane in {idx} loop",
+        "         pragma Loop_Invariant (Source_Lane <= Result_Lane);",
         "         if Test (Mask, Result_Lane) then",
         "            Result.Lanes (Result_Lane) := Value.Lanes (Source_Lane);",
         "            Source_Lane := Source_Lane + 1;",
@@ -1937,10 +1940,10 @@ def emit_lane_permute(vector: str, bits: int, lanes: int) -> list[str]:
         "         Result.Lanes (Result_Lane) :=",
         "           Value.Lanes",
         f"             ({idx}",
-        "                (Natural",
+        "                ((Natural",
         "                   (Map.Byte_Indices",
         f"                      (Result_Lane * {bytes_per_lane}))",
-        f"                 / {bytes_per_lane}));",
+        f"                 / {bytes_per_lane}) mod {lanes}));",
         "      end loop;",
         "      return Result;",
         "   end Permute_Lanes;",
@@ -1968,7 +1971,7 @@ def emit_two_source_lane_selectors(bits: int, lanes: int) -> list[str]:
         "            Result.Byte_Indices",
         f"              (Result_Lane * {lane_bytes} + Byte) :=",
         "                U8",
-        "                  (Natural (Selectors (Result_Lane).Encoded) *",
+        f"                  ((Natural (Selectors (Result_Lane).Encoded) mod {2 * lanes}) *",
         f"                     {lane_bytes} + Byte);",
         "         end loop;",
         "      end loop;",
@@ -1992,7 +1995,7 @@ def emit_two_source_lane_permute(vector: str, bits: int, lanes: int) -> list[str
         "              Natural",
         "                (Map.Byte_Indices",
         f"                   (Result_Lane * {bits // 8}));",
-        f"            Encoded : constant Natural := Encoded_Byte / {bits // 8};",
+        f"            Encoded : constant Natural := (Encoded_Byte / {bits // 8}) mod {2 * lanes};",
         "         begin",
         "            Result.Lanes (Result_Lane) :=",
         f"              (if Encoded < {lanes} then",
@@ -2447,7 +2450,12 @@ def emit_conversion_body() -> str:
 
 
 def emit_body() -> str:
-    out = [emit_conversion_body()]
+    out = [
+        "   --  Explicit total initialization makes array initialization",
+        "   --  visible to SPARK even when every lane is subsequently assigned.",
+        '   pragma Warnings (Off, "initialization of ""Result"" has no effect");',
+        emit_conversion_body(),
+    ]
     seen_shapes = {(8, 16)}
     for _, _, bits, lanes, *_ in INTEGER_TYPES + FLOAT_TYPES:
         if (bits, lanes) not in seen_shapes:
@@ -2464,8 +2472,52 @@ def emit_body() -> str:
         count = lane_count(bits, lanes)
         st = f"Interfaces.{storage}"
         full = str((1 << lanes) - 1)
-        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits);", f"   function Mask_And (Left, Right : {mask}) return {mask} is (Bits => Left.Bits and Right.Bits);", f"   function Mask_Or (Left, Right : {mask}) return {mask} is (Bits => Left.Bits or Right.Bits);", f"   function Mask_Xor (Left, Right : {mask}) return {mask} is (Bits => Left.Bits xor Right.Bits);", f"   function Mask_Not (Value : {mask}) return {mask} is (Bits => (not Value.Bits) and {full});", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", f"      Bits : {st} := Mask.Bits;", f"      Result : {count} := 0;", "   begin while Bits /= 0 loop Result := Result + 1; Bits := Bits and (Bits - 1); end loop; return Result; end Population_Count;", f"   function First_True (Mask : {mask}) return {count} is", f"   begin for Lane in {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end First_True;", f"   function Last_True (Mask : {mask}) return {count} is", f"   begin for Lane in reverse {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end Last_True;", ""]
-    return "\n".join(out)
+        out += [f"   function Mask_From_Bit_Mask (Bits : {st}) return {mask} is (Bits => Bits and {full});", f"   function To_Bit_Mask (Mask : {mask}) return {st} is (Mask.Bits and {full});", f"   function Mask_And (Left, Right : {mask}) return {mask} is (Bits => Left.Bits and Right.Bits);", f"   function Mask_Or (Left, Right : {mask}) return {mask} is (Bits => Left.Bits or Right.Bits);", f"   function Mask_Xor (Left, Right : {mask}) return {mask} is (Bits => Left.Bits xor Right.Bits);", f"   function Mask_Not (Value : {mask}) return {mask} is (Bits => (not Value.Bits) and {full});", f"   function Test (Mask : {mask}; Lane : {idx}) return Boolean is ((Mask.Bits and Interfaces.Shift_Left ({st}'(1), Lane)) /= 0);", f"   function Any_True (Mask : {mask}) return Boolean is (Mask.Bits /= 0);", f"   function All_True (Mask : {mask}) return Boolean is (Mask.Bits = {full});", f"   function None_True (Mask : {mask}) return Boolean is (Mask.Bits = 0);", f"   function Population_Count (Mask : {mask}) return {count} is", "      Result : Natural := 0;", "   begin", f"      for Lane in {idx} loop", "         pragma Loop_Invariant (Result <= Lane);", "         if Test (Mask, Lane) then Result := Result + 1; end if;", "      end loop;", f"      return {count} (Result);", "   end Population_Count;", f"   function First_True (Mask : {mask}) return {count} is", f"   begin for Lane in {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end First_True;", f"   function Last_True (Mask : {mask}) return {count} is", f"   begin for Lane in reverse {idx} loop if Test (Mask, Lane) then return Lane; end if; end loop; return {count}'Last; end Last_True;", ""]
+    lines = "\n".join(out).splitlines()
+    for number, line in enumerate(lines):
+        vector_result = re.match(r"^(      Result : [UIF][0-9]+x[0-9]+);$", line)
+        if vector_result:
+            lines[number] = line[:-1] + " := Zero;"
+            continue
+        map_result = re.match(r"^(      Result : (?:Two_Source_)?Lane_Map_[0-9]+x[0-9]+);$", line)
+        if map_result:
+            lines[number] = line[:-1] + " := (Byte_Indices => [others => 0]);"
+    for number, line in enumerate(lines):
+        if not re.match(r"^   (function|procedure) ", line):
+            continue
+        if " is new Ada.Unchecked_Conversion" in line:
+            continue
+        if line.startswith("   function Is_Aligned_16 "):
+            continue
+        if (
+            any(
+                line.startswith(f"   function {name} ") and "return F" in line
+                for name in ("Add", "Subtract", "Multiply", "Divide", "Reduce_Add")
+            )
+            or line.startswith("   function Narrow_Round ")
+            or line.startswith(
+                "   function Convert_Truncate_Saturate "
+                "(Value : F64x2) return I64x2"
+            )
+        ):
+            #  These unrestricted floating operations can overflow, divide by
+            #  zero, or cross a floating conversion boundary. Proving absence
+            #  of the corresponding Ada checks would require public
+            #  preconditions that change the API's accepted input domain.
+            continue
+        if " is" not in line:
+            raise AssertionError(f"generated subprogram header lacks body marker: {line}")
+        if " is (" in line and line.endswith(";"):
+            lines[number] = line[:-1] + " with SPARK_Mode => On;"
+        elif line.endswith(" is") and number + 1 < len(lines) and lines[number + 1].lstrip().startswith("("):
+            expression_end = number + 1
+            while not lines[expression_end].endswith(";"):
+                expression_end += 1
+            lines[expression_end] = lines[expression_end][:-1] + " with SPARK_Mode => On;"
+        else:
+            lines[number] = line.replace(" is", " with SPARK_Mode => On is", 1)
+    lines.append('   pragma Warnings (On, "initialization of ""Result"" has no effect");')
+    return "\n".join(lines)
 
 
 def main() -> None:

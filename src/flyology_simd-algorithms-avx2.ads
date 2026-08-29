@@ -1,38 +1,50 @@
+with Flyology_SIMD.Features;
+
 --  Baseline-safe entry points for optional AVX2 complete-array and
 --  complete-buffer algorithms.
 
-package Flyology_SIMD.Algorithms.AVX2 is
-   procedure Scale (Data : in out F32_Array; Factor : F32);
+package Flyology_SIMD.Algorithms.AVX2
+  with SPARK_Mode => On
+is
+   procedure Scale (Data : in out F32_Array; Factor : F32)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Multiply every binary32 element by Factor with the optional AVX2
    --  algorithm after checking CPU and OS support.
    --  @param Data The complete array to transform in place.
    --  @param Factor The scalar multiplier applied once to every element.
-   procedure Scale (Data : in out F64_Array; Factor : F64);
+   procedure Scale (Data : in out F64_Array; Factor : F64)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Multiply every binary64 element by Factor with the optional AVX2
    --  algorithm after checking CPU and OS support.
    --  @param Data The complete array to transform in place.
    --  @param Factor The scalar multiplier applied once to every element.
-   procedure Clamp (Data : in out F32_Array; Low, High : F32);
+   procedure Clamp (Data : in out F32_Array; Low, High : F32)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Clamp every binary32 element in place with the optional AVX2 route,
    --  after checking CPU and OS support.
    --  @param Data The complete array to transform in place.
    --  @param Low The lower operand supplied to Max_Number.
    --  @param High The upper operand supplied to Min_Number.
-   procedure Clamp (Data : in out F64_Array; Low, High : F64);
+   procedure Clamp (Data : in out F64_Array; Low, High : F64)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Clamp every binary64 element in place with the optional AVX2 route,
    --  after checking CPU and OS support.
    --  @param Data The complete array to transform in place.
    --  @param Low The lower operand supplied to Max_Number.
    --  @param High The upper operand supplied to Min_Number.
    procedure AXPY (Y : in out F32_Array; A : F32; X : F32_Array)
-   with Pre => Y'First = X'First and Y'Last = X'Last;
+   with
+     Pre               => Y'First = X'First and Y'Last = X'Last,
+     Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Apply Y := A * X + Y with the optional AVX2 algorithm after checking
    --  CPU and OS support. Multiplication and addition are separate.
    --  @param Y The complete destination and addend array.
    --  @param A The scalar multiplier applied to X.
    --  @param X The complete source array with bounds matching Y.
    procedure AXPY (Y : in out F64_Array; A : F64; X : F64_Array)
-   with Pre => Y'First = X'First and Y'Last = X'Last;
+   with
+     Pre               => Y'First = X'First and Y'Last = X'Last,
+     Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Apply Y := A * X + Y with the optional AVX2 algorithm after checking
    --  CPU and OS support. Multiplication and addition are separate.
    --  @param Y The complete destination and addend array.
@@ -125,7 +137,8 @@ package Flyology_SIMD.Algorithms.AVX2 is
    --  @param Low The inclusive lower byte bound.
    --  @param High The inclusive upper byte bound.
    --  @return The number of elements in the interval.
-   procedure Add_Saturate (Data : in out Byte_Array; Value : U8);
+   procedure Add_Saturate (Data : in out Byte_Array; Value : U8)
+   with Exceptional_Cases => (Features.Backend_Unavailable => not Features.Available (Features.AVX2));
    --  Add one byte to every element with unsigned saturation using the
    --  optional AVX2 algorithm after checking CPU and OS support.
    --  @param Data The complete byte buffer to transform in place.

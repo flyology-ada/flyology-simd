@@ -2,27 +2,44 @@ with Interfaces;
 with System.Machine_Code;
 with Flyology_SIMD.Configuration;
 
-package body Flyology_SIMD.Features is
+package body Flyology_SIMD.Features
+  with SPARK_Mode => On
+is
    use type Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_64;
    use System.Machine_Code;
 
-   procedure CPUID (Leaf, Subleaf : Interfaces.Unsigned_32; EAX, EBX, ECX, EDX : out Interfaces.Unsigned_32)
+   type CPUID_Result is record
+      EAX, EBX, ECX, EDX : Interfaces.Unsigned_32;
+   end record;
+
+   function CPUID (Leaf, Subleaf : Interfaces.Unsigned_32) return CPUID_Result
+   with Global => null;
+
+   function CPUID (Leaf, Subleaf : Interfaces.Unsigned_32) return CPUID_Result
+   with SPARK_Mode => Off
    is
+      Result : CPUID_Result;
    begin
       Asm
         ("cpuid",
          Outputs  =>
-           [Interfaces.Unsigned_32'Asm_Output ("=a", EAX),
-            Interfaces.Unsigned_32'Asm_Output ("=b", EBX),
-            Interfaces.Unsigned_32'Asm_Output ("=c", ECX),
-            Interfaces.Unsigned_32'Asm_Output ("=d", EDX)],
+           [Interfaces.Unsigned_32'Asm_Output ("=a", Result.EAX),
+            Interfaces.Unsigned_32'Asm_Output ("=b", Result.EBX),
+            Interfaces.Unsigned_32'Asm_Output ("=c", Result.ECX),
+            Interfaces.Unsigned_32'Asm_Output ("=d", Result.EDX)],
          Inputs   =>
            [Interfaces.Unsigned_32'Asm_Input ("0", Leaf), Interfaces.Unsigned_32'Asm_Input ("2", Subleaf)],
          Volatile => True);
+      return Result;
    end CPUID;
 
-   function XCR0 return Interfaces.Unsigned_64 is
+   function XCR0 return Interfaces.Unsigned_64
+   with Global => null;
+
+   function XCR0 return Interfaces.Unsigned_64
+   with SPARK_Mode => Off
+   is
       Low, High : Interfaces.Unsigned_32;
    begin
       Asm
@@ -35,23 +52,21 @@ package body Flyology_SIMD.Features is
    end XCR0;
 
    function Host_Has_AVX2 return Boolean is
-      EAX, EBX, ECX, EDX : Interfaces.Unsigned_32;
-      Maximum            : Interfaces.Unsigned_32;
-      OSXSAVE            : constant Interfaces.Unsigned_32 := 2**27;
-      AVX                : constant Interfaces.Unsigned_32 := 2**28;
-      AVX2_Bit           : constant Interfaces.Unsigned_32 := 2**5;
+      Registers : CPUID_Result;
+      OSXSAVE   : constant Interfaces.Unsigned_32 := 2**27;
+      AVX       : constant Interfaces.Unsigned_32 := 2**28;
+      AVX2_Bit  : constant Interfaces.Unsigned_32 := 2**5;
    begin
-      CPUID (0, 0, EAX, EBX, ECX, EDX);
-      Maximum := EAX;
-      if Maximum < 7 then
+      Registers := CPUID (0, 0);
+      if Registers.EAX < 7 then
          return False;
       end if;
-      CPUID (1, 0, EAX, EBX, ECX, EDX);
-      if (ECX and (OSXSAVE or AVX)) /= (OSXSAVE or AVX) or else (XCR0 and 6) /= 6 then
+      Registers := CPUID (1, 0);
+      if (Registers.ECX and (OSXSAVE or AVX)) /= (OSXSAVE or AVX) or else (XCR0 and 6) /= 6 then
          return False;
       end if;
-      CPUID (7, 0, EAX, EBX, ECX, EDX);
-      return (EBX and AVX2_Bit) /= 0;
+      Registers := CPUID (7, 0);
+      return (Registers.EBX and AVX2_Bit) /= 0;
    end Host_Has_AVX2;
 
    --  Immutable elaboration-time detection is race-free.  XGETBV is reached

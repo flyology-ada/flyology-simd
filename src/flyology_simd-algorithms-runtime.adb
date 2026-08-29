@@ -6,7 +6,9 @@ with Flyology_SIMD.Algorithms.Scalar_Floating;
 
 package body Flyology_SIMD.Algorithms.Runtime is
    procedure Scale
-     (Data : in out F32_Array; Factor : F32; Backend : Features.Backend_Kind := Features.Best_Available) is
+     (Data : in out F32_Array; Factor : F32; Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -22,7 +24,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
    end Scale;
 
    procedure Scale
-     (Data : in out F64_Array; Factor : F64; Backend : Features.Backend_Kind := Features.Best_Available) is
+     (Data : in out F64_Array; Factor : F64; Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -38,7 +42,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
    end Scale;
 
    procedure Clamp
-     (Data : in out F32_Array; Low, High : F32; Backend : Features.Backend_Kind := Features.Best_Available) is
+     (Data : in out F32_Array; Low, High : F32; Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -54,7 +60,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
    end Clamp;
 
    procedure Clamp
-     (Data : in out F64_Array; Low, High : F64; Backend : Features.Backend_Kind := Features.Best_Available) is
+     (Data : in out F64_Array; Low, High : F64; Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -73,7 +81,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
      (Y       : in out F32_Array;
       A       : F32;
       X       : F32_Array;
-      Backend : Features.Backend_Kind := Features.Best_Available) is
+      Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -92,7 +102,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
      (Y       : in out F64_Array;
       A       : F64;
       X       : F64_Array;
-      Backend : Features.Backend_Kind := Features.Best_Available) is
+      Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is
@@ -335,7 +347,9 @@ package body Flyology_SIMD.Algorithms.Runtime is
    end Count_In_Range;
 
    procedure Add_Saturate
-     (Data : in out Byte_Array; Value : U8; Backend : Features.Backend_Kind := Features.Best_Available) is
+     (Data : in out Byte_Array; Value : U8; Backend : Features.Backend_Kind := Features.Best_Available)
+   with SPARK_Mode => On
+   is
    begin
       Features.Require (Backend);
       case Backend is

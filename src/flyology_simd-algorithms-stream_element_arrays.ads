@@ -3,7 +3,7 @@ with Ada.Streams;
 --  Zero-copy complete-buffer algorithms for Ada stream-element arrays.
 
 package Flyology_SIMD.Algorithms.Stream_Element_Arrays
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    type Search_Result is record
       Found : Boolean;

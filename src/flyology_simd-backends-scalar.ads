@@ -2,7 +2,7 @@ with Interfaces;
 
 --  Authoritative scalar implementation of the complete primitive operation contract.
 package Flyology_SIMD.Backends.Scalar
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    function Bit_Cast (Value : U8x16) return I8x16
      renames Flyology_SIMD.Bit_Cast;

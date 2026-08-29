@@ -2,7 +2,7 @@ with Interfaces;
 
 --  Portable 256-bit values. Representations stay private and are not an ABI.
 package Flyology_SIMD.Wide
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    type U8x32 is private;
    --  A private 256-bit vector containing 32 U8 lanes.

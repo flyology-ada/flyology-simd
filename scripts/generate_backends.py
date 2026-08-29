@@ -169,7 +169,7 @@ def scalar_contract(native_spec: str) -> str:
         "--  Authoritative scalar implementation of the complete primitive "
         "operation contract.\n"
         "package Flyology_SIMD.Backends.Scalar\n"
-        "  with Preelaborate\n"
+        "  with Preelaborate, SPARK_Mode => On\n"
         "is\n"
         + "\n".join(declarations)
         + "\nend Flyology_SIMD.Backends.Scalar;\n",

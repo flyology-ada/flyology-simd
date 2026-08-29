@@ -1,7 +1,7 @@
 --  Result types shared by complete-buffer SIMD algorithms.
 
 package Flyology_SIMD.Algorithms
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    type Search_Result is record
       Found : Boolean := False;

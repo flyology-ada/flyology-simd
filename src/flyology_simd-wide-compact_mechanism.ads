@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Compact_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanism for Wide stable mask movement.
 

@@ -57,7 +57,7 @@ generic
    with function Backend_F64_Reduce_Add (Value : F64x2) return F64;
    with function Backend_F64_Reduce_Min_Number (Value : F64x2) return F64;
    with function Backend_F64_Reduce_Max_Number (Value : F64x2) return F64;
-package Flyology_SIMD.Algorithms.Generic_Floating with Preelaborate is
+package Flyology_SIMD.Algorithms.Generic_Floating with Preelaborate, SPARK_Mode => On is
    procedure Scale (Data : in out F32_Array; Factor : F32);
    --  Multiply every binary32 element by Factor in place. Empty arrays are
    --  unchanged.

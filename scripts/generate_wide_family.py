@@ -1049,7 +1049,7 @@ def spec_text() -> str:
 
 --  Portable 256-bit values. Representations stay private and are not an ABI.
 package Flyology_SIMD.Wide
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
 {vector_types}
 
@@ -1280,8 +1280,8 @@ def scalar_movement_body(f: Family, prefix: str) -> list[str]:
             f"   function Reduce_Max (Value : {f.vector}) return {f.scalar} is\n      Pair : constant {f.half} := {reduction_prefix}.Max ({reduction_prefix}.Splat ({reduction_prefix}.Reduce_Max (Value.Low)), {reduction_prefix}.Splat ({reduction_prefix}.Reduce_Max (Value.High)));\n   begin return {reduction_prefix}.Extract (Pair, 0); end Reduce_Max;",
         ]
     compact = [
-        f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Compress;",
-        f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Expand;",
+        f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         pragma Loop_Invariant (Next <= Lane);\n         if Test (Mask, Lane) then Result (Next) := Extract (Value, Lane); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Compress;",
+        f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n      Result : {vals} := [others => {zero}];\n      Next : Natural := 0;\n   begin\n      for Lane in {idx} loop\n         pragma Loop_Invariant (Next <= Lane);\n         if Test (Mask, Lane) then Result (Lane) := Extract (Value, Next); Next := Next + 1; end if;\n      end loop;\n      return From_Lanes (Result);\n   end Expand;",
     ] if prefix == "Flyology_SIMD" else [
         f"   function Compress (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Compress (Value, Mask));",
         f"   function Expand (Value : {f.vector}; Mask : {f.mask}) return {f.vector} is\n     (Compact_Mechanism.Expand (Value, Mask));",
@@ -1371,6 +1371,34 @@ def memory_body(f: Family, p: str) -> list[str]:
     ]
 
 
+def sparkify_composed_body(content: str) -> str:
+    """Enable proof for generated wrappers while leaving address predicates native."""
+    lines = content.splitlines()
+    for number, line in enumerate(lines):
+        if not re.match(r"^   (function|procedure) ", line):
+            continue
+        if line.startswith("   function Is_Aligned_32 "):
+            continue
+        if line.startswith("   function Load_Aligned "):
+            continue
+        if line.startswith("   procedure Store_Aligned "):
+            continue
+        if line.startswith("   function Reduce_Add "):
+            continue
+        if " is" not in line:
+            raise AssertionError(f"generated subprogram header lacks body marker: {line}")
+        if " is (" in line and line.endswith(";"):
+            lines[number] = line[:-1] + " with SPARK_Mode => On;"
+        elif line.endswith(" is") and number + 1 < len(lines) and lines[number + 1].lstrip().startswith("("):
+            expression_end = number + 1
+            while not lines[expression_end].endswith(";"):
+                expression_end += 1
+            lines[expression_end] = lines[expression_end][:-1] + " with SPARK_Mode => On;"
+        else:
+            lines[number] = line.replace(" is", " with SPARK_Mode => On is", 1)
+    return "\n".join(lines) + "\n"
+
+
 def body_text() -> str:
     seen_shapes: set[tuple[int, int]] = set()
     body_list = []
@@ -1380,7 +1408,7 @@ def body_text() -> str:
         seen_shapes.add(shape)
     bodies = "\n\n".join(body_list)
     conversions = conversion_bodies()
-    return f"""with System.Storage_Elements;
+    return sparkify_composed_body(f"""with System.Storage_Elements;
 
 package body Flyology_SIMD.Wide is
    use type System.Storage_Elements.Integer_Address;
@@ -1393,7 +1421,7 @@ package body Flyology_SIMD.Wide is
 
 {conversions}
 end Flyology_SIMD.Wide;
-"""
+""")
 
 
 def native_declaration(f: Family, first_shape: bool) -> str:
@@ -1436,7 +1464,7 @@ def native_spec_text() -> str:
     conversions = conversion_declarations(native=True)
     return f"""--  Statically selected 256-bit composition through the native 128-bit backend.
 package Flyology_SIMD.Wide.Native
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
 {chr(10).join(declarations)}
 
@@ -1455,7 +1483,7 @@ def native_body_text() -> str:
         )
         seen_shapes.add(shape)
     conversions = conversion_bodies("Flyology_SIMD.Backends.Native")
-    return f"""with Flyology_SIMD.Backends.Native;
+    return sparkify_composed_body(f"""with Flyology_SIMD.Backends.Native;
 with Flyology_SIMD.Wide.Byte_Mechanism;
 with Flyology_SIMD.Wide.Compact_Mechanism;
 with Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
@@ -1479,7 +1507,7 @@ package body Flyology_SIMD.Wide.Native is
 
 {conversions}
 end Flyology_SIMD.Wide.Native;
-"""
+""")
 
 
 def compact_spec_text() -> str:
@@ -1498,7 +1526,7 @@ def compact_spec_text() -> str:
                 "   --  @return The moved lanes and defined zero fill."
             )
     return f"""private package Flyology_SIMD.Wide.Compact_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanism for Wide stable mask movement.
 
@@ -1509,7 +1537,7 @@ end Flyology_SIMD.Wide.Compact_Mechanism;
 
 def float_reduce_spec_text() -> str:
     return """private package Flyology_SIMD.Wide.Float_Reduce_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected ordered Wide floating-point reductions.
 
@@ -1550,7 +1578,7 @@ end Flyology_SIMD.Wide.Float_Reduce_Mechanism;
 
 def float_reduce_leaf_spec_text() -> str:
     return """private package Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Architecture-selected ordered Wide floating-point reduction leaf.
 
@@ -1597,7 +1625,7 @@ def float_arithmetic_spec_text() -> str:
                 "   --  @return The lane-wise floating-point results."
             )
     return f"""private package Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected Wide floating-point arithmetic.
 
@@ -1622,7 +1650,9 @@ def float_arithmetic_composed_body_text() -> str:
             )
     return f"""with Flyology_SIMD.Backends.Native;
 
-package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
+package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
+  with SPARK_Mode => On
+is
 {chr(10).join(bodies)}
 end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 """
@@ -1638,7 +1668,7 @@ def float_arithmetic_avx2_leaf_spec_text() -> str:
                 f"   function {operation} (Left, Right : {vector}) return {vector};"
             )
     return f"""private package Flyology_SIMD.Wide.Float_AVX2_Leaf
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Isolated AVX2-width floating-point arithmetic leaves.
 
@@ -1753,7 +1783,9 @@ def float_arithmetic_avx2_body_text() -> str:
             )
     return f"""with Flyology_SIMD.Wide.Float_AVX2_Leaf;
 
-package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism is
+package body Flyology_SIMD.Wide.Float_Arithmetic_Mechanism
+  with SPARK_Mode => On
+is
 {chr(10).join(bodies)}
 end Flyology_SIMD.Wide.Float_Arithmetic_Mechanism;
 """
@@ -2382,7 +2414,7 @@ def permute_spec_text() -> str:
             "   --  @return The slid lanes, or zero when Count reaches or exceeds the width.",
         ))
     return f"""private package Flyology_SIMD.Wide.Permute_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanism for reusable Wide lane maps.
 

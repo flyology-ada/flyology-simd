@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Float_Reduce_Selected_Leaf
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Architecture-selected ordered Wide floating-point reduction leaf.
 

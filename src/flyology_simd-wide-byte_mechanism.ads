@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Byte_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected mechanisms for 256-bit byte-vector operations.
 

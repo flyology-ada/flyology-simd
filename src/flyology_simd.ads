@@ -6,7 +6,7 @@ with Interfaces;
 --  backends preserve those semantics behind private vector and mask types.
 --  Lane zero is the first logical element loaded from memory.
 package Flyology_SIMD
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    subtype U8 is Interfaces.Unsigned_8;
    --  Public lane, array, vector, or mask type U8.
@@ -73,7 +73,12 @@ is
    --  Public lane, array, vector, or mask type Mask_8x16.
 
    function Has_Extent
-     (Data : Byte_Array; Start : Natural; Count : Natural) return Boolean;
+     (Data : Byte_Array; Start : Natural; Count : Natural) return Boolean
+   with
+     Post => Has_Extent'Result =
+       (Count = 0
+        or else (Start in Data'Range
+                 and then Count - 1 <= Natural (Data'Last - Start)));
    --  Return true when Count byte elements fit in Data starting at Start. A zero Count requires no valid address.
    --  Cross-platform support: this fixed-width Ada operation is available on every supported GNAT target and has no separate Backends.Native overload.
    --  @param Data The typed lane array.
@@ -3515,7 +3520,7 @@ is
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16;
+   function To_Bit_Mask (Mask : Mask_8x16) return Interfaces.Unsigned_16 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 65535;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3585,7 +3590,7 @@ is
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8;
+   function To_Bit_Mask (Mask : Mask_16x8) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 255;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3655,7 +3660,7 @@ is
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8;
+   function To_Bit_Mask (Mask : Mask_32x4) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 15;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.
@@ -3725,7 +3730,7 @@ is
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Bits Compact lane bits. Bit zero represents lane zero.
    --  @return The operation result.
-   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8;
+   function To_Bit_Mask (Mask : Mask_64x2) return Interfaces.Unsigned_8 with Post => Long_Long_Integer (To_Bit_Mask'Result) <= 3;
    --  Return compact lane truths. Bit zero represents lane zero.
    --  Cross-platform support: This overload uses the portable scalar implementation on every supported GNAT target. For the matching Native overload, the AArch64 and x86-64 backends apply this operation directly to the fixed-width compact integer mask. No vector instruction is required. A scalar build uses the portable scalar implementation.
    --  @param Mask The input mask.

@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Algorithms.AVX2_Implementation
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-specific implementation used by the baseline-safe AVX2 facade.
    procedure Scale (Data : in out F32_Array; Factor : F32);
@@ -94,12 +94,14 @@ is
    --  @param Data The complete byte array to search.
    --  @param Needles The byte values that constitute the small set.
    --  @return A found flag and the first matching Ada index.
-   function Count (Data : Byte_Array; Needle : U8) return Natural;
+   function Count (Data : Byte_Array; Needle : U8) return Natural
+   with SPARK_Mode => Off;
    --  Count occurrences of one byte.
    --  @param Data The complete byte array to scan.
    --  @param Needle The byte to count.
    --  @return The number of matching elements.
-   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural;
+   function Count_In_Range (Data : Byte_Array; Low, High : U8) return Natural
+   with SPARK_Mode => Off;
    --  Count bytes in an inclusive unsigned interval. An inverted interval is
    --  empty.
    --  @param Data The complete byte array to scan.

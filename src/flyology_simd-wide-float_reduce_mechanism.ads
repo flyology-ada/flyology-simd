@@ -1,5 +1,5 @@
 private package Flyology_SIMD.Wide.Float_Reduce_Mechanism
-  with Preelaborate
+  with Preelaborate, SPARK_Mode => On
 is
    --  Target-selected ordered Wide floating-point reductions.
 

@@ -1,4 +1,6 @@
-package body Flyology_SIMD.Features is
+package body Flyology_SIMD.Features
+  with SPARK_Mode => On
+is
    function Compiled (Backend : Backend_Kind) return Boolean
    is (Backend = Scalar);
    function Available (Backend : Backend_Kind) return Boolean
