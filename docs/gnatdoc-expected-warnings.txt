@@ -1,0 +1,7 @@
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Index_Type` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Byte_Type` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Byte_Array_Type` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Backend_Splat` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Backend_Equal` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Backend_To_Bit_Mask` is not documented
+flyology_simd-algorithms-generic_indexed_byte_search.ads: warning: generic formal `Backend_Load_Unaligned` is not documented
