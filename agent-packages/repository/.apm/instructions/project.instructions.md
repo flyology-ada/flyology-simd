@@ -15,6 +15,21 @@ description: Preserve Flyology SIMD's project-specific repository rules and veri
   owns the formatter settings.  Change generators rather than running
   GNATformat on generated Ada independently.
 
+## Documentation claims
+
+- Distinguish identical semantics, scalar source portability, and efficient
+  target-specific code generation.
+- Distinguish implemented, compiled, executed, and continuously tested support.
+- Keep alignment, valid extent, tail access, NaN, signed-zero, and conversion
+  conditions next to the operation that they qualify.
+- State whether a choice occurs at compile time or once at a whole-buffer
+  algorithm boundary.
+- Treat the scalar backend and executable differential tests as the authority
+  for operation semantics.
+- Label benchmark observations with the host, compiler, switches, method, and
+  measurement date. Do not generalize one host result.
+- Do not describe a private vector representation or ABI as portable.
+
 ## Releases
 
 - Publish `flyology_simd` through an immutable annotated tag named
