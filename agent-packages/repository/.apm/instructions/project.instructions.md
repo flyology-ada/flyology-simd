@@ -4,6 +4,12 @@ description: Preserve Flyology SIMD's project-specific repository rules and veri
 
 # Repository agent instructions
 
+## GNATdoc
+
+Keep GNATdoc entity comments after their declarations and pass
+`--style=gnat` explicitly. This repository-specific trailing convention
+overrides the shared leading default.
+
 - Use `gh` outside the sandbox; it does not work inside the sandbox.
 - For target-specific SIMD mechanisms, prefer a verified compiler intrinsic.
   If GNAT does not expose a suitable intrinsic, prefer a narrowly isolated Ada
